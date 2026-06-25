@@ -121,8 +121,8 @@
         item.noMessageTimer = setTimeout(function() {
           if (!pending[id]) return;
           cleanup(id);
-          reject(bridgeError('GAS bridge โหลดแล้ว แต่ไม่ส่ง postMessage กลับมา: ' + method + ' — ให้ตรวจว่า deploy GAS backend เวอร์ชันล่าสุด, Execute as = Me และ Who has access = Anyone', 'GAS_BRIDGE_NO_POSTMESSAGE', method));
-        }, Number(cfg('bridgeNoMessageTimeoutMs', 5000)) || 5000);
+          reject(bridgeError('GAS bridge โหลดหน้า response แล้ว แต่ไม่มี callback postMessage กลับมา: ' + method + ' — ให้ตรวจว่า deploy GAS backend เวอร์ชันล่าสุด, Execute as = Me และ Who has access = Anyone', 'GAS_BRIDGE_NO_POSTMESSAGE', method));
+        }, Number(cfg('bridgeNoMessageTimeoutMs', 15000)) || 15000);
       });
       form.method = 'POST';
       form.action = url;
