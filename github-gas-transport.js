@@ -1,6 +1,6 @@
-/* GitHub Pages <-> Google Apps Script transport bridge v4.
+/* GitHub Pages <-> Google Apps Script transport bridge v7.
  * - Loads deferred page/runtime partials from local GitHub files.
- * - Calls GAS APIs through hidden iframe POST + postMessage.
+ * - Calls GAS APIs through a persistent GAS bridge-client iframe + google.script.run + postMessage.
  * - Loads public GAS config/logo via JSONP for static GitHub Pages.
  */
 (function(root, doc) {
@@ -160,7 +160,7 @@
 
   var bridgeClient = { iframe: null, ready: false, promise: null, url: '' };
   function bridgeClientSrc(url) {
-    return url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeClient=1&parentOrigin=' + encodeURIComponent(root.location && root.location.origin || '*') + '&_=' + Date.now();
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeClient=1&parentOrigin=' + encodeURIComponent(root.location && root.location.origin || '*') + '&bridgeVersion=v7&_=' + Date.now();
   }
   function ensureBridgeClient() {
     var url = normalizeUrl(resolveGasUrl());
@@ -200,7 +200,7 @@
       timer = setTimeout(function() {
         bridgeClient.ready = false;
         bridgeClient.promise = null;
-        finish(false, bridgeError('GAS bridge client v6 ไม่ส่งสัญญาณ READY — ให้ deploy GAS backend v6 และตั้ง Web app เป็น Anyone', 'GAS_BRIDGE_CLIENT_NOT_READY'));
+        finish(false, bridgeError('GAS bridge client v7 ไม่ส่งสัญญาณ READY — ให้ deploy GAS backend v7/v6 ล่าสุด, Execute as = Me และ Who has access = Anyone', 'GAS_BRIDGE_CLIENT_NOT_READY'));
       }, Number(cfg('bridgeReadyTimeoutMs', 25000)) || 25000);
       (doc.body || doc.documentElement).appendChild(iframe);
     });
@@ -226,7 +226,7 @@
         var timer = setTimeout(function() {
           try { root.removeEventListener('message', handler); } catch (_) {}
           delete pending[id];
-          reject(bridgeError('GAS API timeout: ' + method + ' — bridge client v6 โหลดแล้วแต่ backend ไม่ตอบกลับ', 'GAS_API_TIMEOUT', method));
+          reject(bridgeError('GAS API timeout: ' + method + ' — bridge client v7 โหลดแล้วแต่ backend ไม่ตอบกลับ', 'GAS_API_TIMEOUT', method));
         }, timeoutMs);
         pending[id] = { handler: handler, timer: timer };
         root.addEventListener('message', handler);
@@ -234,7 +234,7 @@
           iframe.contentWindow.postMessage({
             __gasIframeTransport: true,
             type: 'GAS_IFRAME_TRANSPORT_REQUEST',
-            version: 'v6',
+            version: 'v7',
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload
@@ -252,10 +252,11 @@
     if (/^(1|true|yes)$/i.test(String(cfg('forceFormPostTransport', '')))) {
       return runGasViaForm(method, payload);
     }
+    // v7: use bridge-client only by default. Do not silently fall back to form POST,
+    // because form POST can load a response page without delivering postMessage and masks the real deploy/version problem.
     return runGasViaClient(method, payload).catch(function(err) {
-      if (/^(1|true|yes)$/i.test(String(cfg('disableFormPostFallback', '')))) throw err;
-      try { console.warn && console.warn('[GAS bridge] client transport failed; fallback to form POST', err); } catch (_) {}
-      return runGasViaForm(method, payload);
+      err.transportMode = 'gas-bridge-client-v7';
+      throw err;
     });
   }
   function setLogo(url, source) {
@@ -327,6 +328,7 @@
   }
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
+  root.AppTransport.transportMode = 'gas-bridge-client-v7';
   root.AppTransport.run = function(fn, args) {
     var req = apiEnvelope(fn, args || {});
     if (/^getDeferredInclude$/i.test(req.method)) {
@@ -344,7 +346,8 @@
     return root.GAS_WEB_APP_URL;
   };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
-  root.AppTransport.ping = function() { return runGas('apiGithubBridgePing', { at: new Date().toISOString() }); };
+  root.AppTransport.ping = function() { return runGas('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-v7' }); };
+  root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   try { setLogo(cfg('logoUrl', ''), 'app-config'); } catch (_) {}
   if (doc.readyState === 'loading') {
     doc.addEventListener('DOMContentLoaded', function(){ setLogo(cfg('logoUrl', ''), 'app-config-dom'); loadPublicConfig(); }, { once: true });
