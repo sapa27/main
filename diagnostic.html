@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>GAS Bridge Diagnostic</title>
+  <title>GAS Bridge Diagnostic v6</title>
   <style>
     body{font-family:Sarabun,Arial,sans-serif;margin:24px;line-height:1.5;background:#f8fafc;color:#0f172a}
     .card{background:white;border:1px solid #e2e8f0;border-radius:14px;padding:18px;max-width:900px;box-shadow:0 8px 24px rgba(15,23,42,.08)}
@@ -14,7 +14,7 @@
 </head>
 <body>
   <div class="card">
-    <h1>ตรวจสอบ GitHub Pages → GAS</h1>
+    <h1>ตรวจสอบ GitHub Pages → GAS Bridge v6</h1>
     <p>หน้านี้ใช้ทดสอบว่า frontend บน GitHub เรียก GAS backend ได้จริงหรือไม่</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
@@ -80,14 +80,14 @@
         write('2) ทดสอบ doGet JSONP public config');
         const cfg = await jsonpPublicConfig();
         write('   ' + JSON.stringify(cfg, null, 2));
-        if (!cfg || !cfg.ok) write('   WARNING: doGet public config ไม่ตอบ อาจยังไม่ได้ deploy backend v2/v3');
+        if (!cfg || !cfg.ok) write('   WARNING: doGet public config ไม่ตอบ อาจยังไม่ได้ deploy backend v2/v4');
 
         write('3) ทดสอบ doGet iframe postMessage probe');
         const getProbe = await bridgeGetProbe();
         write('   ' + JSON.stringify(getProbe, null, 2));
         if (!getProbe || !getProbe.ok) throw new Error('GET bridge probe ไม่สำเร็จ');
 
-        write('4) ทดสอบ doPost bridge ping โดยไม่ผ่าน router');
+        write('4) ทดสอบ bridge client v6 ping โดยไม่ผ่าน router');
         const ping = await window.AppTransport.ping();
         write('   ' + JSON.stringify(ping, null, 2));
         if (!ping || !ping.ok) throw new Error('POST bridge ping ไม่สำเร็จ');
@@ -99,7 +99,7 @@
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nอ่านผลตามขั้นตอน: ถ้าข้อ 2 ไม่ผ่าน = URL/deploy ยังไม่ใช่ backend ล่าสุด; ถ้าข้อ 3 ไม่ผ่าน = HtmlService/postMessage ถูกบล็อกหรือยังไม่ได้ใช้ v3; ถ้าข้อ 4 ไม่ผ่าน = doPost ใน deployment ไม่ใช่เวอร์ชันล่าสุด หรือสิทธิ์ Web app ไม่ใช่ Anyone; ถ้าข้อ 5 ไม่ผ่าน = apiRouter/backend logic มีปัญหา');
+        write('\nอ่านผลตามขั้นตอน: ถ้าข้อ 2 ไม่ผ่าน = URL/deploy ยังไม่ใช่ backend ล่าสุด; ถ้าข้อ 3 ไม่ผ่าน = HtmlService/postMessage ถูกบล็อก; ถ้าข้อ 4 ไม่ผ่าน = bridge client v6 ยังไม่ได้ deploy หรือ Web app ไม่ใช่ Anyone; ถ้าข้อ 5 ไม่ผ่าน = apiRouter/backend logic มีปัญหา');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
