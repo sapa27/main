@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>GAS Bridge Diagnostic v7</title>
+  <title>GAS Bridge Diagnostic</title>
   <style>
     body{font-family:Sarabun,Arial,sans-serif;margin:24px;line-height:1.5;background:#f8fafc;color:#0f172a}
     .card{background:white;border:1px solid #e2e8f0;border-radius:14px;padding:18px;max-width:900px;box-shadow:0 8px 24px rgba(15,23,42,.08)}
@@ -14,15 +14,15 @@
 </head>
 <body>
   <div class="card">
-    <h1>ตรวจสอบ GitHub Pages → GAS Bridge v7</h1>
+    <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
     <p>หน้านี้ใช้ทดสอบว่า frontend บน GitHub เรียก GAS backend ได้จริงหรือไม่</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
     <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
   </div>
-  <script src="./app-config.js?v=7"></script>
-  <script src="./github-gas-transport.js?v=7"></script>
+  <script src="./app-config.js?bridge=client-only"></script>
+  <script src="./github-gas-transport.js?bridge=client-only"></script>
   <script>
     const $ = id => document.getElementById(id);
     const gasUrl = () => (window.APP_CONFIG && window.APP_CONFIG.gasWebAppUrl || '').trim();
@@ -77,19 +77,19 @@
         if (!/\/exec(?:$|[?#])/.test(gasUrl())) write('   WARNING: URL ไม่ได้ลงท้ายด้วย /exec');
         write('   OK: ' + gasUrl());
         write('   transportMode: ' + ((window.AppTransport && window.AppTransport.transportMode) || (window.APP_CONFIG && window.APP_CONFIG.transportMode) || '(unknown)'));
-        if (window.APP_CONFIG && window.APP_CONFIG.disableFormPostFallback !== true) write('   WARNING: disableFormPostFallback ยังไม่เป็น true');
+        if (false){}
 
         write('2) ทดสอบ doGet JSONP public config');
         const cfg = await jsonpPublicConfig();
         write('   ' + JSON.stringify(cfg, null, 2));
-        if (!cfg || !cfg.ok) write('   WARNING: doGet public config ไม่ตอบ อาจยังไม่ได้ deploy backend v2/v4');
+        if (!cfg || !cfg.ok) write('   WARNING: doGet public config ไม่ตอบ อาจยังไม่ได้ deploy backend ล่าสุด');
 
         write('3) ทดสอบ doGet iframe postMessage probe');
         const getProbe = await bridgeGetProbe();
         write('   ' + JSON.stringify(getProbe, null, 2));
         if (!getProbe || !getProbe.ok) throw new Error('GET bridge probe ไม่สำเร็จ');
 
-        write('4) ทดสอบ bridge client v7 ping โดยไม่ผ่าน router');
+        write('4) ทดสอบ bridge client ping โดยไม่ผ่าน router');
         const ping = await window.AppTransport.ping();
         write('   ' + JSON.stringify(ping, null, 2));
         if (!ping || !ping.ok) throw new Error('POST bridge ping ไม่สำเร็จ');
@@ -101,7 +101,7 @@
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nอ่านผลตามขั้นตอน: ถ้าข้อ 2 ไม่ผ่าน = URL/deploy ยังไม่ใช่ backend ล่าสุด; ถ้าข้อ 3 ไม่ผ่าน = HtmlService/postMessage ถูกบล็อก; ถ้าข้อ 4 ไม่ผ่าน = bridge client v7 ยังไม่ได้ deploy หรือ Web app ไม่ใช่ Anyone; ถ้าข้อ 5 ไม่ผ่าน = apiRouter/backend logic มีปัญหา');
+        write('\nอ่านผลตามขั้นตอน: ถ้าข้อ 2 ไม่ผ่าน = URL/deploy ยังไม่ใช่ backend ล่าสุด; ถ้าข้อ 3 ไม่ผ่าน = HtmlService/postMessage ถูกบล็อก; ถ้าข้อ 4 ไม่ผ่าน = bridge client ยังไม่ได้ deploy หรือ Web app ไม่ใช่ Anyone; ถ้าข้อ 5 ไม่ผ่าน = apiRouter/backend logic มีปัญหา');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
