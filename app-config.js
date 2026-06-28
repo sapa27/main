@@ -6,10 +6,10 @@
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
 
     /* REQUIRED: ใส่ URL ของ GAS Web App ที่ลงท้ายด้วย /exec */
-    gasWebAppUrl: '',
+    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbz7x5HrklmPB2r0r9JBq9Lj3epP0winRTSlVoie931ubwypsyqv3UWQWHD0CwOqHx15WA/exec',
 
     /* OPTIONAL: ใส่ URL รูปตรารัฐสภาแบบ public หรือ data:image/... เพื่อให้โลโก้แสดงทันทีบน GitHub Pages */
-    logoUrl: '',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg',
 
     localAssetBase: './partials/',
     transportMode: 'gas-bridge-client-v6',
