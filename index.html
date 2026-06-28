@@ -1537,6 +1537,11 @@ window.__APP_ASSET_MANIFEST__={"stamp":"asset-manifest-github-static-2026-06-25"
 <label class="small fw-bold text-danger">เหตุผล (ไม่รับเรื่อง)</label>
 <input class="form-control" id="meeting-rejectionReason" name="rejectionReason" placeholder="ระบุเหตุผลที่ไม่รับเรื่อง" type="text"/>
 </div>
+<div class="col-md-6 col-12 d-none" id="meeting-div-pendingRemark">
+<label class="small fw-bold text-warning">หมายเหตุ</label>
+<textarea class="form-control" id="meeting-pendingRemark" name="pendingRemark" placeholder="ระบุหมายเหตุสำหรับสถานะรอการพิจารณา" rows="2"></textarea>
+<div class="form-text small">แสดงเฉพาะเมื่อเลือกสถานะ “รอพิจารณา”</div>
+</div>
 <div class="col-md-3 col-6">
 <label class="small fw-bold">เลขรับเรื่อง</label>
 <input class="form-control" id="meeting-recNo" inputmode="text" name="recNo" placeholder="เช่น 265/2569" type="text"/>
@@ -4062,7 +4067,7 @@ catch(__appRootBridgeErr) {
     function resetMeetingForm() {
       try {
         var form = id("meeting-case-form");
-        form && __appIsFn(form.reset) && form.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason", "meeting-currentLogId", "meeting-letterId"].forEach(function(k) {
+        form && __appIsFn(form.reset) && form.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-pendingRemark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason", "meeting-currentLogId", "meeting-letterId"].forEach(function(k) {
           var n = id(k);
           n && (n.value = "")
         });
