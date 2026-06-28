@@ -6,15 +6,16 @@
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
 
     /* REQUIRED: ใส่ URL ของ GAS Web App ที่ลงท้ายด้วย /exec */
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwDJuFIyzCDDwqE7X3HPWC4lBp5fcbkA7ldpV_TBo-k6Bw2JbpEW7XLADln2x3Oh4_cXg/exec',
+    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwFDNmit4-0hMovWhFAcPrcbYAjkSXu65Y-2tKL_ahcFWdf4HJOfJ-PLSqvDYLsLZKj9A/exec',
 
     /* OPTIONAL: ใส่ URL รูปตรารัฐสภาแบบ public หรือ data:image/... เพื่อให้โลโก้แสดงทันทีบน GitHub Pages */
     logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg',
 
     localAssetBase: './partials/',
-    transportMode: 'gas-bridge-client-v6',
-    bridgeReadyTimeoutMs: 25000,
-    disableFormPostFallback: false,
+    transportMode: 'gas-bridge-client-v7',
+    bridgeReadyTimeoutMs: 30000,
+    disableFormPostFallback: true,
+    forceBridgeClientOnly: true,
     apiTimeoutMs: 90000,
     bridgeNoMessageTimeoutMs: 30000,
     publicConfigTimeoutMs: 8000,
