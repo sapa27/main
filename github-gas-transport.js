@@ -1,6 +1,5 @@
 /* GitHub Pages <-> Google Apps Script transport bridge.
- * Single transport path: hidden GAS HtmlService bridge iframe + postMessage + google.script.run.
- * No form POST callback fallback.
+ * Login path: secure form POST first, bridge fallback; fast-login JSONP is disabled by default.
  */
 (function(root, doc) {
   'use strict';
@@ -259,6 +258,43 @@
     });
   }
 
+  function isLoginTransportFailure(err) {
+    var code = text(err && (err.errorCode || err.code || '')).toUpperCase();
+    var msg = text(err && (err.message || err.error || err)).toLowerCase();
+    return /TIMEOUT|LOAD_FAILED|SUBMIT_FAILED|BRIDGE_CLIENT_NOT_READY|GAS_URL|NETWORK/.test(code) || /timeout|โหลด|network|iframe|bridge|url|permission/.test(msg);
+  }
+
+  function runLoginNetwork(payload) {
+    payload = payload || {};
+    var preferPost = cfg('loginFormPost', true) !== false;
+    var allowFastJsonp = cfg('fastLoginJsonp', false) === true;
+    var allowBridgeFallback = cfg('loginBridgeFallback', true) !== false;
+    var tried = [];
+    function withTag(promise, label) {
+      tried.push(label);
+      return promise.then(function(result) {
+        try { result && typeof result === 'object' && (result.loginTransport = result.loginTransport || label, result.loginTransportsTried = tried.slice()); } catch (_) {}
+        return result;
+      }, function(err) {
+        try { err && (err.loginTransport = label, err.loginTransportsTried = tried.slice()); } catch (_) {}
+        throw err;
+      });
+    }
+    function bridge() { return withTag(runGasViaClient('apiLogin', payload), 'bridge-client-apiLogin'); }
+    function fast() { return withTag(runFastLoginJsonp(payload), 'fast-login-jsonp-legacy'); }
+    function post() { return withTag(runLoginViaFormPost(payload), 'login-form-post'); }
+
+    var primary = preferPost ? post : (allowFastJsonp ? fast : bridge);
+    return primary().catch(function(err) {
+      if (!isLoginTransportFailure(err)) throw err;
+      if (preferPost && allowBridgeFallback) return bridge();
+      if (!preferPost && allowBridgeFallback) return bridge();
+      if (!preferPost && allowFastJsonp) return fast();
+      throw err;
+    });
+  }
+
+
 
   function currentJsonpUsername(payload) {
     var user = '';
@@ -286,18 +322,78 @@
     return user || '';
   }
 
+  function pickAuthToken(payload) {
+    var token = '';
+    function take(v) { if (!token && v != null && v !== '') token = text(v).trim(); }
+    payload = isObj(payload) ? payload : {};
+    take(payload.token || payload._token || payload.authToken || payload.sessionToken);
+    try { if (isObj(payload.auth)) take(payload.auth.token || payload.auth.authToken || payload.auth.sessionToken); } catch (_) {}
+    try { if (isObj(payload.session)) take(payload.session.token || payload.session.authToken || payload.session.sessionToken); } catch (_) {}
+    try {
+      var store = root.AppStore;
+      if (store && typeof store.get === 'function') {
+        take(store.get('auth.token', '') || store.get('token', '') || store.get('session.token', '') || store.get('authToken', '') || store.get('sessionToken', ''));
+      }
+    } catch (_) {}
+    try { take(root.__APP_AUTH_TOKEN__ || root.__authToken || root.APP_AUTH_TOKEN); } catch (_) {}
+    return token || '';
+  }
+
+  function pickResumeHandle(payload) {
+    var handle = '';
+    function take(v) { if (!handle && v != null && v !== '') handle = text(v).trim(); }
+    payload = isObj(payload) ? payload : {};
+    take(payload.resumeHandle || payload.sessionResumeHandle || payload.resumeToken);
+    try { if (isObj(payload.auth)) take(payload.auth.resumeHandle || payload.auth.sessionResumeHandle); } catch (_) {}
+    try { if (isObj(payload.session)) take(payload.session.resumeHandle || payload.session.sessionResumeHandle); } catch (_) {}
+    try {
+      var store = root.AppStore;
+      if (store && typeof store.get === 'function') take(store.get('auth.resumeHandle', '') || store.get('resumeHandle', '') || store.get('session.resumeHandle', ''));
+    } catch (_) {}
+    return handle || '';
+  }
+
+  function compactJsonpClientContext(ctx) {
+    if (!isObj(ctx)) return null;
+    var out = {};
+    [
+      'username','user','userId','email','principal','role','displayName','name',
+      'timezone','tz','locale','language','platform','clientId','browserId',
+      'sessionId','deviceId','appVersion','buildStamp'
+    ].forEach(function(k) {
+      if (ctx[k] != null && ctx[k] !== '') out[k] = ctx[k];
+    });
+    return Object.keys(out).length ? out : null;
+  }
+
   function stripJsonpPayload(payload) {
     var out = {};
     payload = isObj(payload) ? payload : {};
     Object.keys(payload).forEach(function(k) {
-      if (/^(password|pass|pwd|csrf|csrfToken|_csrf|actionToken|csrfActionToken|token|_token|authToken|sessionToken|resumeHandle|sessionResumeHandle)$/i.test(k)) return;
-      if (/^(clientContext)$/i.test(k)) return;
+      if (/^(password|pass|pwd)$/i.test(k)) return;
+      if (/^(csrf|csrfToken|_csrf|_csrfToken|actionToken|csrfActionToken|_actionToken)$/i.test(k)) return;
+      if (/^(clientContext)$/i.test(k)) {
+        var cc = compactJsonpClientContext(payload[k]);
+        if (cc) out.clientContext = cc;
+        return;
+      }
       out[k] = payload[k];
     });
+    var token = pickAuthToken(payload);
+    if (token) {
+      out.token = out.token || token;
+      out.authToken = out.authToken || token;
+      out.sessionToken = out.sessionToken || token;
+    }
+    var resume = pickResumeHandle(payload);
+    if (resume) {
+      out.resumeHandle = out.resumeHandle || resume;
+      out.sessionResumeHandle = out.sessionResumeHandle || resume;
+    }
     out.githubUsername = out.githubUsername || currentJsonpUsername(payload);
     out.githubReadOnly = true;
     out.githubJsonpApi = true;
-    out.source = out.source || 'github-jsonp-read-api';
+    out.source = out.source || 'github-jsonp-read-api-token-auth';
     return out;
   }
 
@@ -320,7 +416,10 @@
     return true;
   }
   function isCacheBypassPayload(payload) {
-    return !!(payload && (payload.forceFresh === true || payload.noCache === true || payload.bypassCache === true || payload.cacheTtlSeconds === 0));
+    return !!(payload && (
+      payload.forceFresh === true || payload.forceRefresh === true || payload.refreshNow === true || payload.reload === true ||
+      payload.noCache === true || payload.bypassCache === true || payload.cacheTtlSeconds === 0
+    ));
   }
   function clientCacheTtlMs(method, payload) {
     if (cfg('clientApiCacheEnabled', true) === false) return 0;
@@ -384,14 +483,25 @@
   function shouldDedupeApi(method, payload) {
     return cfg('clientInFlightDedupe', true) !== false && isJsonpReadMethod(method) && !isCacheBypassPayload(payload);
   }
+  function isBridgeTransportFailure(err) {
+    var code = text(err && (err.code || err.errorCode || err.message || '')).toUpperCase();
+    return /GAS_BRIDGE|BRIDGE|NO_MESSAGE|TIMEOUT|LOAD_FAILED|CLIENT_TIMEOUT/.test(code);
+  }
+
   function runGasNetwork(method, payload) {
+    payload = payload || {};
     if (isJsonpReadMethod(method) && cfg('readJsonpApi', false) === true) {
-      return runJsonpApi(method, payload || {}).catch(function(err) {
-        if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(method, payload || {});
+      return runJsonpApi(method, payload).catch(function(err) {
+        if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(method, payload);
         throw err;
       });
     }
-    return runGasViaClient(method, payload || {});
+    return runGasViaClient(method, payload).catch(function(err) {
+      if (isJsonpReadMethod(method) && cfg('readJsonpFallbackToBridge', false) === true && isBridgeTransportFailure(err)) {
+        return runJsonpApi(method, payload);
+      }
+      throw err;
+    });
   }
 
   function runJsonpApi(method, payload) {
@@ -491,7 +601,7 @@
     }
     if (/^apiLogin$/i.test(req.method)) {
       clearClientApiCaches('login');
-      return (cfg('loginFormPost', true) === false ? runFastLoginJsonp(req.payload || {}) : runLoginViaFormPost(req.payload || {}));
+      return runLoginNetwork(req.payload || {});
     }
     if (isApiWriteMethod(req.method)) {
       clearClientApiCaches('write:' + req.method);
@@ -521,7 +631,7 @@
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
   root.AppTransport.clearClientReadCache = clearClientApiCaches;
-  root.AppTransport.clientCacheStatus = function() { return { entries: Object.keys(apiResponseCache || {}).length, inflight: Object.keys(apiInflight || {}).length, enabled: cfg('clientApiCacheEnabled', true) !== false, dedupe: cfg('clientInFlightDedupe', true) !== false, stamp: 'p1-transport-cache-dedupe' }; };
+  root.AppTransport.clientCacheStatus = function() { return { entries: Object.keys(apiResponseCache || {}).length, inflight: Object.keys(apiInflight || {}).length, enabled: cfg('clientApiCacheEnabled', true) !== false, dedupe: cfg('clientInFlightDedupe', true) !== false, stamp: 'p2-stability-hotfix-token-jsonp-cache-dedupe' }; };
 
   try { setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config'); } catch (_) {}
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function(){ setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config-dom'); loadPublicConfig(); }, { once: true });
