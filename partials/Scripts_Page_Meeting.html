@@ -41,9 +41,11 @@
       }): e.AppApi && __appIsFn(e.AppApi.call) ? e.AppApi.call(method, payload, {
         moduleName: "Scripts_Page_Meeting", timeoutMs: 45e3
       }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
-    }, c = e.AppStore || e.GlobalStore || null, u = n.getStoreReader ? n.getStoreReader(): n.storeGet || function(e, t) {
+    }, c = e.AppStore || e.GlobalStore || null, u = __appIsFn(n.getStoreReader) ? n.getStoreReader(): null;
+    __appIsFn(u) || (u = __appIsFn(n.storeGet) ? n.storeGet: function(e, t) {
       return c && __appIsFn(c.get) ? c.get(e, t): t
-    }, l = n.storeSet || function(e, t) {
+    });
+    var l = __appIsFn(n.storeSet) ? n.storeSet: function(e, t) {
       return c && __appIsFn(c.set) ? c.set(e, t): t
     }, d = __appIsFn(n.text) ? n.text: __appIsFn(n.toText) ? n.toText: __appIsFn(e.text) ? e.text: function(e) {
       return null == e ? "": String(e)
