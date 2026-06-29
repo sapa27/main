@@ -11,7 +11,7 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbyKeCzmGjAczK3gvZ7Tl01SxsKaA4SYpXwGcCE6h9xCHS5UjW0JHqeavM-G2b6VEhRWgw/exec',
+    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbx9SL_llVPYfTsA1KCHui9moPDMywK5ELtSfRvQE0mYW24qxNJQCkSWVLRJDXx2rkmO3g/exec',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
@@ -22,6 +22,8 @@
     apiTimeoutMs: 90000,
     bridgeNoMessageTimeoutMs: 30000,
     publicConfigTimeoutMs: 4000,
+    fastLoginJsonp: true,
+    fastLoginTimeoutMs: 15000,
     assetManifest: {"stamp":"asset-manifest-github-static-2026-06-25","bundles":{"appCritical":{"files":["Scripts_Critical_Login_Runtime"]},"appCore":{"files":["Scripts_Core_Runtime"]},"pageDashboard":{"files":["Scripts_Page_Dashboard"]},"pageMeeting":{"files":["Scripts_Page_Meeting"]},"pageCommitteeMeeting":{"files":["Scripts_Page_Meeting"]},"pageTrackReport":{"files":["Scripts_Page_ReportTrack"]},"pagePetitioner":{"files":["Scripts_Page_Petitioner"]},"pagePeople":{"files":["Scripts_Page_People"]},"pageBudget":{"files":["Scripts_Page_Budget"]},"pageAdmin":{"files":["Scripts_Page_Admin"],"minRole":"admin"},"pageAiPrint":{"files":["Scripts_Core_Runtime"]}},"upfrontScripts":["Scripts_Critical_Login_Runtime"],"chunks":{"dashboard":["Scripts_Page_Dashboard"],"search":["Scripts_Page_ReportTrack"],"petitioner":["Scripts_Page_Petitioner"],"meeting":["Scripts_Page_Meeting"],"committee-meeting":["Scripts_Page_Meeting"],"track":["Scripts_Page_ReportTrack"],"report":["Scripts_Page_ReportTrack"],"people":["Scripts_Page_People"],"personnel":["Scripts_Page_People"],"budget":["Scripts_Page_Budget"],"admin":["Scripts_Page_Admin"],"ai":["Scripts_Core_Runtime"],"print":["Scripts_Core_Runtime"]},"templates":{},"externalGroups":["bootstrap","xlsx"],"externalAssets":{"bootstrap":{"script":"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js","onDemand":true},"xlsx":{"script":"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js","onDemand":true}}}
   };
   root.APP_CONFIG = Object.assign(defaults, existing || {});
@@ -43,6 +45,8 @@
     }
     if (root.localStorage) {
       var storedLogo = cleanUrl(root.localStorage.getItem('APP_LOGO_URL') || '');
+      var badLogo = cleanUrl(root.localStorage.getItem('APP_BAD_LOGO_URL') || '');
+      if (storedLogo && storedLogo === badLogo) storedLogo = '';
       if (storedLogo && isSafeLogoUrl(storedLogo)) root.APP_CONFIG.logoUrl = storedLogo;
       if (storedLogo && !isSafeLogoUrl(storedLogo)) root.localStorage.removeItem('APP_LOGO_URL');
     }
