@@ -30,15 +30,77 @@
   function bridgeError(message, code, method) { var err = new Error(message); err.code = code || 'GAS_BRIDGE_ERROR'; err.errorCode = err.code; err.method = method || ''; err.transportMode = 'gas-bridge-client-only'; return err; }
   function localBase() { return text(cfg('localAssetBase', './partials/')); }
   function bundleFiles(name) { var key = text(name).replace(/^bundle:/i, ''); var b = manifest && manifest.bundles && manifest.bundles[key]; return b && Array.isArray(b.files) ? b.files.slice() : []; }
-  function fileUrl(file) { var base = localBase(); if (base && base.charAt(base.length - 1) !== '/') base += '/'; return base + encodeURIComponent(file) + '.html'; }
+  function uniquePush(list, value) { value = text(value).trim(); if (!value) return; if (list.indexOf(value) < 0) list.push(value); }
+  function ensureSlash(value) { value = text(value).trim(); return value && value.charAt(value.length - 1) !== '/' ? value + '/' : value; }
+  function scriptDirectory() {
+    try {
+      var scripts = doc.querySelectorAll('script[src]');
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var src = scripts[i].getAttribute('src') || '';
+        if (/github-gas-transport\.js/i.test(src)) return new URL('.', scripts[i].src || src).href;
+      }
+    } catch (_) {}
+    try { return new URL('.', root.location && root.location.href || doc.baseURI || './').href; } catch (_) { return './'; }
+  }
+  function pageDirectories() {
+    var out = [];
+    try {
+      var u = new URL(root.location && root.location.href || doc.baseURI || './');
+      var parts = u.pathname.split('/');
+      if (!/\/$/.test(u.pathname)) parts.pop();
+      while (parts.length > 0) {
+        var path = parts.join('/');
+        if (!path) path = '/';
+        if (path.charAt(0) !== '/') path = '/' + path;
+        if (path.charAt(path.length - 1) !== '/') path += '/';
+        uniquePush(out, u.origin + path);
+        if (path === '/') break;
+        parts.pop();
+      }
+    } catch (_) {}
+    return out;
+  }
+  function assetBaseCandidates() {
+    var c = [], conf = root.APP_CONFIG || {}, arr = Array.isArray(conf.localAssetBaseCandidates) ? conf.localAssetBaseCandidates : [];
+    uniquePush(c, localBase());
+    arr.forEach(function(x) { uniquePush(c, x); });
+    try { uniquePush(c, new URL('./partials/', scriptDirectory()).href); } catch (_) {}
+    try { uniquePush(c, new URL('../partials/', scriptDirectory()).href); } catch (_) {}
+    pageDirectories().forEach(function(d) {
+      try { uniquePush(c, new URL('partials/', d).href); } catch (_) {}
+    });
+    uniquePush(c, './partials/');
+    uniquePush(c, 'partials/');
+    uniquePush(c, '../partials/');
+    return c;
+  }
+  function fileUrlFromBase(base, file) { base = ensureSlash(base); return base + encodeURIComponent(file) + '.html'; }
+  function fileUrl(file) { return fileUrlFromBase(localBase(), file); }
   function fetchFile(file) {
     file = text(file).trim();
     if (!safeName(file)) return Promise.reject(bridgeError('ไม่อนุญาตให้โหลด asset: ' + file, 'ASSET_NAME_REJECTED'));
     if (Object.prototype.hasOwnProperty.call(cache, file)) return Promise.resolve(cache[file]);
-    return fetch(fileUrl(file), { credentials: 'same-origin', cache: 'no-store' }).then(function(resp) {
-      if (!resp.ok) throw bridgeError('โหลด asset ไม่สำเร็จ: ' + file + ' (' + resp.status + ')', 'ASSET_LOAD_FAILED');
-      return resp.text();
-    }).then(function(html) { cache[file] = html; return html; });
+    var urls = assetBaseCandidates().map(function(base) { return fileUrlFromBase(base, file); });
+    var tried = [];
+    function tryAt(i) {
+      if (i >= urls.length) {
+        var err = bridgeError('โหลด asset ไม่สำเร็จ: ' + file + ' — ตรวจไม่พบไฟล์ใน partials paths: ' + tried.join(', '), 'ASSET_LOAD_FAILED');
+        err.triedUrls = tried.slice();
+        try { root.__APP_ASSET_LAST_404S__ = root.__APP_ASSET_LAST_404S__ || {}; root.__APP_ASSET_LAST_404S__[file] = tried.slice(); } catch (_) {}
+        throw err;
+      }
+      var url = urls[i];
+      tried.push(url);
+      return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(resp) {
+        if (!resp.ok) return tryAt(i + 1);
+        return resp.text().then(function(html) {
+          cache[file] = html;
+          try { root.__APP_ASSET_BASE_RESOLVED__ = root.__APP_ASSET_BASE_RESOLVED__ || {}; root.__APP_ASSET_BASE_RESOLVED__[file] = url; } catch (_) {}
+          return html;
+        });
+      }, function() { return tryAt(i + 1); });
+    }
+    return tryAt(0);
   }
   function localInclude(name) {
     name = text(name).trim();
