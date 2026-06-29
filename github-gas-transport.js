@@ -78,8 +78,15 @@
   function fileUrl(file) { return fileUrlFromBase(localBase(), file); }
 
   function inlinePartialMap() {
+    if (cfg('inlinePartialsEnabled', false) !== true) return null;
     var map = root.__APP_INLINE_PARTIALS__ || (root.APP_CONFIG && root.APP_CONFIG.inlinePartials) || null;
     return map && typeof map === 'object' ? map : null;
+  }
+  function withAssetStamp(url) {
+    var m = (root.APP_CONFIG && root.APP_CONFIG.assetManifest) || manifest || {};
+    var stamp = text((m && m.stamp) || cfg('assetStamp', '') || '');
+    if (!stamp) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(stamp);
   }
   function getInlinePartial(file) {
     file = text(file).trim();
@@ -110,7 +117,7 @@
       }
       var url = urls[i];
       tried.push(url);
-      return fetch(url, { credentials: 'same-origin', cache: 'no-store' }).then(function(resp) {
+      return fetch(withAssetStamp(url), { credentials: 'same-origin', cache: 'default' }).then(function(resp) {
         if (!resp.ok) return tryAt(i + 1);
         return resp.text().then(function(html) {
           cache[file] = html;
@@ -251,6 +258,32 @@
   }
 
 
+  function currentJsonpUsername(payload) {
+    var user = '';
+    function take(v) { if (!user && v != null && v !== '') user = text(v).trim(); }
+    try {
+      payload = isObj(payload) ? payload : {};
+      take(payload.githubUsername || payload.username || payload.userId || payload.email);
+      var cc = payload.clientContext;
+      if (isObj(cc)) take(cc.username || cc.user || cc.userId || cc.email || cc.principal);
+    } catch (_) {}
+    try {
+      var store = root.AppStore;
+      if (store && typeof store.get === 'function') {
+        var authUser = store.get('auth.user', null) || store.get('currentUser', null) || store.get('user', null);
+        if (isObj(authUser)) take(authUser.username || authUser.userId || authUser.email || authUser.name || authUser.displayName);
+        else take(authUser);
+        take(store.get('auth.name', '') || store.get('currentUserName', '') || store.get('username', ''));
+      }
+    } catch (_) {}
+    try {
+      var cu = root.currentUser || root.__currentUser || root.APP_CURRENT_USER;
+      if (isObj(cu)) take(cu.username || cu.userId || cu.email || cu.name || cu.displayName);
+      else take(cu);
+    } catch (_) {}
+    return user || '';
+  }
+
   function stripJsonpPayload(payload) {
     var out = {};
     payload = isObj(payload) ? payload : {};
@@ -259,6 +292,7 @@
       if (/^(clientContext)$/i.test(k)) return;
       out[k] = payload[k];
     });
+    out.githubUsername = out.githubUsername || currentJsonpUsername(payload);
     out.githubReadOnly = true;
     out.githubJsonpApi = true;
     out.source = out.source || 'github-jsonp-read-api';
@@ -291,7 +325,7 @@
       var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: ' + method + ' — JSONP read API ไม่ได้รับผลกลับจาก GAS ให้ตรวจ deploy ล่าสุดมี __githubJsonpApi และ apiRouter', 'GAS_JSONP_API_TIMEOUT', method)); }, Number(cfg('jsonpApiTimeoutMs', 18000)) || 18000);
       root[cb] = function(result) { result = result || { ok:false, error:'empty JSONP API response', errorCode:'EMPTY_JSONP_API_RESPONSE', method:method }; finish(true, result); };
       script.onerror = function() { finish(false, bridgeError('GAS API error: ' + method + ' — โหลด JSONP read API ไม่สำเร็จ ให้ตรวจ URL /exec และ permission Anyone', 'GAS_JSONP_API_LOAD_FAILED', method)); };
-      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubJsonpApi=1&callback=' + encodeURIComponent(cb) + '&method=' + encodeURIComponent(method) + '&payload=' + payloadText + '&_=' + Date.now();
+      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubJsonpApi=1&callback=' + encodeURIComponent(cb) + '&method=' + encodeURIComponent(method) + '&username=' + encodeURIComponent(cleanPayload.githubUsername || currentJsonpUsername(payload || {})) + '&payload=' + payloadText + '&_=' + Date.now();
       (doc.head || doc.documentElement).appendChild(script);
     });
   }
@@ -361,9 +395,9 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = 'gas-bridge-client-original-contract';
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'gas-bridge-client-original-contract' }; };
-  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return (cfg('loginFormPost', true) === false ? runFastLoginJsonp(req.payload || {}) : runLoginViaFormPost(req.payload || {})); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', true) !== false) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
+  root.AppTransport.transportMode = cfg('transportMode', 'bridge-client-authenticated-read-p0');
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'bridge-client-authenticated-read-p0') }; };
+  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return (cfg('loginFormPost', true) === false ? runFastLoginJsonp(req.payload || {}) : runLoginViaFormPost(req.payload || {})); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', false) === true) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
   root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
   root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-original-contract' }); };
