@@ -1,6 +1,6 @@
 /* GitHub Pages <-> Google Apps Script transport bridge.
- * Current mode: GAS bridge client only.
- * This file intentionally contains only the persistent GAS bridge-client path.
+ * Current mode: GAS bridge client only, no form POST fallback.
+ * This file is rewritten in place and intentionally keeps one transport path only.
  */
 (function(root, doc) {
   'use strict';
@@ -10,7 +10,7 @@
   var cache = Object.create(null);
   var pending = Object.create(null);
   var seq = 0;
-  var bridgeClient = { iframe: null, ready: false, promise: null, url: '' };
+  var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '' };
 
   function text(v) { return v == null ? '' : String(v); }
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -54,7 +54,7 @@
     file = text(file).trim();
     if (!safeName(file)) return Promise.reject(bridgeError('ไม่อนุญาตให้โหลด asset: ' + file, 'ASSET_NAME_REJECTED'));
     if (Object.prototype.hasOwnProperty.call(cache, file)) return Promise.resolve(cache[file]);
-    return fetch(fileUrl(file), { credentials: 'same-origin', cache: 'no-cache' }).then(function(resp) {
+    return fetch(fileUrl(file), { credentials: 'same-origin', cache: 'no-store' }).then(function(resp) {
       if (!resp.ok) throw bridgeError('โหลด asset ไม่สำเร็จ: ' + file + ' (' + resp.status + ')', 'ASSET_LOAD_FAILED');
       return resp.text();
     }).then(function(html) {
@@ -92,49 +92,98 @@
   }
   function bridgeClientSrc(url) {
     return url + (url.indexOf('?') >= 0 ? '&' : '?') +
-      '__githubBridgeClient=1&parentOrigin=' + encodeURIComponent(root.location && root.location.origin || '*') +
-      '&bridge=client-only&_=' + Date.now();
+      '__githubBridgeClient=1' +
+      '&parentOrigin=*' +
+      '&originHint=' + encodeURIComponent(root.location && root.location.origin || '') +
+      '&bridge=client-only' +
+      '&_=' + Date.now();
+  }
+  function parseMessage(data) {
+    if (typeof data === 'string') {
+      try { return JSON.parse(data); } catch (_) { return null; }
+    }
+    return data && typeof data === 'object' ? data : null;
+  }
+  function isBridgeMessage(data) {
+    return !!data && (data.__gasIframeTransport === true || data.__gasIframeTransport === 'true' || data.bridge === 'client-only');
+  }
+  function sendReadyProbe(iframe) {
+    try {
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+          __gasIframeTransport: true,
+          type: 'GAS_IFRAME_TRANSPORT_PING_READY',
+          bridge: 'client-only',
+          at: new Date().toISOString()
+        }, '*');
+      }
+    } catch (_) {}
   }
   function ensureBridgeClient() {
     var url = resolveGasUrl();
     if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING'));
     if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID'));
-    if (bridgeClient.ready && bridgeClient.iframe && bridgeClient.url === url) return Promise.resolve(bridgeClient.iframe);
+    if ((bridgeClient.ready || bridgeClient.assumedReady) && bridgeClient.iframe && bridgeClient.url === url) return Promise.resolve(bridgeClient.iframe);
     if (bridgeClient.promise && bridgeClient.url === url) return bridgeClient.promise;
 
     bridgeClient.ready = false;
+    bridgeClient.loaded = false;
+    bridgeClient.assumedReady = false;
     bridgeClient.url = url;
     try { bridgeClient.iframe && bridgeClient.iframe.parentNode && bridgeClient.iframe.parentNode.removeChild(bridgeClient.iframe); } catch (_) {}
 
     bridgeClient.promise = new Promise(function(resolve, reject) {
       var iframe = doc.createElement('iframe');
-      var timer = null;
+      var readyTimer = null;
+      var loadGraceTimer = null;
+      var probeTimer = null;
       var settled = false;
       function finish(ok, value) {
         if (settled) return;
         settled = true;
-        try { timer && clearTimeout(timer); } catch (_) {}
+        try { readyTimer && clearTimeout(readyTimer); } catch (_) {}
+        try { loadGraceTimer && clearTimeout(loadGraceTimer); } catch (_) {}
+        try { probeTimer && clearInterval(probeTimer); } catch (_) {}
         try { root.removeEventListener('message', onReady); } catch (_) {}
         if (ok) resolve(value); else reject(value);
       }
+      function acceptReady(data) {
+        return isBridgeMessage(data) && (
+          data.type === 'GAS_IFRAME_TRANSPORT_READY' ||
+          data.type === 'GAS_BRIDGE_READY' ||
+          data.ready === true ||
+          data.ok === true && /ready/i.test(text(data.type || data.source || ''))
+        );
+      }
       function onReady(event) {
-        var data = event && event.data;
-        if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) {} }
-        if (!data || !(data.__gasIframeTransport === true || data.__gasIframeTransport === 'true')) return;
-        if (data.type !== 'GAS_IFRAME_TRANSPORT_READY') return;
+        var data = parseMessage(event && event.data);
+        if (!acceptReady(data)) return;
         bridgeClient.ready = true;
+        bridgeClient.assumedReady = false;
         finish(true, iframe);
       }
       iframe.name = 'gas_bridge_client_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
-      iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;';
+      iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
       iframe.setAttribute('aria-hidden', 'true');
+      iframe.referrerPolicy = 'no-referrer-when-downgrade';
+      iframe.addEventListener('load', function() {
+        bridgeClient.loaded = true;
+        sendReadyProbe(iframe);
+        loadGraceTimer = setTimeout(function() {
+          if (settled || bridgeClient.ready) return;
+          bridgeClient.assumedReady = true;
+          finish(true, iframe);
+        }, Number(cfg('bridgeLoadGraceMs', 2500)) || 2500);
+      });
       iframe.src = bridgeClientSrc(url);
       bridgeClient.iframe = iframe;
       root.addEventListener('message', onReady);
-      timer = setTimeout(function() {
+      probeTimer = setInterval(function() { sendReadyProbe(iframe); }, 500);
+      readyTimer = setTimeout(function() {
         bridgeClient.ready = false;
+        bridgeClient.assumedReady = false;
         bridgeClient.promise = null;
-        finish(false, bridgeError('GAS bridge client ไม่ส่งสัญญาณ READY — ให้ตรวจว่า deploy GAS backend ล่าสุด, Execute as = Me และ Who has access = Anyone', 'GAS_BRIDGE_CLIENT_NOT_READY'));
+        finish(false, bridgeError('GAS bridge client ไม่พร้อมใช้งาน — iframe ไม่โหลดหรือไม่ได้ deploy GAS backend ที่มี __githubBridgeClient=1; ให้ตรวจ Execute as = Me และ Who has access = Anyone', 'GAS_BRIDGE_CLIENT_NOT_READY'));
       }, Number(cfg('bridgeReadyTimeoutMs', 30000)) || 30000);
       (doc.body || doc.documentElement).appendChild(iframe);
     });
@@ -148,17 +197,16 @@
         var id = 'gasc_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
         var timer = null;
         var handler = function(event) {
-          var data = event && event.data;
-          if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) {} }
+          var data = parseMessage(event && event.data);
           if (!data || data.requestId !== id) return;
-          if (!(data.__gasIframeTransport === true || data.__gasIframeTransport === 'true' || data.type === 'GAS_IFRAME_TRANSPORT_RESPONSE')) return;
+          if (!isBridgeMessage(data) && data.type !== 'GAS_IFRAME_TRANSPORT_RESPONSE') return;
           var result = data.result || { ok: false, error: 'empty response', errorCode: 'EMPTY_BRIDGE_RESPONSE' };
           cleanupPending(id);
           resolve(result);
         };
         timer = setTimeout(function() {
           cleanupPending(id);
-          reject(bridgeError('GAS API timeout: ' + method + ' — bridge client โหลดแล้วแต่ backend ไม่ตอบกลับ', 'GAS_API_TIMEOUT', method));
+          reject(bridgeError('GAS API timeout: ' + method + ' — bridge client iframe โหลดแล้วแต่ backend ไม่ตอบกลับ ให้ตรวจว่า GAS deploy ล่าสุดมี apiGithubBridgeCall และไม่มี doGet ซ้ำ', 'GAS_API_TIMEOUT', method));
         }, timeoutMs);
         pending[id] = { handler: handler, timer: timer };
         root.addEventListener('message', handler);
@@ -171,6 +219,19 @@
             method: method,
             payload: payload == null ? {} : payload
           }, '*');
+          setTimeout(function() {
+            try {
+              iframe.contentWindow.postMessage({
+                __gasIframeTransport: true,
+                type: 'GAS_IFRAME_TRANSPORT_REQUEST',
+                bridge: 'client-only',
+                requestId: id,
+                method: method,
+                payload: payload == null ? {} : payload,
+                retry: true
+              }, '*');
+            } catch (_) {}
+          }, 700);
         } catch (e) {
           cleanupPending(id);
           reject(e);
@@ -249,6 +310,15 @@
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
   root.AppTransport.transportMode = 'gas-bridge-client-only';
+  root.AppTransport.bridgeClientState = function() {
+    return {
+      ready: !!bridgeClient.ready,
+      loaded: !!bridgeClient.loaded,
+      assumedReady: !!bridgeClient.assumedReady,
+      url: bridgeClient.url || resolveGasUrl(),
+      mode: 'gas-bridge-client-only'
+    };
+  };
   root.AppTransport.run = function(fn, args) {
     var req = apiEnvelope(fn, args || {});
     if (/^getDeferredInclude$/i.test(req.method)) {
@@ -262,6 +332,10 @@
     root.APP_CONFIG = root.APP_CONFIG || {};
     root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL;
     try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {}
+    bridgeClient.ready = false;
+    bridgeClient.loaded = false;
+    bridgeClient.assumedReady = false;
+    bridgeClient.promise = null;
     loadPublicConfig();
     return root.GAS_WEB_APP_URL;
   };
