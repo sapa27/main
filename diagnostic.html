@@ -15,14 +15,14 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ bridge client เท่านั้น ไม่ใช้ transport เก่า</p>
+    <p>หน้านี้ทดสอบ named-request iframe ไม่ใช้ form POST และไม่ส่งรหัสผ่านผ่าน URL</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
     <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
   </div>
-  <script src="./app-config.js?bridge=client-only"></script>
-  <script src="./github-gas-transport.js?bridge=client-only"></script>
+  <script src="./app-config.js?bridge=named-request"></script>
+  <script src="./github-gas-transport.js?bridge=named-request"></script>
   <script>
     const $ = id => document.getElementById(id);
     const gasUrl = () => (window.APP_CONFIG && window.APP_CONFIG.gasWebAppUrl || '').trim();
@@ -36,24 +36,11 @@
         const script = document.createElement('script');
         let done = false;
         const finish = v => { if (done) return; done = true; clearTimeout(timer); try { delete window[cb]; } catch(_) { window[cb] = undefined; } try { script.remove(); } catch(_) {} resolve(v || null); };
-        const timer = setTimeout(() => finish(null), 12000);
+        const timer = setTimeout(() => finish(null), 10000);
         window[cb] = data => finish(data || null);
         script.onerror = () => finish(null);
         script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubPublicConfig=1&callback=' + encodeURIComponent(cb) + '&_=' + Date.now();
         document.head.appendChild(script);
-      });
-    }
-    function iframeLoadProbe(){
-      return new Promise((resolve) => {
-        const url = gasUrl();
-        const iframe = document.createElement('iframe');
-        let loaded = false;
-        iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;';
-        iframe.addEventListener('load', () => { loaded = true; cleanup(); resolve({ok:true, loaded:true, src:iframe.src}); });
-        const cleanup = () => { clearTimeout(timer); setTimeout(() => { try { iframe.remove(); } catch(_) {} }, 300); };
-        const timer = setTimeout(() => { cleanup(); resolve({ok:false, loaded:false, error:'iframe load timeout'}); }, 15000);
-        iframe.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeClient=1&parentOrigin=*&originHint=' + encodeURIComponent(location.origin || '') + '&_=' + Date.now();
-        document.body.appendChild(iframe);
       });
     }
     async function run(){
@@ -70,28 +57,20 @@
         write('   ' + JSON.stringify(cfg, null, 2));
         if (!cfg || !cfg.ok) write('   WARNING: public config ไม่ตอบ อาจเป็น URL/deploy/permission');
 
-        write('3) ทดสอบว่า iframe bridge client โหลดได้หรือไม่');
-        const load = await iframeLoadProbe();
-        write('   ' + JSON.stringify(load, null, 2));
-        if (!load.loaded) throw new Error('iframe bridge client ไม่โหลดจาก GAS');
-
-        write('4) ทดสอบ ensureBridgeClient');
-        await window.AppTransport.ensureBridgeClient();
-        write('   ' + JSON.stringify(window.AppTransport.bridgeClientState(), null, 2));
-
-        write('5) ทดสอบ bridge ping');
+        write('3) ทดสอบ named-request bridge ping');
         const ping = await window.AppTransport.ping();
         write('   ' + JSON.stringify(ping, null, 2));
-        if (!ping || !ping.ok) throw new Error('bridge ping ไม่สำเร็จ');
+        write('   state: ' + JSON.stringify(window.AppTransport.bridgeClientState(), null, 2));
+        if (!ping || !ping.ok) throw new Error('named-request bridge ping ไม่สำเร็จ');
 
-        write('6) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
+        write('4) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
         const contract = await window.AppTransport.run('apiGetRouteContract', {diagnostic:true});
         write('   ' + JSON.stringify(contract, null, 2).slice(0, 3000));
         write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS ได้');
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 โหลดแต่ข้อ 5 timeout = GAS ที่ deploy ยังไม่มี apiGithubBridgeCall หรือมี doGet ซ้ำ; ถ้าข้อ 5 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 timeout = GAS ที่ deploy ยังไม่มี __githubBridgeNamedRequest/apiGithubBridgeCall หรือมี doGet ซ้ำ; ถ้าข้อ 3 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
