@@ -42,9 +42,16 @@
         moduleName: "Scripts_Page_Meeting", timeoutMs: 45e3
       }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
     }, c = e.AppStore || e.GlobalStore || null, u = __appIsFn(n.getStoreReader) ? n.getStoreReader(): null;
-    __appIsFn(u) || (u = __appIsFn(n.storeGet) ? n.storeGet: function(e, t) {
-      return c && __appIsFn(c.get) ? c.get(e, t): t
-    });
+    if (typeof u !== "function") {
+      u = typeof n.storeGet === "function" ? n.storeGet: function(e, t) {
+        return c && typeof c.get === "function" ? c.get(e, t): t
+      };
+    }
+    if (typeof u !== "function") {
+      u = function(e, t) {
+        try { return c && typeof c.get === "function" ? c.get(e, t): t; } catch(_storeReadErr) { return t; }
+      };
+    }
     var l = __appIsFn(n.storeSet) ? n.storeSet: function(e, t) {
       return c && __appIsFn(c.set) ? c.set(e, t): t
     }, d = __appIsFn(n.text) ? n.text: __appIsFn(n.toText) ? n.toText: __appIsFn(e.text) ? e.text: function(e) {
@@ -1300,7 +1307,7 @@
       s.length || (s = W(z()));
       var c = Y(i.opStaff);
       c.length || (c = W(z()));
-      var u = Y(i.proposer);
+      var u = Y(i.proposer || i.comms || i.committees || i.committeeMembers);
       u.length || (u = "กรรมาธิการเสนอญัตติ" === String(t || "").trim() ? a.slice(): r.slice());
       var m = {
         proposer: u, petitioners: r, assignees: a, coAssignees: o, staffs: s, opStaff: c, meta: i.meta || {
