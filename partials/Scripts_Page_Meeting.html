@@ -1661,6 +1661,15 @@
     }).catch(function(_err) {
       return"function" == typeof __appObserve && __appObserve(_err, "ec"), []
     }): Promise.resolve([]);
+    if("petitioners" === e && String(n || "").replace(/\s+/g, "").indexOf("กรรมาธิการเสนอญัตติ") >= 0)return s("apiGetPersonnelComms", {
+      source: "meeting-motion-proposer-committees", query: i, limit: r
+    }).then(function(res) {
+      var data = res && res.data ? res.data: res || {};
+      var rows = Y(data.rows || data.items || data.records || data.comms || data);
+      return rows.length ? rows: ue(e).slice(0, r)
+    }).catch(function(_err) {
+      return"function" == typeof __appObserve && __appObserve(_err, "ec"), ue(e).slice(0, r)
+    });
     function a() {
       return s("apiGetMeetingLookupOptions", {
         category: n, query: i, limit: r

@@ -1745,11 +1745,16 @@
     }))
   }
   function refresh(options) {
+    try {
+      window.AppTransport && "function" == typeof window.AppTransport.clearClientReadCache && window.AppTransport.clearClientReadCache("dashboard-refresh-forceFresh");
+    } catch(_cacheClear) {
+      warn("dashboard.refresh.cacheClear", _cacheClear, { owner: OWNER });
+    }
     return load(Object.assign({
-      source: "dashboard.refresh.r3"
+      source: "dashboard.refresh.r3", noCache: ! 0, bypassCache: ! 0, forceRefresh: ! 0, refreshNow: ! 0
     }, options || {
     }, {
-      forceFresh: ! 0
+      forceFresh: ! 0, noCache: ! 0, bypassCache: ! 0, forceRefresh: ! 0, refreshNow: ! 0
     }))
   }
   function dispose() {
