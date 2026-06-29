@@ -76,10 +76,29 @@
   }
   function fileUrlFromBase(base, file) { base = ensureSlash(base); return base + encodeURIComponent(file) + '.html'; }
   function fileUrl(file) { return fileUrlFromBase(localBase(), file); }
+
+  function inlinePartialMap() {
+    var map = root.__APP_INLINE_PARTIALS__ || (root.APP_CONFIG && root.APP_CONFIG.inlinePartials) || null;
+    return map && typeof map === 'object' ? map : null;
+  }
+  function getInlinePartial(file) {
+    file = text(file).trim();
+    var map = inlinePartialMap();
+    if (!map || !safeName(file)) return null;
+    if (Object.prototype.hasOwnProperty.call(map, file)) return text(map[file]);
+    if (Object.prototype.hasOwnProperty.call(map, file + '.html')) return text(map[file + '.html']);
+    return null;
+  }
   function fetchFile(file) {
     file = text(file).trim();
     if (!safeName(file)) return Promise.reject(bridgeError('ไม่อนุญาตให้โหลด asset: ' + file, 'ASSET_NAME_REJECTED'));
     if (Object.prototype.hasOwnProperty.call(cache, file)) return Promise.resolve(cache[file]);
+    var inline = getInlinePartial(file);
+    if (inline != null && inline !== '') {
+      cache[file] = inline;
+      try { root.__APP_ASSET_BASE_RESOLVED__ = root.__APP_ASSET_BASE_RESOLVED__ || {}; root.__APP_ASSET_BASE_RESOLVED__[file] = 'index.inline.__APP_INLINE_PARTIALS__'; } catch (_) {}
+      return Promise.resolve(inline);
+    }
     var urls = assetBaseCandidates().map(function(base) { return fileUrlFromBase(base, file); });
     var tried = [];
     function tryAt(i) {
@@ -284,12 +303,12 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = 'github-fast-login-plus-jsonp-read-api';
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'github-fast-login-plus-jsonp-read-api' }; };
+  root.AppTransport.transportMode = 'gas-bridge-client-original-contract';
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'gas-bridge-client-original-contract' }; };
   root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return runFastLoginJsonp(req.payload || {}); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', true) !== false) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
   root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
-  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'github-fast-login-plus-jsonp-read-api' }); };
+  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-original-contract' }); };
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
 
