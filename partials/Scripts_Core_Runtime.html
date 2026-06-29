@@ -6270,8 +6270,8 @@ catch(__appRootBridgeErr) {
   "use strict";
   if(root &&! root.__APP_PRODUCTION_CLIENT_CACHE_READY__) {
     root.__APP_PRODUCTION_CLIENT_CACHE_READY__ =! 0;
-    var STAMP = "production-current.13-search-lite-no-client-cache", PREFIX = "commission:current7:", CACHEABLE = {
-      apiGetRouteContract: 900, apiGetClientDataContract: 900, apiGetAppTerminology: 21600, apiGetDashboardBundle: 240, apiBudgetGetSummary: 300, apiBudgetGetTypeSummaryByFY: 600, apiBudgetGetFiscalYears: 900, apiBudgetGetSubcommitteeOptions: 900, apiGetPeoplePageBundle: 300, apiGetPersonnelDirectoryBundle: 300, apiGetTracking: 180, apiGetPetitioners: 300, apiGetThailandLocations: 21600, apiSearchLookup: 3600
+    var STAMP = "production-current.14-p1-search-lite-client-cache", PREFIX = "commission:current7:", CACHEABLE = {
+      apiGetRouteContract: 900, apiGetClientDataContract: 900, apiGetAppTerminology: 21600, apiGetDashboardBundle: 60, apiSearchCasesLite: 180, apiBudgetGetSummary: 300, apiBudgetGetTypeSummaryByFY: 600, apiBudgetGetFiscalYears: 900, apiBudgetGetSubcommitteeOptions: 900, apiGetPeoplePageBundle: 300, apiGetPersonnelDirectoryBundle: 300, apiGetTracking: 180, apiGetPetitioners: 300, apiGetThailandLocations: 21600, apiSearchLookup: 3600
     };
     root.AppClientCacheOwner = Object.assign(root.AppClientCacheOwner || {
     }, {

@@ -1149,11 +1149,8 @@
       })
     }
     function schedulePrefetch(entry) {
-      var totalPages = Math.max(1, Number(entry.totalPages || 1) || 1), targets = [], prefetchAll = entry.total <= 100 || totalPages <= 5;
-      if(prefetchAll)for(var p = 1;
-      p <= totalPages;
-      p ++ )p !== entry.page && targets.push(p);
-      else entry.page < totalPages && targets.push(entry.page + 1), entry.page > 1 && targets.push(entry.page - 1);
+      var totalPages = Math.max(1, Number(entry.totalPages || 1) || 1), targets = [], prefetchAll = !1;
+      entry.page < totalPages && targets.push(entry.page + 1);
       targets.forEach(function(pageNo) {
         var key = String(pageNo), cached = state.pageCache[key], currentTime = Date.now ? Date.now(): + new Date;
         if(cached && cached.expiresAt > currentTime || state.pagePrefetch[key])return;
