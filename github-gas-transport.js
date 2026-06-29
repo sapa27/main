@@ -19,6 +19,8 @@
   function cfg(name, fallback) { var c = root.APP_CONFIG || {}; return c[name] == null || c[name] === '' ? fallback : c[name]; }
   function normalizeUrl(url) { url = text(url).trim(); return url ? url.replace(/\s+/g, '') : ''; }
   function isSafeLogoUrl(url) { url = normalizeUrl(url); return !url || /^data:image\//i.test(url) || /^https?:\/\//i.test(url); }
+  function markBadLogo(url) { try { url = normalizeUrl(url); if (url && url !== FALLBACK_LOGO) { root.localStorage && root.localStorage.setItem('APP_BAD_LOGO_URL', url); root.localStorage && root.localStorage.removeItem('APP_LOGO_URL'); } } catch (_) {} }
+  function isBadLogo(url) { try { return normalizeUrl(url) && normalizeUrl(url) === normalizeUrl(root.localStorage && root.localStorage.getItem('APP_BAD_LOGO_URL') || ''); } catch (_) { return false; } }
   function resolveGasUrl() {
     var url = text(root.GAS_WEB_APP_URL || (root.APP_CONFIG && root.APP_CONFIG.gasWebAppUrl) || '');
     try { url = url || text(root.localStorage && root.localStorage.getItem('GAS_WEB_APP_URL') || ''); } catch (_) {}
@@ -87,6 +89,28 @@
     return bridgeClient.promise;
   }
 
+
+  function runFastLoginJsonp(payload) {
+    if (cfg('fastLoginJsonp', true) === false) return runGasViaClient('apiLogin', payload || {});
+    var url = resolveGasUrl();
+    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', 'apiLogin'));
+    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID', 'apiLogin'));
+    return new Promise(function(resolve, reject) {
+      var cb = '__githubFastLogin_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
+      var done = false;
+      var script = doc.createElement('script');
+      var username = '';
+      try { payload = payload || {}; username = text(payload.username || payload.user || payload.userId || payload.email || '').trim(); } catch (_) {}
+      function cleanup() { try { clearTimeout(timer); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} }
+      function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
+      var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: apiLogin — fast-login JSONP ไม่ได้รับผลกลับจาก GAS ให้ตรวจว่า deploy ล่าสุดมี __githubFastLogin และ apiLogin', 'GAS_FAST_LOGIN_TIMEOUT', 'apiLogin')); }, Number(cfg('fastLoginTimeoutMs', 15000)) || 15000);
+      root[cb] = function(result) { result = result || { ok:false, error:'empty fast-login response', errorCode:'EMPTY_FAST_LOGIN_RESPONSE' }; finish(true, result); };
+      script.onerror = function() { finish(false, bridgeError('GAS API error: apiLogin — โหลด fast-login JSONP ไม่สำเร็จ ให้ตรวจ URL /exec และ permission Anyone', 'GAS_FAST_LOGIN_LOAD_FAILED', 'apiLogin')); };
+      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubFastLogin=1&callback=' + encodeURIComponent(cb) + '&username=' + encodeURIComponent(username || 'admin') + '&_=' + Date.now();
+      (doc.head || doc.documentElement).appendChild(script);
+    });
+  }
+
   function runGasViaClient(method, payload) {
     if (!method) return Promise.reject(bridgeError('method required', 'METHOD_REQUIRED', method));
     var timeoutMs = Number(cfg('apiTimeoutMs', 90000)) || 90000;
@@ -116,7 +140,7 @@
   function applyImageAttrs(img) { try { img.setAttribute('loading', img.id === 'login-logo-img' ? 'eager' : 'lazy'); img.setAttribute('decoding', img.id === 'login-logo-img' ? 'sync' : 'async'); img.setAttribute('fetchpriority', img.id === 'login-logo-img' ? 'high' : 'auto'); } catch (_) {} }
   function setLogo(url, source) {
     url = normalizeUrl(url || FALLBACK_LOGO);
-    if (!isSafeLogoUrl(url)) url = FALLBACK_LOGO;
+    if (!isSafeLogoUrl(url) || isBadLogo(url)) url = FALLBACK_LOGO;
     root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.logoUrl = url;
     root.APP_LOGO = root.APP_LOGO || {}; root.APP_LOGO.active = url; root.APP_LOGO.svg = url; root.APP_LOGO.png96 = url; root.APP_LOGO.png192 = url; root.APP_LOGO.png512 = url;
     root.DEFAULT_LOGO = url; root.LOGO_URL = url; root.currentLogoUrl = url; root.__SAFE_LOGO_URL__ = url; root.__APP_PARLIAMENT_LOGO__ = url;
@@ -126,7 +150,7 @@
       Array.prototype.forEach.call(nodes, function(img) {
         if (!img || !img.setAttribute) return;
         applyImageAttrs(img);
-        img.onerror = function() { try { img.onerror = null; img.setAttribute('src', FALLBACK_LOGO); root.localStorage && root.localStorage.removeItem('APP_LOGO_URL'); } catch (_) {} };
+        img.onerror = function() { try { var bad = img.getAttribute('src') || url; markBadLogo(bad); img.onerror = null; img.setAttribute('src', FALLBACK_LOGO); } catch (_) {} };
         img.style.display = '';
         if (img.getAttribute('src') !== url) img.setAttribute('src', url);
         img.dataset.logoSource = source || 'github-config';
@@ -143,7 +167,7 @@
     return new Promise(function(resolve) {
       var cb = '__githubGasPublicConfig_' + Date.now() + '_' + (++seq); var done = false; var script = doc.createElement('script');
       var timer = setTimeout(function() { if (done) return; done = true; try { delete root[cb]; } catch (_) { root[cb] = void 0; } try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} resolve(null); }, Number(cfg('publicConfigTimeoutMs', 4000)) || 4000);
-      root[cb] = function(data) { if (done) return; done = true; clearTimeout(timer); try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } if (data && data.ok) { var logo = text(data.logoUrl || (data.appLogo && (data.appLogo.active || data.appLogo.svg)) || ''); logo && setLogo(logo, 'gas-public-config'); } resolve(data || null); };
+      root[cb] = function(data) { if (done) return; done = true; clearTimeout(timer); try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } if (data && data.ok) { var logo = text(data.logoUrl || (data.appLogo && (data.appLogo.active || data.appLogo.svg)) || ''); logo && !isBadLogo(logo) && setLogo(logo, 'gas-public-config'); } resolve(data || null); };
       script.onerror = function() { if (done) return; done = true; clearTimeout(timer); try { delete root[cb]; } catch (_) { root[cb] = void 0; } resolve(null); };
       script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubPublicConfig=1&callback=' + encodeURIComponent(cb) + '&_=' + Date.now();
       (doc.head || doc.documentElement).appendChild(script);
@@ -152,12 +176,12 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = 'gas-bridge-client-only';
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'gas-bridge-client-only' }; };
-  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } return runGasViaClient(req.method, req.payload || {}); };
+  root.AppTransport.transportMode = 'github-fast-login-plus-gas-bridge';
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'github-fast-login-plus-gas-bridge' }; };
+  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return runFastLoginJsonp(req.payload || {}); return runGasViaClient(req.method, req.payload || {}); };
   root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
-  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-only' }); };
+  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'github-fast-login-plus-gas-bridge' }); };
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
 
