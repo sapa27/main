@@ -15,7 +15,7 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ named-request iframe ไม่ใช้ form POST และไม่ส่งรหัสผ่านผ่าน URL</p>
+    <p>หน้านี้ทดสอบ named-request iframe แบบส่งคำสั่งด้วย postMessage หลัง iframe โหลด ไม่ใช้ form POST และไม่ส่งรหัสผ่านผ่าน URL</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
@@ -58,6 +58,7 @@
         if (!cfg || !cfg.ok) write('   WARNING: public config ไม่ตอบ อาจเป็น URL/deploy/permission');
 
         write('3) ทดสอบ named-request bridge ping');
+        write('   mode detail: parent จะส่ง payload เข้า iframe ด้วย postMessage ซ้ำหลัง iframe โหลด');
         const ping = await window.AppTransport.ping();
         write('   ' + JSON.stringify(ping, null, 2));
         write('   state: ' + JSON.stringify(window.AppTransport.bridgeClientState(), null, 2));
@@ -70,7 +71,8 @@
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 timeout = GAS ที่ deploy ยังไม่มี __githubBridgeNamedRequest/apiGithubBridgeCall หรือมี doGet ซ้ำ; ถ้าข้อ 3 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
+        try { write('\nstate ล่าสุด: ' + JSON.stringify(window.AppTransport && window.AppTransport.bridgeClientState ? window.AppTransport.bridgeClientState() : {}, null, 2)); } catch(_) {}
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 timeout = หน้า GAS bridge อาจยังไม่ใช่ไฟล์ล่าสุด หรือมี doGet ซ้ำ; ถ้าข้อ 3 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
