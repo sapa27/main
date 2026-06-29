@@ -5208,6 +5208,7 @@ publish('__APP_DEFERRED_TEMPLATES__',(window.__APP_ASSET_MANIFEST__&&window.__AP
       }
       var menuToggle = raw.closest('#side [data-bs-target],#side [data-toggle-target],#side [aria-controls]');
       if(menuToggle && sideContains &&! menuToggle.getAttribute("data-nav")) {
+        if(ev && ev.defaultPrevented && "collapse" === menuToggle.getAttribute("data-bs-toggle"))return ! 0;
         if(! once(ev, "submenu:" + (menuToggle.getAttribute("data-bs-target") || menuToggle.getAttribute("aria-controls") || "caseMenu")))return ! 1;
         stop(ev);
         return toggleMobileSubmenu(menuToggle), ! 1
