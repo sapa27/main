@@ -15,6 +15,7 @@
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
+    localAssetBaseCandidates: ['./partials/', 'partials/', '../partials/', '/partials/'],
     transportMode: 'fast-login-read-jsonp-core-stable',
     bridgeReadyTimeoutMs: 30000,
     bridgeLoadGraceMs: 1000,
