@@ -161,9 +161,9 @@ catch(__appRootBridgeErr) {
     }, c.validateApiMethod = function(m) {
       if(! (m = txt(m)))return new Error("API_METHOD_EMPTY");
       var bootstrapRoutes = {
-        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0, apiGetDashboardBundle: ! 0, apiGetCases: ! 0, apiSearch: ! 0, apiSearchCasesLite: ! 0, apiGetCanonicalCaseBundle: ! 0, apiGetCaseContext: ! 0, apiGetCaseQuickSummary: ! 0, apiGetCaseReportExportRows: ! 0, apiGetMeetingLookupOptions: ! 0, apiGetMeetingHistory: ! 0, apiGetLetters: ! 0, apiGetTracking: ! 0, apiListCommitteeMeetings: ! 0, apiGetCommitteeMeetingSystem: ! 0, apiGetCommitteeMeetingPrintBundle: ! 0, apiSearchMeetingAgendaCases: ! 0, apiGetPetitioners: ! 0, apiGetPetitionerRelatedCounts: ! 0, apiGetPeoplePageBundle: ! 0, apiGetPersonnelDirectoryBundle: ! 0, apiGetPersonnelComms: ! 0, apiGetPersonnelOps: ! 0, apiGetPersonnelStaffs: ! 0, apiGetPersonnelSubcommittees: ! 0, apiBudgetGetSummary: ! 0, apiBudgetGetTypeSummaryByFY: ! 0, apiBudgetGetFiscalYears: ! 0, apiBudgetGetSubcommitteeOptions: ! 0, apiBudgetGetImportForEdit: ! 0, apiAdminListUsers: ! 0, apiAdminListSubcommittees: ! 0, apiBudgetAdminListYearSettingsAll: ! 0, apiGetSalarySettings: ! 0, apiGetThailandLocations: ! 0
       }, ok;
-      return c.loaded && c.routes ? (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): bootstrapRoutes[m] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
+      return bootstrapRoutes[m] ? null: c.loaded && c.routes ? (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
     }, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
       return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
     }, root.isWriteApiMethod = function(m) {
@@ -335,14 +335,15 @@ catch(__appRootBridgeErr) {
     };
     var appApi = root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi: ns("AppApi");
     __appIsFn(appApi.call) || Object.assign(appApi, {
-      __criticalApi: ! 0, normalizeEnvelope: env, call: function(m, p) {
+      __criticalApi: ! 0, normalizeEnvelope: env, call: function(m, p, options) {
+        options = options || {};
         return RT.call(m, p).then(function(r) {
           var n = applyTok(env(r));
           if(! n.ok) {
             var e = new Error(n.error || n.msg || "คำขอไม่สำเร็จ");
             throw e.code = n.errorCode, e
           }
-          return n.data
+          return !0 === options.preserveEnvelope ? n : n.data
         })
       }, require: function(m, p) {
         return this.call(m, p).then(function(d) {
