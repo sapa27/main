@@ -41,19 +41,17 @@
       }): e.AppApi && __appIsFn(e.AppApi.call) ? e.AppApi.call(method, payload, {
         moduleName: "Scripts_Page_Meeting", timeoutMs: 45e3
       }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
-    }, c = e.AppStore || e.GlobalStore || null, u = __appIsFn(n.getStoreReader) ? n.getStoreReader(): null;
-    if (typeof u !== "function") {
-      u = typeof n.storeGet === "function" ? n.storeGet: function(e, t) {
-        return c && typeof c.get === "function" ? c.get(e, t): t
-      };
-    }
-    if (typeof u !== "function") {
-      u = function(e, t) {
-        try { return c && typeof c.get === "function" ? c.get(e, t): t; } catch(_storeReadErr) { return t; }
-      };
-    }
-    var l = __appIsFn(n.storeSet) ? n.storeSet: function(e, t) {
-      return c && __appIsFn(c.set) ? c.set(e, t): t
+    }, c = e.AppStore || e.GlobalStore || null, u = "function" == typeof n.getStoreReader ? n.getStoreReader(): n.storeGet;
+    if("function" != typeof u)u = function(e, t) {
+      try {
+        return c && "function" == typeof c.get ? c.get(e, t): t
+      }
+      catch(_storeReadErr) {
+        return t
+      }
+    };
+    var l = "function" == typeof n.storeSet ? n.storeSet: function(e, t) {
+      return c && "function" == typeof c.set ? c.set(e, t): t
     }, d = __appIsFn(n.text) ? n.text: __appIsFn(n.toText) ? n.toText: __appIsFn(e.text) ? e.text: function(e) {
       return null == e ? "": String(e)
     };
@@ -470,7 +468,7 @@
             var a = N(t, ["petitioners", "petitionerName", "petitioner", "ผู้ร้อง", "ผู้เสนอ", "ชื่อผู้ร้อง", "ชื่อผู้เสนอ"]);
             E("meeting-petitioners", a);
             var o = N(t, ["petitionerPhone", "petitionerTel", "petitionerTelephone", "petitionerMobile", "petitionerContactPhone", "proposerPhone", "proposerTel", "proposerTelephone", "proposerMobile", "complainantPhone", "complainantTel", "complainantTelephone", "complainantMobile", "phone", "tel", "telephone", "mobile", "contactPhone", "phoneNumber", "เบอร์โทรศัพท์ผู้เสนอญัตติ/ผู้ร้อง", "เบอร์โทรผู้เสนอญัตติ/ผู้ร้อง", "โทรศัพท์ผู้เสนอญัตติ/ผู้ร้อง", "เบอร์โทรศัพท์ผู้เสนอญัตติ / ผู้ร้อง", "เบอร์โทรผู้เสนอญัตติ / ผู้ร้อง", "โทรศัพท์ผู้เสนอญัตติ / ผู้ร้อง", "เบอร์โทรศัพท์ผู้เสนอญัติ/ผู้ร้อง", "เบอร์โทรผู้เสนอญัติ/ผู้ร้อง", "โทรศัพท์ผู้เสนอญัติ/ผู้ร้อง", "เบอร์โทรศัพท์ผู้เสนอญัติ / ผู้ร้อง", "เบอร์โทรผู้เสนอญัติ / ผู้ร้อง", "โทรศัพท์ผู้เสนอญัติ / ผู้ร้อง", "เบอร์โทรศัพท์ผู้ร้อง", "เบอร์โทรผู้ร้อง", "โทรศัพท์ผู้ร้อง", "เบอร์โทรศัพท์ผู้เสนอ", "เบอร์โทรผู้เสนอ", "โทรศัพท์ผู้เสนอ", "เบอร์โทรศัพท์", "เบอร์โทร", "โทรศัพท์", "หมายเลขโทรศัพท์", "มือถือ"]) || te(a, t);
-            E("meeting-petitionerPhone", normalizeMeetingPhone(o)), ! o && a && de(a, t), E("meeting-respondent", N(t, ["respondent", "accused", "ผู้ถูกร้อง"])), E("meeting-assignees", N(t, ["assignees", "owner", "responsibleCommissioners", "กมธ.รับผิดชอบ"])), E("meeting-coAssignees", N(t, ["coAssignees", "coOwners", "ผู้รับผิดชอบร่วม"])), E("meeting-staffs", N(t, ["staffs", "staff", "officer", "เจ้าหน้าที่"])), E("meeting-opStaff", N(t, ["opStaff", "operationStaff", "opsStaff", "เจ้าหน้าที่ฝ่ายเลขานุการ"])), E("meeting-keySummary", N(t, ["keySummary", "summary", "สาระสำคัญ"])), E("meeting-remark", N(t, ["remark", "note", "หมายเหตุ"])), E("meeting-pendingRemark", N(t, ["pendingRemark", "pendingNote", "waitRemark", "waitingRemark", "considerationPendingRemark", "หมายเหตุรอพิจารณา", "หมายเหตุรอการพิจารณา"])), E("meeting-agencyName", N(t, ["agencyName", "agency", "หน่วยงาน"])), E("meeting-closedReason", _closedReason), E("meeting-rejectionReason", _rejectionReason), E("meeting-letterId", ""), Te(t), ke("meeting-comm-list", N(t, ["assignees", "owner", "responsibleCommissioners"]) || ""), ke("meeting-coassignee-list", N(t, ["coAssignees", "coOwners"]) || ""), ke("meeting-staff-list", N(t, ["staffs", "staff", "opStaff", "operationStaff"]) || ""), e.meetingToggleStatusFields(), Ie(), je(document)
+            E("meeting-petitionerPhone", normalizeMeetingPhone(o)), ! o && a && de(a, t), E("meeting-respondent", N(t, ["respondent", "accused", "ผู้ถูกร้อง"])), E("meeting-assignees", N(t, ["assignees", "owner", "responsibleCommissioners", "กมธ.รับผิดชอบ"])), E("meeting-coAssignees", N(t, ["coAssignees", "coOwners", "ผู้รับผิดชอบร่วม"])), E("meeting-staffs", N(t, ["staffs", "staff", "officer", "เจ้าหน้าที่"])), E("meeting-opStaff", N(t, ["opStaff", "operationStaff", "opsStaff", "เจ้าหน้าที่ฝ่ายเลขานุการ"])), E("meeting-keySummary", N(t, ["keySummary", "summary", "สาระสำคัญ"])), E("meeting-remark", N(t, ["remark", "note", "หมายเหตุ"])), E("meeting-agencyName", N(t, ["agencyName", "agency", "หน่วยงาน"])), E("meeting-closedReason", _closedReason), E("meeting-rejectionReason", _rejectionReason), E("meeting-letterId", ""), Te(t), ke("meeting-comm-list", N(t, ["assignees", "owner", "responsibleCommissioners"]) || ""), ke("meeting-coassignee-list", N(t, ["coAssignees", "coOwners"]) || ""), ke("meeting-staff-list", N(t, ["staffs", "staff", "opStaff", "operationStaff"]) || ""), e.meetingToggleStatusFields(), Ie(), je(document)
           }
         }
         (n), Le("case"), q("meeting-workspace", ! 0);
@@ -553,18 +551,16 @@
     }, e.meetingCloseWorkspace = function() {
       q("meeting-workspace", ! 1), Re(), Le("view")
     }, e.meetingToggleStatusFields = function() {
-      var status = normalizeMeetingStatusValue(T("meeting-status")), isReject = "ไม่รับเรื่อง" === status, isClosed = "ยุติเรื่อง" === status, isAgency = "ส่งหน่วยงาน" === status, isPending = "รอพิจารณา" === status || "รอการพิจารณา" === status, rejectEl = r("meeting-rejectionReason"), closedEl = r("meeting-closedReason"), agencyEl = r("meeting-agencyName"), pendingEl = r("meeting-pendingRemark");
+      var status = normalizeMeetingStatusValue(T("meeting-status")), isReject = "ไม่รับเรื่อง" === status, isClosed = "ยุติเรื่อง" === status, isAgency = "ส่งหน่วยงาน" === status, rejectEl = r("meeting-rejectionReason"), closedEl = r("meeting-closedReason"), agencyEl = r("meeting-agencyName");
       status && T("meeting-status") !== status && E("meeting-status", status);
       showMeetingStatusField("meeting-div-agencyName", isAgency);
       showMeetingStatusField("meeting-div-closedReason", isClosed);
       showMeetingStatusField("meeting-div-rejectionReason", isReject);
-      showMeetingStatusField("meeting-div-pendingRemark", isPending);
       rejectEl && (rejectEl.required = isReject, rejectEl.disabled =! isReject, rejectEl.setAttribute("aria-hidden", isReject ? "false": "true"));
       closedEl && (closedEl.required = isClosed, closedEl.disabled =! isClosed, closedEl.setAttribute("aria-hidden", isClosed ? "false": "true"));
       agencyEl && (agencyEl.required = isAgency, agencyEl.disabled =! isAgency, agencyEl.setAttribute("aria-hidden", isAgency ? "false": "true"));
-      pendingEl && (pendingEl.required = !1, pendingEl.disabled =! isPending, pendingEl.setAttribute("aria-hidden", isPending ? "false": "true"));
       return {
-        status: status, rejectionVisible: isReject, closedVisible: isClosed, agencyVisible: isAgency, pendingRemarkVisible: isPending
+        status: status, rejectionVisible: isReject, closedVisible: isClosed, agencyVisible: isAgency
       }
     }, e.refreshMeetingThaiDateHints = je, e.meetingToggleReplySection = function() {
       q("meeting-replies-panel", "ได้รับแล้ว" === T("meeting-letterStatus"))
@@ -1307,7 +1303,7 @@
       s.length || (s = W(z()));
       var c = Y(i.opStaff);
       c.length || (c = W(z()));
-      var u = Y(i.proposer || i.comms || i.committees || i.committeeMembers);
+      var u = Y(i.proposer);
       u.length || (u = "กรรมาธิการเสนอญัตติ" === String(t || "").trim() ? a.slice(): r.slice());
       var m = {
         proposer: u, petitioners: r, assignees: a, coAssignees: o, staffs: s, opStaff: c, meta: i.meta || {
@@ -1944,7 +1940,7 @@
   }
   function Re() {
     var t = r("meeting-case-form");
-    t && __appIsFn(t.reset) && t.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-pendingRemark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason"].forEach(function(e) {
+    t && __appIsFn(t.reset) && t.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason"].forEach(function(e) {
       E(e, "")
     }), O(), E("meeting-status", "เรื่องเข้าใหม่"), E("meeting-cat", "เรื่องร้องเรียน"), E("meeting-subCat", ""), g("meeting-history-tbody", '<tr><td colspan="5" class="text-center text-muted py-3">ยังไม่มีประวัติการประชุม</td></tr>'), g("meeting-letter-tbody", '<tr><td colspan="8" class="text-center text-muted py-3">ยังไม่มีข้อมูลหนังสือติดตาม</td></tr>'), E("meeting-letterId", ""), E("meeting-currentLogId", "");
     var i = r("meeting-letter-form");
@@ -2173,7 +2169,7 @@
   function Ge() {
     var caseNumValue = normalizeMeetingManualNo(T("meeting-caseNum")), recNoValue = normalizeMeetingReceiveNo(T("meeting-recNo"));
     return Ye({
-      caseId: T("meeting-caseId"), id: T("meeting-caseId"), caseNum: caseNumValue, caseNo: caseNumValue, runningNo: caseNumValue, "ลำดับเรื่อง": caseNumValue, status: T("meeting-status"), recNo: recNoValue, receiveNo: recNoValue, "เลขรับเรื่อง": recNoValue, offerDate: P("meeting-offerDate"), recDate: P("meeting-recDate"), cat: T("meeting-cat"), title: T("meeting-title"), caseTitle: T("meeting-caseTitle"), subCat: T("meeting-subCat"), petitioners: T("meeting-petitioners"), petitioner: T("meeting-petitioners"), petitionerPhone: normalizeMeetingPhone(T("meeting-petitionerPhone")), respondent: T("meeting-respondent"), assignees: T("meeting-assignees"), coAssignees: T("meeting-coAssignees"), staffs: T("meeting-staffs"), keySummary: T("meeting-keySummary"), remark: T("meeting-remark"), pendingRemark: T("meeting-pendingRemark"), pendingNote: T("meeting-pendingRemark"), agencyName: T("meeting-agencyName"), closedReason: T("meeting-closedReason"), rejectionReason: T("meeting-rejectionReason"), rejectReason: T("meeting-rejectionReason"), "เหตุผล (ไม่รับเรื่อง)": T("meeting-rejectionReason"), newRound: T("meeting-newRound"), newDate: P("meeting-newDate"), newNote: T("meeting-newNote")
+      caseId: T("meeting-caseId"), id: T("meeting-caseId"), caseNum: caseNumValue, caseNo: caseNumValue, runningNo: caseNumValue, "ลำดับเรื่อง": caseNumValue, status: T("meeting-status"), recNo: recNoValue, receiveNo: recNoValue, "เลขรับเรื่อง": recNoValue, offerDate: P("meeting-offerDate"), recDate: P("meeting-recDate"), cat: T("meeting-cat"), title: T("meeting-title"), caseTitle: T("meeting-caseTitle"), subCat: T("meeting-subCat"), petitioners: T("meeting-petitioners"), petitioner: T("meeting-petitioners"), petitionerPhone: normalizeMeetingPhone(T("meeting-petitionerPhone")), respondent: T("meeting-respondent"), assignees: T("meeting-assignees"), coAssignees: T("meeting-coAssignees"), staffs: T("meeting-staffs"), keySummary: T("meeting-keySummary"), remark: T("meeting-remark"), agencyName: T("meeting-agencyName"), closedReason: T("meeting-closedReason"), rejectionReason: T("meeting-rejectionReason"), rejectReason: T("meeting-rejectionReason"), "เหตุผล (ไม่รับเรื่อง)": T("meeting-rejectionReason"), newRound: T("meeting-newRound"), newDate: P("meeting-newDate"), newNote: T("meeting-newNote")
     })
   }
   function meetingHistoryCommitteeType() {
@@ -3766,7 +3762,7 @@
       seed = seed && "object" == typeof seed ? seed: {
       };
       var st = normalizeStatus(pick(["status", "caseStatus", "meetingStatus", "สถานะ", "สถานะเรื่อง"])) || "เรื่องเข้าใหม่", pairs = {
-        "meeting-caseId": ["caseId", "id"], "meeting-caseNum": ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"], "meeting-recNo": ["recNo", "receiveNo", "เลขรับเรื่อง"], "meeting-offerDate": ["offerDate", "offerDateText", "documentDate", "dateProposed", "proposalDate", "proposeDate", "bookDate", "letterDate", "วันที่หนังสือ", "วันที่เสนอ", "วันที่เสนอเรื่อง", "วันเดือนปีที่เสนอ", "วันที่ยื่น", "วันที่ยื่นเรื่อง"], "meeting-recDate": ["recDateText", "recDate", "receiveDate", "receiveDateText", "วันที่รับเรื่อง"], "meeting-cat": ["cat", "caseType", "type", "ประเภท"], "meeting-title": ["title", "subject", "ชื่อเรื่อง"], "meeting-caseTitle": ["considerationTitle", "caseConsiderationTitle", "caseTitle", "ชื่อเรื่องพิจารณา (ถ้ามี)", "ชื่อเรื่องพิจารณา"], "meeting-subCat": ["subCat", "subCategory", "caseIssue", "issue", "ประเด็นพิจารณา"], "meeting-petitioners": ["petitioners", "petitioner", "petitionerName", "ผู้เสนอญัตติ/ผู้ร้อง"], "meeting-petitionerPhone": ["petitionerPhone", "petitionerTel", "petitionerPhoneNumber", "requesterPhone", "complainantPhone", "proposerPhone", "phone", "tel", "mobile", "telephone", "เบอร์โทรศัพท์ผู้เสนอญัตติ/ผู้ร้อง", "เบอร์โทรศัพท์", "โทรศัพท์"], "meeting-respondent": ["respondent", "accused", "agencyName", "agency", "ผู้ถูกร้อง", "หน่วยงาน"], "meeting-agencyName": ["agencyName", "agency", "หน่วยงาน"], "meeting-assignees": ["assignees", "owner", "responsibleCommissioners"], "meeting-coAssignees": ["coAssignees", "coOwners"], "meeting-staffs": ["staffs", "staff", "officer"], "meeting-opStaff": ["opStaff", "operationStaff", "secretariatOfficer"], "meeting-keySummary": ["keySummary", "summary", "description", "สรุปสาระสำคัญ"], "meeting-remark": ["remark", "note", "หมายเหตุ"], "meeting-pendingRemark": ["pendingRemark", "pendingNote", "waitRemark", "waitingRemark", "considerationPendingRemark", "หมายเหตุรอพิจารณา", "หมายเหตุรอการพิจารณา"], "meeting-closedReason": ["closedReason", "closeReason", "terminateReason", "stopReason", "endReason", "caseCloseReason", "caseEndReason", "statusReason", "decisionReason", "reason", "remark", "note", "เหตุผล", "เหตุผลยุติเรื่อง", "เหตุผลการยุติเรื่อง", "หมายเหตุ"], "meeting-rejectionReason": ["rejectionReason", "rejectReason", "notAcceptedReason", "notReceiveReason", "notAcceptReason", "caseRejectReason", "statusReason", "decisionReason", "reason", "remark", "note", "เหตุผล", "เหตุผล (ไม่รับเรื่อง)", "เหตุผลไม่รับเรื่อง", "เหตุผลการไม่รับเรื่อง", "หมายเหตุ"]
+        "meeting-caseId": ["caseId", "id"], "meeting-caseNum": ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"], "meeting-recNo": ["recNo", "receiveNo", "เลขรับเรื่อง"], "meeting-offerDate": ["offerDate", "offerDateText", "documentDate", "dateProposed", "proposalDate", "proposeDate", "bookDate", "letterDate", "วันที่หนังสือ", "วันที่เสนอ", "วันที่เสนอเรื่อง", "วันเดือนปีที่เสนอ", "วันที่ยื่น", "วันที่ยื่นเรื่อง"], "meeting-recDate": ["recDateText", "recDate", "receiveDate", "receiveDateText", "วันที่รับเรื่อง"], "meeting-cat": ["cat", "caseType", "type", "ประเภท"], "meeting-title": ["title", "subject", "ชื่อเรื่อง"], "meeting-caseTitle": ["considerationTitle", "caseConsiderationTitle", "caseTitle", "ชื่อเรื่องพิจารณา (ถ้ามี)", "ชื่อเรื่องพิจารณา"], "meeting-subCat": ["subCat", "subCategory", "caseIssue", "issue", "ประเด็นพิจารณา"], "meeting-petitioners": ["petitioners", "petitioner", "petitionerName", "ผู้เสนอญัตติ/ผู้ร้อง"], "meeting-petitionerPhone": ["petitionerPhone", "petitionerTel", "petitionerPhoneNumber", "requesterPhone", "complainantPhone", "proposerPhone", "phone", "tel", "mobile", "telephone", "เบอร์โทรศัพท์ผู้เสนอญัตติ/ผู้ร้อง", "เบอร์โทรศัพท์", "โทรศัพท์"], "meeting-respondent": ["respondent", "accused", "agencyName", "agency", "ผู้ถูกร้อง", "หน่วยงาน"], "meeting-agencyName": ["agencyName", "agency", "หน่วยงาน"], "meeting-assignees": ["assignees", "owner", "responsibleCommissioners"], "meeting-coAssignees": ["coAssignees", "coOwners"], "meeting-staffs": ["staffs", "staff", "officer"], "meeting-opStaff": ["opStaff", "operationStaff", "secretariatOfficer"], "meeting-keySummary": ["keySummary", "summary", "description", "สรุปสาระสำคัญ"], "meeting-remark": ["remark", "note", "หมายเหตุ"], "meeting-closedReason": ["closedReason", "closeReason", "terminateReason", "stopReason", "endReason", "caseCloseReason", "caseEndReason", "statusReason", "decisionReason", "reason", "remark", "note", "เหตุผล", "เหตุผลยุติเรื่อง", "เหตุผลการยุติเรื่อง", "หมายเหตุ"], "meeting-rejectionReason": ["rejectionReason", "rejectReason", "notAcceptedReason", "notReceiveReason", "notAcceptReason", "caseRejectReason", "statusReason", "decisionReason", "reason", "remark", "note", "เหตุผล", "เหตุผล (ไม่รับเรื่อง)", "เหตุผลไม่รับเรื่อง", "เหตุผลการไม่รับเรื่อง", "หมายเหตุ"]
       };
       Object.keys(pairs).forEach(function(id) {
         var v = pick(pairs[id]);
@@ -4353,8 +4349,7 @@
       "รับเรื่อง": "เรื่องเข้าใหม่",
       "ได้รับเรื่อง": "เรื่องเข้าใหม่",
       "เรื่องใหม่": "เรื่องเข้าใหม่",
-      "ส่งหน่วยงานที่เกี่ยวข้อง": "ส่งหน่วยงาน",
-      "รอการพิจารณา": "รอพิจารณา"
+      "ส่งหน่วยงานที่เกี่ยวข้อง": "ส่งหน่วยงาน"
     };
     return aliases[status] || status;
   }
@@ -4416,19 +4411,14 @@
     var isRejected = status === "ไม่รับเรื่อง";
     var isClosed = status === "ยุติเรื่อง";
     var isAgency = status === "ส่งหน่วยงาน";
-    var isPending = status === "รอพิจารณา";
 
     setPanelVisible("meeting-div-rejectionReason", isRejected);
     setPanelVisible("meeting-div-closedReason", isClosed);
     setPanelVisible("meeting-div-agencyName", isAgency);
-    setPanelVisible("meeting-div-pendingRemark", isPending);
 
     setInputState("meeting-rejectionReason", isRejected);
     setInputState("meeting-closedReason", isClosed);
     setInputState("meeting-agencyName", isAgency);
-    setInputState("meeting-pendingRemark", isPending);
-    var pendingInput = byId("meeting-pendingRemark");
-    if (pendingInput) { pendingInput.required = false; pendingInput.removeAttribute("required"); }
 
     return {
       ok: true,
@@ -4436,8 +4426,7 @@
       status: status,
       rejectionVisible: isRejected,
       closedVisible: isClosed,
-      agencyVisible: isAgency,
-      pendingRemarkVisible: isPending
+      agencyVisible: isAgency
     };
   }
 
