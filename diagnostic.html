@@ -92,7 +92,20 @@
         write('   ' + JSON.stringify(dash, null, 2).slice(0, 3000));
         if (!dash || !dash.ok) throw new Error('apiGetDashboardBundle ไม่สำเร็จ');
 
-        write('7) ทดสอบ bridge ping เฉพาะเส้นทาง iframe ถ้าไม่ผ่าน ระบบอ่านข้อมูลยังใช้งานได้ผ่าน JSONP');
+        write('7) ทดสอบไฟล์ partial ที่จำเป็นต่อ Dashboard/ปุ่มเมนู');
+        const assetNames = ['Scripts_Core_Runtime','Scripts_Page_Dashboard','Scripts_Page_Meeting'];
+        for (const name of assetNames) {
+          try {
+            const asset = await window.AppTransport.run('getDeferredInclude', {name});
+            const html = asset && asset.data && asset.data.html || asset && asset.html || '';
+            write('   OK ' + name + ' bytes=' + String(html.length));
+            if (!html || html.length < 1000) write('   WARNING: ' + name + ' ดูเหมือนไม่ครบ');
+          } catch(assetErr) {
+            write('   ERROR ' + name + ': ' + String(assetErr && assetErr.message || assetErr));
+          }
+        }
+
+        write('8) ทดสอบ bridge ping เฉพาะเส้นทาง iframe ถ้าไม่ผ่าน ระบบอ่านข้อมูลยังใช้งานได้ผ่าน JSONP');
         try {
           await window.AppTransport.ensureBridgeClient();
           const ping = await window.AppTransport.ping();
@@ -100,7 +113,9 @@
         } catch (bridgeErr) {
           write('   WARNING: bridge iframe ไม่ตอบ แต่ read API ใช้ JSONP แล้ว: ' + String(bridgeErr && bridgeErr.message || bridgeErr));
         }
-        write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS และโหลด read API ได้');
+        write('9) สถานะ page script runtime ใน browser');
+        write('   ' + JSON.stringify(window.__APP_PAGE_SCRIPT_STATUS__ || {}, null, 2));
+        write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS, โหลด read API และตรวจไฟล์ partial ได้');
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
