@@ -13,6 +13,7 @@
   <script src="./app-config.js?bridge=fast-login"></script>
   <script src="./github-gas-transport.js?bridge=fast-login"></script>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
 
@@ -2927,14 +2928,15 @@ catch(__appRootBridgeErr) {
     };
     var appApi = root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi: ns("AppApi");
     __appIsFn(appApi.call) || Object.assign(appApi, {
-      __criticalApi: ! 0, normalizeEnvelope: env, call: function(m, p) {
+      __criticalApi: ! 0, normalizeEnvelope: env, call: function(m, p, options) {
+        options = options || {};
         return RT.call(m, p).then(function(r) {
           var n = applyTok(env(r));
           if(! n.ok) {
             var e = new Error(n.error || n.msg || "คำขอไม่สำเร็จ");
             throw e.code = n.errorCode, e
           }
-          return n.data
+          return !0 === options.preserveEnvelope ? n : n.data
         })
       }, require: function(m, p) {
         return this.call(m, p).then(function(d) {
@@ -5503,14 +5505,40 @@ publish('__APP_DEFERRED_TEMPLATES__',(window.__APP_ASSET_MANIFEST__&&window.__AP
     }
     function ensurePageScripts(id) {
       id = canonicalPageId(id);
-      var load = (window.AppCritical && __appIsFn(window.AppCritical.ensureCoreRuntime) ? window.AppCritical.ensureCoreRuntime(): Promise.resolve(! 0)).then(function() {
-        return window.AppAssetLoader && __appIsFn(window.AppAssetLoader.loadPageScripts) ? window.AppAssetLoader.loadPageScripts(id): loadPageScriptsDirect(id)
+      function mark(status, detail) {
+        try {
+          window.__APP_PAGE_SCRIPT_STATUS__ = Object.assign(window.__APP_PAGE_SCRIPT_STATUS__ || {}, (function(){ var o = {}; o[id] = Object.assign({ status: status, at: (new Date).toISOString() }, detail || {}); return o; })())
+        }
+        catch(_markErr) {
+          __appObserve(_markErr, "route.pageScript.status")
+        }
+      }
+      function loadWithPrimaryOwner() {
+        return (window.AppCritical && __appIsFn(window.AppCritical.ensureCoreRuntime) ? window.AppCritical.ensureCoreRuntime(): Promise.resolve(! 0)).then(function() {
+          return window.AppAssetLoader && __appIsFn(window.AppAssetLoader.loadPageScripts) ? window.AppAssetLoader.loadPageScripts(id): loadPageScriptsDirect(id)
+        })
+      }
+      var load = loadWithPrimaryOwner().then(function(result) {
+        if(!1 === result) {
+          mark("primary-false", { fallback: "direct" });
+          return loadPageScriptsDirect(id)
+        }
+        return result
+      }).catch(function(firstErr) {
+        mark("primary-error", { error: String(firstErr && firstErr.message || firstErr), fallback: "direct" });
+        return loadPageScriptsDirect(id).catch(function(secondErr) {
+          secondErr.__firstPageScriptError = firstErr;
+          throw secondErr
+        })
       });
-      return Promise.race([load, routeTimeoutPromise(9e3, "page-script-owner:" + id)]).then(function(result) {
+      return Promise.race([load, routeTimeoutPromise(45e3, "page-script-owner:" + id)]).then(function(result) {
         if(result && result.timeout)throw new Error("โหลด page script ช้าเกินกำหนด: " + id);
+        mark("loaded", { ok: !1 !== result });
         return ! 1 !== result
       }).catch(function(err) {
-        return window.AppRuntime && window.AppRuntime.recordWarning && window.AppRuntime.recordWarning("route.pageScriptOwner." + id, err), ! 1
+        mark("failed", { error: String(err && err.message || err) });
+        window.AppRuntime && window.AppRuntime.recordWarning && window.AppRuntime.recordWarning("route.pageScriptOwner." + id, err);
+        return ! 1
       })
     }
     function runPageActivation(id) {
