@@ -10,6 +10,8 @@
   var manifest = (root.APP_CONFIG && root.APP_CONFIG.assetManifest) || root.__APP_ASSET_MANIFEST__ || {};
   var cache = Object.create(null);
   var pending = Object.create(null);
+  var apiResponseCache = Object.create(null);
+  var apiInflight = Object.create(null);
   var seq = 0;
   var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '' };
 
@@ -194,7 +196,7 @@
       var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: apiLogin — fast-login JSONP ไม่ได้รับผลกลับจาก GAS ให้ตรวจว่า deploy ล่าสุดมี __githubFastLogin และ apiLogin', 'GAS_FAST_LOGIN_TIMEOUT', 'apiLogin')); }, Number(cfg('fastLoginTimeoutMs', 15000)) || 15000);
       root[cb] = function(result) { result = result || { ok:false, error:'empty fast-login response', errorCode:'EMPTY_FAST_LOGIN_RESPONSE' }; finish(true, result); };
       script.onerror = function() { finish(false, bridgeError('GAS API error: apiLogin — โหลด fast-login JSONP ไม่สำเร็จ ให้ตรวจ URL /exec และ permission Anyone', 'GAS_FAST_LOGIN_LOAD_FAILED', 'apiLogin')); };
-      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubFastLogin=1&callback=' + encodeURIComponent(cb) + '&username=' + encodeURIComponent(username || 'admin') + '&_=' + Date.now();
+      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubFastLogin=1&callback=' + encodeURIComponent(cb) + '&username=' + encodeURIComponent(username) + '&_=' + Date.now();
       (doc.head || doc.documentElement).appendChild(script);
     });
   }
@@ -308,6 +310,90 @@
     return /^(apiGet|apiList|apiSearch|apiBootstrap|apiSessionCheck|apiSessionResume|apiVerifySession|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList)/i.test(method) || method === 'apiRouter';
   }
 
+  function isApiWriteMethod(method) {
+    method = text(method).trim();
+    return !!method && (/^api(?:Admin)?(?:Save|Delete|Update|Create|Import|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh|Upload)/i.test(method) || /^apiLogout$/i.test(method));
+  }
+  function clearClientApiCaches(reason) {
+    apiResponseCache = Object.create(null);
+    try { root.__APP_TRANSPORT_CACHE_LAST_CLEAR__ = { reason: text(reason || 'write'), at: new Date().toISOString() }; } catch (_) {}
+    return true;
+  }
+  function isCacheBypassPayload(payload) {
+    return !!(payload && (payload.forceFresh === true || payload.noCache === true || payload.bypassCache === true || payload.cacheTtlSeconds === 0));
+  }
+  function clientCacheTtlMs(method, payload) {
+    if (cfg('clientApiCacheEnabled', true) === false) return 0;
+    if (!isJsonpReadMethod(method) || isCacheBypassPayload(payload)) return 0;
+    var defaults = {
+      apiGetDashboardBundle: 60000,
+      apiSearchCasesLite: 180000,
+      apiGetTracking: 90000,
+      apiGetPeoplePageBundle: 120000,
+      apiGetPersonnelDirectoryBundle: 120000,
+      apiGetPetitioners: 120000,
+      apiBudgetGetSummary: 180000,
+      apiBudgetGetTypeSummaryByFY: 300000,
+      apiBudgetGetFiscalYears: 600000,
+      apiBudgetGetSubcommitteeOptions: 600000,
+      apiGetThailandLocations: 21600000,
+      apiSearchLookup: 3600000,
+      apiGetRouteContract: 900000,
+      apiGetClientDataContract: 900000,
+      apiGetAppTerminology: 21600000
+    };
+    var map = cfg('clientReadCacheTtlMs', {}) || {};
+    var ttl = Number(Object.prototype.hasOwnProperty.call(map, method) ? map[method] : defaults[method] || 0) || 0;
+    if (/^apiSearchCasesLite$/i.test(method) && payload && payload.query) ttl = Math.min(ttl || 180000, 60000);
+    return Math.max(0, ttl);
+  }
+  function stableForCache(v) {
+    if (v == null) return '';
+    if (typeof v !== 'object') return String(v);
+    if (Array.isArray(v)) return '[' + v.map(stableForCache).join(',') + ']';
+    return '{' + Object.keys(v).sort().filter(function(k) {
+      return !/^(token|_token|authToken|sessionToken|csrf|csrfToken|_csrf|_csrfToken|nextToken|nextCsrfToken|password|pass|pwd|requestId|_securityContext|__authSnapshot|clientContext|actionToken|csrfActionToken|_actionToken)$/i.test(k);
+    }).map(function(k) { return JSON.stringify(k) + ':' + stableForCache(v[k]); }).join(',') + '}';
+  }
+  function smallHash(s) {
+    s = text(s);
+    var h = 0, i = 0;
+    for (; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+    return String(h).replace('-', 'n');
+  }
+  function clientApiCacheKey(method, payload) {
+    var user = '';
+    try { user = currentJsonpUsername(payload || {}) || ''; } catch (_) {}
+    return text(method) + '|' + user + '|' + smallHash(stableForCache(payload || {}));
+  }
+  function readClientApiCache(method, payload) {
+    var ttl = clientCacheTtlMs(method, payload);
+    if (!ttl) return null;
+    var key = clientApiCacheKey(method, payload), item = apiResponseCache[key];
+    if (!item || item.expiresAt < Date.now()) { delete apiResponseCache[key]; return null; }
+    try { item.value && typeof item.value === 'object' && (item.value.clientCacheHit = true, item.value.clientCacheSource = 'transport-memory-p1'); } catch (_) {}
+    return item.value;
+  }
+  function writeClientApiCache(method, payload, value) {
+    var ttl = clientCacheTtlMs(method, payload);
+    if (!ttl || !value || (value && value.ok === false)) return false;
+    var key = clientApiCacheKey(method, payload);
+    apiResponseCache[key] = { value: value, expiresAt: Date.now() + ttl, storedAt: Date.now() };
+    return true;
+  }
+  function shouldDedupeApi(method, payload) {
+    return cfg('clientInFlightDedupe', true) !== false && isJsonpReadMethod(method) && !isCacheBypassPayload(payload);
+  }
+  function runGasNetwork(method, payload) {
+    if (isJsonpReadMethod(method) && cfg('readJsonpApi', false) === true) {
+      return runJsonpApi(method, payload || {}).catch(function(err) {
+        if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(method, payload || {});
+        throw err;
+      });
+    }
+    return runGasViaClient(method, payload || {});
+  }
+
   function runJsonpApi(method, payload) {
     var url = resolveGasUrl();
     method = text(method).trim();
@@ -397,12 +483,45 @@
   root.AppTransport.__githubGasBridge = true;
   root.AppTransport.transportMode = cfg('transportMode', 'bridge-client-authenticated-read-p0');
   root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'bridge-client-authenticated-read-p0') }; };
-  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return (cfg('loginFormPost', true) === false ? runFastLoginJsonp(req.payload || {}) : runLoginViaFormPost(req.payload || {})); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', false) === true) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
+  root.AppTransport.run = function(fn, args) {
+    var req = apiEnvelope(fn, args || {});
+    if (/^getDeferredInclude$/i.test(req.method)) {
+      var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || '';
+      return localInclude(name);
+    }
+    if (/^apiLogin$/i.test(req.method)) {
+      clearClientApiCaches('login');
+      return (cfg('loginFormPost', true) === false ? runFastLoginJsonp(req.payload || {}) : runLoginViaFormPost(req.payload || {}));
+    }
+    if (isApiWriteMethod(req.method)) {
+      clearClientApiCaches('write:' + req.method);
+      return runGasNetwork(req.method, req.payload || {});
+    }
+    var cached = readClientApiCache(req.method, req.payload || {});
+    if (cached) return Promise.resolve(cached);
+    var key = shouldDedupeApi(req.method, req.payload || {}) ? clientApiCacheKey(req.method, req.payload || {}) : '';
+    if (key && apiInflight[key]) return apiInflight[key];
+    var started = Date.now();
+    var promise = runGasNetwork(req.method, req.payload || {}).then(function(result) {
+      try {
+        result && typeof result === 'object' && (result.clientTransportMs = Math.max(0, Date.now() - started), result.clientTransportCacheKey = key || '');
+        writeClientApiCache(req.method, req.payload || {}, result);
+      } catch (_) {}
+      return result;
+    });
+    if (key) {
+      apiInflight[key] = promise;
+      promise.then(function() { delete apiInflight[key]; }, function() { delete apiInflight[key]; });
+    }
+    return promise;
+  };
   root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
   root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-original-contract' }); };
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
+  root.AppTransport.clearClientReadCache = clearClientApiCaches;
+  root.AppTransport.clientCacheStatus = function() { return { entries: Object.keys(apiResponseCache || {}).length, inflight: Object.keys(apiInflight || {}).length, enabled: cfg('clientApiCacheEnabled', true) !== false, dedupe: cfg('clientInFlightDedupe', true) !== false, stamp: 'p1-transport-cache-dedupe' }; };
 
   try { setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config'); } catch (_) {}
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function(){ setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config-dom'); loadPublicConfig(); }, { once: true });
