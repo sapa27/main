@@ -1,6 +1,6 @@
 /* GitHub Pages <-> Google Apps Script transport bridge.
- * Current mode: GAS bridge client only, no form POST fallback.
- * This file is rewritten in place and intentionally keeps one transport path only.
+ * Current mode: GAS named-request iframe first.
+ * No form POST transport. No JSONP for apiLogin/password payloads.
  */
 (function(root, doc) {
   'use strict';
@@ -10,7 +10,16 @@
   var cache = Object.create(null);
   var pending = Object.create(null);
   var seq = 0;
-  var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '' };
+  var state = {
+    mode: 'gas-named-iframe-request',
+    lastGasUrl: '',
+    lastRequestId: '',
+    lastRequestMethod: '',
+    lastRequestStartedAt: '',
+    lastIframeLoaded: false,
+    lastResponseAt: '',
+    lastError: ''
+  };
 
   function text(v) { return v == null ? '' : String(v); }
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -36,7 +45,8 @@
     err.code = code || 'GAS_BRIDGE_ERROR';
     err.errorCode = err.code;
     err.method = method || '';
-    err.transportMode = 'gas-bridge-client-only';
+    err.transportMode = state.mode;
+    state.lastError = message;
     return err;
   }
   function localBase() { return text(cfg('localAssetBase', './partials/')); }
@@ -83,21 +93,6 @@
     }
     return { method: method, payload: payload == null ? {} : payload };
   }
-  function cleanupPending(id) {
-    var item = pending[id];
-    if (!item) return;
-    delete pending[id];
-    try { item.timer && clearTimeout(item.timer); } catch (_) {}
-    try { item.handler && root.removeEventListener('message', item.handler); } catch (_) {}
-  }
-  function bridgeClientSrc(url) {
-    return url + (url.indexOf('?') >= 0 ? '&' : '?') +
-      '__githubBridgeClient=1' +
-      '&parentOrigin=*' +
-      '&originHint=' + encodeURIComponent(root.location && root.location.origin || '') +
-      '&bridge=client-only' +
-      '&_=' + Date.now();
-  }
   function parseMessage(data) {
     if (typeof data === 'string') {
       try { return JSON.parse(data); } catch (_) { return null; }
@@ -105,169 +100,126 @@
     return data && typeof data === 'object' ? data : null;
   }
   function isBridgeMessage(data) {
-    return !!data && (data.__gasIframeTransport === true || data.__gasIframeTransport === 'true' || data.bridge === 'client-only');
+    return !!data && (data.__gasIframeTransport === true || data.__gasIframeTransport === 'true' || data.bridge === 'named-request' || data.bridge === 'client-only');
   }
-  function sendReadyProbe(iframe) {
-    try {
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({
-          __gasIframeTransport: true,
-          type: 'GAS_IFRAME_TRANSPORT_PING_READY',
-          bridge: 'client-only',
-          at: new Date().toISOString()
-        }, '*');
-      }
-    } catch (_) {}
+  function cleanupPending(id) {
+    var item = pending[id];
+    if (!item) return;
+    delete pending[id];
+    try { item.timer && clearTimeout(item.timer); } catch (_) {}
+    try { item.removeTimer && clearTimeout(item.removeTimer); } catch (_) {}
+    try { item.handler && root.removeEventListener('message', item.handler); } catch (_) {}
+    try { item.iframe && item.iframe.parentNode && item.iframe.parentNode.removeChild(item.iframe); } catch (_) {}
   }
-  function ensureBridgeClient() {
+  function namedRequestSrc(url) {
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') +
+      '__githubBridgeNamedRequest=1' +
+      '&parentOrigin=*' +
+      '&originHint=' + encodeURIComponent(root.location && root.location.origin || '') +
+      '&bridge=named-request' +
+      '&_=' + Date.now();
+  }
+  function runGasViaNamedIframe(method, payload) {
+    if (!method) return Promise.reject(bridgeError('method required', 'METHOD_REQUIRED', method));
     var url = resolveGasUrl();
-    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING'));
-    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID'));
-    if ((bridgeClient.ready || bridgeClient.assumedReady) && bridgeClient.iframe && bridgeClient.url === url) return Promise.resolve(bridgeClient.iframe);
-    if (bridgeClient.promise && bridgeClient.url === url) return bridgeClient.promise;
-
-    bridgeClient.ready = false;
-    bridgeClient.loaded = false;
-    bridgeClient.assumedReady = false;
-    bridgeClient.url = url;
-    try { bridgeClient.iframe && bridgeClient.iframe.parentNode && bridgeClient.iframe.parentNode.removeChild(bridgeClient.iframe); } catch (_) {}
-
-    bridgeClient.promise = new Promise(function(resolve, reject) {
+    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', method));
+    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID', method));
+    var timeoutMs = Number(cfg('apiTimeoutMs', 90000)) || 90000;
+    return new Promise(function(resolve, reject) {
+      var id = 'gasn_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
       var iframe = doc.createElement('iframe');
-      var readyTimer = null;
-      var loadGraceTimer = null;
-      var probeTimer = null;
-      var settled = false;
+      var req = {
+        __gasIframeTransport: true,
+        bridge: 'named-request',
+        type: 'GAS_IFRAME_NAMED_REQUEST',
+        requestId: id,
+        method: method,
+        payload: payload == null ? {} : payload,
+        createdAt: new Date().toISOString()
+      };
+      state.lastGasUrl = url;
+      state.lastRequestId = id;
+      state.lastRequestMethod = method;
+      state.lastRequestStartedAt = req.createdAt;
+      state.lastIframeLoaded = false;
+      state.lastResponseAt = '';
+      state.lastError = '';
       function finish(ok, value) {
-        if (settled) return;
-        settled = true;
-        try { readyTimer && clearTimeout(readyTimer); } catch (_) {}
-        try { loadGraceTimer && clearTimeout(loadGraceTimer); } catch (_) {}
-        try { probeTimer && clearInterval(probeTimer); } catch (_) {}
-        try { root.removeEventListener('message', onReady); } catch (_) {}
+        cleanupPending(id);
         if (ok) resolve(value); else reject(value);
       }
-      function acceptReady(data) {
-        return isBridgeMessage(data) && (
-          data.type === 'GAS_IFRAME_TRANSPORT_READY' ||
-          data.type === 'GAS_BRIDGE_READY' ||
-          data.ready === true ||
-          data.ok === true && /ready/i.test(text(data.type || data.source || ''))
-        );
-      }
-      function onReady(event) {
+      var handler = function(event) {
         var data = parseMessage(event && event.data);
-        if (!acceptReady(data)) return;
-        bridgeClient.ready = true;
-        bridgeClient.assumedReady = false;
-        finish(true, iframe);
-      }
-      iframe.name = 'gas_bridge_client_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+        if (!data || data.requestId !== id || !isBridgeMessage(data)) return;
+        if (data.type === 'GAS_IFRAME_TRANSPORT_READY' || data.type === 'GAS_BRIDGE_READY') return;
+        if (data.type !== 'GAS_IFRAME_TRANSPORT_RESPONSE' && data.type !== 'GAS_BRIDGE_API_RESPONSE') return;
+        state.lastResponseAt = new Date().toISOString();
+        var result = data.result || { ok: false, error: 'empty response', errorCode: 'EMPTY_BRIDGE_RESPONSE', source: 'github.namedRequest' };
+        finish(true, result);
+      };
+      var timer = setTimeout(function() {
+        finish(false, bridgeError('GAS API timeout: ' + method + ' — named-request iframe โหลดแล้วแต่ GAS ไม่ส่งผลกลับมา ให้ตรวจว่า deploy ล่าสุดมี __githubBridgeNamedRequest และ apiGithubBridgeCall และไม่มี doGet ซ้ำ', 'GAS_API_TIMEOUT', method));
+      }, timeoutMs);
+      var encodedRequest = encodeURIComponent(JSON.stringify(req));
+      iframe.name = 'GAS_BRIDGE_NAMED_REQUEST:' + JSON.stringify(req);
       iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
       iframe.setAttribute('aria-hidden', 'true');
       iframe.referrerPolicy = 'no-referrer-when-downgrade';
-      iframe.addEventListener('load', function() {
-        bridgeClient.loaded = true;
-        sendReadyProbe(iframe);
-        loadGraceTimer = setTimeout(function() {
-          if (settled || bridgeClient.ready) return;
-          bridgeClient.assumedReady = true;
-          finish(true, iframe);
-        }, Number(cfg('bridgeLoadGraceMs', 2500)) || 2500);
-      });
-      iframe.src = bridgeClientSrc(url);
-      bridgeClient.iframe = iframe;
-      root.addEventListener('message', onReady);
-      probeTimer = setInterval(function() { sendReadyProbe(iframe); }, 500);
-      readyTimer = setTimeout(function() {
-        bridgeClient.ready = false;
-        bridgeClient.assumedReady = false;
-        bridgeClient.promise = null;
-        finish(false, bridgeError('GAS bridge client ไม่พร้อมใช้งาน — iframe ไม่โหลดหรือไม่ได้ deploy GAS backend ที่มี __githubBridgeClient=1; ให้ตรวจ Execute as = Me และ Who has access = Anyone', 'GAS_BRIDGE_CLIENT_NOT_READY'));
-      }, Number(cfg('bridgeReadyTimeoutMs', 30000)) || 30000);
+      iframe.addEventListener('load', function() { state.lastIframeLoaded = true; });
+      pending[id] = { iframe: iframe, handler: handler, timer: timer };
+      root.addEventListener('message', handler);
+      iframe.src = namedRequestSrc(url) + '#GAS_BRIDGE_NAMED_REQUEST=' + encodedRequest;
       (doc.body || doc.documentElement).appendChild(iframe);
-    });
-    return bridgeClient.promise;
-  }
-  function runGasViaClient(method, payload) {
-    if (!method) return Promise.reject(bridgeError('method required', 'METHOD_REQUIRED', method));
-    var timeoutMs = Number(cfg('apiTimeoutMs', 90000)) || 90000;
-    return ensureBridgeClient().then(function(iframe) {
-      return new Promise(function(resolve, reject) {
-        var id = 'gasc_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
-        var timer = null;
-        var handler = function(event) {
-          var data = parseMessage(event && event.data);
-          if (!data || data.requestId !== id) return;
-          if (!isBridgeMessage(data) && data.type !== 'GAS_IFRAME_TRANSPORT_RESPONSE') return;
-          var result = data.result || { ok: false, error: 'empty response', errorCode: 'EMPTY_BRIDGE_RESPONSE' };
-          cleanupPending(id);
-          resolve(result);
-        };
-        timer = setTimeout(function() {
-          cleanupPending(id);
-          reject(bridgeError('GAS API timeout: ' + method + ' — bridge client iframe โหลดแล้วแต่ backend ไม่ตอบกลับ ให้ตรวจว่า GAS deploy ล่าสุดมี apiGithubBridgeCall และไม่มี doGet ซ้ำ', 'GAS_API_TIMEOUT', method));
-        }, timeoutMs);
-        pending[id] = { handler: handler, timer: timer };
-        root.addEventListener('message', handler);
-        try {
-          iframe.contentWindow.postMessage({
-            __gasIframeTransport: true,
-            type: 'GAS_IFRAME_TRANSPORT_REQUEST',
-            bridge: 'client-only',
-            requestId: id,
-            method: method,
-            payload: payload == null ? {} : payload
-          }, '*');
-          setTimeout(function() {
-            try {
-              iframe.contentWindow.postMessage({
-                __gasIframeTransport: true,
-                type: 'GAS_IFRAME_TRANSPORT_REQUEST',
-                bridge: 'client-only',
-                requestId: id,
-                method: method,
-                payload: payload == null ? {} : payload,
-                retry: true
-              }, '*');
-            } catch (_) {}
-          }, 700);
-        } catch (e) {
-          cleanupPending(id);
-          reject(e);
-        }
-      });
     });
   }
   function setLogo(url, source) {
     url = text(url).trim();
     if (!url) return false;
+    source = source || 'github-config';
     root.APP_CONFIG = root.APP_CONFIG || {};
-    root.APP_CONFIG.logoUrl = root.APP_CONFIG.logoUrl || url;
     root.APP_LOGO = root.APP_LOGO || {};
-    root.APP_LOGO.active = root.APP_LOGO.active || url;
-    root.APP_LOGO.svg = root.APP_LOGO.svg || url;
-    root.APP_LOGO.png96 = root.APP_LOGO.png96 || url;
-    root.APP_LOGO.png192 = root.APP_LOGO.png192 || url;
-    root.APP_LOGO.png512 = root.APP_LOGO.png512 || url;
+    root.APP_CONFIG.logoUrl = url;
+    root.APP_LOGO.active = url;
+    root.APP_LOGO.svg = url;
+    root.APP_LOGO.png96 = url;
+    root.APP_LOGO.png192 = url;
+    root.APP_LOGO.png512 = url;
+    root.APP_LOGO.source = source;
     root.DEFAULT_LOGO = url;
     root.LOGO_URL = url;
     root.currentLogoUrl = url;
     root.__SAFE_LOGO_URL__ = url;
     root.__APP_PARLIAMENT_LOGO__ = url;
-    try { root.localStorage && root.localStorage.setItem('APP_LOGO_URL', url); } catch (_) {}
+    if (!/^data:image\/svg\+xml/i.test(url) || !/default/i.test(source)) {
+      try { root.localStorage && root.localStorage.setItem('APP_LOGO_URL', url); } catch (_) {}
+    }
     try {
       var nodes = doc.querySelectorAll('[data-logo="parliament"],#login-logo-img,#side-logo-img,#mobile-topbar-logo,#summary-logo-img,#ps-ai-print-logo,#report-logo-img,.print-logo-img');
       Array.prototype.forEach.call(nodes, function(img) {
         if (!img || !img.setAttribute) return;
         img.style.display = '';
+        img.setAttribute('loading', img.id === 'login-logo-img' ? 'eager' : (img.getAttribute('loading') || 'eager'));
+        img.setAttribute('decoding', img.id === 'login-logo-img' ? 'sync' : (img.getAttribute('decoding') || 'async'));
+        try { img.fetchPriority = img.id === 'login-logo-img' ? 'high' : 'auto'; } catch (_) {}
         if (img.getAttribute('src') !== url) img.setAttribute('src', url);
-        img.dataset.logoSource = source || 'github-config';
+        img.dataset.logoSource = source;
+        img.classList && img.classList.add('logo-loaded');
       });
     } catch (_) {}
     try { root.updateLogos && root.updateLogos(url); } catch (_) {}
     try { root.patchParliamentLogo && root.patchParliamentLogo(); } catch (_) {}
     return true;
+  }
+  function preloadLogo(url) {
+    url = text(url).trim();
+    if (!url || /^data:/i.test(url)) return;
+    try {
+      var link = doc.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = url;
+      (doc.head || doc.documentElement).appendChild(link);
+    } catch (_) {}
   }
   function loadPublicConfig() {
     var url = resolveGasUrl();
@@ -282,7 +234,7 @@
         try { delete root[cb]; } catch (_) { root[cb] = void 0; }
         try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {}
         resolve(null);
-      }, Number(cfg('publicConfigTimeoutMs', 8000)) || 8000);
+      }, Number(cfg('publicConfigTimeoutMs', 5000)) || 5000);
       root[cb] = function(data) {
         if (done) return;
         done = true;
@@ -291,7 +243,7 @@
         try { delete root[cb]; } catch (_) { root[cb] = void 0; }
         if (data && data.ok) {
           var logo = text(data.logoUrl || (data.appLogo && (data.appLogo.active || data.appLogo.svg)) || '');
-          logo && setLogo(logo, 'gas-public-config');
+          if (logo) { preloadLogo(logo); setLogo(logo, 'gas-public-config'); }
         }
         resolve(data || null);
       };
@@ -309,14 +261,17 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = 'gas-bridge-client-only';
+  root.AppTransport.transportMode = state.mode;
   root.AppTransport.bridgeClientState = function() {
     return {
-      ready: !!bridgeClient.ready,
-      loaded: !!bridgeClient.loaded,
-      assumedReady: !!bridgeClient.assumedReady,
-      url: bridgeClient.url || resolveGasUrl(),
-      mode: 'gas-bridge-client-only'
+      mode: state.mode,
+      url: state.lastGasUrl || resolveGasUrl(),
+      lastRequestId: state.lastRequestId,
+      lastRequestMethod: state.lastRequestMethod,
+      lastRequestStartedAt: state.lastRequestStartedAt,
+      lastIframeLoaded: !!state.lastIframeLoaded,
+      lastResponseAt: state.lastResponseAt,
+      lastError: state.lastError
     };
   };
   root.AppTransport.run = function(fn, args) {
@@ -325,29 +280,26 @@
       var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || '';
       return localInclude(name);
     }
-    return runGasViaClient(req.method, req.payload || {});
+    return runGasViaNamedIframe(req.method, req.payload || {});
   };
   root.AppTransport.setGasWebAppUrl = function(url) {
     root.GAS_WEB_APP_URL = normalizeUrl(url);
     root.APP_CONFIG = root.APP_CONFIG || {};
     root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL;
     try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {}
-    bridgeClient.ready = false;
-    bridgeClient.loaded = false;
-    bridgeClient.assumedReady = false;
-    bridgeClient.promise = null;
     loadPublicConfig();
     return root.GAS_WEB_APP_URL;
   };
-  root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
-  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-only' }); };
-  root.AppTransport.ensureBridgeClient = ensureBridgeClient;
+  root.AppTransport.setLogoUrl = function(url) { preloadLogo(url); return setLogo(url, 'manual'); };
+  root.AppTransport.ping = function() { return runGasViaNamedIframe('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: state.mode }); };
+  root.AppTransport.ensureBridgeClient = function() { return Promise.resolve(root.AppTransport.bridgeClientState()); };
 
-  try { setLogo(cfg('logoUrl', ''), 'app-config'); } catch (_) {}
+  try { preloadLogo(cfg('logoUrl', '')); setLogo(cfg('logoUrl', ''), 'app-config'); } catch (_) {}
+  loadPublicConfig();
   if (doc.readyState === 'loading') {
-    doc.addEventListener('DOMContentLoaded', function(){ setLogo(cfg('logoUrl', ''), 'app-config-dom'); loadPublicConfig(); }, { once: true });
+    doc.addEventListener('DOMContentLoaded', function(){ preloadLogo(cfg('logoUrl', '')); setLogo(cfg('logoUrl', ''), 'app-config-dom'); }, { once: true });
   } else {
+    preloadLogo(cfg('logoUrl', ''));
     setLogo(cfg('logoUrl', ''), 'app-config-dom');
-    loadPublicConfig();
   }
 })(typeof window !== 'undefined' ? window : globalThis, typeof document !== 'undefined' ? document : null);
