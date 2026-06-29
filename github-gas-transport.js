@@ -193,6 +193,64 @@
   }
 
 
+  function runLoginViaFormPost(payload) {
+    var url = resolveGasUrl();
+    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', 'apiLogin'));
+    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID', 'apiLogin'));
+    return new Promise(function(resolve, reject) {
+      var id = 'gaslogin_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
+      var done = false;
+      var iframe = doc.createElement('iframe');
+      var form = doc.createElement('form');
+      var timeoutMs = Number(cfg('loginPostTimeoutMs', 30000)) || 30000;
+      function cleanup() {
+        try { clearTimeout(timer); } catch (_) {}
+        try { root.removeEventListener('message', handler); } catch (_) {}
+        setTimeout(function() {
+          try { form.parentNode && form.parentNode.removeChild(form); } catch (_) {}
+          try { iframe.parentNode && iframe.parentNode.removeChild(iframe); } catch (_) {}
+        }, 250);
+      }
+      function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
+      function add(name, value) {
+        var input = doc.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value == null ? '' : String(value);
+        form.appendChild(input);
+      }
+      function handler(event) {
+        var data = parseMessage(event && event.data);
+        if (!data || data.requestId !== id) return;
+        if (data.type !== 'GAS_LOGIN_POST_RESPONSE' && data.type !== 'GAS_IFRAME_TRANSPORT_RESPONSE') return;
+        var result = data.result || data.payload || { ok: false, error: 'empty login response', errorCode: 'EMPTY_LOGIN_POST_RESPONSE' };
+        finish(true, result);
+      }
+      var timer = setTimeout(function() {
+        finish(false, bridgeError('GAS API timeout: apiLogin — login POST callback ไม่ได้รับผลกลับจาก GAS ให้ตรวจว่า deploy ล่าสุดมี __githubLoginPost และ doPost เดียว', 'GAS_LOGIN_POST_TIMEOUT', 'apiLogin'));
+      }, timeoutMs);
+      iframe.name = 'gas_login_post_' + id;
+      iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
+      iframe.setAttribute('aria-hidden', 'true');
+      form.method = 'POST';
+      form.action = url;
+      form.target = iframe.name;
+      form.enctype = 'application/x-www-form-urlencoded';
+      form.acceptCharset = 'UTF-8';
+      form.style.cssText = 'display:none';
+      add('__githubLoginPost', '1');
+      add('method', 'apiLogin');
+      add('requestId', id);
+      add('parentOrigin', (root.location && root.location.origin) || '*');
+      try { add('payload', JSON.stringify(payload || {})); } catch (_) { add('payload', '{}'); }
+      root.addEventListener('message', handler);
+      (doc.body || doc.documentElement).appendChild(iframe);
+      (doc.body || doc.documentElement).appendChild(form);
+      try { form.submit(); } catch (err) { finish(false, bridgeError('GAS API error: apiLogin — ส่ง login POST ไม่สำเร็จ: ' + ((err && err.message) || err), 'GAS_LOGIN_POST_SUBMIT_FAILED', 'apiLogin')); }
+    });
+  }
+
+
   function stripJsonpPayload(payload) {
     var out = {};
     payload = isObj(payload) ? payload : {};
@@ -305,7 +363,7 @@
   root.AppTransport.__githubGasBridge = true;
   root.AppTransport.transportMode = 'gas-bridge-client-original-contract';
   root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'gas-bridge-client-original-contract' }; };
-  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return runFastLoginJsonp(req.payload || {}); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', true) !== false) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
+  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return (cfg('loginFormPost', true) === false ? runFastLoginJsonp(req.payload || {}) : runLoginViaFormPost(req.payload || {})); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', true) !== false) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
   root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
   root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-original-contract' }); };

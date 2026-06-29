@@ -11,7 +11,7 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbzIsA3QE53e6YXcYs-uyJEuwD2L5mp5xmQyed_LeTbH6S5NdDvCpP-D2ZuNQTwz3vl1-Q/exec',
+    gasWebAppUrl: '',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
@@ -21,10 +21,12 @@
     bridgeReadyTimeoutMs: 45000,
     bridgeLoadGraceMs: 1000,
     forceBridgeClientOnly: true,
-    apiTimeoutMs: 180000,
+    apiTimeoutMs: 60000,
     bridgeNoMessageTimeoutMs: 30000,
     publicConfigTimeoutMs: 4000,
     fastLoginJsonp: false,
+    loginFormPost: true,
+    loginPostTimeoutMs: 30000,
     fastLoginTimeoutMs: 15000,
     readJsonpApi: false,
     readJsonpFallbackToBridge: true,
