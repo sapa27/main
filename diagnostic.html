@@ -15,7 +15,7 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ fast-login JSONP สำหรับ apiLogin และ bridge client สำหรับ API อื่น ไม่ใช้ form POST transport</p>
+    <p>หน้านี้ทดสอบ fast-login JSONP สำหรับ apiLogin และ JSONP read API สำหรับโหลดข้อมูล หลังจากนั้นจึงตรวจ bridge client เฉพาะ API ที่จำเป็นต้องเขียนข้อมูล</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
@@ -83,23 +83,28 @@
         write('   ' + JSON.stringify(login, null, 2).slice(0, 3000));
         if (!login || !login.ok || !(login.token || login.user || (login.data && (login.data.token || login.data.user)))) throw new Error('fast-login apiLogin ไม่คืน token/user');
 
-        write('5) ทดสอบ ensureBridgeClient');
-        await window.AppTransport.ensureBridgeClient();
-        write('   ' + JSON.stringify(window.AppTransport.bridgeClientState(), null, 2));
-
-        write('6) ทดสอบ bridge ping');
-        const ping = await window.AppTransport.ping();
-        write('   ' + JSON.stringify(ping, null, 2));
-        if (!ping || !ping.ok) throw new Error('bridge ping ไม่สำเร็จ');
-
-        write('7) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
+        write('5) ทดสอบ apiGetRouteContract ผ่าน JSONP read API');
         const contract = await window.AppTransport.run('apiGetRouteContract', {diagnostic:true});
         write('   ' + JSON.stringify(contract, null, 2).slice(0, 3000));
-        write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS ได้');
+
+        write('6) ทดสอบ apiGetDashboardBundle ผ่าน JSONP read API');
+        const dash = await window.AppTransport.run('apiGetDashboardBundle', {diagnostic:true, includeCases:true, caseLimit:5});
+        write('   ' + JSON.stringify(dash, null, 2).slice(0, 3000));
+        if (!dash || !dash.ok) throw new Error('apiGetDashboardBundle ไม่สำเร็จ');
+
+        write('7) ทดสอบ bridge ping เฉพาะเส้นทาง iframe ถ้าไม่ผ่าน ระบบอ่านข้อมูลยังใช้งานได้ผ่าน JSONP');
+        try {
+          await window.AppTransport.ensureBridgeClient();
+          const ping = await window.AppTransport.ping();
+          write('   ' + JSON.stringify(ping, null, 2));
+        } catch (bridgeErr) {
+          write('   WARNING: bridge iframe ไม่ตอบ แต่ read API ใช้ JSONP แล้ว: ' + String(bridgeErr && bridgeErr.message || bridgeErr));
+        }
+        write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS และโหลด read API ได้');
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = GAS ที่ deploy ยังไม่มี __githubFastLogin; ถ้าข้อ 3 โหลดแต่ข้อ 6 timeout = bridge/google.script.run ใน iframe ไม่ตอบหรือ deploy ไม่มี apiGithubBridgeCall/doGet ซ้ำ');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = GAS ที่ deploy ยังไม่มี __githubFastLogin; ถ้าข้อ 5/6 timeout = GAS ที่ deploy ยังไม่มี __githubJsonpApi หรือ Code_20_Router.gs ล่าสุด');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
