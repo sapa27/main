@@ -6,8 +6,8 @@
   <title>GAS Bridge Diagnostic</title>
   <style>
     body{font-family:Sarabun,Arial,sans-serif;margin:24px;line-height:1.5;background:#f8fafc;color:#0f172a}
-    .card{background:white;border:1px solid #e2e8f0;border-radius:14px;padding:18px;max-width:900px;box-shadow:0 8px 24px rgba(15,23,42,.08)}
-    code,pre{background:#f1f5f9;border-radius:8px;padding:2px 6px} pre{padding:12px;white-space:pre-wrap;overflow:auto}
+    .card{background:white;border:1px solid #e2e8f0;border-radius:14px;padding:18px;max-width:980px;box-shadow:0 8px 24px rgba(15,23,42,.08)}
+    code,pre{background:#f1f5f9;border-radius:8px;padding:2px 6px} pre{padding:12px;white-space:pre-wrap;overflow:auto;min-height:240px}
     button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:white;cursor:pointer}
     .ok{color:#047857}.bad{color:#b91c1c}.muted{color:#64748b}
   </style>
@@ -15,9 +15,9 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ใช้ทดสอบว่า frontend บน GitHub เรียก GAS backend ได้จริงหรือไม่</p>
+    <p>หน้านี้ทดสอบ bridge client เท่านั้น ไม่ใช้ transport เก่า</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
-    <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
+    <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
     <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
   </div>
@@ -27,34 +27,8 @@
     const $ = id => document.getElementById(id);
     const gasUrl = () => (window.APP_CONFIG && window.APP_CONFIG.gasWebAppUrl || '').trim();
     $('gasUrl').textContent = gasUrl() || '(ยังไม่ได้ตั้งค่า)';
-    $('logoUrl').textContent = (window.APP_CONFIG && window.APP_CONFIG.logoUrl) || '(รอโหลดจาก GAS หรือยังไม่ได้ตั้งค่า)';
+    $('transportMode').textContent = (window.AppTransport && window.AppTransport.transportMode) || (window.APP_CONFIG && window.APP_CONFIG.transportMode) || '(unknown)';
     function write(line){ $('out').textContent += '\n' + line; }
-    function bridgeGetProbe(){
-      return new Promise((resolve, reject) => {
-        const url = gasUrl();
-        const id = 'diag_get_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-        const iframe = document.createElement('iframe');
-        iframe.name = id;
-        iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;';
-        let loaded = false;
-        const cleanup = () => { window.removeEventListener('message', handler); try { iframe.remove(); } catch(_) {} };
-        const timer = setTimeout(() => { cleanup(); reject(new Error('GET bridge probe timeout/no postMessage')); }, 20000);
-        const handler = event => {
-          const data = event && event.data;
-          if (!data || data.requestId !== id || data.__gasIframeTransport !== true) return;
-          clearTimeout(timer);
-          cleanup();
-          resolve(data.result || data);
-        };
-        iframe.addEventListener('load', () => {
-          loaded = true;
-          setTimeout(() => {}, 0);
-        });
-        window.addEventListener('message', handler);
-        iframe.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeProbe=1&requestId=' + encodeURIComponent(id) + '&parentOrigin=' + encodeURIComponent(location.origin || '*') + '&_=' + Date.now();
-        document.body.appendChild(iframe);
-      });
-    }
     function jsonpPublicConfig(){
       return new Promise((resolve) => {
         const url = gasUrl();
@@ -69,39 +43,55 @@
         document.head.appendChild(script);
       });
     }
+    function iframeLoadProbe(){
+      return new Promise((resolve) => {
+        const url = gasUrl();
+        const iframe = document.createElement('iframe');
+        let loaded = false;
+        iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;';
+        iframe.addEventListener('load', () => { loaded = true; cleanup(); resolve({ok:true, loaded:true, src:iframe.src}); });
+        const cleanup = () => { clearTimeout(timer); setTimeout(() => { try { iframe.remove(); } catch(_) {} }, 300); };
+        const timer = setTimeout(() => { cleanup(); resolve({ok:false, loaded:false, error:'iframe load timeout'}); }, 15000);
+        iframe.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeClient=1&parentOrigin=*&originHint=' + encodeURIComponent(location.origin || '') + '&_=' + Date.now();
+        document.body.appendChild(iframe);
+      });
+    }
     async function run(){
       $('out').textContent = 'เริ่มตรวจสอบ...';
       try {
-        write('1) ตรวจรูปแบบ GAS URL และ transport mode');
+        write('1) ตรวจรูปแบบ GAS URL');
         if (!gasUrl()) throw new Error('ยังไม่ได้ตั้งค่า gasWebAppUrl ใน app-config.js');
         if (!/\/exec(?:$|[?#])/.test(gasUrl())) write('   WARNING: URL ไม่ได้ลงท้ายด้วย /exec');
         write('   OK: ' + gasUrl());
-        write('   transportMode: ' + ((window.AppTransport && window.AppTransport.transportMode) || (window.APP_CONFIG && window.APP_CONFIG.transportMode) || '(unknown)'));
-        if (false){}
+        write('   transportMode: ' + ((window.AppTransport && window.AppTransport.transportMode) || '(unknown)'));
 
-        write('2) ทดสอบ doGet JSONP public config');
+        write('2) ทดสอบ doGet public config ผ่าน JSONP');
         const cfg = await jsonpPublicConfig();
         write('   ' + JSON.stringify(cfg, null, 2));
-        if (!cfg || !cfg.ok) write('   WARNING: doGet public config ไม่ตอบ อาจยังไม่ได้ deploy backend ล่าสุด');
+        if (!cfg || !cfg.ok) write('   WARNING: public config ไม่ตอบ อาจเป็น URL/deploy/permission');
 
-        write('3) ทดสอบ doGet iframe postMessage probe');
-        const getProbe = await bridgeGetProbe();
-        write('   ' + JSON.stringify(getProbe, null, 2));
-        if (!getProbe || !getProbe.ok) throw new Error('GET bridge probe ไม่สำเร็จ');
+        write('3) ทดสอบว่า iframe bridge client โหลดได้หรือไม่');
+        const load = await iframeLoadProbe();
+        write('   ' + JSON.stringify(load, null, 2));
+        if (!load.loaded) throw new Error('iframe bridge client ไม่โหลดจาก GAS');
 
-        write('4) ทดสอบ bridge client ping โดยไม่ผ่าน router');
+        write('4) ทดสอบ ensureBridgeClient');
+        await window.AppTransport.ensureBridgeClient();
+        write('   ' + JSON.stringify(window.AppTransport.bridgeClientState(), null, 2));
+
+        write('5) ทดสอบ bridge ping');
         const ping = await window.AppTransport.ping();
         write('   ' + JSON.stringify(ping, null, 2));
-        if (!ping || !ping.ok) throw new Error('POST bridge ping ไม่สำเร็จ');
+        if (!ping || !ping.ok) throw new Error('bridge ping ไม่สำเร็จ');
 
-        write('5) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
+        write('6) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
         const contract = await window.AppTransport.run('apiGetRouteContract', {diagnostic:true});
         write('   ' + JSON.stringify(contract, null, 2).slice(0, 3000));
         write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS ได้');
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nอ่านผลตามขั้นตอน: ถ้าข้อ 2 ไม่ผ่าน = URL/deploy ยังไม่ใช่ backend ล่าสุด; ถ้าข้อ 3 ไม่ผ่าน = HtmlService/postMessage ถูกบล็อก; ถ้าข้อ 4 ไม่ผ่าน = bridge client ยังไม่ได้ deploy หรือ Web app ไม่ใช่ Anyone; ถ้าข้อ 5 ไม่ผ่าน = apiRouter/backend logic มีปัญหา');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 โหลดแต่ข้อ 5 timeout = GAS ที่ deploy ยังไม่มี apiGithubBridgeCall หรือมี doGet ซ้ำ; ถ้าข้อ 5 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
