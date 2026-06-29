@@ -15,19 +15,21 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ bridge client เท่านั้น ไม่ใช้ transport เก่า</p>
+    <p>หน้านี้ทดสอบ bridge client เท่านั้น ไม่ใช้ form POST transport และตรวจโลโก้ fallback ด้วย</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
+    <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
     <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
   </div>
-  <script src="./app-config.js?bridge=client-only"></script>
-  <script src="./github-gas-transport.js?bridge=client-only"></script>
+  <script src="./app-config.js?bridge=current"></script>
+  <script src="./github-gas-transport.js?bridge=current"></script>
   <script>
     const $ = id => document.getElementById(id);
     const gasUrl = () => (window.APP_CONFIG && window.APP_CONFIG.gasWebAppUrl || '').trim();
     $('gasUrl').textContent = gasUrl() || '(ยังไม่ได้ตั้งค่า)';
     $('transportMode').textContent = (window.AppTransport && window.AppTransport.transportMode) || (window.APP_CONFIG && window.APP_CONFIG.transportMode) || '(unknown)';
+    $('logoUrl').textContent = (window.currentLogoUrl || window.LOGO_URL || window.APP_FALLBACK_LOGO_URL || '').slice(0, 160) || '(ไม่มี)';
     function write(line){ $('out').textContent += '\n' + line; }
     function jsonpPublicConfig(){
       return new Promise((resolve) => {
@@ -65,9 +67,10 @@
         write('   OK: ' + gasUrl());
         write('   transportMode: ' + ((window.AppTransport && window.AppTransport.transportMode) || '(unknown)'));
 
-        write('2) ทดสอบ doGet public config ผ่าน JSONP');
+        write('2) ทดสอบ doGet public config ผ่าน JSONP และ logo config');
         const cfg = await jsonpPublicConfig();
         write('   ' + JSON.stringify(cfg, null, 2));
+        $('logoUrl').textContent = (window.currentLogoUrl || window.LOGO_URL || window.APP_FALLBACK_LOGO_URL || '').slice(0, 160) || '(ไม่มี)';
         if (!cfg || !cfg.ok) write('   WARNING: public config ไม่ตอบ อาจเป็น URL/deploy/permission');
 
         write('3) ทดสอบว่า iframe bridge client โหลดได้หรือไม่');
@@ -91,7 +94,7 @@
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 โหลดแต่ข้อ 5 timeout = GAS ที่ deploy ยังไม่ได้อัปเดต Code_00/Code_20 ชุดแก้ไข หรือมี doGet ซ้ำ; ถ้าข้อ 5 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 โหลดแต่ข้อ 5 timeout = GAS ที่ deploy ยังไม่มี apiGithubBridgeCall หรือมี doGet ซ้ำ; ถ้าข้อ 5 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
