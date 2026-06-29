@@ -264,11 +264,19 @@
     return /TIMEOUT|LOAD_FAILED|SUBMIT_FAILED|BRIDGE_CLIENT_NOT_READY|GAS_URL|NETWORK/.test(code) || /timeout|โหลด|network|iframe|bridge|url|permission/.test(msg);
   }
 
+  function isLoginCredentialFailure(result) {
+    if (!result || typeof result !== 'object' || result.ok !== false) return false;
+    var msg = text(result.error || result.message || result.msg || '').toLowerCase();
+    var code = text(result.errorCode || result.code || '').toUpperCase();
+    return /username|password|รหัสผ่าน|บัญชีถูกระงับ|ไม่ถูกต้อง|invalid|credential|login/i.test(msg + ' ' + code);
+  }
+
   function runLoginNetwork(payload) {
     payload = payload || {};
     var preferPost = cfg('loginFormPost', true) !== false;
     var allowFastJsonp = cfg('fastLoginJsonp', false) === true;
     var allowBridgeFallback = cfg('loginBridgeFallback', true) !== false;
+    var allowLegacyActiveUserFallback = cfg('legacyActiveUserLoginFallback', false) === true;
     var tried = [];
     function withTag(promise, label) {
       tried.push(label);
@@ -281,14 +289,19 @@
       });
     }
     function bridge() { return withTag(runGasViaClient('apiLogin', payload), 'bridge-client-apiLogin'); }
-    function fast() { return withTag(runFastLoginJsonp(payload), 'fast-login-jsonp-legacy'); }
+    function fast() { return withTag(runFastLoginJsonp(payload), 'fast-login-jsonp-legacy-active-user'); }
     function post() { return withTag(runLoginViaFormPost(payload), 'login-form-post'); }
+    function maybeLegacyFallback(result) {
+      if (result && result.ok !== false) return result;
+      if (allowLegacyActiveUserFallback && allowFastJsonp && isLoginCredentialFailure(result)) return fast();
+      return result;
+    }
 
     var primary = preferPost ? post : (allowFastJsonp ? fast : bridge);
-    return primary().catch(function(err) {
+    return primary().then(maybeLegacyFallback).catch(function(err) {
       if (!isLoginTransportFailure(err)) throw err;
-      if (preferPost && allowBridgeFallback) return bridge();
-      if (!preferPost && allowBridgeFallback) return bridge();
+      if (preferPost && allowBridgeFallback) return bridge().then(maybeLegacyFallback);
+      if (!preferPost && allowBridgeFallback) return bridge().then(maybeLegacyFallback);
       if (!preferPost && allowFastJsonp) return fast();
       throw err;
     });
@@ -591,8 +604,8 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = cfg('transportMode', 'bridge-client-authenticated-read-p0');
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'bridge-client-authenticated-read-p0') }; };
+  root.AppTransport.transportMode = cfg('transportMode', 'hybrid-token-jsonp-read-bridge-fallback-p2-login-legacy-fallback');
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'hybrid-token-jsonp-read-bridge-fallback-p2-login-legacy-fallback') }; };
   root.AppTransport.run = function(fn, args) {
     var req = apiEnvelope(fn, args || {});
     if (/^getDeferredInclude$/i.test(req.method)) {
