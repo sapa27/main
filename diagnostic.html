@@ -15,15 +15,15 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ bridge client เท่านั้น ไม่ใช้ form POST transport และตรวจโลโก้ fallback ด้วย</p>
+    <p>หน้านี้ทดสอบ fast-login JSONP สำหรับ apiLogin และ bridge client สำหรับ API อื่น ไม่ใช้ form POST transport</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
     <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
   </div>
-  <script src="./app-config.js?bridge=current"></script>
-  <script src="./github-gas-transport.js?bridge=current"></script>
+  <script src="./app-config.js?bridge=fast-login"></script>
+  <script src="./github-gas-transport.js?bridge=fast-login"></script>
   <script>
     const $ = id => document.getElementById(id);
     const gasUrl = () => (window.APP_CONFIG && window.APP_CONFIG.gasWebAppUrl || '').trim();
@@ -78,23 +78,28 @@
         write('   ' + JSON.stringify(load, null, 2));
         if (!load.loaded) throw new Error('iframe bridge client ไม่โหลดจาก GAS');
 
-        write('4) ทดสอบ ensureBridgeClient');
+        write('4) ทดสอบ fast-login JSONP สำหรับ apiLogin');
+        const login = await window.AppTransport.run('apiLogin', {username:'diagnostic', password:'ไม่ส่งผ่าน URL'});
+        write('   ' + JSON.stringify(login, null, 2).slice(0, 3000));
+        if (!login || !login.ok || !(login.token || login.user || (login.data && (login.data.token || login.data.user)))) throw new Error('fast-login apiLogin ไม่คืน token/user');
+
+        write('5) ทดสอบ ensureBridgeClient');
         await window.AppTransport.ensureBridgeClient();
         write('   ' + JSON.stringify(window.AppTransport.bridgeClientState(), null, 2));
 
-        write('5) ทดสอบ bridge ping');
+        write('6) ทดสอบ bridge ping');
         const ping = await window.AppTransport.ping();
         write('   ' + JSON.stringify(ping, null, 2));
         if (!ping || !ping.ok) throw new Error('bridge ping ไม่สำเร็จ');
 
-        write('6) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
+        write('7) ทดสอบ apiGetRouteContract ผ่าน apiRouter');
         const contract = await window.AppTransport.run('apiGetRouteContract', {diagnostic:true});
         write('   ' + JSON.stringify(contract, null, 2).slice(0, 3000));
         write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS ได้');
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 3 โหลดแต่ข้อ 5 timeout = GAS ที่ deploy ยังไม่มี apiGithubBridgeCall หรือมี doGet ซ้ำ; ถ้าข้อ 5 ตอบแต่ login ไม่ผ่าน = ตรวจ apiLogin/ข้อมูลผู้ใช้ในชีต');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = GAS ที่ deploy ยังไม่มี __githubFastLogin; ถ้าข้อ 3 โหลดแต่ข้อ 6 timeout = bridge/google.script.run ใน iframe ไม่ตอบหรือ deploy ไม่มี apiGithubBridgeCall/doGet ซ้ำ');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
