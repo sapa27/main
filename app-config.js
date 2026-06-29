@@ -11,12 +11,13 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbz2xLnap87MMfdz-yUxwJHXsmjeM55EgxOq8HM-2DNl8GAcykkmyBINV15ZUpZ_HyaAMQ/exec',
+    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwUiqh9NvawA8wqAh7ZYP7q_Q3r2lCXxrkgUIUA7SNXK7AE4q1DWsnaHEUpfet52DrKSw/exec',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
-    localAssetBaseCandidates: ['./partials/', 'partials/', '../partials/', '/partials/'],
+    localAssetBaseCandidates: ['./partials/', 'partials/', '../partials/'],
     transportMode: 'fast-login-read-jsonp-core-stable',
+    inlinePartialsEnabled: true,
     bridgeReadyTimeoutMs: 30000,
     bridgeLoadGraceMs: 1000,
     forceBridgeClientOnly: true,
