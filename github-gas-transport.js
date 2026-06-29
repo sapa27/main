@@ -108,15 +108,17 @@
     delete pending[id];
     try { item.timer && clearTimeout(item.timer); } catch (_) {}
     try { item.removeTimer && clearTimeout(item.removeTimer); } catch (_) {}
+    try { item.sendTimer && clearInterval(item.sendTimer); } catch (_) {}
     try { item.handler && root.removeEventListener('message', item.handler); } catch (_) {}
     try { item.iframe && item.iframe.parentNode && item.iframe.parentNode.removeChild(item.iframe); } catch (_) {}
   }
-  function namedRequestSrc(url) {
+  function namedRequestSrc(url, requestId) {
     return url + (url.indexOf('?') >= 0 ? '&' : '?') +
       '__githubBridgeNamedRequest=1' +
       '&parentOrigin=*' +
       '&originHint=' + encodeURIComponent(root.location && root.location.origin || '') +
       '&bridge=named-request' +
+      '&requestId=' + encodeURIComponent(requestId || '') +
       '&_=' + Date.now();
   }
   function runGasViaNamedIframe(method, payload) {
@@ -158,18 +160,36 @@
         finish(true, result);
       };
       var timer = setTimeout(function() {
-        finish(false, bridgeError('GAS API timeout: ' + method + ' — named-request iframe โหลดแล้วแต่ GAS ไม่ส่งผลกลับมา ให้ตรวจว่า deploy ล่าสุดมี __githubBridgeNamedRequest และ apiGithubBridgeCall และไม่มี doGet ซ้ำ', 'GAS_API_TIMEOUT', method));
+        finish(false, bridgeError('GAS API timeout: ' + method + ' — named-request iframe โหลดแล้วแต่ยังไม่ได้รับผลกลับจาก GAS ให้ตรวจว่าไฟล์ github-gas-transport.js ใหม่ถูกอัปโหลด, GAS deploy ล่าสุดมี __githubBridgeNamedRequest/apiGithubBridgeCall และไม่มี doGet ซ้ำ', 'GAS_API_TIMEOUT', method));
       }, timeoutMs);
-      var encodedRequest = encodeURIComponent(JSON.stringify(req));
-      iframe.name = 'GAS_BRIDGE_NAMED_REQUEST:' + JSON.stringify(req);
+      function postRequestToIframe(reason) {
+        var item = pending[id];
+        if (!item || !iframe.contentWindow) return false;
+        try {
+          var msg = Object.assign({}, req, { postReason: reason || 'send', postedAt: new Date().toISOString() });
+          iframe.contentWindow.postMessage(msg, '*');
+          try { iframe.contentWindow.postMessage(JSON.stringify(msg), '*'); } catch (_) {}
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+      iframe.name = 'GAS_BRIDGE_NAMED_REQUEST_FRAME_' + id;
       iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
       iframe.setAttribute('aria-hidden', 'true');
       iframe.referrerPolicy = 'no-referrer-when-downgrade';
-      iframe.addEventListener('load', function() { state.lastIframeLoaded = true; });
-      pending[id] = { iframe: iframe, handler: handler, timer: timer };
+      iframe.addEventListener('load', function() {
+        state.lastIframeLoaded = true;
+        postRequestToIframe('iframe-load');
+        setTimeout(function(){ postRequestToIframe('iframe-load-250ms'); }, 250);
+        setTimeout(function(){ postRequestToIframe('iframe-load-1000ms'); }, 1000);
+      });
+      pending[id] = { iframe: iframe, handler: handler, timer: timer, sendTimer: null };
+      pending[id].sendTimer = setInterval(function(){ postRequestToIframe('interval'); }, 250);
       root.addEventListener('message', handler);
-      iframe.src = namedRequestSrc(url) + '#GAS_BRIDGE_NAMED_REQUEST=' + encodedRequest;
+      iframe.src = namedRequestSrc(url, id);
       (doc.body || doc.documentElement).appendChild(iframe);
+      postRequestToIframe('after-append');
     });
   }
   function setLogo(url, source) {
