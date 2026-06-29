@@ -111,6 +111,52 @@
     });
   }
 
+
+  function stripJsonpPayload(payload) {
+    var out = {};
+    payload = isObj(payload) ? payload : {};
+    Object.keys(payload).forEach(function(k) {
+      if (/^(password|pass|pwd|csrf|csrfToken|_csrf|actionToken|csrfActionToken|token|_token|authToken|sessionToken|resumeHandle|sessionResumeHandle)$/i.test(k)) return;
+      if (/^(clientContext)$/i.test(k)) return;
+      out[k] = payload[k];
+    });
+    out.githubReadOnly = true;
+    out.githubJsonpApi = true;
+    out.source = out.source || 'github-jsonp-read-api';
+    return out;
+  }
+
+  function isJsonpReadMethod(method) {
+    method = text(method).trim();
+    if (!method) return false;
+    if (/^api(Login|Logout)$/i.test(method)) return false;
+    if (/^api(?:Save|Delete|Update|Create|Import|Extract|Upload|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh)/i.test(method)) return false;
+    if (/^api(?:Admin)?(?:Save|Delete|Update|Create)/i.test(method)) return false;
+    return /^(apiGet|apiList|apiSearch|apiBootstrap|apiSessionCheck|apiSessionResume|apiVerifySession|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList)/i.test(method) || method === 'apiRouter';
+  }
+
+  function runJsonpApi(method, payload) {
+    var url = resolveGasUrl();
+    method = text(method).trim();
+    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', method));
+    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID', method));
+    return new Promise(function(resolve, reject) {
+      var cb = '__githubJsonpApi_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
+      var done = false;
+      var script = doc.createElement('script');
+      var cleanPayload = stripJsonpPayload(payload || {});
+      var payloadText = '';
+      try { payloadText = encodeURIComponent(JSON.stringify(cleanPayload)); } catch (_) { payloadText = encodeURIComponent('{}'); }
+      function cleanup() { try { clearTimeout(timer); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} }
+      function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
+      var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: ' + method + ' — JSONP read API ไม่ได้รับผลกลับจาก GAS ให้ตรวจ deploy ล่าสุดมี __githubJsonpApi และ apiRouter', 'GAS_JSONP_API_TIMEOUT', method)); }, Number(cfg('jsonpApiTimeoutMs', 18000)) || 18000);
+      root[cb] = function(result) { result = result || { ok:false, error:'empty JSONP API response', errorCode:'EMPTY_JSONP_API_RESPONSE', method:method }; finish(true, result); };
+      script.onerror = function() { finish(false, bridgeError('GAS API error: ' + method + ' — โหลด JSONP read API ไม่สำเร็จ ให้ตรวจ URL /exec และ permission Anyone', 'GAS_JSONP_API_LOAD_FAILED', method)); };
+      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubJsonpApi=1&callback=' + encodeURIComponent(cb) + '&method=' + encodeURIComponent(method) + '&payload=' + payloadText + '&_=' + Date.now();
+      (doc.head || doc.documentElement).appendChild(script);
+    });
+  }
+
   function runGasViaClient(method, payload) {
     if (!method) return Promise.reject(bridgeError('method required', 'METHOD_REQUIRED', method));
     var timeoutMs = Number(cfg('apiTimeoutMs', 90000)) || 90000;
@@ -176,12 +222,12 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = 'github-fast-login-plus-gas-bridge';
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'github-fast-login-plus-gas-bridge' }; };
-  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return runFastLoginJsonp(req.payload || {}); return runGasViaClient(req.method, req.payload || {}); };
+  root.AppTransport.transportMode = 'github-fast-login-plus-jsonp-read-api';
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: 'github-fast-login-plus-jsonp-read-api' }; };
+  root.AppTransport.run = function(fn, args) { var req = apiEnvelope(fn, args || {}); if (/^getDeferredInclude$/i.test(req.method)) { var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || ''; return localInclude(name); } if (/^apiLogin$/i.test(req.method)) return runFastLoginJsonp(req.payload || {}); if (isJsonpReadMethod(req.method) && cfg('readJsonpApi', true) !== false) return runJsonpApi(req.method, req.payload || {}).catch(function(err) { if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(req.method, req.payload || {}); throw err; }); return runGasViaClient(req.method, req.payload || {}); };
   root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
-  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'github-fast-login-plus-gas-bridge' }); };
+  root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'github-fast-login-plus-jsonp-read-api' }); };
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
 
