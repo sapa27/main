@@ -1664,7 +1664,7 @@ catch(__appRootBridgeErr) {
         var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
         if(bootstrapRoutes[methodName])return null;
         if(this.routes && (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]))return null;
-        if(hasAuth && readBeforeContract)return null;
+        if(readBeforeContract)return null;
         return new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
       }
     }), e.PUBLIC_API_METHODS = e.PUBLIC_API_METHODS || {
@@ -2993,7 +2993,7 @@ catch(__appRootBridgeErr) {
     var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
     if(bootstrapRoutes[methodName])return null;
     if(contract.routes && (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]))return null;
-    if(hasAuth && readBeforeContract)return null;
+    if(readBeforeContract)return null;
     return new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
   }
 }
