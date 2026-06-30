@@ -649,14 +649,14 @@
             var _sub = meetingSelectedSubcommittee();
             if(! _sub.name && _sub0.name && (_sub.name = _sub0.name), ! _sub.id && _sub0.id && (_sub.id = _sub0.id), "คณะอนุกรรมาธิการ" === _ctype &&! _sub.id &&! _sub.name)return oe("warning", "กรุณาเลือกคณะอนุกรรมาธิการ"), ! 1;
             var caseInfo = Ge(), c = {
-              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId") || caseInfo.caseId || "", caseNum: caseInfo.caseNum || caseInfo.caseNo || T("meeting-caseNum"), caseNo: caseInfo.caseNo || caseInfo.caseNum || T("meeting-caseNum"), recNo: caseInfo.recNo || caseInfo.receiveNo || T("meeting-recNo"), receiveNo: caseInfo.receiveNo || caseInfo.recNo || T("meeting-recNo"), title: caseInfo.title || T("meeting-title"), caseTitle: caseInfo.caseTitle || T("meeting-caseTitle"), petitioners: caseInfo.petitioners || T("meeting-petitioners"), round: T("meeting-newRound"), date: P("meeting-newDate"), committeeType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote")
+              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId") || caseInfo.caseId || caseInfo.id || "", id: T("meeting-caseId") || caseInfo.id || caseInfo.caseId || "", caseNum: caseInfo.caseNum || caseInfo.caseNo || T("meeting-caseNum"), caseNo: caseInfo.caseNo || caseInfo.caseNum || T("meeting-caseNum"), recNo: caseInfo.recNo || caseInfo.receiveNo || T("meeting-recNo"), receiveNo: caseInfo.receiveNo || caseInfo.recNo || T("meeting-recNo"), title: caseInfo.title || T("meeting-title"), caseTitle: caseInfo.caseTitle || T("meeting-caseTitle"), petitioners: caseInfo.petitioners || T("meeting-petitioners"), round: T("meeting-newRound"), date: P("meeting-newDate"), meetingDate: P("meeting-newDate"), committeeType: _ctype, meetingType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote"), result: T("meeting-newNote"), summary: T("meeting-newNote"), forceFresh: ! 0, noCache: ! 0
             };
             if(! c.caseId && ! c.caseNum && ! c.recNo && ! c.title)return oe("warning", "กรุณาเลือกหรือบันทึกข้อมูลเรื่องก่อนบันทึกประวัติการประชุม"), ! 1;
             return s("apiSaveMeetingLog", c).then(function(res) {
-              var data = res && res.data && "object" == typeof res.data ? res.data: res || {};
-              return data.caseId && (c.caseId = data.caseId, E("meeting-caseId", data.caseId), V(data.caseId)), Fe(), c.caseId ? Be(c.caseId).then(function() {
+              var data = res && res.data && "object" == typeof res.data ? res.data: res || {}, savedCaseId = data.caseId || c.caseId || "";
+              return savedCaseId && (c.caseId = savedCaseId, E("meeting-caseId", savedCaseId), V(savedCaseId)), Fe(), Be(c).then(function() {
                 return a("บันทึกข้อมูลสำเร็จแล้ว")
-              }): a("บันทึกข้อมูลสำเร็จแล้ว")
+              })
             }).catch(function(e) {
               return o(e, "บันทึกข้อมูลไม่สำเร็จ")
             })
@@ -2067,15 +2067,16 @@
   }
   function Be(e) {
     var t = function(e) {
-      var t = String(e || T("meeting-caseId") || F() || "").trim(), n = (H() || []).find(function(e) {
+      var q = e && "object" == typeof e ? e: {}, lookup = q.caseId || q.id || e || T("meeting-caseId") || F() || "";
+      var t = String(lookup || "").trim(), n = (H() || []).find(function(e) {
         return String(e.caseId || "").trim() === t || t && String(e.caseNum || "").trim() === t || t && String(e.recNo || "").trim() === t
       }) || null;
       return {
-        caseId: t, id: t, caseNum: T("meeting-caseNum") || d(n && n.caseNum || ""), recNo: T("meeting-recNo") || d(n && n.recNo || ""), title: T("meeting-title") || T("meeting-caseTitle") || d(n && (n.title || n.caseTitle) || ""), caseTitle: T("meeting-caseTitle") || T("meeting-title") || d(n && (n.caseTitle || n.title) || ""), petitioners: T("meeting-petitioners") || d(n && (n.petitioners || n.petitionerName) || ""), petitioner: T("meeting-petitioners") || d(n && (n.petitioners || n.petitionerName) || "")
+        caseId: t, id: t, caseNum: d(q.caseNum || q.caseNo || "") || T("meeting-caseNum") || d(n && n.caseNum || ""), recNo: d(q.recNo || q.receiveNo || "") || T("meeting-recNo") || d(n && n.recNo || ""), title: d(q.title || q.caseTitle || "") || T("meeting-title") || T("meeting-caseTitle") || d(n && (n.title || n.caseTitle) || ""), caseTitle: d(q.caseTitle || q.title || "") || T("meeting-caseTitle") || T("meeting-title") || d(n && (n.caseTitle || n.title) || ""), petitioners: d(q.petitioners || q.petitionerName || q.petitioner || "") || T("meeting-petitioners") || d(n && (n.petitioners || n.petitionerName) || ""), petitioner: d(q.petitioners || q.petitionerName || q.petitioner || "") || T("meeting-petitioners") || d(n && (n.petitioners || n.petitionerName) || "")
       }
     }
     (e), i = (H() || []).find(function(n) {
-      return String(n.caseId || "").trim() === String(t.caseId || e || "").trim() || t.caseNum && String(n.caseNum || "").trim() === String(t.caseNum || "").trim() || t.recNo && String(n.recNo || "").trim() === String(t.recNo || "").trim() || t.title && String(n.title || n.caseTitle || "").trim() === String(t.title || "").trim()
+      return String(n.caseId || "").trim() === String(t.caseId || "").trim() || t.caseNum && String(n.caseNum || "").trim() === String(t.caseNum || "").trim() || t.recNo && String(n.recNo || "").trim() === String(t.recNo || "").trim() || t.title && String(n.title || n.caseTitle || "").trim() === String(t.title || "").trim()
     }) || null;
     if(i && (t.caseId || (t.caseId = String(i.caseId || "").trim()), t.caseNum || (t.caseNum = String(i.caseNum || "").trim()), t.recNo || (t.recNo = String(i.recNo || "").trim()), t.title || (t.title = String(i.title || i.caseTitle || "").trim()), t.caseTitle || (t.caseTitle = String(i.caseTitle || i.title || "").trim()), t.petitioners || (t.petitioners = String(i.petitioners || i.petitionerName || "").trim())), ! (t.caseId || t.caseNum || t.recNo || t.title))return Me([]), qe([]), Promise.resolve(! 1);
     function r(e, t, i) {
