@@ -1,5 +1,5 @@
 /* GitHub Pages <-> Google Apps Script transport bridge.
- * Login path: secure form POST first, bridge fallback; fast-login JSONP is disabled by default.
+ * Login path: secure form POST first, bridge fallback; write path: secure hidden form POST first, bridge fallback.
  */
 (function(root, doc) {
   'use strict';
@@ -200,6 +200,66 @@
     });
   }
 
+
+
+  function runApiViaFormPost(method, payload) {
+    var url = resolveGasUrl();
+    method = text(method).trim();
+    if (!method) return Promise.reject(bridgeError('method required', 'METHOD_REQUIRED', method));
+    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', method));
+    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID', method));
+    return new Promise(function(resolve, reject) {
+      var id = 'gaspost_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
+      var done = false;
+      var iframe = doc.createElement('iframe');
+      var form = doc.createElement('form');
+      var timeoutMs = Number(cfg('writePostTimeoutMs', cfg('apiTimeoutMs', 120000))) || 120000;
+      function cleanup() {
+        try { clearTimeout(timer); } catch (_) {}
+        try { root.removeEventListener('message', handler); } catch (_) {}
+        setTimeout(function() {
+          try { form.parentNode && form.parentNode.removeChild(form); } catch (_) {}
+          try { iframe.parentNode && iframe.parentNode.removeChild(iframe); } catch (_) {}
+        }, 250);
+      }
+      function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
+      function add(name, value) {
+        var input = doc.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value == null ? '' : String(value);
+        form.appendChild(input);
+      }
+      function handler(event) {
+        var data = parseMessage(event && event.data);
+        if (!data || data.requestId !== id) return;
+        if (data.type !== 'GAS_API_POST_RESPONSE' && data.type !== 'GAS_IFRAME_TRANSPORT_RESPONSE') return;
+        var result = data.result || data.payload || { ok: false, error: 'empty API POST response', errorCode: 'EMPTY_API_POST_RESPONSE', method: method };
+        finish(true, result);
+      }
+      var timer = setTimeout(function() {
+        finish(false, bridgeError('GAS API timeout: ' + method + ' — write POST callback ไม่ได้รับผลกลับจาก GAS ให้ตรวจว่า deploy ล่าสุดมี __githubApiPost และ doPost เดียว', 'GAS_API_POST_TIMEOUT', method));
+      }, timeoutMs);
+      iframe.name = 'gas_api_post_' + id;
+      iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
+      iframe.setAttribute('aria-hidden', 'true');
+      form.method = 'POST';
+      form.action = url;
+      form.target = iframe.name;
+      form.enctype = 'application/x-www-form-urlencoded';
+      form.acceptCharset = 'UTF-8';
+      form.style.cssText = 'display:none';
+      add('__githubApiPost', '1');
+      add('method', method);
+      add('requestId', id);
+      add('parentOrigin', (root.location && root.location.origin) || '*');
+      try { add('payload', JSON.stringify(payload || {})); } catch (_) { add('payload', '{}'); }
+      root.addEventListener('message', handler);
+      (doc.body || doc.documentElement).appendChild(iframe);
+      (doc.body || doc.documentElement).appendChild(form);
+      try { form.submit(); } catch (err) { finish(false, bridgeError('GAS API error: ' + method + ' — ส่ง write POST ไม่สำเร็จ: ' + ((err && err.message) || err), 'GAS_API_POST_SUBMIT_FAILED', method)); }
+    });
+  }
 
   function runLoginViaFormPost(payload) {
     var url = resolveGasUrl();
@@ -503,6 +563,12 @@
 
   function runGasNetwork(method, payload) {
     payload = payload || {};
+    if (isApiWriteMethod(method) && cfg('writeFormPost', true) !== false) {
+      return runApiViaFormPost(method, payload).catch(function(err) {
+        if (cfg('writePostBridgeFallback', true) !== false && isBridgeTransportFailure(err)) return runGasViaClient(method, payload);
+        throw err;
+      });
+    }
     if (isJsonpReadMethod(method) && cfg('readJsonpApi', false) === true) {
       return runJsonpApi(method, payload).catch(function(err) {
         if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(method, payload);
@@ -604,8 +670,8 @@
 
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
-  root.AppTransport.transportMode = cfg('transportMode', 'hybrid-token-jsonp-read-bridge-fallback-p2-login-legacy-fallback');
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'hybrid-token-jsonp-read-bridge-fallback-p2-login-legacy-fallback') }; };
+  root.AppTransport.transportMode = cfg('transportMode', 'hybrid-token-jsonp-read-write-post-p2-write-hotfix');
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'hybrid-token-jsonp-read-write-post-p2-write-hotfix') }; };
   root.AppTransport.run = function(fn, args) {
     var req = apiEnvelope(fn, args || {});
     if (/^getDeferredInclude$/i.test(req.method)) {
@@ -644,7 +710,7 @@
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
   root.AppTransport.clearClientReadCache = clearClientApiCaches;
-  root.AppTransport.clientCacheStatus = function() { return { entries: Object.keys(apiResponseCache || {}).length, inflight: Object.keys(apiInflight || {}).length, enabled: cfg('clientApiCacheEnabled', true) !== false, dedupe: cfg('clientInFlightDedupe', true) !== false, stamp: 'p2-stability-hotfix-token-jsonp-cache-dedupe' }; };
+  root.AppTransport.clientCacheStatus = function() { return { entries: Object.keys(apiResponseCache || {}).length, inflight: Object.keys(apiInflight || {}).length, enabled: cfg('clientApiCacheEnabled', true) !== false, dedupe: cfg('clientInFlightDedupe', true) !== false, stamp: 'p2-write-hotfix-token-jsonp-post-cache-dedupe' }; };
 
   try { setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config'); } catch (_) {}
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function(){ setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config-dom'); loadPublicConfig(); }, { once: true });
