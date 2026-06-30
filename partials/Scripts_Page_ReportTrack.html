@@ -652,16 +652,26 @@
   }
   function manualNumber(value) {
     if(root.normalizeCaseManualNo)try {
-      return root.normalizeCaseManualNo(value) || ""
+      var normalized = root.normalizeCaseManualNo(value) || "";
+      if(normalized)return normalized
     }
     catch(_e) {
       __appObserve(_e, "ec")
     }
-    var raw = clean(value).replace(/^'+/, "").replace(/[​-‍﻿]/g, "").trim();
-    if(! raw || "-" === raw || "/" === raw || isInternalCaseId(raw) || looksLikeDateValue(raw))return"";
+    var raw = clean(value).replace(/^'+/, "").replace(/[๐-๙]/g, function(ch) {
+      return String("๐๑๒๓๔๕๖๗๘๙".indexOf(ch))
+    }).replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, " ").trim();
+    if(! raw || "-" === raw || "/" === raw || isInternalCaseId(raw))return"";
     if(/^\d+$/.test(raw))return raw;
     var decimal = raw.match(/^(\d+)\.0+$/);
-    return decimal ? decimal[1]: ""
+    if(decimal)return decimal[1];
+    var sequenceWithYear = raw.match(/^(\d{1,9})\s*[\/\-.]\s*((?:19|20|25)\d{2})$/);
+    if(sequenceWithYear)return sequenceWithYear[1] + "/" + sequenceWithYear[2];
+    if(looksLikeDateValue(raw))return"";
+    var prefixed = raw.match(/(?:^|[^0-9])(\d{1,9})\s*[\/\-.]\s*((?:19|20|25)\d{2})(?:$|[^0-9])/);
+    if(prefixed)return prefixed[1] + "/" + prefixed[2];
+    var loose = raw.match(/(?:^|[^0-9])(\d{1,9})(?:$|[^0-9])/);
+    return loose ? loose[1]: ""
   }
   function manualReceiveNumber(value) {
     if(root.normalizeCaseReceiveNo)try {
@@ -681,7 +691,11 @@
     return dash ? dash[1] + "/" + dash[2]: ""
   }
   function pickManualNumber(row, keys) {
-    row = obj(row);
+    row = obj(row), keys = Array.isArray(keys) ? keys: [];
+    function isSeqKey(key) {
+      var nk = normFieldKey(key);
+      return !! nk && (/^(casenum|caseno|runningno|orderno|seq|no|manualno|manualnumber|sequenceno|sequencenumber|runningnumber)$/i.test(nk) || nk.indexOf("ลำดับเรื่อง") >= 0 || nk.indexOf("เลขลำดับ") >= 0 || nk.indexOf("ลำดับเลข") >= 0 || nk.indexOf("เลขเรื่อง") >= 0)
+    }
     for(var i = 0;
     i < keys.length;
     i ++ ) {
@@ -691,7 +705,27 @@
         if(v)return v
       }
     }
-    return""
+    var dict = {};
+    Object.keys(row).forEach(function(k) {
+      var nk = normFieldKey(k);
+      nk && ! Object.prototype.hasOwnProperty.call(dict, nk) && (dict[nk] = row[k])
+    });
+    for(var j = 0;
+    j < keys.length;
+    j ++ ) {
+      var nkey = normFieldKey(keys[j]);
+      if(Object.prototype.hasOwnProperty.call(dict, nkey)) {
+        var nv = manualNumber(dict[nkey]);
+        if(nv)return nv
+      }
+    }
+    var best = "";
+    Object.keys(row).some(function(k) {
+      if(! isSeqKey(k))return !1;
+      best = manualNumber(row[k]);
+      return !! best
+    });
+    return best || ""
   }
   function pickReceiveNumber(row) {
     row = obj(row);
@@ -826,7 +860,7 @@
     return row.recDateText || row.receiveDateText || row["วันที่รับเรื่อง"] || row.recDate || row.receiveDate || raw.recDateText || raw.receiveDateText || raw["วันที่รับเรื่อง"] || raw.recDate || raw.receiveDate || main.recDateText || main.receiveDateText || main["วันที่รับเรื่อง"] || main.recDate || main.receiveDate || ""
   }
   function normalizeCase(row) {
-    var caseNum = pickManualNumber(row = flattenCaseRow(row), ["caseNum", "caseNo", "runningNo", "orderNo", "seq", "no", "ลำดับเรื่อง", "ลำดับ", "ลำดับที่"]), recNo = pickReceiveNumber(row), title = clean(pick(row, ["title", "subject", "caseSubject", "caseName", "name", "เรื่อง", "ชื่อเรื่อง", "หัวข้อเรื่อง"])), petitioners = clean(pick(row, ["petitioners", "petitionerName", "petitioner", "requester", "complainant", "proposer", "motionProposer", "ผู้เสนอญัตติ/ผู้ร้อง", "ผู้ร้อง", "ผู้เสนอญัตติ"])), considerationExplicit = clean(pick(row, ["considerationTitle", "caseConsiderationTitle", "titleConsider", "considerTitle", "considerationSubject", "meetingTitle", "caseTopic", "topic", "เรื่องพิจารณา", "ชื่อเรื่องพิจารณา", "ชื่อเรื่องพิจารณา (ถ้ามี)"])), caseTitleAlias = clean(pick(row, ["caseTitle"])), consideration = considerationExplicit;
+    var caseNum = pickManualNumber(row = flattenCaseRow(row), ["caseNum", "caseNo", "runningNo", "orderNo", "seq", "no", "manualNo", "manualNumber", "sequenceNo", "sequenceNumber", "runningNumber", "ลำดับเรื่อง", "ลำดับ", "ลำดับที่", "เลขลำดับ", "เลขลำดับเรื่อง", "ลำดับเลข", "เลขที่ลำดับ", "เลขที่เรื่อง", "เลขเรื่อง", "ที่", "No", "No.", "NO", "ลำดับที่เรื่อง"]), recNo = pickReceiveNumber(row), title = clean(pick(row, ["title", "subject", "caseSubject", "caseName", "name", "เรื่อง", "ชื่อเรื่อง", "หัวข้อเรื่อง"])), petitioners = clean(pick(row, ["petitioners", "petitionerName", "petitioner", "requester", "complainant", "proposer", "motionProposer", "ผู้เสนอญัตติ/ผู้ร้อง", "ผู้ร้อง", "ผู้เสนอญัตติ"])), considerationExplicit = clean(pick(row, ["considerationTitle", "caseConsiderationTitle", "titleConsider", "considerTitle", "considerationSubject", "meetingTitle", "caseTopic", "topic", "เรื่องพิจารณา", "ชื่อเรื่องพิจารณา", "ชื่อเรื่องพิจารณา (ถ้ามี)"])), caseTitleAlias = clean(pick(row, ["caseTitle"])), consideration = considerationExplicit;
     ! title && consideration && (title = clean(pick(row, ["title", "subject", "caseSubject", "ชื่อเรื่อง"])) || consideration), consideration ||! caseTitleAlias || same(caseTitleAlias, petitioners) || same(caseTitleAlias, title) || (consideration = caseTitleAlias), consideration && (same(consideration, petitioners) || same(consideration, title)) && (consideration = "");
     var status = mainDataStatus(row), rawClosedReason = clean(pick(row, ["closedReason", "closeReason", "terminateReason", "stopReason", "endReason", "caseCloseReason", "caseEndReason", "statusReason", "decisionReason", "reason", "เหตุผล", "เหตุผลยุติเรื่อง", "เหตุผลการยุติเรื่อง"])), rawRejectionReason = clean(pick(row, ["rejectionReason", "rejectReason", "notAcceptedReason", "notReceiveReason", "notAcceptReason", "caseRejectReason", "statusReason", "decisionReason", "reason", "เหตุผล", "เหตุผล (ไม่รับเรื่อง)", "เหตุผลไม่รับเรื่อง", "เหตุผลการไม่รับเรื่อง"])), rawSentReason = clean(pick(row, ["sentAgencyReason", "sendAgencyReason", "sendReason", "forwardReason", "forwardedReason", "transferReason", "agencySendReason", "statusReason", "decisionReason", "reason", "เหตุผล", "เหตุผลส่งหน่วยงาน", "เหตุผลการส่งหน่วยงาน", "เหตุผลที่ส่งหน่วยงาน"])), rawPendingReason = clean(pick(row, ["pendingReason", "pendingRemark", "pendingNote", "statusReason", "decisionReason", "reason", "เหตุผล", "remark", "note", "หมายเหตุ"])), closedReason = "ยุติเรื่อง" === status ? rawClosedReason: "", rejectionReason = "ไม่รับเรื่อง" === status ? rawRejectionReason || rawClosedReason: "", sentAgencyReason = "ส่งหน่วยงาน" === status ? rawSentReason: "", pendingReason = "รอพิจารณา" === status ? rawPendingReason: "", recDateRaw = caseCanonicalRecDateRaw(row), recDateText = parseReceiveDateText(recDateRaw) || "";
     return {
@@ -877,7 +911,7 @@
   function filterCaseOnly(list) {
     return(list = arr(list)).filter(function(row) {
       var type = clean(row && row.type || ""), label = clean(row && row.typeLabel || ""), hasCaseKey =!! clean(pick(row || {
-      }, ["caseId", "caseNum", "caseNo", "runningNo", "orderNo", "seq", "no", "ลำดับเรื่อง", "ลำดับ", "ลำดับที่", "เลขลำดับ", "recNo", "receiveNo", "เลขรับเรื่อง", "title", "caseTitle", "ชื่อเรื่องพิจารณา (ถ้ามี)", "petitioners", "ผู้เสนอญัตติ/ผู้ร้อง", "detail"]));
+      }, ["caseId", "caseNum", "caseNo", "runningNo", "orderNo", "seq", "no", "manualNo", "manualNumber", "sequenceNo", "sequenceNumber", "runningNumber", "ลำดับเรื่อง", "ลำดับ", "ลำดับที่", "เลขลำดับ", "เลขลำดับเรื่อง", "ลำดับเลข", "เลขที่ลำดับ", "เลขที่เรื่อง", "เลขเรื่อง", "ที่", "No", "No.", "NO", "ลำดับที่เรื่อง", "recNo", "receiveNo", "เลขรับเรื่อง", "title", "caseTitle", "ชื่อเรื่องพิจารณา (ถ้ามี)", "petitioners", "ผู้เสนอญัตติ/ผู้ร้อง", "detail"]));
       return"letter" !== type && "หนังสือ" !== label && "หนังสือติดตามมติ" !== label && hasCaseKey
     })
   }
@@ -1118,7 +1152,7 @@
     };
     var requestedPageSize = Math.max(10, Math.min(100, Number(state.pageSize || 20) || 20)), requestedPage = Math.max(1, Number(state.page || 1) || 1), requestedQuery = queryFor(mode), requestedReportType = "report" === mode ? clean((byId("report-type") || {
     }).value || "all"): "all", requestedReportValue = "report" === mode ? clean((byId("report-group-value") || {
-    }).value || ""): "", cacheBaseKey = [mode, requestedPageSize, requestedQuery, requestedReportType, requestedReportValue, "caseNum", "asc", "page-cache-prefetch-v1"].join("|"), requestKey = cacheBaseKey + "|page=" + requestedPage, now = Date.now ? Date.now(): + new Date, cacheTtlMs = 18e4;
+    }).value || ""): "", cacheBaseKey = [mode, requestedPageSize, requestedQuery, requestedReportType, requestedReportValue, "caseNum", "asc", "live-main-data-sequence-order"].join("|"), requestKey = cacheBaseKey + "|page=" + requestedPage + "|t=" + String(Date.now ? Date.now(): + new Date), now = Date.now ? Date.now(): + new Date, cacheTtlMs = 0, allowLocalPageCache = !1;
     if(state.pageCacheBaseKey !== cacheBaseKey)state.pageCacheBaseKey = cacheBaseKey, state.pageCache = Object.create(null), state.pagePrefetch = Object.create(null);
     state.pageCache = state.pageCache || Object.create(null), state.pagePrefetch = state.pagePrefetch || Object.create(null);
     function normalizeEntry(res, pageNo) {
@@ -1143,7 +1177,7 @@
     }
     function payloadFor(pageNo, prefetch) {
       var payload = {
-        query: requestedQuery, page: pageNo, limit: requestedPageSize, pageSize: requestedPageSize, noPage: ! 1, fullList: ! 1, sortBy: "caseNum", sortDir: "asc", forceFresh: ! 1, cacheTtlSeconds: 180, noCache: ! 1, bypassCache: ! 1, serverPaged: ! 0, compactReadModel: ! 0, includeMeetingHistory: ! 1, receiveNoFix: "single-owner", receiveDateFix: "MainData.recDate.directOwner", pagingContract: "case-search-page-envelope-v3", source: prefetch ? "search-report-page-prefetch-r5": "search-report-page-cache-r5", requestStabilityContract: "latest-request-wins-page-cache-r2", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
+        query: requestedQuery, page: pageNo, limit: requestedPageSize, pageSize: requestedPageSize, noPage: ! 1, fullList: ! 1, sortBy: "caseNum", sortDir: "asc", forceFresh: ! 0, cacheTtlSeconds: 0, noCache: ! 0, bypassCache: ! 0, serverPaged: ! 0, compactReadModel: ! 0, includeMeetingHistory: ! 1, receiveNoFix: "single-owner", receiveDateFix: "MainData.recDate.directOwner", pagingContract: "case-search-page-envelope-v3", source: prefetch ? "search-report-page-prefetch-r5": "search-report-page-cache-r5", requestStabilityContract: "latest-request-wins-page-cache-r2", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0, sequenceOrderStrict: ! 0, forceFullMainDataRead: ! 0
       };
       return"report" === mode && (payload.reportType = requestedReportType, payload.reportValue = requestedReportValue), payload
     }
@@ -1168,14 +1202,14 @@
       })
     }
     var cachedEntry = state.pageCache[String(requestedPage)], currentTime = Date.now ? Date.now(): + new Date;
-    if(cachedEntry && cachedEntry.contract === "report-track-page-cache-v1" && cachedEntry.expiresAt > currentTime) {
+    if(allowLocalPageCache && cachedEntry && cachedEntry.contract === "report-track-page-cache-v1" && cachedEntry.expiresAt > currentTime) {
       var cachedSeq = Math.max(0, Number(state.requestSeq || 0) || 0) + 1;
       return state.requestSeq = cachedSeq, state.activeRequestKey = requestKey, state.loading =! 1, commitEntry(cachedEntry, cachedSeq), schedulePrefetch(cachedEntry), Promise.resolve({
         stale: ! 1, cached: ! 0, requestSeq: cachedSeq, requestKey: requestKey, rows: cachedEntry.rows.slice()
       })
     }
     var pendingPrefetch = state.pagePrefetch[String(requestedPage)];
-    if(pendingPrefetch) {
+    if(allowLocalPageCache && pendingPrefetch) {
       var prefetchSeq = Math.max(0, Number(state.requestSeq || 0) || 0) + 1;
       state.requestSeq = prefetchSeq, state.activeRequestKey = requestKey, state.loading = ! 0;
       return Promise.resolve(pendingPrefetch).then(function(entry) {
@@ -1546,7 +1580,7 @@
     var cacheKey = [kind, query, reportType, reportValue, Number(state.total || 0)].join("|");
     if(Array.isArray(state.exportRows) && state.exportRows.length && state.exportCacheKey === cacheKey)return Promise.resolve(state.exportRows.slice());
     var payload = {
-      query: query, reportType: reportType, reportValue: reportValue, page: 1, limit: 5e3, pageSize: 5e3, maxRows: 5e3, noPage: ! 0, fullList: ! 0, serverPaged: ! 1, compactReadModel: ! 0, includeMeetingHistory: ! 0, forceFresh: ! 1, noCache: ! 1, bypassCache: ! 1, cacheTtlSeconds: 180, sortBy: "caseNum", sortDir: "asc", exportMode: kind, source: "search-report-export-on-demand-production-owner", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
+      query: query, reportType: reportType, reportValue: reportValue, page: 1, limit: 5e3, pageSize: 5e3, maxRows: 5e3, noPage: ! 0, fullList: ! 0, serverPaged: ! 1, compactReadModel: ! 0, includeMeetingHistory: ! 0, forceFresh: ! 0, noCache: ! 0, bypassCache: ! 0, cacheTtlSeconds: 0, sortBy: "caseNum", sortDir: "asc", exportMode: kind, sequenceOrderStrict: ! 0, forceFullMainDataRead: ! 0, source: "search-report-export-on-demand-production-owner", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
     };
     return api("apiGetCaseReportExportRows", payload).then(function(res) {
       if(res && "object" == typeof res && ! 1 === res.ok)throw new Error(res.error || res.msg || "apiGetCaseReportExportRows ไม่สำเร็จ");
