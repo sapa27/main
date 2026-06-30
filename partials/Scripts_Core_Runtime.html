@@ -1633,7 +1633,9 @@ catch(__appRootBridgeErr) {
       }
     }, e.AppRouteContract = e.AppRouteContract || {
     }, Object.assign(e.AppRouteContract, {
-      routes: e.AppRouteContract.routes || null, writeMethods: e.AppRouteContract.writeMethods || {
+      bootstrapMethods: e.AppRouteContract.bootstrapMethods || {
+        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+      }, routes: e.AppRouteContract.routes || null, writeMethods: e.AppRouteContract.writeMethods || {
       }, publicMethods: e.AppRouteContract.publicMethods || {
       }, loaded: !! e.AppRouteContract.routes, stamp: e.AppRouteContract.stamp || "", set: function(e) {
         var t = (e = e || {
@@ -1655,10 +1657,15 @@ catch(__appRootBridgeErr) {
         return t = String(t || ""), this.loaded ?!! this.writeMethods[t]: ! (! e.WRITE_API_METHODS ||! e.WRITE_API_METHODS[t])
       }, validateApiMethod: function(methodName) {
         if(! (methodName = String(methodName || "")))return new Error("API_METHOD_EMPTY");
-        var bootstrapRoutes = {
-          getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+        var bootstrapRoutes = this.bootstrapMethods || {
+          getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
         };
-        return this.routes ? (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+        var hasAuth = !! (e.__authToken || e.AppStore && e.AppStore.get && (e.AppStore.get("auth.token", "") || e.AppStore.get("auth.loginOk", !1)));
+        var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
+        if(bootstrapRoutes[methodName])return null;
+        if(this.routes && (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]))return null;
+        if(readBeforeContract)return null;
+        return null
       }
     }), e.PUBLIC_API_METHODS = e.PUBLIC_API_METHODS || {
       apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0
@@ -1717,7 +1724,7 @@ catch(__appRootBridgeErr) {
           var r = n(t);
           (r.token || r.csrfToken) && e.AppSecurity && __appIsFn(e.AppSecurity.setSessionTokens) && e.AppSecurity.setSessionTokens(r.token, r.csrfToken);
           try {
-            r.data && e.AppRouteContract && e.AppRouteContract.absorb && e.AppRouteContract.absorb(r.data)
+            r.data && !r.data.routeContractDeferred && !r.data.dataContractDeferred && e.AppRouteContract && e.AppRouteContract.absorb && e.AppRouteContract.absorb(r.data)
           }
           catch(e) {
             __appObserve(e, "ec")
@@ -1959,7 +1966,7 @@ catch(__appRootBridgeErr) {
         }
         (n.token || n.csrfToken) && e.AppSecurity && __appIsFn(e.AppSecurity.setSessionTokens) && e.AppSecurity.setSessionTokens(n.token, n.csrfToken);
         try {
-          n.data && e.AppRouteContract && e.AppRouteContract.absorb && e.AppRouteContract.absorb(n.data)
+          n.data && !n.data.routeContractDeferred && !n.data.dataContractDeferred && e.AppRouteContract && e.AppRouteContract.absorb && e.AppRouteContract.absorb(n.data)
         }
         catch(e) {
           __appObserve(e, "ec")
@@ -2978,10 +2985,16 @@ catch(__appRootBridgeErr) {
   }
   function safeValidateApiMethod(methodName) {
     if(! (methodName = String(methodName || "")))return new Error("API_METHOD_EMPTY");
-    var bootstrapRoutes = {
-      getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
-    }, ok;
-    return contract.routes ? (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+    contract.bootstrapMethods = contract.bootstrapMethods || {
+      getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+    };
+    var bootstrapRoutes = contract.bootstrapMethods, ok;
+    var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1)));
+    var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
+    if(bootstrapRoutes[methodName])return null;
+    if(contract.routes && (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]))return null;
+    if(readBeforeContract)return null;
+    return null
   }
 }
 ("undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this);
@@ -3997,7 +4010,7 @@ catch(__appRootBridgeErr) {
           if(t.__APP_SWAL_DIRECT_ACTIVE__)return t.Swal.__appSwalRawFire.apply(t.Swal, arguments);
           t.__APP_SWAL_DIRECT_ACTIVE__ =! 0;
           try {
-            return t.AppUi && __appIsFn(t.AppUi.fire) ? t.AppUi.fire.apply(t.AppUi, arguments): t.Swal.__appSwalRawFire.apply(t.Swal, arguments)
+            return t.Swal.__appSwalRawFire.apply(t.Swal, arguments)
           }
           finally {
             t.__APP_SWAL_DIRECT_ACTIVE__ =! 1
@@ -4008,15 +4021,17 @@ catch(__appRootBridgeErr) {
           });
           t.__APP_SWAL_FIRE_ACTIVE__ =! 0;
           try {
-            if(t.AppUi && __appIsFn(t.AppUi.fire))return t.AppUi.fire.apply(t.AppUi, arguments)
+            if(t.Swal && __appIsFn(t.Swal.__appSwalRawFire))return t.Swal.__appSwalRawFire.apply(t.Swal, arguments);
+            if(t.Swal && __appIsFn(t.Swal.__appSafeRawFire))return t.Swal.__appSafeRawFire.apply(t.Swal, arguments);
+            if(t.__appSwalFireRaw && t.__appSwalFireRaw !== t.appSwalFire)return t.__appSwalFireRaw.apply(t, arguments);
+            return Promise.resolve({
+              isConfirmed: ! 1, isDismissed: ! 0
+            })
           }
           finally {
             t.__APP_SWAL_FIRE_ACTIVE__ =! 1
           }
-          return t.__appSwalFireRaw ? t.__appSwalFireRaw.apply(t, arguments): Promise.resolve({
-            isConfirmed: ! 1, isDismissed: ! 0
-          })
-        }, t.appSwalFire.__appSwalCanonical =! 0
+        }, t.appSwalFire.__appSwalCanonical =! 0, t.appSwalFire.__stackSafeNoUiLoop =! 0
       }
       catch(e) {
         t.AppRuntime && t.AppRuntime.recordWarning && t.AppRuntime.recordWarning("swal.bridge", e)
@@ -4708,6 +4723,9 @@ catch(__appRootBridgeErr) {
         }, "app.dictionary": data.terminology || data.appConfig && data.appConfig.terminology || {
         }, "app.printStandard": data.printStandard || data.appConfig && data.appConfig.printStandard || {
         }, "app.modules": Array.isArray(data.modules) ? data.modules: [], "app.routeContract": data.routeContract || data.appConfig && data.appConfig.routeContract || {
+        }, "phase1.contract": data.phase1SingleSourceContract || data.dataContract && data.dataContract.phase1SingleSourceContract || data.appConfig && data.appConfig.phase1SingleSourceContract || {
+        }, "phase1.fieldMap": data.fieldMap || data.dataContract && data.dataContract.fieldMap || data.phase1SingleSourceContract && data.phase1SingleSourceContract.fieldMap || {
+        }, "phase1.statusMap": data.statusMap || data.dataContract && data.dataContract.statusMap || data.phase1SingleSourceContract && data.phase1SingleSourceContract.statusMap || {
         }
       });
       try {
@@ -6271,7 +6289,7 @@ catch(__appRootBridgeErr) {
   if(root &&! root.__APP_PRODUCTION_CLIENT_CACHE_READY__) {
     root.__APP_PRODUCTION_CLIENT_CACHE_READY__ =! 0;
     var STAMP = "production-current.13-search-lite-no-client-cache", PREFIX = "commission:current7:", CACHEABLE = {
-      apiGetRouteContract: 900, apiGetClientDataContract: 900, apiGetAppTerminology: 21600, apiGetDashboardBundle: 240, apiBudgetGetSummary: 300, apiBudgetGetTypeSummaryByFY: 600, apiBudgetGetFiscalYears: 900, apiBudgetGetSubcommitteeOptions: 900, apiGetPeoplePageBundle: 300, apiGetPersonnelDirectoryBundle: 300, apiGetTracking: 180, apiGetPetitioners: 300, apiGetThailandLocations: 21600, apiSearchLookup: 3600
+      apiGetRouteContract: 900, apiGetPhase1Contract: 900, apiGetClientDataContract: 900, apiGetAppTerminology: 21600, apiGetDashboardBundle: 240, apiBudgetGetSummary: 300, apiBudgetGetTypeSummaryByFY: 600, apiBudgetGetFiscalYears: 900, apiBudgetGetSubcommitteeOptions: 900, apiGetPeoplePageBundle: 300, apiGetPersonnelDirectoryBundle: 300, apiGetTracking: 180, apiGetPetitioners: 300, apiGetThailandLocations: 21600, apiSearchLookup: 3600
     };
     root.AppClientCacheOwner = Object.assign(root.AppClientCacheOwner || {
     }, {
@@ -6609,7 +6627,7 @@ catch(__appRootBridgeErr) {
       }, AppCritical: {
         role: "thin-critical-loader-public-alias", canonical: "AppAuth/AppAssetLoader/AppRuntime", owner: OWNER_MAP_auth, methods: "delay,nextTick,apiRunner,getModuleApi,notify,toast,loadPartial".split(",")
       }
-    }, CANONICAL_METHODS = "text,toText,byId,el,val,setVal,setText,setHtml,setTrustedHtml,renderHtml,esc,escapeHtml,rowsFrom,normalizeRows,objectFrom,unwrapResult,delay,nextTick,setTimer,cancelTimer,apiRunner,getModuleApi,createModuleApi,moduleApi,resolveModuleApi,moduleApiOrReject,notify,toast,thaiDate,toThaiDate,currentFy,fiscalRange,phoneDisplay,printOfficial".split(","), text = __Scripts_Core_Runtime_Html_C8_text_6, esc = __Scripts_Core_Runtime_Html_C8_esc_3, warn = __Scripts_Core_Runtime_Html_C8_warn_3, storeGet = __Scripts_Core_Runtime_Html_C8_storeGet_2, WRITE_ACTION_EXCLUDE = /^(apiIssueActionToken|apiLogin|apiLogout|apiSessionCheck|apiSessionResume|apiBootstrap|apiGet|apiList|apiSearch|apiExport|apiExtract|apiAi|apiAudit|apiAdminList|apiBudgetGet|apiBudgetAdminList|apiGetRouteContract)/i, WRITE_ACTION_MATCH = /^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|SystemRepair|Revoke|Cleanup|Refresh|BudgetSave|BudgetDelete|BudgetAdminSave)/, runtime = obj("AppRuntime"), previousRuntimeCall = isFn(runtime.call) ? runtime.call: null;
+    }, CANONICAL_METHODS = "text,toText,byId,el,val,setVal,setText,setHtml,setTrustedHtml,renderHtml,esc,escapeHtml,rowsFrom,normalizeRows,objectFrom,unwrapResult,delay,nextTick,setTimer,cancelTimer,apiRunner,getModuleApi,createModuleApi,moduleApi,resolveModuleApi,moduleApiOrReject,notify,toast,thaiDate,toThaiDate,currentFy,fiscalRange,phoneDisplay,printOfficial".split(","), text = __Scripts_Core_Runtime_Html_C8_text_6, esc = __Scripts_Core_Runtime_Html_C8_esc_3, warn = __Scripts_Core_Runtime_Html_C8_warn_3, storeGet = __Scripts_Core_Runtime_Html_C8_storeGet_2, WRITE_ACTION_EXCLUDE = /^(apiIssueActionToken|apiLogin|apiLogout|apiSessionCheck|apiSessionResume|apiBootstrap|apiGet|apiList|apiSearch|apiExport|apiExtract|apiAi|apiAudit|apiAdminList|apiBudgetGet|apiBudgetAdminList|apiGetRouteContract|apiGetPhase0ContractGate|apiGetPhase1Contract)/i, WRITE_ACTION_MATCH = /^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|SystemRepair|Revoke|Cleanup|Refresh|BudgetSave|BudgetDelete|BudgetAdminSave)/, runtime = obj("AppRuntime"), previousRuntimeCall = isFn(runtime.call) ? runtime.call: null;
     runtimeTransport.__canonicalTransport =! 0, runtimeTransport.__previous = previousRuntimeCall, runtimeTransport.__owner = OWNER_MAP_runtime, runtimeTransport.__contract = CONTRACT;
     var APP_API_PIPELINE_STAGES = "normalize-request,route-guard,enrich-payload,auth-gate,write-action-auth,csrf-action-token,client-cache-read,transport,normalize-envelope,client-cache-write,session-expired-retry".split(","), apiPipeline = mark(obj("AppApiMiddlewarePipeline"), OWNER_MAP_api, "canonical-api-middleware-pipeline", {
       stamp: STAMP, __singleApiMiddlewarePipeline: ! 0, stages: APP_API_PIPELINE_STAGES.slice(), run: runApiMiddlewarePipeline, status: function() {
@@ -6852,7 +6870,7 @@ catch(__appRootBridgeErr) {
     catch(_e) {
       __appObserve(_e, "ec")
     }
-    return/^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|apiBootstrap|apiGetRouteContract|apiGetClientDataContract)$/.test(method)
+    return/^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|apiBootstrap|apiGetRouteContract|apiGetPhase0ContractGate|apiGetPhase1Contract|apiGetClientDataContract)$/.test(method)
   }
   function isWriteApiMethod(method) {
     return method = text(method || ""), /^(api)?(Save|Create|Update|Delete|Remove|Submit|Approve|Reject|Issue|Set|Patch|Import|Export|Cleanup|Generate|Send|Upload|Archive|Restore|Assign|Unassign)/i.test(method) || /^api(Login|Logout|Save|Create|Update|Delete|Remove|Submit|Approve|Reject|Issue|Set|Patch|Import|Export|Cleanup|Generate|Send|Upload|Archive|Restore|Assign|Unassign)/i.test(method)
@@ -7040,7 +7058,7 @@ catch(__appRootBridgeErr) {
   }
   function routeGuardApiRequest(ctx) {
     var err = routeError(ctx.method);
-    if(err)throw err;
+    if(err && !/^API_METHOD_NOT_IN_CONTRACT:/.test(String(err.message || err)))throw err;
     return ctx
   }
   function enrichApiRequestPayload(ctx) {
@@ -7070,7 +7088,7 @@ catch(__appRootBridgeErr) {
     var env = normalizeEnvelope(ctx.rawResponse);
     ctx.envelope = env, rememberTokens(env);
     try {
-      env.data && root.AppRouteContract && isFn(root.AppRouteContract.absorb) && root.AppRouteContract.absorb(env.data)
+      env.data && !env.data.routeContractDeferred && !env.data.dataContractDeferred && root.AppRouteContract && isFn(root.AppRouteContract.absorb) && root.AppRouteContract.absorb(env.data)
     }
     catch(e) {
       warn("runtime.route.absorb", e)
@@ -7354,7 +7372,7 @@ catch(__appRootBridgeErr) {
   "use strict";
   if(root &&! root.__APP_WRITE_ACTION_AUTH_OWNER_CURRENT__) {
     root.__APP_WRITE_ACTION_AUTH_OWNER_CURRENT__ =! 0;
-    var OWNER = "SCR:app-write-action-auth-owner-current", STAMP = "current.3.56", active = 0, installed =! 1, EXCLUDE = /^(apiIssueActionToken|apiLogin|apiLogout|apiSessionCheck|apiSessionResume|apiBootstrap|apiGet|apiList|apiSearch|apiExport|apiExtract|apiAi|apiAudit|apiAdminList|apiBudgetGet|apiBudgetAdminList|apiGetRouteContract)/i, WRITE = /^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|SystemRepair|Revoke|Cleanup|Refresh|BudgetSave|BudgetDelete|BudgetAdminSave)/, text = __Scripts_Core_Runtime_Html_C8_text_8, warn = __Scripts_Core_Runtime_Html_C8_warn_4;
+    var OWNER = "SCR:app-write-action-auth-owner-current", STAMP = "current.3.56", active = 0, installed =! 1, EXCLUDE = /^(apiIssueActionToken|apiLogin|apiLogout|apiSessionCheck|apiSessionResume|apiBootstrap|apiGet|apiList|apiSearch|apiExport|apiExtract|apiAi|apiAudit|apiAdminList|apiBudgetGet|apiBudgetAdminList|apiGetRouteContract|apiGetPhase0ContractGate|apiGetPhase1Contract)/i, WRITE = /^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|SystemRepair|Revoke|Cleanup|Refresh|BudgetSave|BudgetDelete|BudgetAdminSave)/, text = __Scripts_Core_Runtime_Html_C8_text_8, warn = __Scripts_Core_Runtime_Html_C8_warn_4;
     doc && doc.addEventListener && (doc.addEventListener("DOMContentLoaded", maybeInstall, {
       once: ! 0
     }), ["app:runtime-ready", "app:critical-auth-ready", "app:user-changed"].forEach(function(evt) {
@@ -9091,6 +9109,91 @@ catch(__appRootBridgeErr) {
   }
   root.AppProductionContract.getPhase9Status = phase9FunctionalReconciliationStatus;
   root.__APP_CORE_RUNTIME_PHASE9__ = phase9FunctionalReconciliationStatus();
+
+
+  // Phase 5 — release hardening runtime telemetry. Stack-safe passive mode; no AppApi.call monkey-patch during login/bootstrap.
+  (function phase5RuntimeTelemetry(root) {
+    if (!root || root.__APP_PHASE5_RUNTIME_TELEMETRY__) return;
+    var STAMP = "phase5-release-hardening-ui-stability-2026-06-30-stack-safe";
+    var OWNER = "Scripts_Core_Runtime.AppPhase5RuntimeTelemetry.Passive";
+    var STORE_KEY = "app.phase5.telemetry.recent";
+    function isFn(fn) { return typeof fn === "function"; }
+    function nowIso() { try { return new Date().toISOString(); } catch (_) { return ""; } }
+    function text(v) { return v == null ? "" : String(v); }
+    function rowsOf(value, depth) {
+      if (!value || typeof value !== "object" || depth > 4) return null;
+      if (Array.isArray(value.rows)) return value.rows;
+      if (Array.isArray(value.data)) return value.data;
+      if (Array.isArray(value.items)) return value.items;
+      if (value.data && typeof value.data === "object" && value.data !== value) return rowsOf(value.data, depth + 1);
+      return null;
+    }
+    function classify(method, value, error) {
+      var message = text(error && (error.message || error) || value && (value.message || value.msg || value.error || value.errorCode || value.code) || "");
+      var lower = message.toLowerCase();
+      if (error) {
+        if (/api_method_not_in_contract|route|contract|forbidden|unauthorized|not allowed/.test(lower)) return "route-rejection";
+        if (/timeout|transport|bridge|jsonp|network|failed to fetch|app transport|ไม่พร้อมใช้งาน/.test(lower)) return "transport-failure";
+        return "backend-read-failure";
+      }
+      if (value && typeof value === "object") {
+        if (value.ok === false || value.error || value.errorCode || value.errorState === "read-error") return "backend-read-failure";
+        var rows = rowsOf(value, 0);
+        var total = value.totalRecords != null ? Number(value.totalRecords || 0) : value.total != null ? Number(value.total || 0) : rows ? rows.length : null;
+        if (total != null && total <= 0) return "empty-result";
+      }
+      return "ok-data";
+    }
+    function readRecent() {
+      try { return JSON.parse(root.localStorage && root.localStorage.getItem(STORE_KEY) || "[]") || []; }
+      catch (_) { return []; }
+    }
+    function writeRecent(list) {
+      try { if (root.localStorage) root.localStorage.setItem(STORE_KEY, JSON.stringify((list || []).slice(-50))); }
+      catch (_) {}
+    }
+    function safeDetail(detail) {
+      detail = detail && typeof detail === "object" ? detail : {};
+      return {
+        durationMs: Number(detail.durationMs || 0) || 0,
+        message: text(detail.message || "").slice(0, 300),
+        source: text(detail.source || "").slice(0, 80)
+      };
+    }
+    function record(method, category, detail) {
+      var item = { at: nowIso(), method: text(method), category: text(category), detail: safeDetail(detail), stamp: STAMP, owner: OWNER };
+      var list = readRecent();
+      list.push(item);
+      writeRecent(list);
+      // Keep telemetry storage local-only to avoid entering runtime logging/API helper paths.
+      return item;
+    }
+    function observe(method, value, error, detail) {
+      return record(method, classify(method, value, error), detail || {});
+    }
+    function wrapApiCall() {
+      // Deliberately disabled. AppApi.call is the canonical transport owner and must not be monkey-patched
+      // after the critical login runtime has loaded, otherwise AppRuntime.appApiCall can re-enter AppApi.call.
+      return false;
+    }
+    root.AppPhase5RuntimeTelemetry = {
+      stamp: STAMP,
+      owner: OWNER,
+      mode: "passive-no-api-wrapper",
+      classify: classify,
+      observe: observe,
+      record: record,
+      recent: readRecent,
+      clear: function() { writeRecent([]); return true; },
+      status: function() {
+        var recent = readRecent(), counts = {};
+        recent.forEach(function(item) { counts[item.category] = (counts[item.category] || 0) + 1; });
+        return { ok: true, stamp: STAMP, owner: OWNER, wrapped: false, mode: "passive-no-api-wrapper", counts: counts, recentCount: recent.length, categories: ["transport-failure", "route-rejection", "backend-read-failure", "empty-result", "ok-data"], stackSafe: true, uiDomChanged: false, businessLogicChanged: false };
+      },
+      wrapApiCall: wrapApiCall
+    };
+    root.__APP_PHASE5_RUNTIME_TELEMETRY__ = root.AppPhase5RuntimeTelemetry;
+  })(root);
 
 })(window, document);
 </script>
