@@ -163,8 +163,11 @@ catch(__appRootBridgeErr) {
       var bootstrapRoutes = {
         getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
       }, ok;
-      var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1))), readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit|apiSearchCasesLite|apiGetTracking|apiListCommitteeMeetings)$/i.test(m);
-      return c.loaded && c.routes ? (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): bootstrapRoutes[m] || hasAuth && readBeforeContract ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
+      var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1))), readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(m);
+      if(bootstrapRoutes[m])return null;
+      if(c.loaded && c.routes && (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]))return null;
+      if(hasAuth && readBeforeContract)return null;
+      return new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
     }, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
       return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
     }, root.isWriteApiMethod = function(m) {
