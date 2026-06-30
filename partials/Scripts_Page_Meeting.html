@@ -609,143 +609,322 @@
         q("meeting-replies-panel", ! 0)
       }
     };
-    function meetingResolveActiveSaveTarget() {
-      var mode = "";
+    function meetingSaveTargetToMode_(target) {
+      return "#content-meeting-history" === target ? "history": "#content-letter-tracking" === target ? "letter": "case";
+    }
+    function meetingNormalizeSaveTarget_(target) {
+      target = d(target || "").trim();
+      return "#content-meeting-history" === target || "#content-letter-tracking" === target || "#content-case-data" === target ? target: "";
+    }
+    function meetingRememberSaveTarget_(target) {
+      target = meetingNormalizeSaveTarget_(target) || "#content-case-data";
       try {
-        mode = d(B().mode || window.__meetingActiveSaveMode || "").trim();
+        window.__meetingActiveSaveTarget = target;
+        window.__meetingActiveSaveMode = meetingSaveTargetToMode_(target);
+        document.documentElement && document.documentElement.setAttribute("data-meeting-save-target", target);
+      }
+      catch(_rememberErr) {
+        "function" == typeof __appObserve && __appObserve(_rememberErr, "meeting.phase2.saveTarget.remember");
+      }
+      try {
+        G({ mode: window.__meetingActiveSaveMode || meetingSaveTargetToMode_(target) });
+      }
+      catch(_stateErr) {
+        "function" == typeof __appObserve && __appObserve(_stateErr, "meeting.phase2.saveTarget.state");
+      }
+      return target;
+    }
+    function meetingResolveActiveSaveTarget(ev) {
+      var btn = ev && (ev.target || ev.currentTarget) && (ev.target || ev.currentTarget).closest ? (ev.target || ev.currentTarget).closest("#meeting-shared-save-btn") : null;
+      if(btn && btn.getAttribute) {
+        var explicit = meetingNormalizeSaveTarget_(btn.getAttribute("data-save-target") || btn.getAttribute("data-meeting-save-target") || "");
+        if(explicit)return meetingRememberSaveTarget_(explicit);
+      }
+      try {
+        var modeState = d((B && B().mode) || window.__meetingActiveSaveMode || "").trim();
+        if("history" === modeState)return meetingRememberSaveTarget_("#content-meeting-history");
+        if("letter" === modeState)return meetingRememberSaveTarget_("#content-letter-tracking");
+        if("case" === modeState || "create" === modeState || "view" === modeState)return meetingRememberSaveTarget_("#content-case-data");
       }
       catch(_modeErr) {
-        "function" == typeof __appObserve && __appObserve(_modeErr, "meeting.save.mode.resolve")
+        "function" == typeof __appObserve && __appObserve(_modeErr, "meeting.phase2.saveTarget.mode");
       }
-      if("history" === mode)return "#content-meeting-history";
-      if("letter" === mode)return "#content-letter-tracking";
-      if("case" === mode || "create" === mode || "view" === mode)return "#content-case-data";
       try {
-        var pane = document.querySelector("#meeting-tab-content .tab-pane.show.active,#meeting-tab-content .tab-pane.active,#meeting-workspace .tab-pane.show.active,#meeting-workspace .tab-pane.active");
-        if(pane && pane.id)return "#" + pane.id;
+        var target = meetingNormalizeSaveTarget_(window.__meetingActiveSaveTarget || "");
+        if(target)return meetingRememberSaveTarget_(target);
+      }
+      catch(_directErr) {
+        "function" == typeof __appObserve && __appObserve(_directErr, "meeting.phase2.saveTarget.direct");
+      }
+      try {
+        var pane = document.querySelector("#meeting-workspace .tab-pane.show.active,#meeting-workspace .tab-pane.active,#meeting-tab-content .tab-pane.show.active,#meeting-tab-content .tab-pane.active");
+        if(pane && pane.id)return meetingRememberSaveTarget_("#" + pane.id);
       }
       catch(_paneErr) {
-        "function" == typeof __appObserve && __appObserve(_paneErr, "meeting.save.pane.resolve")
+        "function" == typeof __appObserve && __appObserve(_paneErr, "meeting.phase2.saveTarget.pane");
       }
       try {
-        var tab = document.querySelector("#meeting-tabs .nav-link.active");
-        if(tab && tab.getAttribute("data-bs-target"))return String(tab.getAttribute("data-bs-target") || "");
+        var active = document.activeElement;
+        if(active && active.closest) {
+          var activePane = active.closest("#content-meeting-history,#content-letter-tracking,#content-case-data");
+          if(activePane && activePane.id)return meetingRememberSaveTarget_("#" + activePane.id);
+        }
+      }
+      catch(_focusErr) {
+        "function" == typeof __appObserve && __appObserve(_focusErr, "meeting.phase2.saveTarget.focus");
+      }
+      try {
+        var tab = document.querySelector('#meeting-tabs [aria-selected="true"][data-bs-target],#meeting-tabs .nav-link.active[data-bs-target]');
+        var tabTarget = tab && tab.getAttribute ? meetingNormalizeSaveTarget_(tab.getAttribute("data-bs-target") || "") : "";
+        if(tabTarget)return meetingRememberSaveTarget_(tabTarget);
       }
       catch(_tabErr) {
-        "function" == typeof __appObserve && __appObserve(_tabErr, "meeting.save.tab.resolve")
+        "function" == typeof __appObserve && __appObserve(_tabErr, "meeting.phase2.saveTarget.tab");
       }
-      try {
-        if(! r("content-case-data") || r("content-case-data").classList.contains("show") || r("content-case-data").classList.contains("active"))return "#content-case-data";
-      }
-      catch(_fallbackErr) {
-        "function" == typeof __appObserve && __appObserve(_fallbackErr, "meeting.save.fallback.resolve")
-      }
-      return "#content-case-data";
+      return meetingRememberSaveTarget_("#content-case-data");
     }
-    window.meetingSharedSave = function() {
-      return function(t) {
-        var n = Date.now(), i = B();
-        if(window.__meetingSharedSaveInFlight || window.__meetingSharedSaveGuardAt && n - Number(window.__meetingSharedSaveGuardAt || 0) < 1500 || i && (i.isSaving || n - Number(i.lastSaveStartedAt || 0) < 1500))return Promise.resolve(! 1);
-        window.__meetingSharedSaveInFlight =! 0, window.__meetingSharedSaveGuardAt = n, G({
-          isSaving: ! 0, lastSaveStartedAt: n
-        });
-        var a = r("meeting-shared-save-btn");
-        return re(a, ! 0, "กำลังบันทึก"), e.Swal && __appIsFn(e.appSwalFire) && e.appSwalFire({
-          title: "กำลังบันทึกข้อมูล", text: "กรุณารอสักครู่", allowOutsideClick: ! 1, allowEscapeKey: ! 1, backdrop: ! 0, showConfirmButton: ! 1, didOpen: function() {
-            try {
-              e.Swal.showLoading()
-            }
-            catch(e) {
-              __appObserve(e, "ec")
-            }
-          }
-        }), Promise.resolve().then(t).then(function(e) {
-          return window.__meetingSharedSaveInFlight =! 1, G({
-            isSaving: ! 1
-          }), re(a, ! 1, "บันทึกข้อมูล", "fas fa-floppy-disk"), e
-        }, function(e) {
-          throw window.__meetingSharedSaveInFlight =! 1, G({
-            isSaving: ! 1
-          }), re(a, ! 1, "บันทึกข้อมูล", "fas fa-floppy-disk"), e
-        })
+    function meetingApiSaveOk_(res, label) {
+      if(res && "object" == typeof res && ! 1 === res.ok)throw new Error(res.msg || res.message || res.error || label || "บันทึกข้อมูลไม่สำเร็จ");
+      return res;
+    }
+    function meetingPhase1Contract_() {
+      try {
+        return u("phase1.contract", null) || u("data.contract.phase1SingleSourceContract", null) || u("app.config.phase1SingleSourceContract", null) || window.__PHASE1_SINGLE_SOURCE_CONTRACT__ || null;
       }
-      (function() {
-        var t, n, i = meetingResolveActiveSaveTarget(), r = T("meeting-caseId") || F();
-        function a(t) {
-          var n = T("meeting-caseId") || r;
-          return Promise.resolve(! n || Be(n)).then(function() {
-            return S("page:meeting.deferred", function() {
-              try {
-                meetingRefreshCases({
-                  limit: 80, maxRecords: 300, silent: ! 0
-                })
-              }
-              catch(e) {
-                __appObserve(e, "ec")
-              }
-            }, 0), oe("success", t || "บันทึกข้อมูลสำเร็จแล้ว"), ! 0
-          })
+      catch(_contractErr) {
+        "function" == typeof __appObserve && __appObserve(_contractErr, "meeting.phase2.contract.read");
+        return null;
+      }
+    }
+    function meetingPhase1Aliases_(domain, field, fallback) {
+      var list = [];
+      try {
+        var c = meetingPhase1Contract_() || {}, m = c.fieldMap || c.field_map || {}, domains = m.domains || {}, spec = domains[domain] || {}, fields = spec.fields || {}, item = fields[field] || {};
+        list = Array.isArray(item.aliases) ? item.aliases.slice() : [];
+      }
+      catch(_aliasErr) {
+        "function" == typeof __appObserve && __appObserve(_aliasErr, "meeting.phase2.aliases");
+      }
+      if(! list.length && Array.isArray(fallback))list = fallback.slice();
+      return list.filter(function(v, i, arr) {
+        v = d(v || "").trim();
+        return !! v && arr.indexOf(v) === i;
+      });
+    }
+    function meetingSetAliases_(payload, domain, field, value, fallback) {
+      var aliases = meetingPhase1Aliases_(domain, field, fallback || [field]);
+      aliases.forEach(function(name) {
+        payload[name] = value;
+      });
+      payload[field] = value;
+      return payload;
+    }
+    function meetingBuildHistoryPayload_() {
+      var caseInfo = Ge() || {}, committeeType = meetingHistoryCommitteeType(), selectedSubcommittee = meetingSelectedSubcommittee(), round = T("meeting-newRound"), meetingDate = P("meeting-newDate"), note = T("meeting-newNote"), caseId = T("meeting-caseId") || caseInfo.caseId || caseInfo.id || "", caseNum = caseInfo.caseNum || caseInfo.caseNo || T("meeting-caseNum"), recNo = caseInfo.recNo || caseInfo.receiveNo || T("meeting-recNo"), title = caseInfo.title || T("meeting-title") || caseInfo.caseTitle || T("meeting-caseTitle"), caseTitle = caseInfo.caseTitle || T("meeting-caseTitle") || title, petitioners = caseInfo.petitioners || T("meeting-petitioners");
+      if("คณะอนุกรรมาธิการ" === committeeType) {
+        if(! selectedSubcommittee.name && selectedSubcommittee.id)selectedSubcommittee.name = selectedSubcommittee.id;
+        if(! selectedSubcommittee.id && selectedSubcommittee.name)selectedSubcommittee.id = selectedSubcommittee.name;
+      }
+      var payload = {
+        __phase2MeetingHistorySinglePath: ! 0,
+        __meetingSaveOwner: "phase2.meetingHistory.singleSavePath",
+        actionMethod: "apiSaveMeetingLog",
+        saveTarget: "meetingHistory",
+        targetPane: "#content-meeting-history",
+        logId: T("meeting-currentLogId"),
+        currentLogId: T("meeting-currentLogId"),
+        caseId: caseId,
+        id: caseId,
+        caseNum: caseNum,
+        caseNo: caseNum,
+        recNo: recNo,
+        receiveNo: recNo,
+        title: title,
+        caseTitle: caseTitle,
+        petitioners: petitioners,
+        round: round,
+        meetingRound: round,
+        meetingNo: round,
+        date: meetingDate,
+        meetingDate: meetingDate,
+        note: note,
+        result: note,
+        summary: note,
+        committeeType: committeeType,
+        meetingType: committeeType,
+        subcommitteeId: "คณะอนุกรรมาธิการ" === committeeType ? selectedSubcommittee.id : "",
+        subcommitteeName: "คณะอนุกรรมาธิการ" === committeeType ? selectedSubcommittee.name || selectedSubcommittee.id : "",
+        meetingGroup: "คณะอนุกรรมาธิการ" === committeeType ? selectedSubcommittee.name || selectedSubcommittee.id : committeeType,
+        forceFresh: ! 0,
+        noCache: ! 0
+      };
+      payload.caseIdentity = {
+        caseId: caseId,
+        caseNum: caseNum,
+        recNo: recNo,
+        title: title,
+        caseTitle: caseTitle,
+        petitioners: petitioners
+      };
+      payload.log = {
+        logId: payload.logId,
+        round: round,
+        date: meetingDate,
+        meetingDate: meetingDate,
+        note: note,
+        result: note,
+        summary: note,
+        committeeType: committeeType,
+        meetingType: committeeType,
+        subcommitteeId: payload.subcommitteeId,
+        subcommitteeName: payload.subcommitteeName,
+        meetingGroup: payload.meetingGroup
+      };
+      meetingSetAliases_(payload, "meetingLogs", "caseId", caseId, ["caseId", "id"]);
+      meetingSetAliases_(payload, "meetingLogs", "caseNum", caseNum, ["caseNum", "caseNo"]);
+      meetingSetAliases_(payload, "meetingLogs", "recNo", recNo, ["recNo", "receiveNo"]);
+      meetingSetAliases_(payload, "meetingLogs", "title", title, ["title", "caseTitle", "subject"]);
+      meetingSetAliases_(payload, "meetingLogs", "round", round, ["round", "meetingRound", "meetingNo"]);
+      meetingSetAliases_(payload, "meetingLogs", "date", meetingDate, ["date", "meetingDate"]);
+      meetingSetAliases_(payload, "meetingLogs", "result", note, ["result", "summary", "note"]);
+      return payload;
+    }
+    function meetingValidateHistoryPayload_(payload) {
+      payload = payload || {};
+      var hasIdentity = !! (d(payload.caseId || "").trim() || d(payload.caseNum || "").trim() || d(payload.recNo || "").trim() || d(payload.title || payload.caseTitle || "").trim());
+      if(! hasIdentity)return "กรุณาเลือกหรือบันทึกข้อมูลเรื่องก่อนบันทึกประวัติการประชุม";
+      if("คณะอนุกรรมาธิการ" === d(payload.committeeType || payload.meetingType || "").trim() && ! d(payload.subcommitteeName || payload.subcommitteeId || "").trim())return "กรุณาเลือกคณะอนุกรรมาธิการ";
+      if(! d(payload.round || "").trim() && ! d(payload.date || payload.meetingDate || "").trim() && ! d(payload.note || payload.result || payload.summary || "").trim())return "กรุณากรอกข้อมูลประวัติการประชุม";
+      return "";
+    }
+    function meetingAfterSaveRefresh_(target, payload) {
+      target = meetingNormalizeSaveTarget_(target) || meetingResolveActiveSaveTarget();
+      payload = payload || {};
+      S("page:meeting.phase2.after-save-refresh", function() {
+        try {
+          "#content-meeting-history" === target && Fe();
+          "#content-letter-tracking" === target && Ve();
+          var identity = payload && "object" == typeof payload ? payload: { caseId: T("meeting-caseId") || F(), caseNum: T("meeting-caseNum"), recNo: T("meeting-recNo"), title: T("meeting-title") || T("meeting-caseTitle") };
+          (identity.caseId || identity.caseNum || identity.recNo || identity.title) && Promise.resolve(Be(identity)).catch(function(err) {
+            "function" == typeof __appObserve && __appObserve(err, "meeting.phase2.afterSave.reload.nonblocking");
+          });
         }
-        function o(e, t) {
-          var n = d(e && (e.msg || e.message || e.error) || "").trim();
-          throw oe("error", n ? (t || "บันทึกข้อมูลไม่สำเร็จ") + " : " + n: t || "บันทึกข้อมูลไม่สำเร็จ"), e
+        catch(err) {
+          "function" == typeof __appObserve && __appObserve(err, "meeting.phase2.afterSave.refresh");
         }
-        if("#content-meeting-history" === i) {
-          var _ctype = meetingHistoryCommitteeType(), _sub0 = meetingSelectedSubcommittee();
-          e.meetingToggleHistoryCommitteeType && e.meetingToggleHistoryCommitteeType();
-          var _load = "คณะอนุกรรมาธิการ" === _ctype && e.meetingLoadSubcommitteeOptions ? e.meetingLoadSubcommitteeOptions(_sub0.name || _sub0.id || ""): Promise.resolve(! 0);
-          return Promise.resolve(_load).then(function() {
-            var _sub = meetingSelectedSubcommittee();
-            if(! _sub.name && _sub0.name && (_sub.name = _sub0.name), ! _sub.id && _sub0.id && (_sub.id = _sub0.id), "คณะอนุกรรมาธิการ" === _ctype &&! _sub.id &&! _sub.name)return oe("warning", "กรุณาเลือกคณะอนุกรรมาธิการ"), ! 1;
-            var caseInfo = Ge(), c = {
-              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId") || caseInfo.caseId || caseInfo.id || "", id: T("meeting-caseId") || caseInfo.id || caseInfo.caseId || "", caseNum: caseInfo.caseNum || caseInfo.caseNo || T("meeting-caseNum"), caseNo: caseInfo.caseNo || caseInfo.caseNum || T("meeting-caseNum"), recNo: caseInfo.recNo || caseInfo.receiveNo || T("meeting-recNo"), receiveNo: caseInfo.receiveNo || caseInfo.recNo || T("meeting-recNo"), title: caseInfo.title || T("meeting-title"), caseTitle: caseInfo.caseTitle || T("meeting-caseTitle"), petitioners: caseInfo.petitioners || T("meeting-petitioners"), round: T("meeting-newRound"), date: P("meeting-newDate"), meetingDate: P("meeting-newDate"), committeeType: _ctype, meetingType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote"), result: T("meeting-newNote"), summary: T("meeting-newNote"), saveTarget: "meetingHistory", targetPane: "#content-meeting-history", __meetingSaveOwner: "meetingSharedSave.history-single-path", forceFresh: ! 0, noCache: ! 0
-            };
-            if(! c.caseId && ! c.caseNum && ! c.recNo && ! c.title)return oe("warning", "กรุณาเลือกหรือบันทึกข้อมูลเรื่องก่อนบันทึกประวัติการประชุม"), ! 1;
-            return s("apiSaveMeetingLog", c).then(function(res) {
-              var data = res && res.data && "object" == typeof res.data ? res.data: res || {}, savedCaseId = data.caseId || c.caseId || "", syntheticSaved = !! (data.syntheticCaseId || /^CASE-IDENTITY-/i.test(String(savedCaseId || "")));
-              return savedCaseId && ! syntheticSaved && (c.caseId = savedCaseId, E("meeting-caseId", savedCaseId), V(savedCaseId)), Fe(), Be(c).then(function() {
-                return a("บันทึกข้อมูลสำเร็จแล้ว")
-              })
-            }).catch(function(e) {
-              return o(e, "บันทึกข้อมูลไม่สำเร็จ")
-            })
-          })
+        try {
+          __appIsFn(meetingRefreshCases) && meetingRefreshCases({ limit: 80, maxRecords: 300, silent: ! 0 });
         }
-        if("#content-letter-tracking" === i) {
-          var l = {
-            letterId: T("meeting-letterId"), caseId: T("meeting-caseId"), letterNo: T("meeting-letterNo"), letterDate: P("meeting-letterDate"), agency: T("meeting-agency"), subject: T("meeting-subject"), issue: T("meeting-issue"), opStaff: T("meeting-opStaff"), dueDate: P("meeting-dueDate"), extendDate: P("meeting-extendDate"), letterStatus: T("meeting-letterStatus") || "ยังไม่ได้รับ", remark: T("meeting-letterRemark"), replies: (n = document.querySelectorAll("#meeting-replies-list .row"), Array.prototype.map.call(n, function(e) {
-              return {
-                date: L(((e.querySelector(".reply-date") || {
-                }).dataset || {
-                }).isoValue || (e.querySelector(".reply-date") || {
-                }).value || ""), subject: d((e.querySelector(".reply-subject") || {
-                }).value || "")
-              }
-            }).filter(function(e) {
-              return e.date || e.subject
-            }))
-          };
-          return He().then(function(e) {
-            return l.caseId = l.caseId || e, s("apiSaveLetter", l)
-          }).then(function() {
-            return Ve(), Be(l.caseId).then(function() {
-              return a("บันทึกข้อมูลสำเร็จแล้ว")
-            })
-          }).catch(function(e) {
-            return o(e, "บันทึกข้อมูลไม่สำเร็จ")
-          })
+        catch(err) {
+          "function" == typeof __appObserve && __appObserve(err, "meeting.phase2.afterSave.refreshCases");
         }
-        var m = Ge();
-        return m.__authTransportOwner = "AppApiMiddlewarePipeline", s("apiSaveCase", m).then(function(e) {
-          var t = e && e.data && "object" == typeof e.data ? e.data: e;
-          if(! t ||! t.caseId)throw new Error("บันทึกไม่สำเร็จ");
-          return E("meeting-caseId", t.caseId), V(t.caseId), Le("case"), Te({
-            caseId: t.caseId, caseNum: t.caseNum || m.caseNum, title: t.title || m.title
-          }), a("บันทึกข้อมูลสำเร็จแล้ว")
-        }).catch(function(e) {
-          return o(e, "บันทึกข้อมูลไม่สำเร็จ")
-        })
-      })
+      }, 0);
+      return ! 0;
+    }
+    function meetingSaveSucceeded_(target, payload, message) {
+      meetingAfterSaveRefresh_(target, payload);
+      oe("success", message || "บันทึกข้อมูลสำเร็จแล้ว");
+      return Promise.resolve(! 0);
+    }
+    function meetingSaveHistorySinglePath_() {
+      var ctype = meetingHistoryCommitteeType(), selectedBefore = meetingSelectedSubcommittee();
+      e.meetingToggleHistoryCommitteeType && e.meetingToggleHistoryCommitteeType();
+      var loadOptions = "คณะอนุกรรมาธิการ" === ctype && e.meetingLoadSubcommitteeOptions ? e.meetingLoadSubcommitteeOptions(selectedBefore.name || selectedBefore.id || "") : Promise.resolve(! 0);
+      return Promise.resolve(loadOptions).then(function() {
+        var payload = meetingBuildHistoryPayload_(), validation = meetingValidateHistoryPayload_(payload);
+        if(validation)return oe("warning", validation), ! 1;
+        return s("apiSaveMeetingLog", payload).then(function(res) {
+          meetingApiSaveOk_(res, "apiSaveMeetingLog");
+          var data = res && res.data && "object" == typeof res.data ? res.data: res || {}, savedCaseId = data.caseId || payload.caseId || "", syntheticSaved = !! (data.syntheticCaseId || /^CASE-IDENTITY-/i.test(String(savedCaseId || "")));
+          if(data.logId)E("meeting-currentLogId", data.logId);
+          savedCaseId && ! syntheticSaved && (payload.caseId = savedCaseId, E("meeting-caseId", savedCaseId), V(savedCaseId));
+          return meetingSaveSucceeded_("#content-meeting-history", payload, "บันทึกประวัติการประชุมสำเร็จแล้ว");
+        });
+      });
+    }
+    function meetingSaveLetterSinglePath_() {
+      var rows;
+      var payload = {
+        letterId: T("meeting-letterId"),
+        caseId: T("meeting-caseId"),
+        letterNo: T("meeting-letterNo"),
+        letterDate: P("meeting-letterDate"),
+        agency: T("meeting-agency"),
+        subject: T("meeting-subject"),
+        issue: T("meeting-issue"),
+        opStaff: T("meeting-opStaff"),
+        dueDate: P("meeting-dueDate"),
+        extendDate: P("meeting-extendDate"),
+        letterStatus: T("meeting-letterStatus") || "ยังไม่ได้รับ",
+        remark: T("meeting-letterRemark"),
+        __meetingSaveOwner: "phase2.letter.singleSavePath",
+        replies: (rows = document.querySelectorAll("#meeting-replies-list .row"), Array.prototype.map.call(rows, function(row) {
+          var dateEl = row.querySelector(".reply-date"), subjectEl = row.querySelector(".reply-subject");
+          return { date: L((dateEl && dateEl.dataset || {}).isoValue || dateEl && dateEl.value || ""), subject: d(subjectEl && subjectEl.value || "") };
+        }).filter(function(item) { return item.date || item.subject; }))
+      };
+      return He().then(function(caseId) {
+        payload.caseId = payload.caseId || caseId;
+        return s("apiSaveLetter", payload);
+      }).then(function(res) {
+        meetingApiSaveOk_(res, "apiSaveLetter");
+        return meetingSaveSucceeded_("#content-letter-tracking", payload, "บันทึกหนังสือติดตามมติสำเร็จแล้ว");
+      });
+    }
+    function meetingSaveCaseSinglePath_() {
+      var payload = Ge();
+      payload.__authTransportOwner = "AppApiMiddlewarePipeline";
+      payload.__meetingSaveOwner = "phase2.case.singleSavePath";
+      return s("apiSaveCase", payload).then(function(res) {
+        meetingApiSaveOk_(res, "apiSaveCase");
+        var data = res && res.data && "object" == typeof res.data ? res.data: res;
+        if(! data || ! data.caseId)throw new Error("บันทึกไม่สำเร็จ");
+        E("meeting-caseId", data.caseId);
+        V(data.caseId);
+        Le("case");
+        Te({ caseId: data.caseId, caseNum: data.caseNum || payload.caseNum, title: data.title || payload.title });
+        return meetingSaveSucceeded_("#content-case-data", { caseId: data.caseId, caseNum: data.caseNum || payload.caseNum, recNo: data.recNo || payload.recNo, title: data.title || payload.title }, "บันทึกข้อมูลเรื่องพิจารณาสำเร็จแล้ว");
+      });
+    }
+    window.meetingSharedSave = function(ev) {
+      try {
+        ev && ev.preventDefault && ev.preventDefault();
+        ev && ev.stopPropagation && ev.stopPropagation();
+      }
+      catch(_consumeErr) {
+        "function" == typeof __appObserve && __appObserve(_consumeErr, "meeting.phase2.save.consume");
+      }
+      var now = Date.now(), state = B(), btn = r("meeting-shared-save-btn");
+      if(window.__meetingSharedSaveInFlight || state && state.isSaving)return Promise.resolve(! 1);
+      if(window.__meetingSharedSaveGuardAt && now - Number(window.__meetingSharedSaveGuardAt || 0) < 800)return Promise.resolve(! 1);
+      window.__meetingSharedSaveInFlight = ! 0;
+      window.__meetingSharedSaveGuardAt = now;
+      G({ isSaving: ! 0, lastSaveStartedAt: now, saveOwner: "phase2.singleSavePath" });
+      re(btn, ! 0, "กำลังบันทึก");
+      if(e.Swal && __appIsFn(e.appSwalFire))e.appSwalFire({
+        title: "กำลังบันทึกข้อมูล", text: "กรุณารอสักครู่", allowOutsideClick: ! 1, allowEscapeKey: ! 1, backdrop: ! 0, showConfirmButton: ! 1, didOpen: function() {
+          try { e.Swal.showLoading(); }
+          catch(_swalErr) { "function" == typeof __appObserve && __appObserve(_swalErr, "meeting.phase2.save.swal"); }
+        }
+      });
+      function finish(result) {
+        window.__meetingSharedSaveInFlight = ! 1;
+        G({ isSaving: ! 1 });
+        re(btn, ! 1, "บันทึกข้อมูล", "fas fa-floppy-disk");
+        return result;
+      }
+      function fail(err) {
+        window.__meetingSharedSaveInFlight = ! 1;
+        G({ isSaving: ! 1 });
+        re(btn, ! 1, "บันทึกข้อมูล", "fas fa-floppy-disk");
+        var msg = d(err && (err.msg || err.message || err.error) || "").trim();
+        oe("error", msg ? "บันทึกข้อมูลไม่สำเร็จ : " + msg : "บันทึกข้อมูลไม่สำเร็จ");
+        throw err;
+      }
+      var target = meetingResolveActiveSaveTarget(ev);
+      return Promise.resolve().then(function() {
+        return "#content-meeting-history" === target ? meetingSaveHistorySinglePath_(): "#content-letter-tracking" === target ? meetingSaveLetterSinglePath_(): meetingSaveCaseSinglePath_();
+      }).then(finish, fail);
     }, window.meetingClearHistoryForm = Fe, window.meetingClearLetterForm = Ve, window.meetingSharedDelete = function() {
       var t = T("meeting-caseId");
       if(! t)return ! 1;
@@ -932,10 +1111,24 @@
         }, ! 1, "boundMeetingSubmit")
       });
       var a = document.querySelectorAll("#meeting-tabs .nav-link");
-      Array.prototype.forEach.call(a, function(e) {
-        e && window.AppMeetingBindEvent_(e, "shown.bs.tab", function() {
-          var e = T("meeting-caseId") || F();
-          e && Be(e)
+      Array.prototype.forEach.call(a, function(tab) {
+        tab && window.AppMeetingBindEvent_(tab, "shown.bs.tab", function() {
+          var target = tab.getAttribute && tab.getAttribute("data-bs-target") || "", mode = tab.getAttribute && tab.getAttribute("data-mode") || meetingSaveTargetToMode_(target);
+          meetingRememberSaveTarget_(target || ("history" === mode ? "#content-meeting-history": "letter" === mode ? "#content-letter-tracking": "#content-case-data"));
+          try {
+            G({
+              mode: mode || meetingSaveTargetToMode_(target)
+            })
+          }
+          catch(_tabModeErr) {
+            "function" == typeof __appObserve && __appObserve(_tabModeErr, "meeting.tab.mode")
+          }
+          var key = T("meeting-caseId") || F();
+          key && Promise.resolve(Be({
+            caseId: key, caseNum: T("meeting-caseNum"), recNo: T("meeting-recNo"), title: T("meeting-title") || T("meeting-caseTitle")
+          })).catch(function(err) {
+            "function" == typeof __appObserve && __appObserve(err, "meeting.tab.reload.nonblocking")
+          })
         }, ! 1, "boundMeetingTab")
       });
       var o = r("meeting-lookup-modal-search");
@@ -2436,7 +2629,7 @@
     t && "meeting-petitionerPhone" === t.id && (t.value = normalizeMeetingPhone(t.value)), t && "meeting-caseNum" === t.id && (t.value = normalizeMeetingManualNo(t.value)), t && "meeting-recNo" === t.id && (t.value = normalizeMeetingReceiveNo(t.value))
   }, ! 1, "meetingNormalizeInputsChangeOwner"), window.__MEETING_SHARED_SAVE_CAPTURE_OWNER__ || (window.__MEETING_SHARED_SAVE_CAPTURE_OWNER__ =! 0, window.AppMeetingBindEvent_(document, "click", function(t) {
     var btn;
-    if(t && t.target && t.target.closest ? t.target.closest('#meeting-shared-save-btn,[data-action="meetingSharedSave"]'): null) {
+    if(t && t.target && t.target.closest ? t.target.closest('#meeting-shared-save-btn'): null) {
       try {
         (e.AppEvents && __appIsFn(e.AppEvents.consume) ? e.AppEvents.consume(t, { key: "meeting.sharedSave.capture" }) : (t.preventDefault(), t.stopPropagation && t.stopPropagation()))
       }
@@ -2527,8 +2720,6 @@
           return n.editLetter(i(e, "data-letter-id"))
         }, meetingDeleteLetter: function(e) {
           return n.deleteLetter(i(e, "data-letter-id"))
-        }, meetingSharedSave: function(ev) {
-          return !! window.meetingSharedSave && window.meetingSharedSave(ev && ev.event ? ev.event: ev)
         }, meetingSharedDelete: function() {
           return !! window.meetingSharedDelete && window.meetingSharedDelete()
         }, meetingSelectPetitionerButton: function(e) {
@@ -4188,8 +4379,6 @@
         return delLog(ctx && ctx.event ? ctx.event: ctx)
       }, meetingToggleHistoryCommitteeType: function() {
         return ensure()
-      }, meetingSharedSave: function(ctx) {
-        return !! __appIsFn(root.meetingSharedSave) && root.meetingSharedSave(ctx && ctx.event ? ctx.event: ctx)
       }, meetingEditLetter: function(ctx) {
         return editLetter(ctx && ctx.event ? ctx.event: ctx)
       }, meetingDeleteLetter: function(ctx) {
