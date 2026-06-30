@@ -78,7 +78,7 @@
     }, b = {
       key: "", rows: [], current: [], loading: ! 1, querySeq: 0, lastQuery: "", coAssigneeSource: "staff", coAssigneeSourceBypass: ! 1, coAssigneeSubcommitteeId: "", coAssigneeSubcommitteeName: ""
     };
-    function B(t, i, a, o, s) {
+    function bindMeetingEvent_(t, i, a, o, s) {
       var c = t === document || t === e ? t: r(t) || t;
       if(! c || "function" != typeof a)return ! 1;
       if(e.AppEvents && __appIsFn(e.AppEvents.on))return e.AppEvents.on(c, i, a, o, s || "meeting." + i);
@@ -787,7 +787,7 @@
       }).catch(function(err) {
         return oe("error", "ลบประวัติการประชุมไม่สำเร็จ: " + (err && err.message ? err.message: String(err || ""))), ! 1
       }): (oe("warning", "ไม่พบรหัสประวัติการประชุมสำหรับลบ"), Promise.resolve(! 1))
-    }, e.openMeetingLookupModal = ve, B(document, "click", function(e) {
+    }, e.openMeetingLookupModal = ve, bindMeetingEvent_(document, "click", function(e) {
       var t = e.target && e.target.closest ? e.target.closest("#meeting-select-petitioner-btn,#meeting-select-staff-btn,#meeting-toggle-comm-picker-btn,#meeting-toggle-op-picker-btn,#meeting-select-opstaff-btn"): null;
       if(t)return e.preventDefault(), ve({
         "meeting-select-petitioner-btn": "petitioners", "meeting-select-staff-btn": "coAssignees", "meeting-toggle-comm-picker-btn": "assignees", "meeting-toggle-op-picker-btn": "staffs", "meeting-select-opstaff-btn": "opStaff"
@@ -827,13 +827,13 @@
         })
       }, 0), e.meetingToggleStatusFields(), e.meetingToggleReplySection(), ["meeting-offerDate", "meeting-recDate", "meeting-newDate", "meeting-letterDate", "meeting-dueDate", "meeting-extendDate"].forEach(Oe), je(document), Le(T("meeting-caseId") ? "case": "view"), g("meeting-search-results", ""), g("meeting-pagination-container", "");
       var n = r("meeting-cat");
-      n && B(n, "change", function() {
+      n && bindMeetingEvent_(n, "change", function() {
         window.meetingHandleCategoryChange()
       }, ! 1, "boundMeetingChange");
       var i = r("meeting-letterStatus");
-      i && B(i, "change", function() {
+      i && bindMeetingEvent_(i, "change", function() {
         e.meetingToggleReplySection()
-      }, ! 1, "boundMeetingChange"), B(document, "change", function(e) {
+      }, ! 1, "boundMeetingChange"), bindMeetingEvent_(document, "change", function(e) {
         var t = e && e.target;
         if(t) {
           if(t.classList && t.classList.contains("meeting-petitioner-check")) {
@@ -850,7 +850,7 @@
         }
       }, ! 1, "meetingChangeBound"), [["meeting-petitioner-search", "meeting-petitioner-selector"], ["meeting-comm-search", "meeting-comm-list"], ["meeting-co-search", "meeting-coassignee-list"], ["meeting-staff-search", "meeting-staff-list"]].forEach(function(e) {
         var t = r(e[0]);
-        t && B(t, "input", function() {
+        t && bindMeetingEvent_(t, "input", function() {
           ! function(e, t) {
             var n = r(e);
             if(n) {
@@ -865,14 +865,14 @@
         }, ! 1, "boundMeetingSearch")
       }), [["meeting-petitioners", "meeting-petitioner-selector"], ["meeting-assignees", "meeting-comm-list"], ["meeting-coAssignees", "meeting-coassignee-list"], ["meeting-staffs", "meeting-staff-list"], ["meeting-opStaff", "meeting-opstaff-list"]].forEach(function(e) {
         var t = r(e[0]);
-        t && (B(t, "input", function() {
+        t && (bindMeetingEvent_(t, "input", function() {
           De(e[0], e[1])
-        }, ! 1, "boundMeetingCsvInput"), B(t, "change", function() {
+        }, ! 1, "boundMeetingCsvInput"), bindMeetingEvent_(t, "change", function() {
           De(e[0], e[1])
         }, ! 1, "boundMeetingCsvChange"))
       }), ["meeting-case-form", "meeting-letter-form"].forEach(function(e) {
         var t = r(e);
-        t && B(t, "submit", function(e) {
+        t && bindMeetingEvent_(t, "submit", function(e) {
           try {
             e.preventDefault()
           }
@@ -884,13 +884,13 @@
       });
       var a = document.querySelectorAll("#meeting-tabs .nav-link");
       Array.prototype.forEach.call(a, function(e) {
-        e && B(e, "shown.bs.tab", function() {
+        e && bindMeetingEvent_(e, "shown.bs.tab", function() {
           var e = T("meeting-caseId") || F();
           e && Be(e)
         }, ! 1, "boundMeetingTab")
       });
       var o = r("meeting-lookup-modal-search");
-      o && B(o, "input", function() {
+      o && bindMeetingEvent_(o, "input", function() {
         var e = o.value || "";
         b.searchTimer && w(b.searchTimer), d(e).trim().length < 2 ? b.searchTimer = S("page:meeting.lookup-search", function() {
           he("")
@@ -899,7 +899,7 @@
         }, 250)
       }, ! 1, "boundMeetingModalSearch");
       var s = r("meeting-lookup-modal-apply-btn");
-      if(s && B(s, "click", be, ! 1, "boundMeetingModalApply"), B(document, "change", function(e) {
+      if(s && bindMeetingEvent_(s, "click", be, ! 1, "boundMeetingModalApply"), bindMeetingEvent_(document, "change", function(e) {
         var t = e && e.target;
         if(t && t.classList && t.classList.contains("meeting-lookup-modal-check")) {
           if(b.current = Array.prototype.map.call(document.querySelectorAll(".meeting-lookup-modal-check:checked"), function(e) {
@@ -2327,11 +2327,11 @@
     }
   }
   function ze() {
-    B(document, "change", function(ev) {
+    bindMeetingEvent_(document, "change", function(ev) {
       var target = ev && ev.target;
       target && "meeting-status" === target.id && e.meetingToggleStatusFields && e.meetingToggleStatusFields();
       target && "meeting-newCommitteeType" === target.id && e.meetingToggleHistoryCommitteeType && e.meetingToggleHistoryCommitteeType(), target && "meeting-newSubcommitteeId" === target.id && e.meetingToggleHistoryCommitteeType && e.meetingToggleHistoryCommitteeType()
-    }, ! 0, "meeting.ze.change.owner"), B(document, "click", function(ev) {
+    }, ! 0, "meeting.ze.change.owner"), bindMeetingEvent_(document, "click", function(ev) {
       var target = ev && ev.target;
       target && "meeting-newSubcommitteeId" === target.id && populateMeetingSubcommitteeOptions()
     }, ! 0, "meeting.ze.click.owner"), [["meeting-search-btn", function(t) {
@@ -2357,7 +2357,7 @@
     }
     ], ["meeting-letter-clear-btn", Ve], ["meeting-audit-btn", we], ["meeting-export-audit-btn", Ae], ["meeting-cleanup-btn", Ce]].forEach(function(e) {
       var t = r(e[0]);
-      t && "1" !== t.dataset.boundMeeting && "function" == typeof e[1] && (t.dataset.boundMeeting = "1", B(t, "click", function(t) {
+      t && "1" !== t.dataset.boundMeeting && "function" == typeof e[1] && (t.dataset.boundMeeting = "1", bindMeetingEvent_(t, "click", function(t) {
         try {
           t.preventDefault(), e && "meeting-shared-save-btn" === e[0] && (window.AppEvents && __appIsFn(window.AppEvents.consume) ? window.AppEvents.consume(t, { key: "meeting.sharedSave.button" }) : t.stopPropagation && t.stopPropagation())
         }
@@ -2375,10 +2375,10 @@
   e.meetingLookupSearch = he, e.meetingToggleHistoryCommitteeType = function() {
     var isSub = "คณะอนุกรรมาธิการ" === meetingHistoryCommitteeType(), wrap = r("meeting-newSubcommittee-wrap");
     return wrap && wrap.classList.toggle("d-none", ! isSub), isSub ? populateMeetingSubcommitteeOptions(): E("meeting-newSubcommitteeId", ""), ! 0
-  }, B(document, "change", function(e) {
+  }, bindMeetingEvent_(document, "change", function(e) {
     var t = e && e.target;
     t && "meeting-petitionerPhone" === t.id && (t.value = normalizeMeetingPhone(t.value)), t && "meeting-caseNum" === t.id && (t.value = normalizeMeetingManualNo(t.value)), t && "meeting-recNo" === t.id && (t.value = normalizeMeetingReceiveNo(t.value))
-  }, ! 1, "meetingNormalizeInputsChangeOwner"), window.__MEETING_SHARED_SAVE_CAPTURE_OWNER__ || (window.__MEETING_SHARED_SAVE_CAPTURE_OWNER__ =! 0, B(document, "click", function(t) {
+  }, ! 1, "meetingNormalizeInputsChangeOwner"), window.__MEETING_SHARED_SAVE_CAPTURE_OWNER__ || (window.__MEETING_SHARED_SAVE_CAPTURE_OWNER__ =! 0, bindMeetingEvent_(document, "click", function(t) {
     var btn;
     if(t && t.target && t.target.closest ? t.target.closest('#meeting-shared-save-btn,[data-action="meetingSharedSave"]'): null) {
       try {
