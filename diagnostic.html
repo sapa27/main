@@ -15,7 +15,7 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ secure login POST/bridge สำหรับ apiLogin และ JSONP read API สำหรับโหลดข้อมูล หลังจากนั้นจึงตรวจ bridge client เฉพาะ API ที่จำเป็นต้องเขียนข้อมูล</p>
+    <p>หน้านี้ทดสอบ fast-login JSONP สำหรับ apiLogin และ JSONP read API สำหรับโหลดข้อมูล หลังจากนั้นจึงตรวจ bridge client เฉพาะ API ที่จำเป็นต้องเขียนข้อมูล</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
@@ -78,10 +78,10 @@
         write('   ' + JSON.stringify(load, null, 2));
         if (!load.loaded) throw new Error('iframe bridge client ไม่โหลดจาก GAS');
 
-        write('4) ทดสอบ secure login POST/bridge สำหรับ apiLogin');
+        write('4) ทดสอบ fast-login JSONP สำหรับ apiLogin');
         const login = await window.AppTransport.run('apiLogin', {username:'diagnostic', password:'ไม่ส่งผ่าน URL'});
         write('   ' + JSON.stringify(login, null, 2).slice(0, 3000));
-        if (!login || !login.ok || !(login.token || login.user || (login.data && (login.data.token || login.data.user)))) throw new Error('apiLogin ไม่คืน token/user');
+        if (!login || !login.ok || !(login.token || login.user || (login.data && (login.data.token || login.data.user)))) throw new Error('fast-login apiLogin ไม่คืน token/user');
 
         write('5) ทดสอบ apiGetRouteContract ผ่าน JSONP read API');
         const contract = await window.AppTransport.run('apiGetRouteContract', {diagnostic:true});
@@ -119,7 +119,7 @@
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = ให้ตรวจ doPost/__githubLoginPost หรือ bridge apiGithubBridgeCall; ถ้าข้อ 5/6 timeout = GAS ที่ deploy ยังไม่มี __githubJsonpApi หรือ Code_20_Router.gs ล่าสุด');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = GAS ที่ deploy ยังไม่มี __githubFastLogin; ถ้าข้อ 5/6 timeout = GAS ที่ deploy ยังไม่มี __githubJsonpApi หรือ Code_20_Router.gs ล่าสุด');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
