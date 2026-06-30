@@ -9099,21 +9099,21 @@ catch(__appRootBridgeErr) {
   root.__APP_CORE_RUNTIME_PHASE9__ = phase9FunctionalReconciliationStatus();
 
 
-  // Phase 5 — release hardening runtime telemetry. Read-only wrapper; no UI DOM or business logic changes.
+  // Phase 5 — release hardening runtime telemetry. Stack-safe passive mode; no AppApi.call monkey-patch during login/bootstrap.
   (function phase5RuntimeTelemetry(root) {
     if (!root || root.__APP_PHASE5_RUNTIME_TELEMETRY__) return;
-    var STAMP = "phase5-release-hardening-ui-stability-2026-06-30";
-    var OWNER = "Scripts_Core_Runtime.AppPhase5RuntimeTelemetry";
+    var STAMP = "phase5-release-hardening-ui-stability-2026-06-30-stack-safe";
+    var OWNER = "Scripts_Core_Runtime.AppPhase5RuntimeTelemetry.Passive";
     var STORE_KEY = "app.phase5.telemetry.recent";
     function isFn(fn) { return typeof fn === "function"; }
     function nowIso() { try { return new Date().toISOString(); } catch (_) { return ""; } }
     function text(v) { return v == null ? "" : String(v); }
-    function rowsOf(value) {
-      if (!value || typeof value !== "object") return null;
+    function rowsOf(value, depth) {
+      if (!value || typeof value !== "object" || depth > 4) return null;
       if (Array.isArray(value.rows)) return value.rows;
       if (Array.isArray(value.data)) return value.data;
       if (Array.isArray(value.items)) return value.items;
-      if (value.data && typeof value.data === "object") return rowsOf(value.data);
+      if (value.data && typeof value.data === "object" && value.data !== value) return rowsOf(value.data, depth + 1);
       return null;
     }
     function classify(method, value, error) {
@@ -9126,7 +9126,7 @@ catch(__appRootBridgeErr) {
       }
       if (value && typeof value === "object") {
         if (value.ok === false || value.error || value.errorCode || value.errorState === "read-error") return "backend-read-failure";
-        var rows = rowsOf(value);
+        var rows = rowsOf(value, 0);
         var total = value.totalRecords != null ? Number(value.totalRecords || 0) : value.total != null ? Number(value.total || 0) : rows ? rows.length : null;
         if (total != null && total <= 0) return "empty-result";
       }
@@ -9140,57 +9140,47 @@ catch(__appRootBridgeErr) {
       try { if (root.localStorage) root.localStorage.setItem(STORE_KEY, JSON.stringify((list || []).slice(-50))); }
       catch (_) {}
     }
+    function safeDetail(detail) {
+      detail = detail && typeof detail === "object" ? detail : {};
+      return {
+        durationMs: Number(detail.durationMs || 0) || 0,
+        message: text(detail.message || "").slice(0, 300),
+        source: text(detail.source || "").slice(0, 80)
+      };
+    }
     function record(method, category, detail) {
-      var item = { at: nowIso(), method: text(method), category: text(category), detail: detail || {}, stamp: STAMP, owner: OWNER };
+      var item = { at: nowIso(), method: text(method), category: text(category), detail: safeDetail(detail), stamp: STAMP, owner: OWNER };
       var list = readRecent();
       list.push(item);
       writeRecent(list);
-      try { root.AppRuntime && isFn(root.AppRuntime.debugLog) && root.AppRuntime.debugLog("phase5.telemetry." + item.category, item); } catch (_) {}
+      // Keep telemetry storage local-only to avoid entering runtime logging/API helper paths.
       return item;
     }
+    function observe(method, value, error, detail) {
+      return record(method, classify(method, value, error), detail || {});
+    }
     function wrapApiCall() {
-      if (!root.AppApi || !isFn(root.AppApi.call) || root.AppApi.call.__phase5TelemetryWrapped) return false;
-      var previous = root.AppApi.call;
-      function phase5TelemetryCall(method, payload, options, timeoutMs) {
-        var started = Date.now();
-        try {
-          return Promise.resolve(previous.apply(this, arguments)).then(function(res) {
-            var category = classify(method, res, null);
-            record(method, category, { durationMs: Math.max(0, Date.now() - started) });
-            return res;
-          }, function(err) {
-            var category = classify(method, null, err);
-            record(method, category, { durationMs: Math.max(0, Date.now() - started), message: text(err && (err.message || err)) });
-            throw err;
-          });
-        } catch (err) {
-          var category = classify(method, null, err);
-          record(method, category, { durationMs: Math.max(0, Date.now() - started), message: text(err && (err.message || err)) });
-          throw err;
-        }
-      }
-      phase5TelemetryCall.__phase5TelemetryWrapped = true;
-      phase5TelemetryCall.__previous = previous;
-      phase5TelemetryCall.__owner = OWNER;
-      root.AppApi.call = phase5TelemetryCall;
-      return true;
+      // Deliberately disabled. AppApi.call is the canonical transport owner and must not be monkey-patched
+      // after the critical login runtime has loaded, otherwise AppRuntime.appApiCall can re-enter AppApi.call.
+      return false;
     }
     root.AppPhase5RuntimeTelemetry = {
       stamp: STAMP,
       owner: OWNER,
+      mode: "passive-no-api-wrapper",
       classify: classify,
+      observe: observe,
       record: record,
       recent: readRecent,
       clear: function() { writeRecent([]); return true; },
       status: function() {
         var recent = readRecent(), counts = {};
         recent.forEach(function(item) { counts[item.category] = (counts[item.category] || 0) + 1; });
-        return { ok: true, stamp: STAMP, owner: OWNER, wrapped: !!(root.AppApi && root.AppApi.call && root.AppApi.call.__phase5TelemetryWrapped), counts: counts, recentCount: recent.length, categories: ["transport-failure", "route-rejection", "backend-read-failure", "empty-result", "ok-data"], uiDomChanged: false, businessLogicChanged: false };
+        return { ok: true, stamp: STAMP, owner: OWNER, wrapped: false, mode: "passive-no-api-wrapper", counts: counts, recentCount: recent.length, categories: ["transport-failure", "route-rejection", "backend-read-failure", "empty-result", "ok-data"], stackSafe: true, uiDomChanged: false, businessLogicChanged: false };
       },
       wrapApiCall: wrapApiCall
     };
     root.__APP_PHASE5_RUNTIME_TELEMETRY__ = root.AppPhase5RuntimeTelemetry;
-    wrapApiCall();
   })(root);
 
 })(window, document);
