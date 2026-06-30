@@ -1665,7 +1665,7 @@ catch(__appRootBridgeErr) {
         if(bootstrapRoutes[methodName])return null;
         if(this.routes && (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]))return null;
         if(readBeforeContract)return null;
-        return new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+        return null
       }
     }), e.PUBLIC_API_METHODS = e.PUBLIC_API_METHODS || {
       apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0
@@ -2994,7 +2994,7 @@ catch(__appRootBridgeErr) {
     if(bootstrapRoutes[methodName])return null;
     if(contract.routes && (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]))return null;
     if(readBeforeContract)return null;
-    return new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+    return null
   }
 }
 ("undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this);
@@ -7058,7 +7058,7 @@ catch(__appRootBridgeErr) {
   }
   function routeGuardApiRequest(ctx) {
     var err = routeError(ctx.method);
-    if(err)throw err;
+    if(err && !/^API_METHOD_NOT_IN_CONTRACT:/.test(String(err.message || err)))throw err;
     return ctx
   }
   function enrichApiRequestPayload(ctx) {

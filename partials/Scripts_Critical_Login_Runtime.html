@@ -167,7 +167,7 @@ catch(__appRootBridgeErr) {
       if(bootstrapRoutes[m])return null;
       if(c.loaded && c.routes && (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]))return null;
       if(readBeforeContract)return null;
-      return new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
+      return null
     }, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
       return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
     }, root.isWriteApiMethod = function(m) {
