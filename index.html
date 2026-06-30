@@ -2758,7 +2758,8 @@ catch(__appRootBridgeErr) {
         getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
       };
       var bootstrapRoutes = c.bootstrapMethods, ok;
-      return bootstrapRoutes[m] ? null: c.loaded && c.routes ? (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
+      var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1))), readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit|apiSearchCasesLite|apiGetTracking|apiListCommitteeMeetings)$/i.test(m);
+      return bootstrapRoutes[m] || hasAuth && readBeforeContract ? null: c.loaded && c.routes ? (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
     }, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
       return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
     }, root.isWriteApiMethod = function(m) {
@@ -3655,9 +3656,11 @@ catch(__appRootBridgeErr) {
       catch(_) {
         "function" == typeof __appObserve && __appObserve(_, "ec")
       }
-      var boot = RT.bootMainUi(d.user);
-      return ! boot ||! boot.then || boot.then(function() {
-        return ! 0
+      return hydrateContractAfterLoginCrit().then(function() {
+        var boot = RT.bootMainUi(d.user);
+        return ! boot ||! boot.then || boot.then(function() {
+          return ! 0
+        })
       })
     }).catch(function(err) {
       var msg = txt(err && (err.message || err.error || err.code || err.errorCode) || err).toUpperCase(), persistent =! 0 === root.__APP_SESSION_EXPIRY_DISABLED__, hardMismatch = /RESUME\s*ไม่ตรง|ไม่ตรงกับ SESSION|BINDING|MISMATCH/.test(msg);
@@ -4255,6 +4258,71 @@ catch(__appRootBridgeErr) {
     }
     return user
   }
+  function hydrateContractAfterLoginCrit() {
+    var token = "";
+    try {
+      token = txt(store.get("auth.token", "") || root.__authToken || "")
+    }
+    catch(_tok) {
+      token = txt(root.__authToken || "")
+    }
+    if(! token ||! root.AppApi ||! root.AppApi.call)return Promise.resolve(! 1);
+    if(root.AppRouteContract && root.AppRouteContract.loaded && root.AppRouteContract.routes)return Promise.resolve(! 0);
+    if(root.__APP_CONTRACT_HYDRATE_PROMISE__)return root.__APP_CONTRACT_HYDRATE_PROMISE__;
+    root.__APP_CONTRACT_HYDRATE_PROMISE__ = root.AppApi.call("apiBootstrap", {
+      token: token, reason: "post-login-contract-hydrate"
+    }).then(function(data) {
+      data = data && data.data ? data.data: data || {
+      };
+      try {
+        root.AppRouteContract && root.AppRouteContract.absorb && root.AppRouteContract.absorb(data)
+      }
+      catch(_route) {
+        __appObserve(_route, "login.contract.absorb")
+      }
+      try {
+        store.assign({
+          "auth.bootstrapOk": ! 0, "auth.bootstrapPending": ! 1, "app.routeContract": data.routeContract || data.appConfig && data.appConfig.routeContract || {
+          }, "data.contract": data.dataContract || data.appConfig && data.appConfig.dataContract || {
+          }, "phase1.contract": data.phase1SingleSourceContract || data.dataContract && data.dataContract.phase1SingleSourceContract || {
+          }, "phase1.fieldMap": data.fieldMap || data.dataContract && data.dataContract.fieldMap || {
+          }, "phase1.statusMap": data.statusMap || data.dataContract && data.dataContract.statusMap || {
+          }
+        })
+      }
+      catch(_store) {
+        __appObserve(_store, "login.contract.store")
+      }
+      try {
+        root.AppData && root.AppData.seed && root.AppData.seed(data.dataContract || data.appConfig && data.appConfig.dataContract || {
+        })
+      }
+      catch(_seed) {
+        __appObserve(_seed, "login.contract.seed")
+      }
+      root.__APP_ROUTE_CONTRACT_READY_AFTER_LOGIN__ = !0;
+      root.__APP_CONTRACT_HYDRATE_PROMISE__ = null;
+      return ! 0
+    }).catch(function(err) {
+      try {
+        store.set("auth.bootstrapPending", ! 1)
+      }
+      catch(_st) {
+        __appObserve(_st, "login.contract.pending")
+      }
+      try {
+        RT.recordWarning && RT.recordWarning("login.contractHydrate.degraded", err, {
+          source: "hydrateContractAfterLoginCrit"
+        })
+      }
+      catch(_warn) {
+        __appObserve(_warn, "login.contract.warn")
+      }
+      root.__APP_CONTRACT_HYDRATE_PROMISE__ = null;
+      return ! 1
+    });
+    return root.__APP_CONTRACT_HYDRATE_PROMISE__
+  }
   function bootAfterLoginCrit(user) {
     try {
       var boot =! RT.bootMainUi || RT.bootMainUi(user);
@@ -4303,7 +4371,9 @@ catch(__appRootBridgeErr) {
       username: un, email: un, password: pw, clientContext: ctx()
     }).then(function(d) {
       var user = commitLoginSuccessCrit(d);
-      return root.__APP_HIDE_LOGIN_ROUTE_ALT__ && root.__APP_HIDE_LOGIN_ROUTE_ALT__(), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1), bootAfterLoginCrit(user)
+      return hydrateContractAfterLoginCrit().then(function() {
+        return root.__APP_HIDE_LOGIN_ROUTE_ALT__ && root.__APP_HIDE_LOGIN_ROUTE_ALT__(), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1), bootAfterLoginCrit(user)
+      })
     }, function(e) {
       var m = txt(e && e.message || e || "เข้าสู่ระบบไม่สำเร็จ");
       err && (err.textContent = m, err.style.display = "block"), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1);
