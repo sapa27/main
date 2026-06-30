@@ -1541,9 +1541,10 @@ window.__APP_ASSET_MANIFEST__={"stamp":"asset-manifest-github-static-2026-06-29-
 <input class="form-control" id="meeting-rejectionReason" name="rejectionReason" placeholder="ระบุเหตุผลที่ไม่รับเรื่อง" type="text"/>
 </div>
 <div class="col-md-6 col-12 d-none" id="meeting-div-pendingRemark">
-<label class="small fw-bold text-warning">หมายเหตุ</label>
-<textarea class="form-control" id="meeting-pendingRemark" name="pendingRemark" placeholder="ระบุหมายเหตุสำหรับสถานะรอการพิจารณา" rows="2"></textarea>
+<label class="small fw-bold text-warning">เหตุผล / หมายเหตุ (รอการพิจารณา)</label>
+<textarea class="form-control" id="meeting-pendingRemark" name="pendingRemark" placeholder="ระบุเหตุผลหรือหมายเหตุสำหรับสถานะรอการพิจารณา" rows="2"></textarea>
 <div class="form-text small">แสดงเฉพาะเมื่อเลือกสถานะ “รอพิจารณา”</div>
+</div>
 </div>
 <div class="col-md-3 col-6">
 <label class="small fw-bold">เลขรับเรื่อง</label>
@@ -1838,7 +1839,7 @@ window.__APP_ASSET_MANIFEST__={"stamp":"asset-manifest-github-static-2026-06-29-
 <i class="fas fa-trash-alt me-1"></i>
 <span id="delete-btn-text">ลบข้อมูล</span>
 </button>
-<button class="btn btn-success fw-bold px-4" data-action="meetingSharedSave" id="meeting-shared-save-btn" type="button">
+<button class="btn btn-success fw-bold px-4" data-meeting-save-owner="phase2-single-save-path" id="meeting-shared-save-btn" type="button">
 <i class="fas fa-save me-1"></i>
 <span id="save-btn-text">บันทึกข้อมูลทั้งหมด</span>
 </button>
@@ -2753,9 +2754,10 @@ catch(__appRootBridgeErr) {
       return ! (! c.loaded ||! c.writeMethods[txt(m)])
     }, c.validateApiMethod = function(m) {
       if(! (m = txt(m)))return new Error("API_METHOD_EMPTY");
-      var bootstrapRoutes = {
-        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0, apiGetDashboardBundle: ! 0, apiGetCases: ! 0, apiSearch: ! 0, apiSearchCasesLite: ! 0, apiGetCanonicalCaseBundle: ! 0, apiGetCaseContext: ! 0, apiGetCaseQuickSummary: ! 0, apiGetCaseReportExportRows: ! 0, apiGetMeetingLookupOptions: ! 0, apiGetMeetingHistory: ! 0, apiGetLetters: ! 0, apiGetTracking: ! 0, apiListCommitteeMeetings: ! 0, apiGetCommitteeMeetingSystem: ! 0, apiGetCommitteeMeetingPrintBundle: ! 0, apiSearchMeetingAgendaCases: ! 0, apiGetPetitioners: ! 0, apiGetPetitionerRelatedCounts: ! 0, apiGetPeoplePageBundle: ! 0, apiGetPersonnelDirectoryBundle: ! 0, apiGetPersonnelComms: ! 0, apiGetPersonnelOps: ! 0, apiGetPersonnelStaffs: ! 0, apiGetPersonnelSubcommittees: ! 0, apiBudgetGetSummary: ! 0, apiBudgetGetTypeSummaryByFY: ! 0, apiBudgetGetFiscalYears: ! 0, apiBudgetGetSubcommitteeOptions: ! 0, apiBudgetGetImportForEdit: ! 0, apiAdminListUsers: ! 0, apiAdminListSubcommittees: ! 0, apiBudgetAdminListYearSettingsAll: ! 0, apiGetSalarySettings: ! 0, apiGetThailandLocations: ! 0
-      }, ok;
+      c.bootstrapMethods = c.bootstrapMethods || {
+        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+      };
+      var bootstrapRoutes = c.bootstrapMethods, ok;
       return bootstrapRoutes[m] ? null: c.loaded && c.routes ? (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): new Error("API_METHOD_NOT_IN_CONTRACT:" + m)
     }, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
       return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
