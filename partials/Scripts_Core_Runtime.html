@@ -1656,7 +1656,7 @@ catch(__appRootBridgeErr) {
       }, validateApiMethod: function(methodName) {
         if(! (methodName = String(methodName || "")))return new Error("API_METHOD_EMPTY");
         var bootstrapRoutes = {
-          getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+          getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0, apiSaveMeetingLog: ! 0, apiDeleteMeetingLog: ! 0
         };
         return this.routes ? (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
       }
@@ -2979,7 +2979,7 @@ catch(__appRootBridgeErr) {
   function safeValidateApiMethod(methodName) {
     if(! (methodName = String(methodName || "")))return new Error("API_METHOD_EMPTY");
     var bootstrapRoutes = {
-      getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+      getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0, apiSaveMeetingLog: ! 0, apiDeleteMeetingLog: ! 0
     }, ok;
     return contract.routes ? (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
   }

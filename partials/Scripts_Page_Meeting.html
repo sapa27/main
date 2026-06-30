@@ -608,7 +608,41 @@
         }
         q("meeting-replies-panel", ! 0)
       }
-    }, window.meetingSharedSave = function() {
+    };
+    function meetingResolveActiveSaveTarget() {
+      var mode = "";
+      try {
+        mode = d(B().mode || window.__meetingActiveSaveMode || "").trim();
+      }
+      catch(_modeErr) {
+        "function" == typeof __appObserve && __appObserve(_modeErr, "meeting.save.mode.resolve")
+      }
+      if("history" === mode)return "#content-meeting-history";
+      if("letter" === mode)return "#content-letter-tracking";
+      if("case" === mode || "create" === mode || "view" === mode)return "#content-case-data";
+      try {
+        var pane = document.querySelector("#meeting-tab-content .tab-pane.show.active,#meeting-tab-content .tab-pane.active,#meeting-workspace .tab-pane.show.active,#meeting-workspace .tab-pane.active");
+        if(pane && pane.id)return "#" + pane.id;
+      }
+      catch(_paneErr) {
+        "function" == typeof __appObserve && __appObserve(_paneErr, "meeting.save.pane.resolve")
+      }
+      try {
+        var tab = document.querySelector("#meeting-tabs .nav-link.active");
+        if(tab && tab.getAttribute("data-bs-target"))return String(tab.getAttribute("data-bs-target") || "");
+      }
+      catch(_tabErr) {
+        "function" == typeof __appObserve && __appObserve(_tabErr, "meeting.save.tab.resolve")
+      }
+      try {
+        if(! r("content-case-data") || r("content-case-data").classList.contains("show") || r("content-case-data").classList.contains("active"))return "#content-case-data";
+      }
+      catch(_fallbackErr) {
+        "function" == typeof __appObserve && __appObserve(_fallbackErr, "meeting.save.fallback.resolve")
+      }
+      return "#content-case-data";
+    }
+    window.meetingSharedSave = function() {
       return function(t) {
         var n = Date.now(), i = B();
         if(window.__meetingSharedSaveInFlight || window.__meetingSharedSaveGuardAt && n - Number(window.__meetingSharedSaveGuardAt || 0) < 1500 || i && (i.isSaving || n - Number(i.lastSaveStartedAt || 0) < 1500))return Promise.resolve(! 1);
@@ -636,7 +670,7 @@
         })
       }
       (function() {
-        var t, n, i = (t = document.querySelector("#meeting-tabs .nav-link.active")) ? String(t.getAttribute("data-bs-target") || ""): "#content-case-data", r = T("meeting-caseId") || F();
+        var t, n, i = meetingResolveActiveSaveTarget(), r = T("meeting-caseId") || F();
         function a(t) {
           var n = T("meeting-caseId") || r;
           return Promise.resolve(! n || Be(n)).then(function() {
@@ -664,12 +698,12 @@
             var _sub = meetingSelectedSubcommittee();
             if(! _sub.name && _sub0.name && (_sub.name = _sub0.name), ! _sub.id && _sub0.id && (_sub.id = _sub0.id), "คณะอนุกรรมาธิการ" === _ctype &&! _sub.id &&! _sub.name)return oe("warning", "กรุณาเลือกคณะอนุกรรมาธิการ"), ! 1;
             var caseInfo = Ge(), c = {
-              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId") || caseInfo.caseId || caseInfo.id || "", id: T("meeting-caseId") || caseInfo.id || caseInfo.caseId || "", caseNum: caseInfo.caseNum || caseInfo.caseNo || T("meeting-caseNum"), caseNo: caseInfo.caseNo || caseInfo.caseNum || T("meeting-caseNum"), recNo: caseInfo.recNo || caseInfo.receiveNo || T("meeting-recNo"), receiveNo: caseInfo.receiveNo || caseInfo.recNo || T("meeting-recNo"), title: caseInfo.title || T("meeting-title"), caseTitle: caseInfo.caseTitle || T("meeting-caseTitle"), petitioners: caseInfo.petitioners || T("meeting-petitioners"), round: T("meeting-newRound"), date: P("meeting-newDate"), meetingDate: P("meeting-newDate"), committeeType: _ctype, meetingType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote"), result: T("meeting-newNote"), summary: T("meeting-newNote"), forceFresh: ! 0, noCache: ! 0
+              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId") || caseInfo.caseId || caseInfo.id || "", id: T("meeting-caseId") || caseInfo.id || caseInfo.caseId || "", caseNum: caseInfo.caseNum || caseInfo.caseNo || T("meeting-caseNum"), caseNo: caseInfo.caseNo || caseInfo.caseNum || T("meeting-caseNum"), recNo: caseInfo.recNo || caseInfo.receiveNo || T("meeting-recNo"), receiveNo: caseInfo.receiveNo || caseInfo.recNo || T("meeting-recNo"), title: caseInfo.title || T("meeting-title"), caseTitle: caseInfo.caseTitle || T("meeting-caseTitle"), petitioners: caseInfo.petitioners || T("meeting-petitioners"), round: T("meeting-newRound"), date: P("meeting-newDate"), meetingDate: P("meeting-newDate"), committeeType: _ctype, meetingType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote"), result: T("meeting-newNote"), summary: T("meeting-newNote"), saveTarget: "meetingHistory", targetPane: "#content-meeting-history", __meetingSaveOwner: "meetingSharedSave.history-single-path", forceFresh: ! 0, noCache: ! 0
             };
             if(! c.caseId && ! c.caseNum && ! c.recNo && ! c.title)return oe("warning", "กรุณาเลือกหรือบันทึกข้อมูลเรื่องก่อนบันทึกประวัติการประชุม"), ! 1;
             return s("apiSaveMeetingLog", c).then(function(res) {
-              var data = res && res.data && "object" == typeof res.data ? res.data: res || {}, savedCaseId = data.caseId || c.caseId || "";
-              return savedCaseId && (c.caseId = savedCaseId, E("meeting-caseId", savedCaseId), V(savedCaseId)), Fe(), Be(c).then(function() {
+              var data = res && res.data && "object" == typeof res.data ? res.data: res || {}, savedCaseId = data.caseId || c.caseId || "", syntheticSaved = !! (data.syntheticCaseId || /^CASE-IDENTITY-/i.test(String(savedCaseId || "")));
+              return savedCaseId && ! syntheticSaved && (c.caseId = savedCaseId, E("meeting-caseId", savedCaseId), V(savedCaseId)), Fe(), Be(c).then(function() {
                 return a("บันทึกข้อมูลสำเร็จแล้ว")
               })
             }).catch(function(e) {
@@ -1924,6 +1958,13 @@
     G({
       mode: t || "view"
     });
+    try {
+      window.__meetingActiveSaveMode = t || "view";
+      window.__meetingActiveSaveTarget = "history" === t ? "#content-meeting-history" : "letter" === t ? "#content-letter-tracking" : "#content-case-data";
+    }
+    catch(_saveTargetErr) {
+      "function" == typeof __appObserve && __appObserve(_saveTargetErr, "meeting.mode.saveTarget")
+    }
     var i = r("meeting-mode-label"), a = r("meeting-shared-delete-btn");
     i && (i.textContent = {
       create: "เพิ่มข้อมูลเรื่องพิจารณา", case: "ข้อมูลเรื่องพิจารณา", history: "ประวัติการประชุม", letter: "หนังสือติดตามมติ", view: "ข้อมูลเรื่องพิจารณา"
@@ -2487,8 +2528,7 @@
         }, meetingDeleteLetter: function(e) {
           return n.deleteLetter(i(e, "data-letter-id"))
         }, meetingSharedSave: function(ev) {
-          var btn = ev && ev.target && ev.target.closest ? ev.target.closest("#meeting-shared-save-btn"): ev && ev.closest ? ev.closest("#meeting-shared-save-btn"): ev && "meeting-shared-save-btn" === ev.id ? ev: null;
-          return ! (! btn ||! btn.dataset || "1" !== btn.dataset.boundMeeting) ||!! window.meetingSharedSave && window.meetingSharedSave()
+          return !! window.meetingSharedSave && window.meetingSharedSave(ev && ev.event ? ev.event: ev)
         }, meetingSharedDelete: function() {
           return !! window.meetingSharedDelete && window.meetingSharedDelete()
         }, meetingSelectPetitionerButton: function(e) {
@@ -4135,12 +4175,11 @@
       }
     }, {
       target: doc, event: "click", options: ! 0, key: "production-subcommittee.click", handler: function(ev) {
-        var btn = ev.target && ev.target.closest ? ev.target.closest('[data-action="meetingEditLog"],[data-action="meetingDeleteLog"],[data-action="meetingEditLetter"],[data-action="meetingDeleteLetter"],#meeting-shared-save-btn,[data-action="meetingSharedSave"]'): null;
+        var btn = ev.target && ev.target.closest ? ev.target.closest('[data-action="meetingEditLog"],[data-action="meetingDeleteLog"],[data-action="meetingEditLetter"],[data-action="meetingDeleteLetter"]'): null;
         if(! btn)return ev.target && "meeting-newSubcommitteeId" === ev.target.id && load(), void 0;
         var a = text(btn.getAttribute("data-action") || "");
-        "meeting-shared-save-btn" === btn.id && (a = "meetingSharedSave");
         var h =! 0;
-        return"meetingEditLog" === a ? edit(ev): "meetingDeleteLog" === a ? delLog(ev): "meetingEditLetter" === a ? editLetter(ev): "meetingDeleteLetter" === a ? delLetter(ev): "meetingSharedSave" === a && __appIsFn(root.meetingSharedSave) ? root.meetingSharedSave(ev): h =! 1, h ? ((root.AppEvents && __appIsFn(root.AppEvents.consume) ? root.AppEvents.consume(ev, { key: "meeting.contract." + a }) : (ev.preventDefault(), ev.stopPropagation && ev.stopPropagation())), ! 1): void 0
+        return"meetingEditLog" === a ? edit(ev): "meetingDeleteLog" === a ? delLog(ev): "meetingEditLetter" === a ? editLetter(ev): "meetingDeleteLetter" === a ? delLetter(ev): h =! 1, h ? ((root.AppEvents && __appIsFn(root.AppEvents.consume) ? root.AppEvents.consume(ev, { key: "meeting.contract." + a }) : (ev.preventDefault(), ev.stopPropagation && ev.stopPropagation())), ! 1): void 0
       }
     }]), root.AppPages && __appIsFn(root.AppPages.registerActions) && root.AppPages.registerActions("meeting", {
       meetingEditLog: function(ctx) {
@@ -4149,8 +4188,8 @@
         return delLog(ctx && ctx.event ? ctx.event: ctx)
       }, meetingToggleHistoryCommitteeType: function() {
         return ensure()
-      }, meetingSharedSave: function() {
-        return !! __appIsFn(root.meetingSharedSave) && root.meetingSharedSave()
+      }, meetingSharedSave: function(ctx) {
+        return !! __appIsFn(root.meetingSharedSave) && root.meetingSharedSave(ctx && ctx.event ? ctx.event: ctx)
       }, meetingEditLetter: function(ctx) {
         return editLetter(ctx && ctx.event ? ctx.event: ctx)
       }, meetingDeleteLetter: function(ctx) {
