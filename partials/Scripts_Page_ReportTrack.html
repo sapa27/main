@@ -842,8 +842,12 @@
     return normalizeCase(row).recNo || "-"
   }
   function caseSortNumber(row) {
-    var v = normalizeCase(row).caseNum;
-    return v ? Number(v.replace(/[^0-9]/g, "")): 999999999
+    var v = String(normalizeCase(row).caseNum || "").replace(/[๐-๙]/g, function(ch) {
+      return String("๐๑๒๓๔๕๖๗๘๙".indexOf(ch))
+    }).trim(), m;
+    if(! v)return 999999999;
+    m = v.match(/(?:^|[^0-9])(\d{1,9})(?:\s*[\/\-.]\s*(?:19|20|25)\d{2})?/);
+    return m ? Number(m[1]): 999999999
   }
   function sortCaseRowsAsc(list) {
     return arr(list).slice().sort(function(a, b) {
@@ -873,7 +877,7 @@
   function filterCaseOnly(list) {
     return(list = arr(list)).filter(function(row) {
       var type = clean(row && row.type || ""), label = clean(row && row.typeLabel || ""), hasCaseKey =!! clean(pick(row || {
-      }, ["caseId", "caseNum", "caseNo", "runningNo", "ลำดับเรื่อง", "recNo", "receiveNo", "เลขรับเรื่อง", "title", "caseTitle", "ชื่อเรื่องพิจารณา (ถ้ามี)", "petitioners", "ผู้เสนอญัตติ/ผู้ร้อง", "detail"]));
+      }, ["caseId", "caseNum", "caseNo", "runningNo", "orderNo", "seq", "no", "ลำดับเรื่อง", "ลำดับ", "ลำดับที่", "เลขลำดับ", "recNo", "receiveNo", "เลขรับเรื่อง", "title", "caseTitle", "ชื่อเรื่องพิจารณา (ถ้ามี)", "petitioners", "ผู้เสนอญัตติ/ผู้ร้อง", "detail"]));
       return"letter" !== type && "หนังสือ" !== label && "หนังสือติดตามมติ" !== label && hasCaseKey
     })
   }
