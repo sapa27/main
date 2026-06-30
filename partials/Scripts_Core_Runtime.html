@@ -1660,7 +1660,9 @@ catch(__appRootBridgeErr) {
         var bootstrapRoutes = this.bootstrapMethods || {
           getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
         };
-        return this.routes ? (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+        var hasAuth = !! (e.__authToken || e.AppStore && e.AppStore.get && (e.AppStore.get("auth.token", "") || e.AppStore.get("auth.loginOk", !1)));
+        var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit|apiSearchCasesLite|apiGetTracking|apiListCommitteeMeetings)$/i.test(methodName);
+        return this.routes ? (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] || hasAuth && readBeforeContract ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
       }
     }), e.PUBLIC_API_METHODS = e.PUBLIC_API_METHODS || {
       apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0
@@ -2984,7 +2986,9 @@ catch(__appRootBridgeErr) {
       getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
     };
     var bootstrapRoutes = contract.bootstrapMethods, ok;
-    return contract.routes ? (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+    var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1)));
+    var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit|apiSearchCasesLite|apiGetTracking|apiListCommitteeMeetings)$/i.test(methodName);
+    return contract.routes ? (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]) ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName): bootstrapRoutes[methodName] || hasAuth && readBeforeContract ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
   }
 }
 ("undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this);
