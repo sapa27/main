@@ -650,8 +650,9 @@
           return Promise.resolve(_load).then(function() {
             var _sub = meetingSelectedSubcommittee();
             if(! _sub.name && _sub0.name && (_sub.name = _sub0.name), ! _sub.id && _sub0.id && (_sub.id = _sub0.id), "คณะอนุกรรมาธิการ" === _ctype &&! _sub.id &&! _sub.name)return oe("warning", "กรุณาเลือกคณะอนุกรรมาธิการ"), ! 1;
+            var baseCase = Ge ? Ge() : {};
             var c = {
-              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId"), round: T("meeting-newRound"), date: P("meeting-newDate"), committeeType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote")
+              logId: T("meeting-currentLogId"), caseId: T("meeting-caseId") || baseCase.caseId || baseCase.id || "", caseNum: baseCase.caseNum || T("meeting-caseNum"), caseNo: baseCase.caseNo || baseCase.caseNum || T("meeting-caseNum"), recNo: baseCase.recNo || T("meeting-recNo"), receiveNo: baseCase.receiveNo || baseCase.recNo || T("meeting-recNo"), title: baseCase.title || T("meeting-title"), caseTitle: baseCase.caseTitle || T("meeting-caseTitle"), petitioners: baseCase.petitioners || T("meeting-petitioners"), logContext: "meeting-history-save-direct-current", round: T("meeting-newRound"), date: P("meeting-newDate"), committeeType: _ctype, subcommitteeId: "คณะอนุกรรมาธิการ" === _ctype ? _sub.id: "", subcommitteeName: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: "", meetingGroup: "คณะอนุกรรมาธิการ" === _ctype ? _sub.name || _sub.id: _ctype, note: T("meeting-newNote")
             };
             return He().then(function(e) {
               return c.caseId = c.caseId || e, s("apiSaveMeetingLog", c)
