@@ -86,8 +86,10 @@
     return map && typeof map === 'object' ? map : null;
   }
   function withAssetStamp(url) {
-    var m = (root.APP_CONFIG && root.APP_CONFIG.assetManifest) || manifest || {};
-    var stamp = text((m && m.stamp) || cfg('assetStamp', '') || '');
+    var m = (root.APP_CONFIG && root.APP_CONFIG.assetManifest) || root.__APP_ASSET_MANIFEST__ || manifest || {};
+    var boot = root.__APP_BOOTSTRAP__ || {};
+    var release = (root.APP_CONFIG && root.APP_CONFIG.phase5ReleaseManifest) || {};
+    var stamp = text((m && m.stamp) || cfg('assetStamp', '') || boot.assetStamp || release.cacheBustVersion || release.stamp || '');
     if (!stamp) return url;
     return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(stamp);
   }
@@ -120,7 +122,7 @@
       }
       var url = urls[i];
       tried.push(url);
-      return fetch(withAssetStamp(url), { credentials: 'same-origin', cache: 'default' }).then(function(resp) {
+      return fetch(withAssetStamp(url), { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } }).then(function(resp) {
         if (!resp.ok) return tryAt(i + 1);
         return resp.text().then(function(html) {
           cache[file] = html;
