@@ -643,7 +643,18 @@
       var cleanPayload = stripJsonpPayload(payload || {});
       var payloadText = '';
       try { payloadText = encodeURIComponent(JSON.stringify(cleanPayload)); } catch (_) { payloadText = encodeURIComponent('{}'); }
-      function cleanup() { try { clearTimeout(timer); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} }
+      function lateNoop() {}
+      function keepLateNoop() {
+        try { root[cb] = lateNoop; } catch (_) {}
+        try {
+          setTimeout(function() {
+            if (root[cb] === lateNoop) {
+              try { delete root[cb]; } catch (_) { root[cb] = void 0; }
+            }
+          }, Number(cfg('jsonpLateCallbackTtlMs', 120000)) || 120000);
+        } catch (_) {}
+      }
+      function cleanup() { try { clearTimeout(timer); } catch (_) {} keepLateNoop(); try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} }
       function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
       var jsonpTimeoutMs = Number(timeoutOverrideMs || cfg('jsonpApiTimeoutMs', 18000)) || 18000;
       var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: ' + method + ' — JSONP read API ไม่ได้รับผลกลับจาก GAS ให้ตรวจ deploy ล่าสุดมี __githubJsonpApi และ apiRouter', 'GAS_JSONP_API_TIMEOUT', method)); }, jsonpTimeoutMs);
@@ -708,10 +719,49 @@
     var url = resolveGasUrl();
     if (!url || !isLikelyGasExecUrl(url)) return Promise.resolve(null);
     return new Promise(function(resolve) {
-      var cb = '__githubGasPublicConfig_' + Date.now() + '_' + (++seq); var done = false; var script = doc.createElement('script');
-      var timer = setTimeout(function() { if (done) return; done = true; try { delete root[cb]; } catch (_) { root[cb] = void 0; } try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} resolve(null); }, Number(cfg('publicConfigTimeoutMs', 4000)) || 4000);
-      root[cb] = function(data) { if (done) return; done = true; clearTimeout(timer); try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } if (data && data.ok) { var logo = text(data.logoUrl || (data.appLogo && (data.appLogo.active || data.appLogo.svg)) || ''); logo && !isBadLogo(logo) && setLogo(logo, 'gas-public-config'); } resolve(data || null); };
-      script.onerror = function() { if (done) return; done = true; clearTimeout(timer); try { delete root[cb]; } catch (_) { root[cb] = void 0; } resolve(null); };
+      var cb = '__githubGasPublicConfig_' + Date.now() + '_' + (++seq);
+      var done = false;
+      var script = doc.createElement('script');
+      var resolved = false;
+      function lateNoop() {}
+      function keepLateNoop() {
+        try { root[cb] = lateNoop; } catch (_) {}
+        try {
+          setTimeout(function() {
+            if (root[cb] === lateNoop) {
+              try { delete root[cb]; } catch (_) { root[cb] = void 0; }
+            }
+          }, Number(cfg('jsonpLateCallbackTtlMs', 120000)) || 120000);
+        } catch (_) {}
+      }
+      function removeScript() { try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} }
+      function finish(data) {
+        if (resolved) return;
+        resolved = true;
+        try { clearTimeout(timer); } catch (_) {}
+        removeScript();
+        keepLateNoop();
+        resolve(data || null);
+      }
+      var timer = setTimeout(function() {
+        if (done) return;
+        done = true;
+        finish(null);
+      }, Number(cfg('publicConfigTimeoutMs', 8000)) || 8000);
+      root[cb] = function(data) {
+        if (done) return;
+        done = true;
+        if (data && data.ok) {
+          var logo = text(data.logoUrl || (data.appLogo && (data.appLogo.active || data.appLogo.svg)) || '');
+          logo && !isBadLogo(logo) && setLogo(logo, 'gas-public-config');
+        }
+        finish(data || null);
+      };
+      script.onerror = function() {
+        if (done) return;
+        done = true;
+        finish(null);
+      };
       script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubPublicConfig=1&callback=' + encodeURIComponent(cb) + '&_=' + Date.now();
       (doc.head || doc.documentElement).appendChild(script);
     });
