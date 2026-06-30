@@ -337,6 +337,7 @@
     var allowFastJsonp = cfg('fastLoginJsonp', false) === true;
     var allowBridgeFallback = cfg('loginBridgeFallback', true) !== false;
     var allowLegacyActiveUserFallback = cfg('legacyActiveUserLoginFallback', false) === true;
+    if (allowLegacyActiveUserFallback && allowFastJsonp && !payload.forcePasswordLogin) preferPost = false;
     var tried = [];
     function withTag(promise, label) {
       tried.push(label);
