@@ -11,7 +11,7 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbx6j7wbK21YnAPe_JD4Bp_s7RUrFR056gpFR4R1oAXU-2PeUPasSK3oBsa_S2Z-wUx-xQ/exec',
+    gasWebAppUrl: '',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
@@ -36,6 +36,10 @@
     readJsonpApi: true,
     readJsonpFallbackToBridge: true,
     jsonpApiTimeoutMs: 15000,
+    jsonpHealthCheck: true,
+    jsonpHealthMethod: 'apiSessionCheck',
+    jsonpHealthTimeoutMs: 3000,
+    jsonpDisableOnFirstFailure: true,
     clientApiCacheEnabled: true,
     clientInFlightDedupe: true,
     clientReadCacheTtlMs: { apiGetDashboardBundle: 15000, apiSearchCasesLite: 60000, apiGetTracking: 30000, apiGetPeoplePageBundle: 60000, apiGetPetitioners: 60000, apiBudgetGetSummary: 60000, apiSearchLookup: 300000 },

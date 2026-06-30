@@ -13,6 +13,7 @@
   var apiInflight = Object.create(null);
   var seq = 0;
   var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '' };
+  var jsonpHealth = { checked: false, ok: false, disabled: false, promise: null, reason: '', checkedAt: 0 };
 
   function text(v) { return v == null ? '' : String(v); }
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
@@ -446,6 +447,7 @@
     Object.keys(payload).forEach(function(k) {
       if (/^(password|pass|pwd)$/i.test(k)) return;
       if (/^(csrf|csrfToken|_csrf|_csrfToken|actionToken|csrfActionToken|_actionToken)$/i.test(k)) return;
+      if (/^__(?:jsonpHealth|transport|internal)/i.test(k)) return;
       if (/^(clientContext)$/i.test(k)) {
         var cc = compactJsonpClientContext(payload[k]);
         if (cc) out.clientContext = cc;
@@ -562,6 +564,46 @@
     return /GAS_BRIDGE|BRIDGE|NO_MESSAGE|TIMEOUT|LOAD_FAILED|CLIENT_TIMEOUT/.test(code);
   }
 
+  function isJsonpTransportFailure(err) {
+    var code = text(err && (err.code || err.errorCode || '')).toUpperCase();
+    var msg = text(err && (err.message || err.error || err)).toLowerCase();
+    return /GAS_JSONP|JSONP|TIMEOUT|LOAD_FAILED|NETWORK/.test(code) || /jsonp|timeout|โหลด|network/.test(msg);
+  }
+  function markJsonpReadDisabled(reason) {
+    jsonpHealth.checked = true;
+    jsonpHealth.ok = false;
+    jsonpHealth.disabled = true;
+    jsonpHealth.promise = null;
+    jsonpHealth.reason = text(reason || 'jsonp-read-disabled');
+    jsonpHealth.checkedAt = Date.now();
+    try { root.__APP_JSONP_READ_DISABLED__ = true; root.__APP_JSONP_READ_DISABLED_REASON__ = jsonpHealth.reason; } catch (_) {}
+    return false;
+  }
+  function ensureJsonpReadHealthy(payload) {
+    if (cfg('jsonpHealthCheck', true) === false) return Promise.resolve(true);
+    if (jsonpHealth.disabled) return Promise.resolve(false);
+    if (jsonpHealth.checked && jsonpHealth.ok) return Promise.resolve(true);
+    if (jsonpHealth.promise) return jsonpHealth.promise;
+    var method = text(cfg('jsonpHealthMethod', 'apiSessionCheck')) || 'apiSessionCheck';
+    var healthPayload = Object.assign({}, payload || {}, { __jsonpHealthCheck: true, source: 'github-jsonp-health-check-once' });
+    var timeoutMs = Number(cfg('jsonpHealthTimeoutMs', 3000)) || 3000;
+    jsonpHealth.promise = runJsonpApi(method, healthPayload, timeoutMs).then(function(result) {
+      jsonpHealth.checked = true;
+      jsonpHealth.ok = true;
+      jsonpHealth.disabled = false;
+      jsonpHealth.promise = null;
+      jsonpHealth.reason = '';
+      jsonpHealth.checkedAt = Date.now();
+      try { root.__APP_JSONP_READ_DISABLED__ = false; root.__APP_JSONP_HEALTH_LAST__ = result || {}; } catch (_) {}
+      return true;
+    }, function(err) {
+      jsonpHealth.promise = null;
+      if (cfg('jsonpDisableOnFirstFailure', true) !== false) return markJsonpReadDisabled(err && (err.code || err.message || err));
+      return false;
+    });
+    return jsonpHealth.promise;
+  }
+
   function runGasNetwork(method, payload) {
     payload = payload || {};
     if (isApiWriteMethod(method) && cfg('writeFormPost', true) !== false) {
@@ -571,20 +613,25 @@
       });
     }
     if (isJsonpReadMethod(method) && cfg('readJsonpApi', false) === true) {
-      return runJsonpApi(method, payload).catch(function(err) {
-        if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(method, payload);
-        throw err;
+      if (jsonpHealth.disabled) return runGasViaClient(method, payload);
+      return ensureJsonpReadHealthy(payload).then(function(ok) {
+        if (!ok || jsonpHealth.disabled) return runGasViaClient(method, payload);
+        return runJsonpApi(method, payload).catch(function(err) {
+          if (isJsonpTransportFailure(err)) markJsonpReadDisabled(err && (err.code || err.message || err));
+          if (cfg('readJsonpFallbackToBridge', false) === true) return runGasViaClient(method, payload);
+          throw err;
+        });
       });
     }
     return runGasViaClient(method, payload).catch(function(err) {
-      if (isJsonpReadMethod(method) && cfg('readJsonpFallbackToBridge', false) === true && isBridgeTransportFailure(err)) {
-        return runJsonpApi(method, payload);
+      if (isJsonpReadMethod(method) && cfg('readJsonpFallbackToBridge', false) === true && isBridgeTransportFailure(err) && !jsonpHealth.disabled) {
+        return ensureJsonpReadHealthy(payload).then(function(ok) { return ok ? runJsonpApi(method, payload) : Promise.reject(err); });
       }
       throw err;
     });
   }
 
-  function runJsonpApi(method, payload) {
+  function runJsonpApi(method, payload, timeoutOverrideMs) {
     var url = resolveGasUrl();
     method = text(method).trim();
     if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', method));
@@ -598,7 +645,8 @@
       try { payloadText = encodeURIComponent(JSON.stringify(cleanPayload)); } catch (_) { payloadText = encodeURIComponent('{}'); }
       function cleanup() { try { clearTimeout(timer); } catch (_) {} try { delete root[cb]; } catch (_) { root[cb] = void 0; } try { script.parentNode && script.parentNode.removeChild(script); } catch (_) {} }
       function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
-      var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: ' + method + ' — JSONP read API ไม่ได้รับผลกลับจาก GAS ให้ตรวจ deploy ล่าสุดมี __githubJsonpApi และ apiRouter', 'GAS_JSONP_API_TIMEOUT', method)); }, Number(cfg('jsonpApiTimeoutMs', 18000)) || 18000);
+      var jsonpTimeoutMs = Number(timeoutOverrideMs || cfg('jsonpApiTimeoutMs', 18000)) || 18000;
+      var timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: ' + method + ' — JSONP read API ไม่ได้รับผลกลับจาก GAS ให้ตรวจ deploy ล่าสุดมี __githubJsonpApi และ apiRouter', 'GAS_JSONP_API_TIMEOUT', method)); }, jsonpTimeoutMs);
       root[cb] = function(result) { result = result || { ok:false, error:'empty JSONP API response', errorCode:'EMPTY_JSONP_API_RESPONSE', method:method }; finish(true, result); };
       script.onerror = function() { finish(false, bridgeError('GAS API error: ' + method + ' — โหลด JSONP read API ไม่สำเร็จ ให้ตรวจ URL /exec และ permission Anyone', 'GAS_JSONP_API_LOAD_FAILED', method)); };
       script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubJsonpApi=1&callback=' + encodeURIComponent(cb) + '&method=' + encodeURIComponent(method) + '&username=' + encodeURIComponent(cleanPayload.githubUsername || currentJsonpUsername(payload || {})) + '&payload=' + payloadText + '&_=' + Date.now();
@@ -711,6 +759,8 @@
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;
   root.AppTransport.loadPublicConfig = loadPublicConfig;
   root.AppTransport.clearClientReadCache = clearClientApiCaches;
+  root.AppTransport.jsonpHealthStatus = function() { return { checked: !!jsonpHealth.checked, ok: !!jsonpHealth.ok, disabled: !!jsonpHealth.disabled, reason: jsonpHealth.reason || '', checkedAt: jsonpHealth.checkedAt || 0 }; };
+  root.AppTransport.disableJsonpRead = function(reason) { return markJsonpReadDisabled(reason || 'manual-disable'); };
   root.AppTransport.clientCacheStatus = function() { return { entries: Object.keys(apiResponseCache || {}).length, inflight: Object.keys(apiInflight || {}).length, enabled: cfg('clientApiCacheEnabled', true) !== false, dedupe: cfg('clientInFlightDedupe', true) !== false, stamp: 'p2-write-hotfix-token-jsonp-post-cache-dedupe' }; };
 
   try { setLogo(cfg('logoUrl', FALLBACK_LOGO), 'app-config'); } catch (_) {}
