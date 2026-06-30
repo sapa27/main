@@ -2933,7 +2933,7 @@ catch(__appRootBridgeErr) {
       __criticalApi: ! 0, normalizeEnvelope: env, call: function(m, p, options) {
         options = options || {};
         return RT.call(m, p).then(function(r) {
-          var n = applyTok(env(r));
+          var n = applyTok(env(r), m);
           if(! n.ok) {
             var e = new Error(n.error || n.msg || "คำขอไม่สำเร็จ");
             throw e.code = n.errorCode, e
@@ -3536,10 +3536,13 @@ catch(__appRootBridgeErr) {
       }, msg: "", error: "", errorCode: "", csrfToken: "", token: ""
     }
   }
-  function applyTok(n) {
+  function applyTok(n, methodName) {
     n && (n.token || n.csrfToken) && root.AppSecurity.setSessionTokens(n.token, n.csrfToken);
     try {
-      n && n.data && root.AppRouteContract.absorb && root.AppRouteContract.absorb(n.data)
+      var m = txt(methodName || "");
+      var d = n && n.data || null;
+      var isLoginEnvelope = /^api(Login|SessionResume)$/i.test(m) || !!(d && (d.routeContractDeferred || d.dataContractDeferred || d.token && d.user));
+      if(!isLoginEnvelope && d && root.AppRouteContract.absorb) root.AppRouteContract.absorb(d)
     }
     catch(_) {
       "function" == typeof __appObserve && __appObserve(_, "ec")
@@ -4197,8 +4200,7 @@ catch(__appRootBridgeErr) {
     if(! token ||! user)throw new Error("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
     unlockLoginLocksCrit();
     try {
-      root.AppRouteContract && root.AppRouteContract.absorb && root.AppRouteContract.absorb(data || {
-      })
+      data && (data.routeContractDeferred = !0, data.dataContractDeferred = !0)
     }
     catch(_e) {
       __appObserve(_e, "ec")
