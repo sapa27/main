@@ -1373,6 +1373,7 @@
   function mergeLastGoodBudget(data) {
     if(hasBudgetData(data = data || {
     }))return data;
+    if(data.meta && !0 === data.meta.noBudgetFallback)return data;
     var cached = loadCache();
     if(! cached ||! hasBudgetData(cached))return data;
     var budget = cached.budgetStats || cached.budget || {
@@ -1528,9 +1529,9 @@
     return payload
   }
   function buildPayload(options) {
-    var includeBudget = !1 !== (options = options || {
+    var includeBudget = !0 === (options = options || {
     }).includeBudget, includeCases = !0 === options.includeCases, includeMeetingRows = !0 === options.includeMeetingRows, payload = {
-      forceFresh: ! 0 === options.forceFresh, includeBudget: includeBudget, includeCases: includeCases, includeMeetingRows: includeMeetingRows, caseLimit: includeCases ? Math.max(10, Math.min(Number(options.caseLimit || 30) || 30, 120)): 0, cacheTtlSeconds: ! 0 === options.forceFresh ? 30: 120, hotPathMode: "phase5-dashboard-summary-kpi-first-paint", noCache: ! 0 === options.forceFresh, bypassCache: ! 0 === options.forceFresh, source: options.source || (! 0 === options.forceFresh ? "dashboard-refresh-single-bundle-current": "dashboard-fast-first-paint-phase5")
+      forceFresh: ! 0 === options.forceFresh, includeBudget: includeBudget, includeCases: includeCases, includeMeetingRows: includeMeetingRows, caseLimit: includeCases ? Math.max(10, Math.min(Number(options.caseLimit || 30) || 30, 120)): 0, cacheTtlSeconds: ! 0 === options.forceFresh ? 30: 120, hotPathMode: "phase5-dashboard-summary-kpi-first-paint", noCache: ! 0 === options.forceFresh, bypassCache: ! 0 === options.forceFresh, noBudgetFallback: ! 0 === options.noBudgetFallback, progressiveStage: options.progressiveStage || "summary", source: options.source || (! 0 === options.forceFresh ? "dashboard-refresh-summary-first": "dashboard-fast-summary-first")
     };
     try {
       applyDashboardAuthSnapshot(payload, options.__authSnapshot || state.authSnapshot || readDashboardAuthSnapshot())
@@ -1638,6 +1639,53 @@
   function keepSingleBundleBudget(data) {
     return dashboard.__enableBudgetSecondCall =! 1, data
   }
+  function scheduleDashboardProgressiveFill(options, rendered, token) {
+    options = options || {};
+    if(! rendered || ! hasData(rendered) || !0 === options.__progressiveFill || !1 === options.progressiveFill)return !1;
+    var source = String(options.source || "dashboard"), fresh = !0 === options.forceFresh, wait = 80;
+    function callBundle(stage, extra) {
+      return waitDashboardAuthSnapshotReady(Object.assign({}, options, { authWaitMs: 400 })).then(function(snapshot) {
+        return apiCall("apiGetDashboardBundle", buildPayload(Object.assign({}, options, extra || {}, {
+          __authSnapshot: snapshot, __progressiveFill: !0, progressiveStage: stage, source: "dashboard-progressive-" + stage + "-" + source
+        })))
+      }).then(function(res) {
+        if(token !== state.loadToken && state.data)return state.data;
+        var data = normalize(res);
+        return render(data, { source: "dashboard-progressive-" + stage, progressiveStage: stage, noBudgetFallback: !0 === (extra && extra.noBudgetFallback) })
+      }).catch(function(err) {
+        warn("dashboard.progressive." + stage, err, { owner: OWNER, source: source });
+        return state.data || rendered
+      })
+    }
+    try {
+      root.setTimeout(function() {
+        var chain = Promise.resolve(rendered);
+        if(!0 !== options.includeBudget)chain = chain.then(function() {
+          return callBundle("budget", { includeBudget: !0, includeCases: !1, includeMeetingRows: !1, forceFresh: fresh, noCache: fresh, bypassCache: fresh, noBudgetFallback: !0 })
+        });
+        if(!0 !== options.includeCases)chain = chain.then(function() {
+          return callBundle("cases", { includeBudget: !1, includeCases: !0, includeMeetingRows: !1, forceFresh: fresh, noCache: fresh, bypassCache: fresh })
+        });
+        chain.then(function() {
+          return apiCall("apiGetTracking", applyDashboardAuthSnapshot({ page: 1, limit: 10, cacheTtlSeconds: fresh ? 15: 90, source: "dashboard-progressive-tracking-warm", forceFresh: fresh, noCache: fresh, bypassCache: fresh }, state.authSnapshot || readDashboardAuthSnapshot()))
+        }).then(function(track) {
+          if(state.data && track) {
+            state.data.trackingPage = track.data || track;
+            state.data.meta = Object.assign({}, state.data.meta || {}, { trackingWarmed: !0, progressiveTrackingAt: (new Date).toISOString() });
+          }
+          return track
+        }).catch(function(err) {
+          warn("dashboard.progressive.tracking", err, { owner: OWNER, source: source });
+          return !1
+        })
+      }, wait)
+    }
+    catch(_scheduleErr) {
+      warn("dashboard.progressive.schedule", _scheduleErr, { owner: OWNER, source: source });
+      return !1
+    }
+    return !0
+  }
   
   
   function load(options) {
@@ -1674,7 +1722,7 @@
       }));
       if(! hasData(data) && state.data && hasData(state.data))return state.data;
       var rendered = render(data, {
-        source: fresh ? "dashboard-refresh-bundle": "dashboard-fast-first-paint", errorCode: responseCode || ""
+        source: fresh ? "dashboard-refresh-bundle": "dashboard-fast-first-paint", errorCode: responseCode || "", noBudgetFallback: !0 === options.noBudgetFallback
       });
       state.performance && (state.performance.renderedMs = Date.now() - performanceStartedAt);
       data.meta = Object.assign({}, data.meta || {}, { frontendPerformance: Object.assign({}, state.performance || {}, { targetMs: 1500, status: state.performance && state.performance.renderedMs > 1500 ? "over-target": "within-target", stamp: "phase5-performance-gate-current" }) });
@@ -1687,6 +1735,7 @@
         source: fresh ? "dashboard-refresh-bundle": "dashboard-fast-first-paint", errorCode: responseCode || "", hasData: hasData(data)
       });
       fresh || keepSingleBundleBudget(rendered);
+      scheduleDashboardProgressiveFill(options, rendered, token);
       if(! hasData(data))scheduleDashboardVisibleDataRetry(responseCode || "bundle-no-data", 700);
       else state.__visibleRetryCount = 0;
       try {

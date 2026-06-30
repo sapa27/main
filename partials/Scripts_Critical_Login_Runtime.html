@@ -603,26 +603,52 @@ catch(__appRootBridgeErr) {
         }
         return Promise.resolve(! 0)
       }
-      return Promise.resolve(ensureCore()).catch(function(_err) {
+      try {
+        routeDashboardCrit("boot-shell-before-core").catch(function(_routeEarlyErr) {
+          RT.recordWarning && RT.recordWarning("login.route.earlyRecovered", _routeEarlyErr, { source: "bootMainUi.parallel" });
+          return ! 0
+        })
+      }
+      catch(_earlyRoute) {
+        __appObserve(_earlyRoute, "login.route.early")
+      }
+      var coreReady = Promise.resolve(ensureCore()).catch(function(_err) {
         try {
           RT.recordWarning && RT.recordWarning("login.ensureCore.degraded", _err, {
-            source: "bootMainUi"
+            source: "bootMainUi.parallel"
           })
         }
         catch(_warn4) {
           __appObserve(_warn4, "login.ensureCore.warn")
         }
         return ! 0
-      }).then(function() {
+      });
+      var dashboardWarm = Promise.resolve().then(function() {
+        return prefetchPartial("Scripts_Page_Dashboard").catch(function(_prefetchErr) {
+          RT.recordWarning && RT.recordWarning("login.dashboard.prefetch.degraded", _prefetchErr, { source: "bootMainUi.parallel" });
+          return ! 1
+        })
+      });
+      var dashboardDataWarm = Promise.resolve().then(function() {
+        if(! root.AppApi || ! __appIsFn(root.AppApi.call))return !1;
+        return root.AppApi.call("apiGetDashboardBundle", {
+          token: txt(store.get("auth.token", "")), authToken: txt(store.get("auth.token", "")), username: txt((store.get("auth.user", {}) || {}).username || store.get("auth.name", "")), includeBudget: !1, includeCases: !1, includeMeetingRows: !1, cacheTtlSeconds: 60, source: "login-parallel-dashboard-summary-warm"
+        }).catch(function(_dataWarmErr) {
+          RT.recordWarning && RT.recordWarning("login.dashboard.dataWarm.degraded", _dataWarmErr, { source: "bootMainUi.parallel" });
+          return !1
+        })
+      });
+      dashboardDataWarm.catch(function(){ return !1 });
+      return Promise.all([coreReady, dashboardWarm]).then(function() {
         try {
-          ! 0 === root.__APP_EAGER_DASHBOARD_PRELOAD__ && root.AppStore && root.AppStore.get && "dashboard" === String(root.AppStore.get("ui.currentPage", "dashboard") || "dashboard").replace(/^dash$/, "dashboard") && root.AppAssetLoader && __appIsFn(root.AppAssetLoader.loadPageScripts) && root.AppAssetLoader.loadPageScripts("dashboard").catch(function(_err) {
+          root.AppAssetLoader && __appIsFn(root.AppAssetLoader.loadPageScripts) && root.AppAssetLoader.loadPageScripts("dashboard").catch(function(_err) {
             return"function" == typeof __appObserve && __appObserve(_err, "ec"), ! 0
           })
         }
         catch(_preloadDash) {
           __appObserve(_preloadDash, "ec")
         }
-        return routeDashboardCrit("boot-after-core")
+        return routeDashboardCrit("boot-after-core-parallel")
       })
     }, RT.afterLogout = RT.afterLogout || function() {
       return finalizeLogout("afterLogout")
