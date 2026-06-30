@@ -11,12 +11,12 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbw1uXOnbTZEr1Xjp7AunIVGZMtsQcAQ3RBoeSAUyTW0yrNTHz05D7c59XKDyWLW8qGy9g/exec',
+    gasWebAppUrl: '',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
     localAssetBaseCandidates: ['./partials/', 'partials/', '../partials/'],
-    transportMode: 'stage2-single-path-fastlogin-jsonp-read-bridge-write',
+    transportMode: 'phase5-login-post-primary-fastlogin-minimal-fallback',
     inlinePartialsEnabled: false,
     bridgeReadyTimeoutMs: 15000,
     bridgeLoadGraceMs: 1000,
@@ -25,17 +25,17 @@
     bridgeNoMessageTimeoutMs: 30000,
     publicConfigTimeoutMs: 4000,
     fastLoginJsonp: true,
-    loginFormPost: false,
+    loginFormPost: true,
     loginPostTimeoutMs: 30000,
     loginBridgeFallback: false,
-    fastLoginTimeoutMs: 15000,
+    fastLoginTimeoutMs: 25000,
     readJsonpApi: true,
     readJsonpFallbackToBridge: false,
     writeFormPost: false,
     clientApiCacheEnabled: false,
     clientInFlightDedupe: false,
     jsonpApiTimeoutMs: 60000,
-    phase5ReleaseManifest: {stamp:'phase5-release-hardening-ui-stability-2026-06-30', githubCommitHash:'', gasDeploymentId:'', cacheBustVersion:'phase5-release-hardening-ui-stability-2026-06-30'},
+    phase5ReleaseManifest: {stamp:'phase5-login-post-hotfix-2026-06-30', githubCommitHash:'', gasDeploymentId:'', cacheBustVersion:'phase5-login-post-hotfix-2026-06-30'},
     assetManifest: {"stamp":"asset-manifest-github-static-2026-06-29-p0","bundles":{"appCritical":{"files":["Scripts_Critical_Login_Runtime"]},"appCore":{"files":["Scripts_Core_Runtime"]},"pageDashboard":{"files":["Scripts_Page_Dashboard"]},"pageMeeting":{"files":["Scripts_Page_Meeting"]},"pageCommitteeMeeting":{"files":["Scripts_Page_Meeting"]},"pageTrackReport":{"files":["Scripts_Page_ReportTrack"]},"pagePetitioner":{"files":["Scripts_Page_Petitioner"]},"pagePeople":{"files":["Scripts_Page_People"]},"pageBudget":{"files":["Scripts_Page_Budget"]},"pageAdmin":{"files":["Scripts_Page_Admin"],"minRole":"admin"},"pageAiPrint":{"files":["Scripts_Core_Runtime"]}},"upfrontScripts":["Scripts_Critical_Login_Runtime"],"chunks":{"dashboard":["Scripts_Page_Dashboard"],"search":["Scripts_Page_ReportTrack"],"petitioner":["Scripts_Page_Petitioner"],"meeting":["Scripts_Page_Meeting"],"committee-meeting":["Scripts_Page_Meeting"],"track":["Scripts_Page_ReportTrack"],"report":["Scripts_Page_ReportTrack"],"people":["Scripts_Page_People"],"personnel":["Scripts_Page_People"],"budget":["Scripts_Page_Budget"],"admin":["Scripts_Page_Admin"],"ai":["Scripts_Core_Runtime"],"print":["Scripts_Core_Runtime"]},"templates":{},"externalGroups":["bootstrap","xlsx"],"externalAssets":{"bootstrap":{"script":"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js","onDemand":true},"xlsx":{"script":"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js","onDemand":true}}}
   };
   root.APP_CONFIG = Object.assign(defaults, existing || {});

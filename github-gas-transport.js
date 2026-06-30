@@ -205,7 +205,64 @@
 
 
 
-  /* Login POST intentionally disabled in Stage 2. Login always uses fast-login JSONP. */
+  function runLoginPost(payload) {
+    if (cfg('loginFormPost', true) === false) return Promise.reject(bridgeError('loginFormPost ถูกปิด', 'LOGIN_POST_DISABLED', 'apiLogin'));
+    var url = resolveGasUrl();
+    if (!url) return Promise.reject(bridgeError('ยังไม่ได้ตั้งค่า GAS Web App URL ใน app-config.js', 'GAS_URL_MISSING', 'apiLogin'));
+    if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID', 'apiLogin'));
+    return new Promise(function(resolve, reject) {
+      payload = isObj(payload) ? payload : {};
+      var username = text(payload.username || payload.user || payload.userId || payload.email || '').trim();
+      var password = text(payload.password || payload.pass || payload.pwd || '').trim();
+      if (!username) { reject(bridgeError('กรุณาระบุ username ก่อนเข้าสู่ระบบ', 'USERNAME_REQUIRED', 'apiLogin')); return; }
+      if (!password) { reject(bridgeError('กรุณาระบุ password ก่อนเข้าสู่ระบบ', 'PASSWORD_REQUIRED', 'apiLogin')); return; }
+      var requestId = 'login_post_' + Date.now() + '_' + (++seq) + '_' + Math.floor(Math.random() * 1e6);
+      var done = false;
+      var iframe = doc.createElement('iframe');
+      var form = doc.createElement('form');
+      var input = doc.createElement('input');
+      var timeoutMs = Number(cfg('loginPostTimeoutMs', 30000)) || 30000;
+      var timer = null;
+      function cleanup() {
+        try { clearTimeout(timer); } catch (_) {}
+        try { root.removeEventListener('message', onMessage); } catch (_) {}
+        setTimeout(function() {
+          try { form && form.parentNode && form.parentNode.removeChild(form); } catch (_) {}
+          try { iframe && iframe.parentNode && iframe.parentNode.removeChild(iframe); } catch (_) {}
+        }, 80);
+      }
+      function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
+      function onMessage(event) {
+        var data = parseMessage(event && event.data);
+        if (!data || data.requestId !== requestId) return;
+        if (data.type !== 'GAS_LOGIN_POST_RESPONSE' && data.method !== 'apiLogin') return;
+        var result = data.result || data.data || { ok:false, error:'empty login POST response', errorCode:'EMPTY_LOGIN_POST_RESPONSE', method:'apiLogin' };
+        result.transport = result.transport || 'github-login-post';
+        result.method = result.method || 'apiLogin';
+        finish(true, result);
+      }
+      try {
+        iframe.name = 'gas_login_post_' + requestId;
+        iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
+        iframe.setAttribute('aria-hidden', 'true');
+        form.method = 'POST';
+        form.target = iframe.name;
+        form.action = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubLoginPost=1&requestId=' + encodeURIComponent(requestId) + '&parentOrigin=' + encodeURIComponent(root.location && root.location.origin || '*') + '&_=' + Date.now();
+        form.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
+        input.type = 'hidden';
+        input.name = 'payload';
+        input.value = JSON.stringify(payload || {});
+        form.appendChild(input);
+        root.addEventListener('message', onMessage);
+        timer = setTimeout(function() { finish(false, bridgeError('GAS API timeout: apiLogin — login POST iframe ไม่ได้รับผลกลับจาก GAS ให้ตรวจว่า deploy ล่าสุดมี doPost/__githubLoginPost และ apiLogin', 'GAS_LOGIN_POST_TIMEOUT', 'apiLogin')); }, timeoutMs);
+        (doc.body || doc.documentElement).appendChild(iframe);
+        (doc.body || doc.documentElement).appendChild(form);
+        form.submit();
+      } catch (e) {
+        finish(false, bridgeError('GAS API error: apiLogin — login POST เริ่มทำงานไม่สำเร็จ: ' + (e && e.message || e), 'GAS_LOGIN_POST_START_FAILED', 'apiLogin'));
+      }
+    });
+  }
 
 
   function currentJsonpUsername(payload) {
@@ -361,7 +418,15 @@
       var name = req.payload && (req.payload.name || req.payload.partial || req.payload.file) || '';
       return localInclude(name);
     }
-    if (/^apiLogin$/i.test(req.method)) return runFastLoginJsonp(req.payload || {});
+    if (/^apiLogin$/i.test(req.method)) {
+      return runLoginPost(req.payload || {}).catch(function(postErr) {
+        if (cfg('fastLoginJsonp', true) === false) throw postErr;
+        return runFastLoginJsonp(req.payload || {}).catch(function(jsonpErr) {
+          try { jsonpErr.loginPostError = postErr && (postErr.error || postErr.message || String(postErr)); } catch (_) {}
+          throw jsonpErr;
+        });
+      });
+    }
     if (isJsonpReadMethod(req.method)) return runJsonpApi(req.method, req.payload || {});
     return runGasViaClient(req.method, req.payload || {});
   };
