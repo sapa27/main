@@ -11,7 +11,7 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbxz3e2XkDAS3AOiKjX5RZBIJ4cpShxJpg4tyq_OIny_ztc87dWF8obXHXzY7sitHRt4xA/exec',
+    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbwTuYc3rTt7zTuCqM1fZhX8GC--uI5vJYjUoNIfIRylOZnfwHcEYFbZHCkuF1jm3CP4EA/exec',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
