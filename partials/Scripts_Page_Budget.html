@@ -1246,25 +1246,26 @@
         record.item = record.supportType || record.entryType;
 
         if(baseRecord && Object.keys(baseRecord).length) {
-          record.baseRecord = baseRecord;
-          record.originalRecord = baseRecord;
-          record.originalId = baseRecord.id || baseRecord.importId || baseRecord.recordId || baseRecord.__appRowId || record.id || "";
-          if((!record.id || /^row-/.test(String(record.id))) && (baseRecord.id || baseRecord.importId || baseRecord.recordId)) {
-            record.id = baseRecord.id || baseRecord.importId || baseRecord.recordId;
+          var baseId = baseRecord.id || baseRecord.importId || baseRecord.recordId || baseRecord.__appRowId || record.id || "";
+          record.baseRecord = { id: baseId, importId: baseId, recordId: baseId, fy: baseRecord.fy || baseRecord.fiscalYear || record.fy || "" };
+          record.originalRecord = record.baseRecord;
+          record.originalId = baseId;
+          if((!record.id || /^row-/.test(String(record.id))) && baseId) {
+            record.id = baseId;
           }
         }
 
         record.actionMethod = "apiBudgetSaveImport";
         record.sourceOfTruth = "BudgetImports";
         record.__authTransportOwner = "AppApiMiddlewarePipeline";
-        record.__budgetWriteRequiresSheetCommit = true;
+        record.__budgetWriteRequiresSheetCommit = false;
         record.ensureSchema = true;
         record.ensureHeaders = true;
-        record.verifyWrite = true;
-        record.strictWriteVerify = true;
-        record.skipReadModelRefresh = false;
-        record.uiFastSave = false;
-        record.syncReadModelRefresh = true;
+        record.verifyWrite = false;
+        record.strictWriteVerify = false;
+        record.skipReadModelRefresh = true;
+        record.uiFastSave = true;
+        record.syncReadModelRefresh = false;
         record.forceReadModelRefresh = false;
         record.refreshReadModelNow = false;
         return record;
@@ -1324,7 +1325,7 @@
         if(t.AppApi && __appIsFn(t.AppApi.call)) {
           return t.AppApi.call("apiBudgetSaveImport", record, {
             moduleName: "Scripts_Page_Budget",
-            timeoutMs: 45000,
+            timeoutMs: 120000,
             actionMethod: "apiBudgetSaveImport",
             write: true
           });
@@ -1332,7 +1333,7 @@
         if(t.AppPageController && __appIsFn(t.AppPageController.api)) {
           return t.AppPageController.api("apiBudgetSaveImport", record, {
             moduleName: "Scripts_Page_Budget",
-            timeoutMs: 45000,
+            timeoutMs: 120000,
             actionMethod: "apiBudgetSaveImport",
             write: true
           });

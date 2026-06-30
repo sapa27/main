@@ -1475,7 +1475,7 @@ catch(__appRootBridgeErr) {
     function resetMeetingForm() {
       try {
         var form = id("meeting-case-form");
-        form && __appIsFn(form.reset) && form.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason", "meeting-currentLogId", "meeting-letterId"].forEach(function(k) {
+        form && __appIsFn(form.reset) && form.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-pendingRemark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason", "meeting-currentLogId", "meeting-letterId"].forEach(function(k) {
           var n = id(k);
           n && (n.value = "")
         });

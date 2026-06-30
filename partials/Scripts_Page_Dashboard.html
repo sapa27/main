@@ -1745,17 +1745,39 @@
     }))
   }
   function refresh(options) {
+    var btn = null, originalHtml = "", originalDisabled = !1;
     try {
-      window.AppTransport && "function" == typeof window.AppTransport.clearClientReadCache && window.AppTransport.clearClientReadCache("dashboard-refresh-forceFresh");
+      root.sessionStorage && root.sessionStorage.removeItem(cacheKey);
+      window.AppTransport && "function" == typeof window.AppTransport.clearClientReadCache && window.AppTransport.clearClientReadCache("dashboard-refresh-forceFresh-budget-live");
+      state.promise = null;
+      state.data = null;
+      btn = root.document && root.document.getElementById ? root.document.getElementById("dash-refresh-btn") : null;
+      if(btn) {
+        originalHtml = btn.innerHTML;
+        originalDisabled = !! btn.disabled;
+        btn.disabled = !0;
+        btn.setAttribute("aria-busy", "true");
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> กำลังรีเฟรช...';
+      }
     } catch(_cacheClear) {
       warn("dashboard.refresh.cacheClear", _cacheClear, { owner: OWNER });
     }
     return load(Object.assign({
-      source: "dashboard.refresh.r3", noCache: ! 0, bypassCache: ! 0, forceRefresh: ! 0, refreshNow: ! 0
+      source: "dashboard.refresh.r3", noCache: ! 0, bypassCache: ! 0, forceRefresh: ! 0, refreshNow: ! 0, afterWrite: ! 0, cacheTtlSeconds: 0, noBudgetFallback: ! 0
     }, options || {
     }, {
-      forceFresh: ! 0, noCache: ! 0, bypassCache: ! 0, forceRefresh: ! 0, refreshNow: ! 0
-    }))
+      forceFresh: ! 0, noCache: ! 0, bypassCache: ! 0, forceRefresh: ! 0, refreshNow: ! 0, afterWrite: ! 0, cacheTtlSeconds: 0, noBudgetFallback: ! 0
+    })).finally(function() {
+      try {
+        if(btn) {
+          btn.disabled = originalDisabled;
+          btn.removeAttribute("aria-busy");
+          btn.innerHTML = originalHtml || '<i class="fa-solid fa-rotate me-1"></i> รีเฟรชข้อมูล';
+        }
+      } catch(_restoreErr) {
+        warn("dashboard.refresh.restoreButton", _restoreErr, { owner: OWNER });
+      }
+    })
   }
   function dispose() {
     return ! 0

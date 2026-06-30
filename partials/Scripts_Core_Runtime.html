@@ -3181,7 +3181,9 @@ catch(__appRootBridgeErr) {
   }
   function apiTimeoutFor(method, timeoutMs) {
     var directDefault = Math.max(1e3, Number(timeoutMs || 3e4) || 3e4);
-    return method = text(method || ""), /^apiSaveCase$/.test(method) ? Math.max(directDefault, 12e4): /apiBudgetGet(TypeSummaryByFY|Summary)/.test(method) ? Math.max(directDefault, 24e4): directDefault
+    method = text(method || "");
+    var isWrite = /^api(?:Admin)?(?:Save|Delete|Update|Create|Import|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh|Upload|BudgetSave|BudgetDelete|BudgetAdminSave)/i.test(method) || /^apiLogout$/i.test(method);
+    return isWrite ? Math.max(directDefault, 12e4): /apiBudgetGet(TypeSummaryByFY|Summary)/.test(method) ? Math.max(directDefault, 24e4): directDefault
   }
   function withTimeout(promise, timeoutMs, label) {
     return timeoutMs = Math.max(1e3, Number(timeoutMs || 3e4) || 3e4), new Promise(function(resolve, reject) {
@@ -4098,13 +4100,13 @@ catch(__appRootBridgeErr) {
       }), o = String(a || "AppUtil.apiRunner"), l = String(e || "");
       try {
         i = t.AppApi && __appIsFn(t.AppApi.call) ? t.AppApi.call(l, p, {
-          timeoutMs: Math.max(Number(r || 0) || 0, /^apiSaveCase$/.test(l) ? 12e4: /apiBudgetGet(TypeSummaryByFY|Summary)/.test(l) ? 24e4: 0), moduleName: o
+          timeoutMs: Math.max(Number(r || 0) || 0, /^api(?:Admin)?(?:Save|Delete|Update|Create|Import|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh|Upload|BudgetSave|BudgetDelete|BudgetAdminSave)/i.test(l) || /^apiLogout$/i.test(l) ? 12e4: /apiBudgetGet(TypeSummaryByFY|Summary)/.test(l) ? 24e4: 0), moduleName: o
         }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน: " + l))
       }
       catch(t) {
         i = Promise.reject(t)
       }
-      var u = Math.max(3e3, /^apiSaveCase$/.test(l) ? Math.max(Number(r || 0) || 0, 12e4): /apiBudgetGet(TypeSummaryByFY|Summary)/.test(l) ? Math.max(Number(r || 0) || 0, 24e4): Number(r || 2e4) || 2e4);
+      var u = Math.max(3e3, (/^api(?:Admin)?(?:Save|Delete|Update|Create|Import|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh|Upload|BudgetSave|BudgetDelete|BudgetAdminSave)/i.test(l) || /^apiLogout$/i.test(l)) ? Math.max(Number(r || 0) || 0, 12e4): /apiBudgetGet(TypeSummaryByFY|Summary)/.test(l) ? Math.max(Number(r || 0) || 0, 24e4): Number(r || 2e4) || 2e4);
       return new Promise(function(e, n) {
         var a =! 1, r = t.AppRuntime && t.AppRuntime.setTimer ? t.AppRuntime.setTimer("api:" + l, function() {
           if(! a) {
