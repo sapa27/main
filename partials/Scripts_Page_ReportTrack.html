@@ -215,9 +215,13 @@
       })
     }, root.searchAll = function(page) {
       searchState.page = Math.max(1, Number(page || 1) || 1);
+      searchState.manualSearchSeq = Math.max(0, Number(searchState.manualSearchSeq || 0) || 0) + 1;
+      searchState.pageCache = Object.create(null), searchState.pageCacheBaseKey = "", searchState.pagePrefetch = Object.create(null), searchState.exportRows = [], searchState.exportCacheKey = "", searchState.renderedRequestSeq = 0;
+      try { root.AppTransport && __appIsFn(root.AppTransport.clearClientReadCache) && root.AppTransport.clearClientReadCache("case-search-click"); } catch(_clearSearchTransportCache) { __appObserve(_clearSearchTransportCache, "reportTrack.search.clearTransportCache") }
+      try { root.AppStore && __appIsFn(root.AppStore.set) && root.AppStore.set("search.rows", []); } catch(_clearSearchStore) { __appObserve(_clearSearchStore, "reportTrack.search.clearStore") }
       var tb = byId("search-table-res"), table = tb && tb.closest ? tb.closest("table"): null, hadRows = Array.isArray(searchState.rows) && searchState.rows.length > 0;
-      ! hadRows && tb && setHtml(tb, '<tr><td colspan="8" class="text-center text-muted p-4">กำลังค้นหาข้อมูล...</td></tr>'), table && table.setAttribute("aria-busy", "true");
-      return loadCases(searchState, "search").then(function(result) {
+      tb && setHtml(tb, '<tr><td colspan="8" class="text-center text-muted p-4">กำลังค้นหาข้อมูลใหม่...</td></tr>'), table && table.setAttribute("aria-busy", "true");
+      return loadCases(searchState, "search", { userSearch: !0, liveReload: !0 }).then(function(result) {
         if(table)table.removeAttribute("aria-busy");
         if(! result || result.stale)return searchState.rows;
         if(searchState.renderedRequestSeq === result.requestSeq)return searchState.rows;
@@ -233,9 +237,13 @@
       return updateReportTrackPagerState(searchState, source, "search-pagination", page), ! 0 === searchState.serverPaged ? root.searchAll(searchState.page): (drawSearch(), ! 0)
     }, root.loadReportData = root.renderReport = function(page) {
       reportState.page = Math.max(1, Number(page || 1) || 1);
+      reportState.manualSearchSeq = Math.max(0, Number(reportState.manualSearchSeq || 0) || 0) + 1;
+      reportState.pageCache = Object.create(null), reportState.pageCacheBaseKey = "", reportState.pagePrefetch = Object.create(null), reportState.exportRows = [], reportState.exportCacheKey = "", reportState.renderedRequestSeq = 0;
+      try { root.AppTransport && __appIsFn(root.AppTransport.clearClientReadCache) && root.AppTransport.clearClientReadCache("case-report-click"); } catch(_clearReportTransportCache) { __appObserve(_clearReportTransportCache, "reportTrack.report.clearTransportCache") }
+      try { root.AppStore && __appIsFn(root.AppStore.set) && root.AppStore.set("report.rows", []); } catch(_clearReportStore) { __appObserve(_clearReportStore, "reportTrack.report.clearStore") }
       var tb = byId("report-table-body"), table = tb && tb.closest ? tb.closest("table"): null, hadRows = Array.isArray(reportState.rows) && reportState.rows.length > 0;
-      ! hadRows && tb && setHtml(tb, '<tr><td colspan="7" class="text-center text-muted p-4">กำลังโหลดข้อมูล...</td></tr>'), table && table.setAttribute("aria-busy", "true"), applyHeaders();
-      return loadCases(reportState, "report").then(function(result) {
+      tb && setHtml(tb, '<tr><td colspan="7" class="text-center text-muted p-4">กำลังโหลดข้อมูลใหม่...</td></tr>'), table && table.setAttribute("aria-busy", "true"), applyHeaders();
+      return loadCases(reportState, "report", { userSearch: !0, liveReload: !0 }).then(function(result) {
         if(table)table.removeAttribute("aria-busy");
         if(! result || result.stale)return reportState.rows;
         if(reportState.renderedRequestSeq === result.requestSeq)return reportState.rows;
@@ -1147,8 +1155,9 @@
       return resolvedRecDateText && (row.recDateText = resolvedRecDateText, row.receiveDateText = resolvedRecDateText, row["วันที่รับเรื่อง"] = resolvedRecDateText), row.cat = row.cat || row.caseType || row.category || row.type || row["ประเภท"] || c.cat || "", row.subCat = row.subCat || row.subCategory || row.issue || row.topic || row.issueTitle || row["ประเด็นพิจารณา"] || c.subCat || "", row.respondent = row.respondent || row.agencyName || row.accusedAgency || row.accused || row["หน่วยงาน / ผู้ถูกร้อง"] || row["หน่วยงาน/ผู้ถูกร้อง"] || c.respondent || "", row.assignees = row.assignees || row.owner || row.committeeOwner || row.responsibleCommittee || row.responsibleCommissioners || row.responsibleComm || row["กมธ. รับผิดชอบ"] || row["กมธ.รับผิดชอบ"] || c.assignees || "", row.coAssignees = row.coAssignees || row.coAssignee || row.coOwners || row.coResponsible || row["ผู้รับผิดชอบร่วม"] || c.coAssignees || "", row.operationOfficer = row.operationOfficer || row.secretariatOfficer || row.secretariatStaff || row.opStaff || row.staffs || row.operator || row.responsibleOfficer || row.staff || row.officer || row["เจ้าหน้าที่ฝ่ายเลขานุการ"] || c.opStaff || "", row.staffs = row.staffs || row.operationOfficer || row.secretariatStaff || row["เจ้าหน้าที่ฝ่ายเลขานุการ"] || c.opStaff || "", row.committeeHistory = row.committeeHistory || row.committeeMeeting || row.committeeMeetings || row.meetingCommitteeHistory || row["คณะกรรมาธิการ"] || c.committeeHistory || "", row.subcommitteeHistory = row.subcommitteeHistory || row.subcommitteeMeeting || row.subcommitteeMeetings || row.meetingSubcommitteeHistory || row["คณะอนุกรรมาธิการ"] || c.subcommitteeHistory || "", row.type = "case", row.typeLabel = "เรื่องพิจารณา", row.__source = source || row.__source || "", row.__clientIndex = idx + 1, row
     })
   }
-  function loadCases(state, mode) {
+  function loadCases(state, mode, options) {
     state = state || {
+    }, options = options || {
     };
     var requestedPageSize = Math.max(10, Math.min(100, Number(state.pageSize || 20) || 20)), requestedPage = Math.max(1, Number(state.page || 1) || 1), requestedQuery = queryFor(mode), requestedReportType = "report" === mode ? clean((byId("report-type") || {
     }).value || "all"): "all", requestedReportValue = "report" === mode ? clean((byId("report-group-value") || {
@@ -1176,18 +1185,43 @@
       }
     }
     function payloadFor(pageNo, prefetch) {
+      var manualSeq = Math.max(0, Number(state.manualSearchSeq || 0) || 0), loadAllFresh = !0 === options.userSearch || !0 === options.liveReload;
       var payload = {
-        query: requestedQuery, page: pageNo, limit: requestedPageSize, pageSize: requestedPageSize, noPage: ! 1, fullList: ! 1, sortBy: "caseNum", sortDir: "asc", forceFresh: ! 0, cacheTtlSeconds: 0, noCache: ! 0, bypassCache: ! 0, serverPaged: ! 0, compactReadModel: ! 0, includeMeetingHistory: ! 1, receiveNoFix: "single-owner", receiveDateFix: "MainData.recDate.directOwner", pagingContract: "case-search-page-envelope-v3", source: prefetch ? "search-report-page-prefetch-r5": "search-report-page-cache-r5", requestStabilityContract: "latest-request-wins-page-cache-r2", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0, sequenceOrderStrict: ! 0, forceFullMainDataRead: ! 0
+        query: requestedQuery, page: loadAllFresh ? 1: pageNo, limit: loadAllFresh ? 5000: requestedPageSize, pageSize: loadAllFresh ? 5000: requestedPageSize, maxRows: 5000, noPage: loadAllFresh ? !0: !1, fullList: loadAllFresh ? !0: !1, sortBy: "caseNum", sortDir: "asc", forceFresh: ! 0, cacheTtlSeconds: 0, noCache: ! 0, bypassCache: ! 0, serverPaged: loadAllFresh ? !1: !0, compactReadModel: ! 0, includeMeetingHistory: ! 1, receiveNoFix: "single-owner", receiveDateFix: "MainData.recDate.directOwner", pagingContract: "case-search-live-full-list-envelope", source: prefetch ? "search-report-page-prefetch-live-disabled": "search-report-click-live-main-data", requestStabilityContract: "latest-request-wins-live-search-click", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0, sequenceOrderStrict: ! 0, forceFullMainDataRead: ! 0, disableCaseSearchIndex: ! 0, noSearchIndex: ! 0, useCaseSearchIndex: !1, liveMainDataSearch: ! 0, liveSearchNonce: String(manualSeq) + "-" + String(Date.now ? Date.now(): + new Date)
       };
       return"report" === mode && (payload.reportType = requestedReportType, payload.reportValue = requestedReportValue), payload
     }
     function fetchPage(pageNo, prefetch) {
-      return api("apiSearchCasesLite", payloadFor(pageNo, prefetch)).then(function(res) {
+      var mainPayload = payloadFor(pageNo, prefetch);
+      function commitFetchedEntry(res, sourceLabel) {
         var entry = normalizeEntry(res, pageNo);
-        return state.pageCache[String(entry.page)] = entry, entry
+        entry.source = sourceLabel || entry.source || "apiSearchCasesLite";
+        state.pageCache[String(entry.page)] = entry;
+        return entry
+      }
+      function exportFallback(reason) {
+        if(!(!0 === options.userSearch || !0 === options.liveReload) || prefetch)return Promise.reject(reason || new Error("apiSearchCasesLite ไม่พบข้อมูล"));
+        var fallbackPayload = Object.assign({}, mainPayload, {
+          noPage: !0, fullList: !0, serverPaged: !1, limit: 5000, pageSize: 5000, maxRows: 5000,
+          forceFresh: !0, noCache: !0, bypassCache: !0, cacheTtlSeconds: 0,
+          forceFullMainDataRead: !0, liveMainDataSearch: !0, sequenceOrderStrict: !0,
+          disableCaseSearchIndex: !0, noSearchIndex: !0, useCaseSearchIndex: !1,
+          source: "search-report-click-export-fallback-live-main-data"
+        });
+        return api("apiGetCaseReportExportRows", fallbackPayload).then(function(res) {
+          return commitFetchedEntry(res, "apiGetCaseReportExportRows.liveFallback")
+        })
+      }
+      return api("apiSearchCasesLite", mainPayload).then(function(res) {
+        var entry = commitFetchedEntry(res, "apiSearchCasesLite.liveMainData");
+        if(entry && Array.isArray(entry.rows) && entry.rows.length)return entry;
+        return exportFallback(new Error("apiSearchCasesLite_EMPTY_ROWS"))
+      }, function(err) {
+        return exportFallback(err)
       })
     }
     function schedulePrefetch(entry) {
+      if(!0 === options.userSearch || !0 === options.liveReload)return;
       var totalPages = Math.max(1, Number(entry.totalPages || 1) || 1), targets = [], prefetchAll = !1;
       entry.page < totalPages && targets.push(entry.page + 1);
       targets.forEach(function(pageNo) {
@@ -1580,7 +1614,7 @@
     var cacheKey = [kind, query, reportType, reportValue, Number(state.total || 0)].join("|");
     if(Array.isArray(state.exportRows) && state.exportRows.length && state.exportCacheKey === cacheKey)return Promise.resolve(state.exportRows.slice());
     var payload = {
-      query: query, reportType: reportType, reportValue: reportValue, page: 1, limit: 5e3, pageSize: 5e3, maxRows: 5e3, noPage: ! 0, fullList: ! 0, serverPaged: ! 1, compactReadModel: ! 0, includeMeetingHistory: ! 0, forceFresh: ! 0, noCache: ! 0, bypassCache: ! 0, cacheTtlSeconds: 0, sortBy: "caseNum", sortDir: "asc", exportMode: kind, sequenceOrderStrict: ! 0, forceFullMainDataRead: ! 0, source: "search-report-export-on-demand-production-owner", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
+      query: query, reportType: reportType, reportValue: reportValue, page: 1, limit: 5e3, pageSize: 5e3, maxRows: 5e3, noPage: ! 0, fullList: ! 0, serverPaged: ! 1, compactReadModel: ! 0, includeMeetingHistory: ! 0, forceFresh: ! 0, noCache: ! 0, bypassCache: ! 0, cacheTtlSeconds: 0, sortBy: "caseNum", sortDir: "asc", exportMode: kind, sequenceOrderStrict: ! 0, forceFullMainDataRead: ! 0, disableCaseSearchIndex: ! 0, noSearchIndex: ! 0, useCaseSearchIndex: !1, liveMainDataSearch: ! 0, liveSearchNonce: "export-" + String(Date.now ? Date.now(): + new Date), source: "search-report-export-on-demand-live-main-data", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
     };
     return api("apiGetCaseReportExportRows", payload).then(function(res) {
       if(res && "object" == typeof res && ! 1 === res.ok)throw new Error(res.error || res.msg || "apiGetCaseReportExportRows ไม่สำเร็จ");
