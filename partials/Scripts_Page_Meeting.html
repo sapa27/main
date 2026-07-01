@@ -1142,7 +1142,12 @@
             "function" == typeof __appObserve && __appObserve(_tabModeErr, "meeting.tab.mode")
           }
           var key = T("meeting-caseId") || F();
-          key && Promise.resolve(Be({
+          var needDetailReload = !0;
+          try {
+            needDetailReload = ("history" === mode && !(y.history || []).length) || ("letter" === mode && !(y.letters || []).length) || !("history" === mode || "letter" === mode);
+          }
+          catch(_detailReloadGuardErr) { needDetailReload = !0; }
+          key && needDetailReload && Promise.resolve(Be({
             caseId: key, caseNum: T("meeting-caseNum"), recNo: T("meeting-recNo"), title: T("meeting-title") || T("meeting-caseTitle")
           })).catch(function(err) {
             "function" == typeof __appObserve && __appObserve(err, "meeting.tab.reload.nonblocking")

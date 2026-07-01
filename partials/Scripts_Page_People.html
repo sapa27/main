@@ -431,7 +431,7 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
       return null
     })("staff-fy-filter") || {
     }).value || "", S = A("apiGetPeoplePageBundle", {
-      fy: m, source: "people-page-bundle"
+      fy: m, source: "people-page-bundle", includeSalaryRows: false, liteFirstPaint: true, cacheTtlSeconds: 360
     }).then(function(e) {
       var t = function(e) {
         var t = p(e), r = t.data && "object" == typeof t.data ? t.data: t, n = i(r.staffs || r.personnelStaffs || r.rows || r.items).map(w).filter(function(e) {
@@ -3237,18 +3237,17 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     return"staff" === (tab = tab || state.activeTab || "comm") ? renderStaff(): "op" === tab ? renderOp(): "subcommittee" === tab ? renderSubcommittee(): "salary" === tab ? renderSalary(): renderCommittee()
   }
   function renderAll() {
-    return["comm", "staff", "op", "subcommittee", "salary"].forEach(function(t) {
-      try {
-        render(t)
-      }
-      catch(e) {
-        warn("render." + t, e)
-      }
-    }), ! 0
+    try {
+      render(state.activeTab || "comm")
+    }
+    catch(e) {
+      warn("render.active", e)
+    }
+    return !0
   }
   function load(force) {
     return state.loading &&! force || (state.loading = api("apiGetPeoplePageBundle", {
-      forceFresh: !! force, source: OWNER
+      forceFresh: !! force, source: OWNER, activeTab: state.activeTab || "comm", includeSalaryRows: "salary" === (state.activeTab || "comm"), liteFirstPaint: "salary" !== (state.activeTab || "comm"), cacheTtlSeconds: force ? 0 : 360
     }).then(function(res) {
       return setBundle(res), renderAll(), state.bundle
     }).catch(function(err) {

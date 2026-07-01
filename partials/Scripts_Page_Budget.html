@@ -391,7 +391,7 @@
       return ! force && m._summaryPromise && m._summaryPromiseKey === requestKey ? m._summaryPromise: ! force && m._summaryCacheKey === requestKey && Array.isArray(m.summaryRows) && m.summaryRows.length ? Promise.resolve({
         rows: m.summaryRows, cacheHit: ! 0, frontendCache: ! 0
       }): (b("budget-summary-body", '<tr><td colspan="4" class="text-center p-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดข้อมูล...</td></tr>'), m._summaryPromiseKey = requestKey, m._summaryPromise = A("apiBudgetGetSummary", {
-        fy: fy, page: pageNo, limit: limit, fast: ! 0, includeSpent: ! 0, includePersonnelCompensation: ! 0, preferCache: ! force, forceFresh: force, forceRefresh: force, noCache: force, bypassCache: force, cacheTtlSeconds: force ? 0: 180
+        fy: fy, page: pageNo, limit: limit, fast: ! 0, noWait: !0, includeSpent: ! 0, includePersonnelCompensation: ! 0, preferCache: ! force, forceFresh: force, forceRefresh: force, noCache: force, bypassCache: force, cacheTtlSeconds: force ? 0: 300, source: "budget-summary-fast-cache-r6"
       }).then(function(resp) {
         if(O(resp)) {
           var data = H(resp), rows = Array.isArray(data.rows) ? data.rows: Array.isArray(data.data) ? data.data: [];
@@ -782,7 +782,7 @@
       return ! (! table ||! Array.prototype.slice.call(table.querySelectorAll("tbody tr")).some(function(tr) {
         return ! isStatusRow(tr)
       })) ? doPrint(): Promise.resolve(t.loadBudgetSummary ? t.loadBudgetSummary(1): A("apiBudgetGetSummary", {
-        fy: M(), page: 1, limit: 500, fast: ! 0, includeSpent: ! 0, preferCache: ! 0, cacheTtlSeconds: 180
+        fy: M(), page: 1, limit: 500, fast: ! 0, noWait: !0, includeSpent: ! 0, preferCache: ! 0, cacheTtlSeconds: 300, source: "budget-summary-print-fast-cache-r6"
       }).then(function(resp) {
         var data = O(resp) ? H(resp): {
         }, rows = Array.isArray(data.rows) ? data.rows: Array.isArray(data.data) ? data.data: [];
