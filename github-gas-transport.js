@@ -1,9 +1,10 @@
 /* GitHub Pages <-> Google Apps Script transport.
- * Stage 2 single-path contract:
- *   - Login: fast-login JSONP only
- *   - Read API: token-auth JSONP only
- *   - Write/mutation API: hidden GAS bridge iframe only
- * No per-request fallback between read/write transports.
+ * Phase 1 data-loading performance contract:
+ *   - Login: login POST first; fast-login JSONP only as fallback.
+ *   - Public read API: JSONP only for explicitly allow-listed public methods.
+ *   - Authenticated read API: hidden GAS bridge iframe to avoid token-in-URL leakage.
+ *   - Write/mutation API: hidden GAS bridge iframe only.
+ *   - Read requests use in-flight de-duplication and short TTL cache when enabled.
  */
 (function(root, doc) {
   'use strict';
@@ -14,13 +15,134 @@
   var cache = Object.create(null);
   var pending = Object.create(null);
   var seq = 0;
-  var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '' };
+  var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '', messageOrigin: '' };
+  var apiCache = Object.create(null);
+  var apiInFlight = Object.create(null);
+  var apiMetrics = { calls: 0, cacheHits: 0, cacheWrites: 0, dedupeHits: 0, bridgeReads: 0, jsonpReads: 0, errors: 0, last: [] };
+  var PHASE2_RELEASE_STAMP = 'phase2-compact-single-owner-2026-07-01-r1';
+  var PHASE1_RELEASE_STAMP = PHASE2_RELEASE_STAMP;
 
   function text(v) { return v == null ? '' : String(v); }
   function isObj(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
   function safeName(name) { return /^[A-Za-z0-9_\-]+$/.test(text(name)); }
   function cfg(name, fallback) { var c = root.APP_CONFIG || {}; return c[name] == null || c[name] === '' ? fallback : c[name]; }
-  function normalizeUrl(url) { url = text(url).trim(); return url ? url.replace(/\s+/g, '') : ''; }
+function cfgList(name) {
+    var value = cfg(name, []);
+    if (Array.isArray(value)) return value.map(text).filter(Boolean);
+    return text(value).split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+  }
+  function originFromUrl(url) { try { return (new URL(text(url), root.location && root.location.href || undefined)).origin || ''; } catch (_) { return ''; } }
+  function pageOrigin() { try { return root.location && root.location.origin || ''; } catch (_) { return ''; } }
+  function isGoogleScriptOrigin(origin) { origin = text(origin).trim().toLowerCase(); return origin === 'https://script.google.com' || origin === 'https://script.googleusercontent.com' || /^https:\/\/[a-z0-9_.-]+-script\.googleusercontent\.com$/i.test(origin); }
+  function allowedBridgeOrigins() {
+    var list = cfgList('allowedBridgeOrigins');
+    uniquePush(list, originFromUrl(resolveGasUrl()));
+    uniquePush(list, 'https://script.google.com');
+    return list;
+  }
+  function isAllowedBridgeEvent(event, iframe) {
+    if (iframe && event && event.source && iframe.contentWindow && event.source !== iframe.contentWindow) return false;
+    var origin = text(event && event.origin || '').trim();
+    if (!origin) return cfg('strictBridgeOriginCheck', true) === false;
+    var list = allowedBridgeOrigins();
+    for (var i = 0; i < list.length; i++) if (origin === list[i]) return true;
+    return isGoogleScriptOrigin(origin);
+  }
+  function bridgeParentOrigin() { return pageOrigin() || ''; }
+  function bridgeTargetOrigin() { return bridgeClient.messageOrigin || text(cfg('bridgeTargetOrigin', '')).trim() || originFromUrl(resolveGasUrl()) || 'https://script.google.com'; }
+  function publicJsonpReadMethod(method) {
+    method = text(method).trim();
+    var list = cfgList('publicJsonpReadMethods');
+    if (!list.length) list = ['apiGetRouteContract','apiGetPhase0ContractGate','apiGetPhase1Contract','apiGetPhase2Contract','apiGetClientDataContract','apiGetAppTerminology','apiSessionCheck','apiBootstrap'];
+    return list.indexOf(method) >= 0;
+  }
+  function payloadWantsFresh(payload) {
+    payload = isObj(payload) ? payload : {};
+    return payload.forceFresh === true || payload.noCache === true || payload.bypassCache === true || Number(payload.cacheTtlSeconds) === 0;
+  }
+  function ttlForRead(method, payload) {
+    if (payloadWantsFresh(payload)) return 0;
+    var map = cfg('clientApiCacheTtlSecMap', {}) || {};
+    var ttl = map && map[method] != null ? Number(map[method]) : Number(cfg('clientApiCacheDefaultTtlSec', 30));
+    return isFinite(ttl) && ttl > 0 ? Math.min(ttl, 900) : 0;
+  }
+  function stableClone(value) {
+    if (Array.isArray(value)) return value.map(stableClone);
+    if (!isObj(value)) return value;
+    var out = {};
+    Object.keys(value).sort().forEach(function(k) {
+      if (/^(token|_token|authToken|csrf|csrfToken|_csrf|_csrfToken|actionToken|csrfActionToken|_actionToken|password|pass|pwd)$/i.test(k)) return;
+      if (/^(_|nonce|at|source|clientContext)$/i.test(k)) return;
+      out[k] = stableClone(value[k]);
+    });
+    return out;
+  }
+  function stableKey(method, payload) { try { return method + '|' + JSON.stringify(stableClone(payload || {})); } catch (_) { return method + '|' + Date.now(); } }
+  function recordApiMetric(item) {
+    try {
+      item = item || {};
+      item.at = item.at || new Date().toISOString();
+      apiMetrics.calls += item.kind === 'call' ? 1 : 0;
+      apiMetrics.cacheHits += item.cacheHit ? 1 : 0;
+      apiMetrics.cacheWrites += item.cacheWrite ? 1 : 0;
+      apiMetrics.dedupeHits += item.dedupeHit ? 1 : 0;
+      apiMetrics.bridgeReads += item.transport === 'bridge' && item.kind === 'call' ? 1 : 0;
+      apiMetrics.jsonpReads += item.transport === 'jsonp' && item.kind === 'call' ? 1 : 0;
+      apiMetrics.errors += item.error ? 1 : 0;
+      apiMetrics.last.push(item);
+      if (apiMetrics.last.length > 30) apiMetrics.last.shift();
+    } catch (_) {}
+  }
+  function annotateResult(result, meta) {
+    try {
+      if (!isObj(result)) return result;
+      var out = Object.assign({}, result);
+      out.meta = Object.assign({}, isObj(result.meta) ? result.meta : {}, meta || {});
+      if (isObj(out.data)) out.data = Object.assign({}, out.data, { meta: Object.assign({}, isObj(out.data.meta) ? out.data.meta : {}, meta || {}) });
+      return out;
+    } catch (_) { return result; }
+  }
+  function runReadWithPolicy(method, payload) {
+    var useBridge = cfg('forceAuthenticatedReadBridge', true) !== false && !publicJsonpReadMethod(method);
+    var transport = useBridge ? 'bridge' : 'jsonp';
+    var runner = function() { return useBridge ? runGasViaClient(method, payload || {}) : runJsonpApi(method, payload || {}); };
+    var cacheable = cfg('clientApiCacheEnabled', true) !== false && isJsonpReadMethod(method);
+    var dedupe = cfg('clientInFlightDedupe', true) !== false && isJsonpReadMethod(method);
+    var ttl = ttlForRead(method, payload || {});
+    var key = stableKey(method, payload || {});
+    var now = Date.now ? Date.now() : +new Date();
+    if (cacheable && ttl > 0 && apiCache[key] && apiCache[key].expiresAt > now) {
+      recordApiMetric({ kind: 'cache', method: method, transport: transport, cacheHit: true, ageMs: Math.max(0, now - Number(apiCache[key].storedAt || now)) });
+      return Promise.resolve(annotateResult(apiCache[key].value, { clientCacheHit: true, phase1Cache: true, cacheAgeMs: Math.max(0, now - Number(apiCache[key].storedAt || now)), cacheTtlSec: ttl, transport: transport, releaseStamp: PHASE1_RELEASE_STAMP }));
+    }
+    if (dedupe && apiInFlight[key]) {
+      recordApiMetric({ kind: 'dedupe', method: method, transport: transport, dedupeHit: true });
+      return apiInFlight[key].then(function(result) { return annotateResult(result, { clientDedupeHit: true, phase1Dedupe: true, transport: transport, releaseStamp: PHASE1_RELEASE_STAMP }); });
+    }
+    var started = now;
+    var promise = Promise.resolve().then(runner).then(function(result) {
+      var durationMs = Math.max(0, (Date.now ? Date.now() : +new Date()) - started);
+      var meta = { clientDurationMs: durationMs, clientCacheHit: false, phase1Cache: false, cacheTtlSec: ttl, transport: transport, releaseStamp: PHASE1_RELEASE_STAMP };
+      var annotated = annotateResult(result, meta);
+      if (cacheable && ttl > 0 && result && result.ok !== false) {
+        apiCache[key] = { value: annotated, expiresAt: started + ttl * 1000, storedAt: (Date.now ? Date.now() : +new Date()), method: method };
+        recordApiMetric({ kind: 'call', method: method, transport: transport, durationMs: durationMs, cacheWrite: true });
+      } else {
+        recordApiMetric({ kind: 'call', method: method, transport: transport, durationMs: durationMs });
+      }
+      return annotated;
+    }, function(err) {
+      recordApiMetric({ kind: 'call', method: method, transport: transport, error: true, message: err && err.message || String(err || ''), durationMs: Math.max(0, (Date.now ? Date.now() : +new Date()) - started) });
+      throw err;
+    });
+    if (dedupe) {
+      apiInFlight[key] = promise;
+      promise.then(function() { delete apiInFlight[key]; }, function() { delete apiInFlight[key]; });
+    }
+    return promise;
+  }
+
+    function normalizeUrl(url) { url = text(url).trim(); return url ? url.replace(/\s+/g, '') : ''; }
   function isSafeLogoUrl(url) { url = normalizeUrl(url); return !url || /^data:image\//i.test(url) || /^https?:\/\//i.test(url); }
   function markBadLogo(url) { try { url = normalizeUrl(url); if (url && url !== FALLBACK_LOGO) { root.localStorage && root.localStorage.setItem('APP_BAD_LOGO_URL', url); root.localStorage && root.localStorage.removeItem('APP_LOGO_URL'); } } catch (_) {} }
   function isBadLogo(url) { try { return normalizeUrl(url) && normalizeUrl(url) === normalizeUrl(root.localStorage && root.localStorage.getItem('APP_BAD_LOGO_URL') || ''); } catch (_) { return false; } }
@@ -149,14 +271,14 @@
     return url + (url.indexOf('?') >= 0 ? '&' : '?') +
       '__githubBridgeClient=1' +
       '&__githubBridgeNamedRequest=1' +
-      '&parentOrigin=*' +
-      '&originHint=' + encodeURIComponent(root.location && root.location.origin || '') +
+      '&parentOrigin=' + encodeURIComponent(bridgeParentOrigin()) +
+      '&originHint=' + encodeURIComponent(bridgeParentOrigin()) +
       '&bridge=client-only' +
       '&_=' + Date.now();
   }
   function parseMessage(data) { if (typeof data === 'string') { try { return JSON.parse(data); } catch (_) { return null; } } return data && typeof data === 'object' ? data : null; }
   function isBridgeMessage(data) { return !!data && (data.__gasIframeTransport === true || data.__gasIframeTransport === 'true' || data.bridge === 'client-only' || data.bridge === 'named-request'); }
-  function sendReadyProbe(iframe) { try { if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ __gasIframeTransport: true, type: 'GAS_IFRAME_TRANSPORT_PING_READY', bridge: 'client-only', at: new Date().toISOString() }, '*'); } catch (_) {} }
+  function sendReadyProbe(iframe) { try { if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ __gasIframeTransport: true, type: 'GAS_IFRAME_TRANSPORT_PING_READY', bridge: 'client-only', at: new Date().toISOString() }, bridgeTargetOrigin()); } catch (_) {} }
 
   function ensureBridgeClient() {
     var url = resolveGasUrl();
@@ -164,13 +286,13 @@
     if (!isLikelyGasExecUrl(url)) return Promise.reject(bridgeError('GAS Web App URL ไม่ถูกต้อง ต้องเป็น URL จาก Deploy > Web app ที่ลงท้ายด้วย /exec', 'GAS_URL_INVALID'));
     if ((bridgeClient.ready || bridgeClient.assumedReady) && bridgeClient.iframe && bridgeClient.url === url) return Promise.resolve(bridgeClient.iframe);
     if (bridgeClient.promise && bridgeClient.url === url) return bridgeClient.promise;
-    bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.url = url;
+    bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.messageOrigin = ''; bridgeClient.url = url;
     try { bridgeClient.iframe && bridgeClient.iframe.parentNode && bridgeClient.iframe.parentNode.removeChild(bridgeClient.iframe); } catch (_) {}
     bridgeClient.promise = new Promise(function(resolve, reject) {
       var iframe = doc.createElement('iframe'); var readyTimer = null; var loadGraceTimer = null; var probeTimer = null; var settled = false;
       function finish(ok, value) { if (settled) return; settled = true; try { readyTimer && clearTimeout(readyTimer); } catch (_) {} try { loadGraceTimer && clearTimeout(loadGraceTimer); } catch (_) {} try { probeTimer && clearInterval(probeTimer); } catch (_) {} try { root.removeEventListener('message', onReady); } catch (_) {} if (ok) resolve(value); else reject(value); }
       function acceptReady(data) { return isBridgeMessage(data) && (data.type === 'GAS_IFRAME_TRANSPORT_READY' || data.type === 'GAS_BRIDGE_READY' || data.ready === true || (data.ok === true && /ready/i.test(text(data.type || data.source || '')))); }
-      function onReady(event) { var data = parseMessage(event && event.data); if (!acceptReady(data)) return; bridgeClient.ready = true; bridgeClient.assumedReady = false; finish(true, iframe); }
+      function onReady(event) { if (!isAllowedBridgeEvent(event, iframe)) return; var data = parseMessage(event && event.data); if (!acceptReady(data)) return; bridgeClient.messageOrigin = text(event && event.origin || bridgeClient.messageOrigin || ''); bridgeClient.ready = true; bridgeClient.assumedReady = false; finish(true, iframe); }
       iframe.name = 'gas_bridge_client_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
       iframe.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;';
       iframe.setAttribute('aria-hidden', 'true'); iframe.referrerPolicy = 'no-referrer-when-downgrade';
@@ -235,6 +357,7 @@
       }
       function finish(ok, value) { if (done) return; done = true; cleanup(); if (ok) resolve(value); else reject(value); }
       function onMessage(event) {
+        if (!isAllowedBridgeEvent(event, iframe)) return;
         var data = parseMessage(event && event.data);
         if (!data || data.requestId !== requestId) return;
         if (data.type !== 'GAS_LOGIN_POST_RESPONSE' && data.method !== 'apiLogin') return;
@@ -249,7 +372,7 @@
         iframe.setAttribute('aria-hidden', 'true');
         form.method = 'POST';
         form.target = iframe.name;
-        form.action = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubLoginPost=1&requestId=' + encodeURIComponent(requestId) + '&parentOrigin=' + encodeURIComponent(root.location && root.location.origin || '*') + '&_=' + Date.now();
+        form.action = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubLoginPost=1&requestId=' + encodeURIComponent(requestId) + '&parentOrigin=' + encodeURIComponent(bridgeParentOrigin()) + '&_=' + Date.now();
         form.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
         input.type = 'hidden';
         input.name = 'payload';
@@ -297,7 +420,7 @@
     var out = {};
     payload = isObj(payload) ? payload : {};
     Object.keys(payload).forEach(function(k) {
-      if (/^(password|pass|pwd|csrf|csrfToken|_csrf|_csrfToken|actionToken|csrfActionToken|_actionToken)$/i.test(k)) return;
+      if (/^(token|_token|authToken|password|pass|pwd|csrf|csrfToken|_csrf|_csrfToken|actionToken|csrfActionToken|_actionToken)$/i.test(k)) return;
       if (/^(clientContext)$/i.test(k)) return;
       out[k] = payload[k];
     });
@@ -356,6 +479,7 @@
         var done = false;
         function message() { return { __gasIframeTransport: true, type: 'GAS_IFRAME_TRANSPORT_REQUEST', bridge: 'client-only', requestId: id, method: method, payload: payload == null ? {} : payload, at: new Date().toISOString() }; }
         var handler = function(event) {
+          if (!isAllowedBridgeEvent(event, iframe)) return;
           var data = parseMessage(event && event.data);
           if (!data || data.requestId !== id) return;
           if (!isBridgeMessage(data) && data.type !== 'GAS_IFRAME_TRANSPORT_RESPONSE') return;
@@ -363,7 +487,7 @@
           var result = data.result || { ok: false, error: 'empty response', errorCode: 'EMPTY_BRIDGE_RESPONSE' };
           cleanupPending(id); resolve(result);
         };
-        var send = function() { try { iframe.contentWindow && iframe.contentWindow.postMessage(message(), '*'); } catch (_) {} };
+        var send = function() { try { iframe.contentWindow && iframe.contentWindow.postMessage(message(), bridgeTargetOrigin()); } catch (_) {} };
         var timer = setTimeout(function() { cleanupPending(id); reject(bridgeError('GAS API timeout: ' + method + ' — bridge iframe โหลดแล้วแต่ยังไม่ได้รับผลกลับจาก GAS ให้ตรวจว่า deploy ล่าสุดมี apiGithubBridgeCall และไม่มี doGet ซ้ำ', 'GAS_API_TIMEOUT', method)); }, timeoutMs);
         var sender = setInterval(function() { if (!done) send(); }, 450);
         pending[id] = { handler: handler, timer: timer, sender: sender };
@@ -413,7 +537,11 @@
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
   root.AppTransport.transportMode = cfg('transportMode', 'stage2-single-path-fastlogin-jsonp-read-bridge-write');
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'stage2-single-path-fastlogin-jsonp-read-bridge-write') }; };
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, messageOrigin: bridgeClient.messageOrigin || '', url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'phase2-compact-single-owner-first-paint-lazy-bridge-read') }; };
+  root.AppTransport.phase2Status = function() { return { ok: true, stamp: PHASE2_RELEASE_STAMP, phase: 'Phase 2 Single Source Refactor', authenticatedReadBridge: cfg('forceAuthenticatedReadBridge', true) !== false, firstPaint: cfg('dashboardFirstPaintEnabled', true) !== false, lazyHydration: cfg('dashboardLazyHydrationEnabled', true) !== false, singleSourceRoot: cfg('phase2CanonicalPartialRoot', 'src/frontend/partials'), generatedMirrorPolicy: cfg('phase2GeneratedMirrorPolicy', 'edit-canonical-run-sync-do-not-edit-generated-mirrors'), clientApiCacheEnabled: cfg('clientApiCacheEnabled', true) !== false, clientInFlightDedupe: cfg('clientInFlightDedupe', true) !== false, strictBridgeOriginCheck: cfg('strictBridgeOriginCheck', true) !== false, publicJsonpReadMethods: cfgList('publicJsonpReadMethods'), cacheEntries: Object.keys(apiCache).length, inFlight: Object.keys(apiInFlight).length, metrics: Object.assign({}, apiMetrics), bridge: root.AppTransport.bridgeClientState() }; };
+  root.AppTransport.phase1Status = root.AppTransport.phase2Status;
+  root.AppTransport.phase0Status = root.AppTransport.phase2Status;
+  root.AppTransport.clearApiCache = function() { apiCache = Object.create(null); apiInFlight = Object.create(null); apiMetrics.cacheHits = 0; apiMetrics.cacheWrites = 0; apiMetrics.dedupeHits = 0; apiMetrics.last = []; return true; };
   root.AppTransport.run = function(fn, args) {
     var req = apiEnvelope(fn, args || {});
     if (/^getDeferredInclude$/i.test(req.method)) {
@@ -429,10 +557,10 @@
         });
       });
     }
-    if (isJsonpReadMethod(req.method)) return runJsonpApi(req.method, req.payload || {});
+    if (isJsonpReadMethod(req.method)) return runReadWithPolicy(req.method, req.payload || {});
     return runGasViaClient(req.method, req.payload || {});
   };
-  root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.promise = null; loadPublicConfig(); return root.GAS_WEB_APP_URL; };
+  root.AppTransport.setGasWebAppUrl = function(url) { root.GAS_WEB_APP_URL = normalizeUrl(url); root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = root.GAS_WEB_APP_URL; try { root.localStorage && root.localStorage.setItem('GAS_WEB_APP_URL', root.GAS_WEB_APP_URL); } catch (_) {} bridgeClient.ready = false; bridgeClient.loaded = false; bridgeClient.assumedReady = false; bridgeClient.messageOrigin = ''; bridgeClient.promise = null; apiCache = Object.create(null); apiInFlight = Object.create(null); loadPublicConfig(); return root.GAS_WEB_APP_URL; };
   root.AppTransport.setLogoUrl = function(url) { return setLogo(url, 'manual'); };
   root.AppTransport.ping = function() { return runGasViaClient('apiGithubBridgePing', { at: new Date().toISOString(), transportMode: 'gas-bridge-client-original-contract' }); };
   root.AppTransport.ensureBridgeClient = ensureBridgeClient;

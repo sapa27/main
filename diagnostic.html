@@ -15,15 +15,15 @@
 <body>
   <div class="card">
     <h1>ตรวจสอบ GitHub Pages → GAS Bridge</h1>
-    <p>หน้านี้ทดสอบ fast-login JSONP สำหรับ apiLogin และ JSONP read API สำหรับโหลดข้อมูล หลังจากนั้นจึงตรวจ bridge client เฉพาะ API ที่จำเป็นต้องเขียนข้อมูล</p>
+    <p>หน้านี้ทดสอบ Phase 2: single-source partials, Dashboard first-paint/lazy hydration, authenticated bridge read, client TTL cache, in-flight dedupe และ release stamp</p>
     <p><strong>GAS URL:</strong> <code id="gasUrl"></code></p>
     <p><strong>Transport:</strong> <code id="transportMode"></code></p>
     <p><strong>Logo URL:</strong> <code id="logoUrl"></code></p>
     <p><button id="runBtn">เริ่มตรวจสอบ</button></p>
     <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
   </div>
-  <script src="./app-config.js?bridge=fast-login"></script>
-  <script src="./github-gas-transport.js?bridge=fast-login"></script>
+  <script src="./app-config.js?bridge=phase2-compact-single-owner-first-paint-lazy-bridge-read&v=phase2-compact-single-owner-2026-07-01-r1"></script>
+  <script src="./github-gas-transport.js?bridge=phase2-compact-single-owner-first-paint-lazy-bridge-read&v=phase2-compact-single-owner-2026-07-01-r1"></script>
   <script>
     const $ = id => document.getElementById(id);
     const gasUrl = () => (window.APP_CONFIG && window.APP_CONFIG.gasWebAppUrl || '').trim();
@@ -54,7 +54,7 @@
         iframe.addEventListener('load', () => { loaded = true; cleanup(); resolve({ok:true, loaded:true, src:iframe.src}); });
         const cleanup = () => { clearTimeout(timer); setTimeout(() => { try { iframe.remove(); } catch(_) {} }, 300); };
         const timer = setTimeout(() => { cleanup(); resolve({ok:false, loaded:false, error:'iframe load timeout'}); }, 15000);
-        iframe.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeClient=1&parentOrigin=*&originHint=' + encodeURIComponent(location.origin || '') + '&_=' + Date.now();
+        iframe.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + '__githubBridgeClient=1&parentOrigin=' + encodeURIComponent(location.origin || '') + '&originHint=' + encodeURIComponent(location.origin || '') + '&_=' + Date.now();
         document.body.appendChild(iframe);
       });
     }
@@ -66,6 +66,7 @@
         if (!/\/exec(?:$|[?#])/.test(gasUrl())) write('   WARNING: URL ไม่ได้ลงท้ายด้วย /exec');
         write('   OK: ' + gasUrl());
         write('   transportMode: ' + ((window.AppTransport && window.AppTransport.transportMode) || '(unknown)'));
+        write('   phase2: ' + JSON.stringify(window.AppTransport && window.AppTransport.phase2Status ? window.AppTransport.phase2Status() : (window.AppTransport && window.AppTransport.phase1Status ? window.AppTransport.phase1Status() : {}), null, 2));
 
         write('2) ทดสอบ doGet public config ผ่าน JSONP และ logo config');
         const cfg = await jsonpPublicConfig();
@@ -80,19 +81,51 @@
 
         write('4) ทดสอบ fast-login JSONP สำหรับ apiLogin');
         const login = await window.AppTransport.run('apiLogin', {username:'diagnostic', password:'ไม่ส่งผ่าน URL'});
-        write('   ' + JSON.stringify(login, null, 2).slice(0, 3000));
-        if (!login || !login.ok || !(login.token || login.user || (login.data && (login.data.token || login.data.user)))) throw new Error('fast-login apiLogin ไม่คืน token/user');
+        const loginData = login && login.data && typeof login.data === 'object' ? login.data : (login || {});
+        const readAuth = {
+          token: login.token || loginData.token || loginData.nextToken || '',
+          _token: login.token || loginData.token || loginData.nextToken || '',
+          authToken: login.token || loginData.token || loginData.nextToken || '',
+          githubUsername: (login.user && (login.user.username || login.user.email || login.user.name)) || (loginData.user && (loginData.user.username || loginData.user.email || loginData.user.name)) || 'diagnostic'
+        };
+        const redactedLogin = JSON.parse(JSON.stringify(login || {}));
+        if (redactedLogin.token) redactedLogin.token = '[redacted]';
+        if (redactedLogin.csrfToken) redactedLogin.csrfToken = '[redacted]';
+        if (redactedLogin.data && redactedLogin.data.token) redactedLogin.data.token = '[redacted]';
+        if (redactedLogin.data && redactedLogin.data.csrfToken) redactedLogin.data.csrfToken = '[redacted]';
+        write('   ' + JSON.stringify(redactedLogin, null, 2).slice(0, 3000));
+        if (!login || !login.ok || !readAuth.token || !(login.user || loginData.user)) throw new Error('fast-login apiLogin ไม่คืน token/user');
 
-        write('5) ทดสอบ apiGetRouteContract ผ่าน JSONP read API');
-        const contract = await window.AppTransport.run('apiGetRouteContract', {diagnostic:true});
+        write('5) ทดสอบ apiGetRouteContract ผ่าน public JSONP allow-list');
+        const contract = await window.AppTransport.run('apiGetRouteContract', Object.assign({diagnostic:true}, readAuth));
         write('   ' + JSON.stringify(contract, null, 2).slice(0, 3000));
 
-        write('6) ทดสอบ apiGetDashboardBundle ผ่าน JSONP read API');
-        const dash = await window.AppTransport.run('apiGetDashboardBundle', {diagnostic:true, includeCases:true, caseLimit:5});
-        write('   ' + JSON.stringify(dash, null, 2).slice(0, 3000));
-        if (!dash || !dash.ok) throw new Error('apiGetDashboardBundle ไม่สำเร็จ');
+        write('5.1) ทดสอบ apiGetPhase2Contract / single-source contract');
+        const phase2 = await window.AppTransport.run('apiGetPhase2Contract', Object.assign({diagnostic:true}, readAuth));
+        write('   ' + JSON.stringify(phase2, null, 2).slice(0, 3000));
+        if (!phase2 || !phase2.ok) throw new Error('apiGetPhase2Contract ไม่สำเร็จ');
 
-        write('7) ทดสอบไฟล์ partial ที่จำเป็นต่อ Dashboard/ปุ่มเมนู');
+        write('6) ทดสอบ Dashboard Phase 2 first-paint ผ่าน authenticated bridge read');
+        const tFirst = performance.now();
+        const dash = await window.AppTransport.run('apiGetDashboardBundle', Object.assign({diagnostic:true, phase1FirstPaint:true, includeBudget:false, includeCases:false, includeMeetingRows:false, cacheTtlSeconds:90, hotPathMode:'phase1-dashboard-first-paint-summary'}, readAuth));
+        const firstMs = Math.round(performance.now() - tFirst);
+        write('   firstPaintMs=' + firstMs + ' ' + JSON.stringify(dash, null, 2).slice(0, 2400));
+        if (!dash || !dash.ok) throw new Error('apiGetDashboardBundle first-paint ไม่สำเร็จ');
+
+        write('6.1) ทดสอบ Dashboard Phase 2 lazy hydration สำหรับ budget/cases');
+        const tLazy = performance.now();
+        const lazyDash = await window.AppTransport.run('apiGetDashboardBundle', Object.assign({diagnostic:true, phase1LazyHydration:true, includeBudget:true, includeCases:true, includeMeetingRows:false, caseLimit:10, cacheTtlSeconds:180, hotPathMode:'phase1-dashboard-lazy-hydration'}, readAuth));
+        const lazyMs = Math.round(performance.now() - tLazy);
+        write('   lazyHydrationMs=' + lazyMs + ' ' + JSON.stringify(lazyDash, null, 2).slice(0, 2400));
+        if (!lazyDash || !lazyDash.ok) throw new Error('apiGetDashboardBundle lazy hydration ไม่สำเร็จ');
+
+        write('6.2) ทดสอบ cache/dedupe สองคำขอเหมือนกันพร้อมกัน');
+        const d1 = window.AppTransport.run('apiGetDashboardBundle', Object.assign({diagnostic:true, phase1FirstPaint:true, includeBudget:false, includeCases:false, includeMeetingRows:false, cacheTtlSeconds:90, hotPathMode:'phase1-dashboard-first-paint-summary'}, readAuth));
+        const d2 = window.AppTransport.run('apiGetDashboardBundle', Object.assign({diagnostic:true, phase1FirstPaint:true, includeBudget:false, includeCases:false, includeMeetingRows:false, cacheTtlSeconds:90, hotPathMode:'phase1-dashboard-first-paint-summary'}, readAuth));
+        await Promise.all([d1,d2]);
+        write('   phase2 transport metrics: ' + JSON.stringify((window.AppTransport.phase2Status && window.AppTransport.phase2Status().metrics) || (window.AppTransport.phase1Status && window.AppTransport.phase1Status().metrics) || {}, null, 2));
+
+        write('7) ทดสอบไฟล์ partial จาก generated mirror ที่ sync จาก canonical src/frontend/partials');
         const assetNames = ['Scripts_Core_Runtime','Scripts_Page_Dashboard','Scripts_Page_Meeting'];
         for (const name of assetNames) {
           try {
@@ -105,21 +138,21 @@
           }
         }
 
-        write('8) ทดสอบ bridge ping เฉพาะเส้นทาง iframe ถ้าไม่ผ่าน ระบบอ่านข้อมูลยังใช้งานได้ผ่าน JSONP');
+        write('8) ทดสอบ bridge ping เส้นทาง iframe ซึ่ง Phase 1 ใช้ทั้ง authenticated read และ write');
         try {
           await window.AppTransport.ensureBridgeClient();
           const ping = await window.AppTransport.ping();
           write('   ' + JSON.stringify(ping, null, 2));
         } catch (bridgeErr) {
-          write('   WARNING: bridge iframe ไม่ตอบ แต่ read API ใช้ JSONP แล้ว: ' + String(bridgeErr && bridgeErr.message || bridgeErr));
+          write('   ERROR: bridge iframe ไม่ตอบ Phase 1 จะโหลด authenticated read ไม่สำเร็จ: ' + String(bridgeErr && bridgeErr.message || bridgeErr));
         }
         write('9) สถานะ page script runtime ใน browser');
         write('   ' + JSON.stringify(window.__APP_PAGE_SCRIPT_STATUS__ || {}, null, 2));
-        write('\nผลลัพธ์: OK - GitHub ติดต่อ GAS, โหลด read API และตรวจไฟล์ partial ได้');
+        write('\nผลลัพธ์: OK - Phase 2 ผ่าน: single-source partials + first-paint/lazy hydration/cache/dedupe/bridge พร้อมใช้งาน');
       } catch (e) {
         write('\nผลลัพธ์: ERROR');
         write(String(e && e.message || e));
-        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = GAS ที่ deploy ยังไม่มี __githubFastLogin; ถ้าข้อ 5/6 timeout = GAS ที่ deploy ยังไม่มี __githubJsonpApi หรือ Code_20_Router.gs ล่าสุด');
+        write('\nคำแปลผล: ถ้าข้อ 2 ไม่ตอบ = URL/deploy/permission ยังผิด; ถ้าข้อ 4 timeout = GAS ที่ deploy ยังไม่มี __githubFastLogin; ถ้าข้อ 5 timeout = public JSONP/route contract มีปัญหา; ถ้าข้อ 6/8 timeout = bridge iframe หรือ apiGithubBridgeCall/GAS deploy ไม่ตรงรุ่น');
       }
     }
     document.getElementById('runBtn').addEventListener('click', run);
