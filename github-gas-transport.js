@@ -103,7 +103,7 @@ function cfgList(name) {
     } catch (_) { return result; }
   }
   function runReadWithPolicy(method, payload) {
-    var useBridge = cfg('forceAuthenticatedReadBridge', true) !== false && !publicJsonpReadMethod(method);
+    var useBridge = cfg('forceAuthenticatedReadBridge', false) !== false && !publicJsonpReadMethod(method);
     var transport = useBridge ? 'bridge' : 'jsonp';
     var runner = function() { return useBridge ? runGasViaClient(method, payload || {}) : runJsonpApi(method, payload || {}); };
     var cacheable = cfg('clientApiCacheEnabled', true) !== false && isJsonpReadMethod(method);
@@ -420,14 +420,23 @@ function cfgList(name) {
     var out = {};
     payload = isObj(payload) ? payload : {};
     Object.keys(payload).forEach(function(k) {
-      if (/^(token|_token|authToken|password|pass|pwd|csrf|csrfToken|_csrf|_csrfToken|actionToken|csrfActionToken|_actionToken)$/i.test(k)) return;
+      if (/^(password|pass|pwd|actionToken|csrfActionToken|_actionToken)$/i.test(k)) return;
       if (/^(clientContext)$/i.test(k)) return;
       out[k] = payload[k];
     });
+    /* Hotfix r2: authenticated READs use JSONP with the current memory-only session token.
+       Writes still use the bridge/login-post path and CSRF action token boundary.
+       This avoids iframe/third-party-cookie bridge stalls that made every read screen timeout. */
+    try {
+      var tok = text(payload.token || payload._token || payload.authToken || (root.AppStore && root.AppStore.get && root.AppStore.get('auth.token', '')) || root.__authToken || '');
+      var csrf = text(payload.csrfToken || payload.csrf || payload._csrf || (root.AppStore && root.AppStore.get && root.AppStore.get('auth.csrfToken', '')) || root.__csrfToken || '');
+      if (tok) { out.token = out.token || tok; out._token = out._token || tok; out.authToken = out.authToken || tok; }
+      if (csrf) { out.csrfToken = out.csrfToken || csrf; out.csrf = out.csrf || csrf; out._csrf = out._csrf || csrf; }
+    } catch (_) {}
     out.githubUsername = out.githubUsername || currentJsonpUsername(payload);
     out.githubReadOnly = true;
     out.githubJsonpApi = true;
-    out.source = out.source || 'github-jsonp-read-api';
+    out.source = out.source || 'github-jsonp-read-api-hotfix-r2';
     return out;
   }
 
@@ -537,8 +546,8 @@ function cfgList(name) {
   root.AppTransport = root.AppTransport || {};
   root.AppTransport.__githubGasBridge = true;
   root.AppTransport.transportMode = cfg('transportMode', 'stage2-single-path-fastlogin-jsonp-read-bridge-write');
-  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, messageOrigin: bridgeClient.messageOrigin || '', url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'phase2-compact-single-owner-first-paint-lazy-bridge-read') }; };
-  root.AppTransport.phase2Status = function() { return { ok: true, stamp: PHASE2_RELEASE_STAMP, phase: 'Phase 2 Single Source Refactor', authenticatedReadBridge: cfg('forceAuthenticatedReadBridge', true) !== false, firstPaint: cfg('dashboardFirstPaintEnabled', true) !== false, lazyHydration: cfg('dashboardLazyHydrationEnabled', true) !== false, singleSourceRoot: cfg('phase2CanonicalPartialRoot', 'src/frontend/partials'), generatedMirrorPolicy: cfg('phase2GeneratedMirrorPolicy', 'edit-canonical-run-sync-do-not-edit-generated-mirrors'), clientApiCacheEnabled: cfg('clientApiCacheEnabled', true) !== false, clientInFlightDedupe: cfg('clientInFlightDedupe', true) !== false, strictBridgeOriginCheck: cfg('strictBridgeOriginCheck', true) !== false, publicJsonpReadMethods: cfgList('publicJsonpReadMethods'), cacheEntries: Object.keys(apiCache).length, inFlight: Object.keys(apiInFlight).length, metrics: Object.assign({}, apiMetrics), bridge: root.AppTransport.bridgeClientState() }; };
+  root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, messageOrigin: bridgeClient.messageOrigin || '', url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'phase2-hotfix-read-jsonp-bridge-write') }; };
+  root.AppTransport.phase2Status = function() { return { ok: true, stamp: PHASE2_RELEASE_STAMP, phase: 'Phase 2 Single Source Refactor', authenticatedReadBridge: cfg('forceAuthenticatedReadBridge', false) !== false, firstPaint: cfg('dashboardFirstPaintEnabled', true) !== false, lazyHydration: cfg('dashboardLazyHydrationEnabled', true) !== false, singleSourceRoot: cfg('phase2CanonicalPartialRoot', 'src/frontend/partials'), generatedMirrorPolicy: cfg('phase2GeneratedMirrorPolicy', 'edit-canonical-run-sync-do-not-edit-generated-mirrors'), clientApiCacheEnabled: cfg('clientApiCacheEnabled', true) !== false, clientInFlightDedupe: cfg('clientInFlightDedupe', true) !== false, strictBridgeOriginCheck: cfg('strictBridgeOriginCheck', true) !== false, publicJsonpReadMethods: cfgList('publicJsonpReadMethods'), cacheEntries: Object.keys(apiCache).length, inFlight: Object.keys(apiInFlight).length, metrics: Object.assign({}, apiMetrics), bridge: root.AppTransport.bridgeClientState() }; };
   root.AppTransport.phase1Status = root.AppTransport.phase2Status;
   root.AppTransport.phase0Status = root.AppTransport.phase2Status;
   root.AppTransport.clearApiCache = function() { apiCache = Object.create(null); apiInFlight = Object.create(null); apiMetrics.cacheHits = 0; apiMetrics.cacheWrites = 0; apiMetrics.dedupeHits = 0; apiMetrics.last = []; return true; };
