@@ -961,8 +961,21 @@ catch(__appRootBridgeErr) {
     var a = txt(m), q = data(p);
     if(! Array.isArray(q)) {
       q.clientContext = q.clientContext || ctx();
-      var t = txt(store.get("auth.token", "")), c = txt(store.get("auth.csrfToken", ""));
-      t &&! q.token && (q.token = t), c &&! q.csrfToken && (q.csrfToken = c)
+      var t = txt(store.get("auth.token", "") || root.__authToken || ""), c = txt(store.get("auth.csrfToken", "") || root.__csrfToken || "");
+      t &&! q.token && (q.token = t), c &&! q.csrfToken && (q.csrfToken = c), c && (q.csrf = q.csrf || q.csrfToken, q._csrf = q._csrf || q.csrfToken)
+    }
+    var publicMethod = /^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|apiBootstrap|apiGetRouteContract|apiGetPhase0ContractGate|apiGetPhase1Contract|apiGetClientDataContract|getDeferredInclude)$/i.test(a);
+    if(! publicMethod && ! Array.isArray(q) && ! txt(q.token || q._token || q.authToken || "") && root.AppSessionResume && __appIsFn(root.AppSessionResume.tryResume) && ! q.__resumeRetried) {
+      q.__resumeRetried =! 0;
+      return Promise.resolve(root.AppSessionResume.tryResume({
+        reason: "critical-read-before-token:" + a
+      })).then(function() {
+        var rt = txt(store.get("auth.token", "") || root.__authToken || ""), rc = txt(store.get("auth.csrfToken", "") || root.__csrfToken || "");
+        rt && (q.token = q.token || rt, q._token = q._token || rt), rc && (q.csrfToken = q.csrfToken || rc, q.csrf = q.csrf || rc, q._csrf = q._csrf || rc);
+        return base(a, q)
+      }, function() {
+        return base(a, q)
+      })
     }
     return"apiLogin" === a || "apiSessionResume" === a ? RT.rawRun(a, q).catch(function(e) {
       var m = txt(e && e.message || e);

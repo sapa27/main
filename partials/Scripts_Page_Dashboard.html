@@ -1325,6 +1325,40 @@
     var n = Number(String(null == v ? "": v).replace(/[^0-9.\-]/g, ""));
     return isFinite(n) ? n: 0
   }
+  function phase1Cfg(name, fallback) {
+    try {
+      var cfg = root.APP_CONFIG || {};
+      return cfg[name] == null ? fallback : cfg[name];
+    }
+    catch(_cfg) {
+      return fallback;
+    }
+  }
+  function phase1Enabled() {
+    return phase1Cfg("phase1DataLoadingPerformance", true) !== false;
+  }
+  function dashboardSessionCacheTtlMs() {
+    var sec = Math.max(15, Math.min(Number(phase1Cfg("dashboardSessionCacheTtlSec", 90)) || 90, 900));
+    return sec * 1000;
+  }
+  function phase1MergeDashboardData(base, patch) {
+    base = normalize(base || {});
+    patch = normalize(patch || {});
+    var out = Object.assign({}, base, patch);
+    out.stats = Object.assign({}, base.stats || base.summaryStats || {}, patch.stats || patch.summaryStats || {});
+    out.summaryStats = Object.assign({}, base.summaryStats || base.stats || {}, patch.summaryStats || patch.stats || {});
+    out.budget = Object.keys(patch.budget || patch.budgetStats || {}).length ? (patch.budget || patch.budgetStats) : (base.budget || base.budgetStats || {});
+    out.budgetStats = out.budget;
+    out.cases = Object.assign({}, base.cases || {}, patch.cases || {});
+    out.rows = Array.isArray(patch.rows) && patch.rows.length ? patch.rows : (Array.isArray(base.rows) ? base.rows : []);
+    out.meetings = Object.assign({}, base.meetings || base.meetingSummary || {}, patch.meetings || patch.meetingSummary || {});
+    out.meetingSummary = out.meetings;
+    out.meetingRows = Array.isArray(patch.meetingRows) && patch.meetingRows.length ? patch.meetingRows : (Array.isArray(base.meetingRows) ? base.meetingRows : []);
+    out.meetingNoRows = Array.isArray(patch.meetingNoRows) && patch.meetingNoRows.length ? patch.meetingNoRows : (Array.isArray(base.meetingNoRows) ? base.meetingNoRows : []);
+    out.dashboardDto = patch.dashboardDto || base.dashboardDto || out.dashboardDto;
+    out.meta = Object.assign({}, base.meta || {}, patch.meta || {}, { phase1Merged: true, phase1LazyHydrated: true, releaseStamp: "phase2-compact-single-owner-2026-07-01-r1" });
+    return out;
+  }
   function hasRows(a) {
     return Array.isArray(a) && a.length > 0
   }
@@ -1348,7 +1382,7 @@
   function saveCache(data) {
     if(hasData(data))try {
       root.sessionStorage && root.sessionStorage.setItem(cacheKey, JSON.stringify({
-        savedAt: Date.now(), data: data
+        savedAt: Date.now(), expiresAt: Date.now() + dashboardSessionCacheTtlMs(), releaseStamp: "phase2-compact-single-owner-2026-07-01-r1", phase1Cache: true, data: data
       }))
     }
     catch(_e) {
@@ -1362,7 +1396,12 @@
       var raw = root.sessionStorage && root.sessionStorage.getItem(cacheKey);
       if(! raw)return null;
       var box = JSON.parse(raw);
-      return box && box.data ? box.data: null
+      if(!box || !box.data)return null;
+      if(Number(box.expiresAt || 0) && Number(box.expiresAt || 0) < Date.now()) {
+        try { root.sessionStorage.removeItem(cacheKey); } catch(_remove) {}
+        return null;
+      }
+      return setMeta(box.data, { dashboardSessionCacheHit: true, phase1Cache: true, cacheAgeMs: Math.max(0, Date.now() - Number(box.savedAt || Date.now())), releaseStamp: "phase2-compact-single-owner-2026-07-01-r1" })
     }
     catch(_e) {
       return warn("dashboard.cache.load", _e, {
@@ -1449,9 +1488,9 @@
     }, payload || {
     });
     return root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, payload, {
-      moduleName: "Dashboard", timeoutMs: 9e4
+      moduleName: "Dashboard", timeoutMs: phase1Cfg("dashboardApiTimeoutMs", 30000)
     }): root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi.call(method, payload, {
-      moduleName: "Dashboard", timeoutMs: 9e4
+      moduleName: "Dashboard", timeoutMs: phase1Cfg("dashboardApiTimeoutMs", 30000)
     }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
   };
   function authText(value) {
@@ -1528,9 +1567,35 @@
     return payload
   }
   function buildPayload(options) {
-    var includeBudget = !1 !== (options = options || {
-    }).includeBudget, includeCases = !0 === options.includeCases, includeMeetingRows = !0 === options.includeMeetingRows, payload = {
-      forceFresh: ! 0 === options.forceFresh, includeBudget: includeBudget, includeCases: includeCases, includeMeetingRows: includeMeetingRows, caseLimit: includeCases ? Math.max(10, Math.min(Number(options.caseLimit || 30) || 30, 120)): 0, cacheTtlSeconds: ! 0 === options.forceFresh ? 30: 120, hotPathMode: "phase5-dashboard-summary-kpi-first-paint", noCache: ! 0 === options.forceFresh, bypassCache: ! 0 === options.forceFresh, source: options.source || (! 0 === options.forceFresh ? "dashboard-refresh-single-bundle-current": "dashboard-fast-first-paint-phase5")
+    options = options || {};
+    var phase1 = phase1Enabled();
+    var hasBudgetOpt = Object.prototype.hasOwnProperty.call(options, "includeBudget");
+    var hasCasesOpt = Object.prototype.hasOwnProperty.call(options, "includeCases");
+    var hasMeetingRowsOpt = Object.prototype.hasOwnProperty.call(options, "includeMeetingRows");
+    var includeBudget = hasBudgetOpt ? !1 !== options.includeBudget : (phase1 ? !0 === phase1Cfg("dashboardInitialIncludeBudget", false) : true);
+    var includeCases = hasCasesOpt ? !0 === options.includeCases : (phase1 ? !0 === phase1Cfg("dashboardInitialIncludeCases", false) : false);
+    var includeMeetingRows = hasMeetingRowsOpt ? !0 === options.includeMeetingRows : (phase1 ? !0 === phase1Cfg("dashboardInitialIncludeMeetingRows", false) : false);
+    var isLazy = !0 === options.__phase1LazyHydration;
+    if(isLazy) {
+      includeBudget = !1 !== options.includeBudget && !1 !== phase1Cfg("dashboardLazyIncludeBudget", true);
+      includeCases = !1 !== options.includeCases && !1 !== phase1Cfg("dashboardLazyIncludeCases", true);
+      includeMeetingRows = !0 === options.includeMeetingRows || !0 === phase1Cfg("dashboardLazyIncludeMeetingRows", false);
+    }
+    var caseLimit = includeCases ? Math.max(10, Math.min(Number(options.caseLimit || phase1Cfg("dashboardLazyCaseLimit", 30)) || 30, 120)): 0;
+    var ttl = !0 === options.forceFresh ? 15 : Math.max(30, Math.min(Number(options.cacheTtlSeconds || (isLazy ? 180 : 90)) || (isLazy ? 180 : 90), 300));
+    var payload = {
+      forceFresh: !0 === options.forceFresh,
+      includeBudget: includeBudget,
+      includeCases: includeCases,
+      includeMeetingRows: includeMeetingRows,
+      caseLimit: caseLimit,
+      cacheTtlSeconds: ttl,
+      hotPathMode: isLazy ? "phase1-dashboard-lazy-hydration" : "phase1-dashboard-first-paint-summary",
+      noCache: !0 === options.forceFresh,
+      bypassCache: !0 === options.forceFresh,
+      phase1FirstPaint: !isLazy,
+      phase1LazyHydration: isLazy,
+      source: options.source || (isLazy ? "dashboard-phase1-lazy-hydration" : (!0 === options.forceFresh ? "dashboard-refresh-phase1" : "dashboard-phase1-first-paint"))
     };
     try {
       applyDashboardAuthSnapshot(payload, options.__authSnapshot || state.authSnapshot || readDashboardAuthSnapshot())
@@ -1635,6 +1700,40 @@
       return !1;
     }
   }
+  function scheduleDashboardLazyHydration(reason) {
+    if(!phase1Enabled() || phase1Cfg("dashboardLazyHydrationEnabled", true) === false)return !1;
+    if(state.__phase1LazyHydrationInFlight || state.__phase1LazyHydrationDone)return !1;
+    state.__phase1LazyHydrationInFlight = !0;
+    var delayMs = Math.max(150, Math.min(Number(phase1Cfg("dashboardLazyHydrationDelayMs", 450)) || 450, 5000));
+    try {
+      root.setTimeout(function() {
+        var started = Date.now();
+        waitDashboardAuthSnapshotReady({ authWaitMs: 700, source: "dashboard-phase1-lazy-auth" }).then(function(snapshot) {
+          if(!snapshot || !snapshot.ready)throw new Error("DASHBOARD_LAZY_AUTH_NOT_READY");
+          return apiCall("apiGetDashboardBundle", buildPayload({ __phase1LazyHydration: true, includeBudget: phase1Cfg("dashboardLazyIncludeBudget", true), includeCases: phase1Cfg("dashboardLazyIncludeCases", true), includeMeetingRows: phase1Cfg("dashboardLazyIncludeMeetingRows", false), caseLimit: phase1Cfg("dashboardLazyCaseLimit", 30), source: "dashboard-phase1-lazy-hydration", authWaitMs: 700, __authSnapshot: snapshot }))
+        }).then(function(res) {
+          var data = normalize(res);
+          if(hasData(data)) {
+            state.__phase1LazyHydrationDone = !0;
+            data = phase1MergeDashboardData(state.data || {}, data);
+            data.meta = Object.assign({}, data.meta || {}, { phase1LazyHydrationDurationMs: Math.max(0, Date.now() - started), phase1LazyHydrationReason: reason || "first-paint-settled" });
+            render(data, { source: "dashboard-phase1-lazy-hydration", phase1LazyHydration: true });
+            emitDashboardPhase2Event("app:dashboard-lazy-hydrated", { durationMs: Math.max(0, Date.now() - started), hasData: hasData(data), reason: reason || "first-paint-settled" });
+          }
+        }).catch(function(err) {
+          warn("dashboard.phase1.lazyHydration", err, { owner: OWNER, reason: reason || "first-paint-settled" });
+        }).finally(function() {
+          state.__phase1LazyHydrationInFlight = !1;
+        });
+      }, delayMs);
+      return !0;
+    }
+    catch(e) {
+      state.__phase1LazyHydrationInFlight = !1;
+      warn("dashboard.phase1.lazyHydration.schedule", e, { owner: OWNER, reason: reason || "first-paint-settled" });
+      return !1;
+    }
+  }
   function keepSingleBundleBudget(data) {
     return dashboard.__enableBudgetSecondCall =! 1, data
   }
@@ -1645,13 +1744,13 @@
     }).forceFresh, token =++ state.loadToken, performanceStartedAt = Date.now();
     state.performance = { startedAt: performanceStartedAt, source: options.source || "dashboard", authReadyMs: 0, apiSettledMs: 0, renderedMs: 0 };
     if(! fresh) {
-      if(state.data && hasData(state.data))return Promise.resolve(render(state.data, {
-        source: "dashboard-memory"
-      }));
+      if(state.data && hasData(state.data)){ scheduleDashboardLazyHydration("memory-hit"); return Promise.resolve(render(state.data, {
+        source: "dashboard-memory", phase1MemoryHit: !0
+      })); }
       var cached = loadCache();
-      if(cached && hasData(cached))return Promise.resolve(render(cached, {
-        source: "dashboard-session-cache", cached: ! 0
-      }));
+      if(cached && hasData(cached)){ scheduleDashboardLazyHydration("session-cache-hit"); return Promise.resolve(render(cached, {
+        source: "dashboard-session-cache", cached: ! 0, phase1Cache: !0
+      })); }
       if(state.promise)return state.promise
     }
     return renderSkeleton(), state.promise = waitDashboardAuthSnapshotReady(options).then(function(snapshot) {
@@ -1687,6 +1786,7 @@
         source: fresh ? "dashboard-refresh-bundle": "dashboard-fast-first-paint", errorCode: responseCode || "", hasData: hasData(data)
       });
       fresh || keepSingleBundleBudget(rendered);
+      if(!fresh && !0 !== options.__phase1LazyHydration) scheduleDashboardLazyHydration("first-paint-rendered");
       if(! hasData(data))scheduleDashboardVisibleDataRetry(responseCode || "bundle-no-data", 700);
       else state.__visibleRetryCount = 0;
       try {
@@ -1738,7 +1838,7 @@
   }
   function activate(options) {
     return load(Object.assign({
-      source: "dashboard.activate.r3"
+      source: "dashboard.activate.phase1"
     }, options || {
     }, {
       forceFresh: ! 0 === (options && options.forceFresh)
@@ -1746,7 +1846,7 @@
   }
   function refresh(options) {
     return load(Object.assign({
-      source: "dashboard.refresh.r3"
+      source: "dashboard.refresh.phase1"
     }, options || {
     }, {
       forceFresh: ! 0

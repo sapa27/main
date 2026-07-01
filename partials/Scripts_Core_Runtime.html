@@ -6288,8 +6288,8 @@ catch(__appRootBridgeErr) {
   "use strict";
   if(root &&! root.__APP_PRODUCTION_CLIENT_CACHE_READY__) {
     root.__APP_PRODUCTION_CLIENT_CACHE_READY__ =! 0;
-    var STAMP = "production-current.13-search-lite-no-client-cache", PREFIX = "commission:current7:", CACHEABLE = {
-      apiGetRouteContract: 900, apiGetPhase1Contract: 900, apiGetClientDataContract: 900, apiGetAppTerminology: 21600, apiGetDashboardBundle: 240, apiBudgetGetSummary: 300, apiBudgetGetTypeSummaryByFY: 600, apiBudgetGetFiscalYears: 900, apiBudgetGetSubcommitteeOptions: 900, apiGetPeoplePageBundle: 300, apiGetPersonnelDirectoryBundle: 300, apiGetTracking: 180, apiGetPetitioners: 300, apiGetThailandLocations: 21600, apiSearchLookup: 3600
+    var STAMP = "phase1-data-loading-performance-client-cache-current", PREFIX = "commission:current7:", CACHEABLE = {
+      apiGetRouteContract: 900, apiGetPhase1Contract: 900, apiGetClientDataContract: 900, apiGetAppTerminology: 21600, apiGetDashboardBundle: 75, apiBudgetGetSummary: 120, apiBudgetGetTypeSummaryByFY: 600, apiBudgetGetFiscalYears: 900, apiBudgetGetSubcommitteeOptions: 900, apiGetPeoplePageBundle: 180, apiGetPersonnelDirectoryBundle: 300, apiGetTracking: 60, apiGetPetitioners: 300, apiGetThailandLocations: 21600, apiSearchLookup: 3600
     };
     root.AppClientCacheOwner = Object.assign(root.AppClientCacheOwner || {
     }, {
@@ -6315,7 +6315,7 @@ catch(__appRootBridgeErr) {
   }
   function stable(v) {
     return null == v ? "": "object" != typeof v ? String(v): Array.isArray(v) ? "[" + v.map(stable).join(",") + "]": "{" + Object.keys(v).sort().filter(function(k) {
-      return ! /^(token|_token|csrfToken|nextToken|password|requestId|_securityContext)$/i.test(k)
+      return ! /^(token|_token|authToken|csrf|csrfToken|_csrf|nextToken|password|requestId|_securityContext|actionToken|csrfActionToken)$/i.test(k)
     }).map(function(k) {
       return JSON.stringify(k) + ":" + stable(v[k])
     }).join(",") + "}"
@@ -7065,16 +7065,49 @@ catch(__appRootBridgeErr) {
     return ctx.finalPayload = enrichPayload(ctx.payload || {
     }, ctx.method), ctx
   }
-  function authGateApiRequest(ctx) {
-    var token = Array.isArray(ctx.finalPayload) ? "": text(ctx.finalPayload.token || ctx.finalPayload._token || ctx.finalPayload.authToken || "");
-    if(! isPublicMethod(ctx.method) &&! token)try {
+  function applyStoredAuthToApiPayload(ctx) {
+    if(! ctx || Array.isArray(ctx.finalPayload))return "";
+    var p = isObjectPayload(ctx.finalPayload) ? ctx.finalPayload: {
+    };
+    var token = text(p.token || p._token || p.authToken || storeGet("auth.token", "") || root.__authToken || ""), csrf = text(p.csrfToken || p.csrf || p._csrf || storeGet("auth.csrfToken", "") || root.__csrfToken || "");
+    token && (p.token = p.token || token, p._token = p._token || token);
+    csrf && (p.csrfToken = p.csrfToken || csrf, p.csrf = p.csrf || csrf, p._csrf = p._csrf || csrf);
+    ctx.finalPayload = p;
+    return token
+  }
+  function waitForAuthTokenBeforeRead(ctx) {
+    var token = applyStoredAuthToApiPayload(ctx);
+    if(token || isPublicMethod(ctx.method))return Promise.resolve(ctx);
+    if(root.AppSessionResume && isFn(root.AppSessionResume.tryResume) && ! (ctx.finalPayload && ctx.finalPayload.__resumeRetried)) {
+      ctx.finalPayload = isObjectPayload(ctx.finalPayload) ? ctx.finalPayload: {
+      };
+      ctx.finalPayload.__resumeRetried =! 0;
+      return Promise.resolve(root.AppSessionResume.tryResume({
+        reason: "read-before-token:" + text(ctx.method || "")
+      })).then(function() {
+        var resumedToken = applyStoredAuthToApiPayload(ctx);
+        if(resumedToken)return ctx;
+        if(root.AppRuntime && isFn(root.AppRuntime.isLoginVisible) && root.AppRuntime.isLoginVisible())throw new Error("AUTH_REQUIRED");
+        return ctx
+      }, function(resumeErr) {
+        warn("runtime.authGate.resume", resumeErr, {
+          method: ctx && ctx.method
+        });
+        if(root.AppRuntime && isFn(root.AppRuntime.isLoginVisible) && root.AppRuntime.isLoginVisible())throw new Error("AUTH_REQUIRED");
+        return ctx
+      })
+    }
+    try {
       if(root.AppRuntime && isFn(root.AppRuntime.isLoginVisible) && root.AppRuntime.isLoginVisible())throw new Error("AUTH_REQUIRED")
     }
     catch(e) {
       if(e && "AUTH_REQUIRED" === e.message)throw e;
       __appObserve(e, "ec")
     }
-    return ctx
+    return Promise.resolve(ctx)
+  }
+  function authGateApiRequest(ctx) {
+    return waitForAuthTokenBeforeRead(ctx)
   }
   function transportApiRequest(ctx) {
     if(readClientCache(ctx))return Promise.resolve(ctx);
@@ -7105,12 +7138,15 @@ catch(__appRootBridgeErr) {
   }
   function runApiMiddlewarePipeline(ctx) {
     try {
-      normalizeApiRequest(ctx), routeGuardApiRequest(ctx), enrichApiRequestPayload(ctx), authGateApiRequest(ctx), prepareWriteActionAuth(ctx, ! 1)
+      normalizeApiRequest(ctx), routeGuardApiRequest(ctx), enrichApiRequestPayload(ctx)
     }
     catch(e) {
       return Promise.reject(e)
     }
-    return prepareCsrfActionToken(ctx).then(function() {
+    return Promise.resolve(authGateApiRequest(ctx)).then(function() {
+      prepareWriteActionAuth(ctx, ! 1);
+      return prepareCsrfActionToken(ctx)
+    }).then(function() {
       return runApiPipelineOnce(ctx)
     }).then(function(value) {
       return hideWriteActionSaving(ctx), value
@@ -8815,7 +8851,7 @@ catch(__appRootBridgeErr) {
       return ! map[key];
     });
   }
-  function phase0Status() {
+  function phase1Status() {
     var owners = ownerChecks();
     var ids = collectIds();
     var classNames = collectClassNames();
@@ -8856,13 +8892,13 @@ catch(__appRootBridgeErr) {
   root.AppContractGate = root.AppContractGate || {
     owner: phase0Owner,
     manifest: function() { return PHASE0_DOM_MANIFEST; },
-    status: phase0Status,
-    getPhase0Status: phase0Status,
+    status: phase1Status,
+    getPhase0Status: phase1Status,
     getOwnerRegistryStatus: function() {
       return root.AppOwnerRegistry && isFunction(root.AppOwnerRegistry.status) ? root.AppOwnerRegistry.status(): { ok: false, conflicts: [{ code: "OWNER_REGISTRY_MISSING" }] }
     },
     assert: function() {
-      var status = phase0Status();
+      var status = phase1Status();
       if(! status.ok) {
         warn("phase0.contractGate.failed", null, status);
       }
@@ -8883,7 +8919,7 @@ catch(__appRootBridgeErr) {
     }
   };
   if(root.AppProductionContract && ! isFunction(root.AppProductionContract.getPhase0Status)) {
-    root.AppProductionContract.getPhase0Status = phase0Status;
+    root.AppProductionContract.getPhase0Status = phase1Status;
   }
   var appPerformanceGate = root.AppPerformanceGate && typeof root.AppPerformanceGate === "object" ? root.AppPerformanceGate: {};
   var performanceProfiles = {
