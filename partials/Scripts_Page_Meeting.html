@@ -58,13 +58,31 @@
     }
   };
   e.AppOwnerRegistry && e.AppOwnerRegistry.consume && e.AppOwnerRegistry.consume("AppEvents", "Scripts_Page_Meeting");
-  if(! e.__meetingCanonicalInitialized) {
+  {
+    /*
+     * Meeting page is intentionally re-hydrated every time this partial is loaded.
+     * Root cause fixed: the previous module-level guard skipped variable initialization
+     * on repeated GitHub/GAS mirror loads, while lower functions still used hoisted
+     * helpers such as r/byId, causing "r is not a function" during shared save.
+     * Event binding remains idempotent through AppMeetingBindEvent_/dataset owners.
+     */
     e.__meetingCanonicalInitialized =! 0;
     var n = e.AppPageSlim || e.AppRuntimeHelpers || e.ScriptsUtils || {
     }, i = e.AppDom || n.dom || {
     }, r = i.byId || n.byId, a = n.esc, o = e.AppState || e.AppStore && e.AppStore.get && e.AppStore.get("app.state", {
     }) || {
     };
+    if(! __appIsFn(r)) {
+      r = function(id) {
+        try {
+          return "string" == typeof id ? document.getElementById(id) || document.querySelector(id) : id || null;
+        }
+        catch(_meetingByIdFallbackErr) {
+          "function" == typeof e.__appObserve && e.__appObserve(_meetingByIdFallbackErr, "meeting.byId.fallback");
+          return null;
+        }
+      };
+    }
     o.meeting = o.meeting || {
       mode: "view", currentCaseId: "", currentLetterId: ""
     };
