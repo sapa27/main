@@ -18,8 +18,6 @@
   var bridgeClient = { iframe: null, ready: false, loaded: false, assumedReady: false, promise: null, url: '', messageOrigin: '' };
   var apiCache = Object.create(null);
   var apiInFlight = Object.create(null);
-  var jsonpCircuitUntil = 0;
-  var jsonpCircuitReason = '';
   var apiMetrics = { calls: 0, cacheHits: 0, cacheWrites: 0, dedupeHits: 0, bridgeReads: 0, jsonpReads: 0, errors: 0, last: [] };
   var PHASE2_RELEASE_STAMP = 'phase2-compact-single-owner-2026-07-01-r1';
   var PHASE1_RELEASE_STAMP = PHASE2_RELEASE_STAMP;
@@ -105,41 +103,9 @@ function cfgList(name) {
     } catch (_) { return result; }
   }
   function runReadWithPolicy(method, payload) {
-    var nowForCircuit = Date.now ? Date.now() : +new Date();
     var useBridge = cfg('forceAuthenticatedReadBridge', false) !== false && !publicJsonpReadMethod(method);
-    if (!useBridge && cfg('jsonpReadCircuitBreaker', true) !== false && nowForCircuit < jsonpCircuitUntil) useBridge = true;
-    var allowFallback = cfg('readJsonpFallbackToBridge', true) !== false;
     var transport = useBridge ? 'bridge' : 'jsonp';
-    function openJsonpCircuit(reason) {
-      if (cfg('jsonpReadCircuitBreaker', true) === false) return;
-      var ms = Math.max(5000, Number(cfg('jsonpReadCircuitBreakMs', 60000)) || 60000);
-      jsonpCircuitUntil = (Date.now ? Date.now() : +new Date()) + ms;
-      jsonpCircuitReason = text(reason && (reason.errorCode || reason.code || reason.message || reason.error) || reason || 'jsonp-fallback');
-    }
-    function shouldBridgeFallback(res) {
-      if (useBridge || !allowFallback) return false;
-      if (!res || res.ok !== false) return false;
-      var code = text(res.errorCode || res.code || res.error || '').toUpperCase();
-      return /JSONP|AUTH|TOKEN|SESSION|PERMISSION|NOT_IN_CONTRACT|METHOD|DEPLOY|ROUTER/.test(code);
-    }
-    var runner = function() {
-      if (useBridge) return runGasViaClient(method, payload || {});
-      return runJsonpApi(method, payload || {}).then(function(res) {
-        if (!shouldBridgeFallback(res)) return res;
-        openJsonpCircuit(res);
-        recordApiMetric({ kind: 'fallback', method: method, transport: 'jsonp->bridge', error: true, message: text(res.error || res.errorCode || 'jsonp read failed; fallback bridge') });
-        return runGasViaClient(method, payload || {}).then(function(bridgeRes) {
-          return annotateResult(bridgeRes, { transportFallback: 'jsonp->bridge', jsonpErrorCode: text(res.errorCode || res.code || ''), jsonpError: text(res.error || '') });
-        });
-      }, function(err) {
-        if (!allowFallback) throw err;
-        openJsonpCircuit(err);
-        recordApiMetric({ kind: 'fallback', method: method, transport: 'jsonp->bridge', error: true, message: err && err.message || String(err || '') });
-        return runGasViaClient(method, payload || {}).then(function(bridgeRes) {
-          return annotateResult(bridgeRes, { transportFallback: 'jsonp->bridge', jsonpErrorCode: text(err && (err.errorCode || err.code) || ''), jsonpError: text(err && err.message || err || '') });
-        });
-      });
-    };
+    var runner = function() { return useBridge ? runGasViaClient(method, payload || {}) : runJsonpApi(method, payload || {}); };
     var cacheable = cfg('clientApiCacheEnabled', true) !== false && isJsonpReadMethod(method);
     var dedupe = cfg('clientInFlightDedupe', true) !== false && isJsonpReadMethod(method);
     var ttl = ttlForRead(method, payload || {});
@@ -156,7 +122,7 @@ function cfgList(name) {
     var started = now;
     var promise = Promise.resolve().then(runner).then(function(result) {
       var durationMs = Math.max(0, (Date.now ? Date.now() : +new Date()) - started);
-      var meta = { clientDurationMs: durationMs, clientCacheHit: false, phase1Cache: false, cacheTtlSec: ttl, transport: (result && result.meta && result.meta.transportFallback) || transport, releaseStamp: PHASE1_RELEASE_STAMP };
+      var meta = { clientDurationMs: durationMs, clientCacheHit: false, phase1Cache: false, cacheTtlSec: ttl, transport: transport, releaseStamp: PHASE1_RELEASE_STAMP };
       var annotated = annotateResult(result, meta);
       if (cacheable && ttl > 0 && result && result.ok !== false) {
         apiCache[key] = { value: annotated, expiresAt: started + ttl * 1000, storedAt: (Date.now ? Date.now() : +new Date()), method: method };
@@ -278,7 +244,7 @@ function cfgList(name) {
       }
       var url = urls[i];
       tried.push(url);
-      return fetch(withAssetStamp(url), { credentials: 'same-origin', cache: 'force-cache' }).then(function(resp) {
+      return fetch(withAssetStamp(url), { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } }).then(function(resp) {
         if (!resp.ok) return tryAt(i + 1);
         return resp.text().then(function(html) {
           cache[file] = html;
@@ -581,7 +547,7 @@ function cfgList(name) {
   root.AppTransport.__githubGasBridge = true;
   root.AppTransport.transportMode = cfg('transportMode', 'stage2-single-path-fastlogin-jsonp-read-bridge-write');
   root.AppTransport.bridgeClientState = function() { return { ready: !!bridgeClient.ready, loaded: !!bridgeClient.loaded, assumedReady: !!bridgeClient.assumedReady, messageOrigin: bridgeClient.messageOrigin || '', url: bridgeClient.url || resolveGasUrl(), mode: cfg('transportMode', 'phase2-hotfix-read-jsonp-bridge-write') }; };
-  root.AppTransport.phase2Status = function() { return { ok: true, stamp: PHASE2_RELEASE_STAMP, phase: 'Phase 2 Single Source Refactor', authenticatedReadBridge: cfg('forceAuthenticatedReadBridge', false) !== false, readJsonpFallbackToBridge: cfg('readJsonpFallbackToBridge', true) !== false, firstPaint: cfg('dashboardFirstPaintEnabled', true) !== false, lazyHydration: cfg('dashboardLazyHydrationEnabled', true) !== false, singleSourceRoot: cfg('phase2CanonicalPartialRoot', 'src/frontend/partials'), generatedMirrorPolicy: cfg('phase2GeneratedMirrorPolicy', 'edit-canonical-run-sync-do-not-edit-generated-mirrors'), clientApiCacheEnabled: cfg('clientApiCacheEnabled', true) !== false, clientInFlightDedupe: cfg('clientInFlightDedupe', true) !== false, jsonpCircuitOpen: (Date.now ? Date.now() : +new Date()) < jsonpCircuitUntil, jsonpCircuitReason: jsonpCircuitReason, strictBridgeOriginCheck: cfg('strictBridgeOriginCheck', true) !== false, publicJsonpReadMethods: cfgList('publicJsonpReadMethods'), cacheEntries: Object.keys(apiCache).length, inFlight: Object.keys(apiInFlight).length, metrics: Object.assign({}, apiMetrics), bridge: root.AppTransport.bridgeClientState() }; };
+  root.AppTransport.phase2Status = function() { return { ok: true, stamp: PHASE2_RELEASE_STAMP, phase: 'Phase 2 Single Source Refactor', authenticatedReadBridge: cfg('forceAuthenticatedReadBridge', false) !== false, firstPaint: cfg('dashboardFirstPaintEnabled', true) !== false, lazyHydration: cfg('dashboardLazyHydrationEnabled', true) !== false, singleSourceRoot: cfg('phase2CanonicalPartialRoot', 'src/frontend/partials'), generatedMirrorPolicy: cfg('phase2GeneratedMirrorPolicy', 'edit-canonical-run-sync-do-not-edit-generated-mirrors'), clientApiCacheEnabled: cfg('clientApiCacheEnabled', true) !== false, clientInFlightDedupe: cfg('clientInFlightDedupe', true) !== false, strictBridgeOriginCheck: cfg('strictBridgeOriginCheck', true) !== false, publicJsonpReadMethods: cfgList('publicJsonpReadMethods'), cacheEntries: Object.keys(apiCache).length, inFlight: Object.keys(apiInFlight).length, metrics: Object.assign({}, apiMetrics), bridge: root.AppTransport.bridgeClientState() }; };
   root.AppTransport.phase1Status = root.AppTransport.phase2Status;
   root.AppTransport.phase0Status = root.AppTransport.phase2Status;
   root.AppTransport.clearApiCache = function() { apiCache = Object.create(null); apiInFlight = Object.create(null); apiMetrics.cacheHits = 0; apiMetrics.cacheWrites = 0; apiMetrics.dedupeHits = 0; apiMetrics.last = []; return true; };
