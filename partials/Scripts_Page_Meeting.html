@@ -58,14 +58,7 @@
     }
   };
   e.AppOwnerRegistry && e.AppOwnerRegistry.consume && e.AppOwnerRegistry.consume("AppEvents", "Scripts_Page_Meeting");
-  {
-    /*
-     * Meeting page is intentionally re-hydrated every time this partial is loaded.
-     * Root cause fixed: the previous module-level guard skipped variable initialization
-     * on repeated GitHub/GAS mirror loads, while lower functions still used hoisted
-     * helpers such as r/byId, causing "r is not a function" during shared save.
-     * Event binding remains idempotent through AppMeetingBindEvent_/dataset owners.
-     */
+  if(! e.__meetingCanonicalInitialized) {
     e.__meetingCanonicalInitialized =! 0;
     var n = e.AppPageSlim || e.AppRuntimeHelpers || e.ScriptsUtils || {
     }, i = e.AppDom || n.dom || {
@@ -1142,12 +1135,7 @@
             "function" == typeof __appObserve && __appObserve(_tabModeErr, "meeting.tab.mode")
           }
           var key = T("meeting-caseId") || F();
-          var needDetailReload = !0;
-          try {
-            needDetailReload = ("history" === mode && !(y.history || []).length) || ("letter" === mode && !(y.letters || []).length) || !("history" === mode || "letter" === mode);
-          }
-          catch(_detailReloadGuardErr) { needDetailReload = !0; }
-          key && needDetailReload && Promise.resolve(Be({
+          key && Promise.resolve(Be({
             caseId: key, caseNum: T("meeting-caseNum"), recNo: T("meeting-recNo"), title: T("meeting-title") || T("meeting-caseTitle")
           })).catch(function(err) {
             "function" == typeof __appObserve && __appObserve(err, "meeting.tab.reload.nonblocking")
