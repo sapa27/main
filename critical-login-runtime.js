@@ -1,0 +1,2257 @@
+/* extracted from github-pages/index.html script #31 */
+! function(root) {
+"use strict";
+var required = ["AppStore", "AppRuntime", "AppFormat", "AppDom", "AppRuntimeHelpers", "AppSafeHtml"], missing = required.filter(function(name) {
+return ! root || ! root[name]
+});
+if(missing.length)throw new Error("APP_BOOTSTRAP_FOUNDATION_MISSING: " + missing.join(","));
+if(root.AppOwnerRegistry && root.AppOwnerRegistry.consume)required.forEach(function(name) {
+root.AppOwnerRegistry.consume(name, "Scripts_Critical_Login_Runtime")
+});
+root.__APP_CRITICAL_FOUNDATION_CONSUMER__ = {
+ok: true, owner: "Scripts_Critical_Login_Runtime", stamp: "p2-critical-foundation-consumer-current"
+}
+}
+("undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this);
+var __appIsFn = ("undefined" != typeof window && window.__appIsFn) || function(v) {
+return "function" == typeof v
+};
+var __appObserve = ("undefined" != typeof window && window.__appObserve) || function() {
+return ! 1
+};
+;
+/* extracted from github-pages/index.html script #32 */
+var root = "undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this;
+root.__appObserve = root.__appObserve || function(e, t) {
+try {
+root.AppRuntime && __appIsFn(root.AppRuntime.recordWarning) ? root.AppRuntime.recordWarning(t, e): "undefined" != typeof console && console.warn && console.warn("[AppWarn] " + t, e)
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), ! 1
+}
+};
+var __appObserve = root.__appObserve;
+try {
+root.root = root, "undefined" != typeof window && (window.root = window)
+}
+catch(__appRootBridgeErr) {
+__appObserve(__appRootBridgeErr, "crit.s")
+}
+! function(root) {
+"use strict";
+if(! root.__APP_CRITICAL_LOGIN_RUNTIME_READY__) {
+root.__APP_CRITICAL_LOGIN_RUNTIME_READY__ =! 0, root.__APP_SESSION_EXPIRY_DISABLED__ =! 0 === root.__APP_SESSION_EXPIRY_DISABLED__, root.__APP_AUTH_RUNTIME_OWNER__ = "SCLR:login-session-resume-current";
+var doc = document, JSON_ = JSON, RESUME_KEY = "commission.system.sessionResume.current";
+if(! root.__APP_PRODUCTION_FINAL_CRITICAL_FACADE_CurrentStamp__) {
+root.__APP_PRODUCTION_FINAL_CRITICAL_FACADE_CurrentStamp__ =! 0;
+var productionFinal = ns("AppProductionFinal");
+productionFinal.byId = productionFinal.byId || function(id) {
+return id && id.nodeType ? id: "string" == typeof id ? doc.getElementById(id): null
+}, productionFinal.escapeHtml = productionFinal.escapeHtml || function(v) {
+return String(null == v ? "": v).replace(/[&<>"']/g, function(ch) {
+return {
+"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}
+[ch] || ch
+})
+}, productionFinal.setTrustedHtml = productionFinal.setTrustedHtml || function(el, html) {
+return(el = productionFinal.byId(el)) && (el.textContent = String(null == html ? "": html)), el
+}, productionFinal.setHtml = productionFinal.setTrustedHtml
+}
+root.ensureDatePickerAssets = root.ensureDatePickerAssets || function() {
+return Promise.resolve(root.AppDatePicker || root.AppThaiDatePicker || null)
+}, scrubUrl();
+var store = root.AppStore;
+if(! store ||! store.__canonicalStore ||! __appIsFn(store.get) ||! __appIsFn(store.set) ||! __appIsFn(store.reset))throw new Error("APP_CANONICAL_STORE_REQUIRED");
+store.__criticalLoginConsumer =! 0;
+root.AppOwnerRegistry && root.AppOwnerRegistry.consume && root.AppOwnerRegistry.consume("AppStore", "Scripts_Critical_Login_Runtime.auth");
+var appUtil = ns("AppUtil"), centralDom = root.AppDom || {
+}, centralFormat = root.AppFormat || {
+};
+appUtil.byId = appUtil.byId || centralDom.byId || id, appUtil.text = appUtil.text || centralFormat.text || txt;
+var scriptsUtils = ns("ScriptsUtils");
+scriptsUtils.byId = scriptsUtils.byId || centralDom.byId || id, scriptsUtils.text = scriptsUtils.text || centralFormat.text || txt, scriptsUtils.escapeHtml = scriptsUtils.escapeHtml || centralFormat.escapeHtml, scriptsUtils.getClientContext = scriptsUtils.getClientContext || ctx;
+var allow = {
+session: {
+"commission.system.sessionResume.current": 1, dashboard_seed_cache_current: 1
+}, local: {
+"app-theme": 1, "app.theme": 1
+}
+}, denyAuthStore = /^(?:APP_AUTH_TOKEN|auth\.token|auth\.csrfToken|csrfToken|token|currentUser|currentUserRole|currentUserName)$/;
+root.AppSecurity = root.AppSecurity || {
+}, root.AppSecurity.__memoryOnlyAuth =! 0, root.AppSecurity.__localStorageAuthDisabled =! 0, root.AppSecurity.authStorageKeys = ["APP_AUTH_TOKEN", "auth.token", "auth.csrfToken", "csrfToken", "token", "currentUser", "currentUserRole", "currentUserName"], root.AppSecurity.__currentRunSecurityOwner = "SCLR:storage-policy-currentStamp", root.AppSecurity.__resumeStorage = "sessionStorage-only", root.AppSecurity.__localStorageAuthBlocked =! 0, root.AppSafeStorage = root.AppSafeStorage || {
+ok: function(t, k) {
+return k = txt(k), ! denyAuthStore.test(k) &&!! ((allow[t] || {
+})[k] || "session" === t && /^dashboard_seed_cache_v\d+$/.test(k) || "session" === t && /^commission\.system\.sessionResume\.v\d+$/.test(k))
+}, get: function(t, k) {
+try {
+if(! this.ok(t, k))return null;
+var s = "local" === t ? localStorage: sessionStorage;
+return s ? s.getItem(k): null
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), null
+}
+}, set: function(t, k, v) {
+try {
+if(! this.ok(t, k))return ! 1;
+var s = "local" === t ? localStorage: sessionStorage;
+return !! s && (s.setItem(k, String(v)), ! 0)
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), ! 1
+}
+}, remove: function(t, k, force) {
+try {
+if(! force &&! this.ok(t, k))return ! 1;
+var s = "local" === t ? localStorage: sessionStorage;
+return s && s.removeItem(k), ! 0
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), ! 1
+}
+}
+}, root.AppSecurity.clearBrowserAuthStorage = root.AppSecurity.clearBrowserAuthStorage || function() {
+return root.AppSecurity.authStorageKeys.forEach(function(k) {
+try {
+sessionStorage.removeItem(k)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+try {
+localStorage.removeItem(k)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+}), ! 0
+}, root.AppSecurity.setSessionTokens = root.AppSecurity.setSessionTokens || function(token, csrf) {
+return root.AppSecurity.clearBrowserAuthStorage(), void 0 !== token && store.set("auth.token", txt(token)), void 0 !== csrf && store.set("auth.csrfToken", txt(csrf)), root.AppSecurity.__tokenOwner = root.AppSecurity.__tokenOwner || "SCLR:bootstrap-login-resume-currentStamp", {
+memoryOnly: ! 0, token: !! token, csrf: !! csrf, owner: root.AppSecurity.__tokenOwner
+}
+}, root.AppSecurity.sanitizeHtml = root.AppSecurity.sanitizeHtml || function(h) {
+return txt(h).replace(/<\s*(script|style|iframe|object|embed|link|meta|base)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "").replace(/<\s*(script|style|iframe|object|embed|link|meta|base)[^>]*\/?\s*>/gi, "").replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "").replace(/(href|src)\s*=\s*(['"])\s*javascript:[\s\S]*?\2/gi, '$1="#"')
+}, root.safeSetInnerHTML = root.safeSetInnerHTML || function(el, h) {
+return(el = id(el)) ? root.AppProductionFinal && root.AppProductionFinal.setTrustedHtml ? root.AppProductionFinal.setTrustedHtml(el, h, {
+moduleName: "CriticalLogin.safeSetInnerHTML", trusted: ! 0
+}): root.AppDom && root.AppDom.setHtml ? root.AppDom.setHtml(el, h, {
+moduleName: "CriticalLogin.safeSetInnerHTML", trusted: ! 0
+}): (el.textContent = root.AppSecurity.sanitizeHtml(h), el): null
+};
+var appDom = ns("AppDom"), c;
+appDom.setText = appDom.setText || function(el, v) {
+return(el = id(el)) && (el.textContent = txt(v)), el || null
+}, appDom.renderHtml = appDom.renderHtml || root.safeSetInnerHTML, root.AppRouteContract = root.AppRouteContract || {
+}, (c = root.AppRouteContract).routes = c.routes || null, c.writeMethods = c.writeMethods || {
+}, c.loaded =!! c.routes, c.set = function(x) {
+var r = (x = x || {
+}).routes || x.allowedMethods || null;
+return c.routes = r, c.writeMethods = {
+}, r &&! Array.isArray(r) && Object.keys(r).forEach(function(k) {
+! 0 === (r[k] || {
+}).write && (c.writeMethods[k] =! 0)
+}), c.loaded =!! r, c.stamp = txt(x.stamp || c.stamp || ""), c
+}, c.absorb = function(d) {
+var x = (d = d || {
+}).routeContract || d.dataContract && d.dataContract.routeContract || d.appConfig && d.appConfig.routeContract;
+return x ? c.set(x): c
+}, c.isWrite = function(m) {
+return ! (! c.loaded ||! c.writeMethods[txt(m)])
+}, c.validateApiMethod = function(m) {
+if(! (m = txt(m)))return new Error("API_METHOD_EMPTY");
+c.bootstrapMethods = c.bootstrapMethods || {
+getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetPhase2Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+};
+var bootstrapRoutes = c.bootstrapMethods;
+if(bootstrapRoutes[m])return null;
+if(c.loaded && c.routes)return Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1 ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): c.routes[m] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m);
+return /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(m) ? null: new Error("API_METHOD_NOT_IN_CONTRACT_PENDING_BOOTSTRAP:" + m)
+}, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
+return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
+}, root.isWriteApiMethod = function(m) {
+return m = txt(m), !! (root.AppRouteContract && root.AppRouteContract.isWrite && root.AppRouteContract.isWrite(m) || /^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|SystemOwner)/.test(m))
+};
+var RT = ns("AppRuntime");
+RT.__timers = RT.__timers || {
+}, RT.__criticalRuntimeCall =! 0, RT.__currentStageCanonicalRuntime =! 0, RT.__fullRuntimeCall =! 1, RT.__authFlowOwner = "SCLR:auth-current", RT.__writeAuthMode = "delegated-to-core-runtime-after-load-currentStamp.63", Object.assign(ns("AppFrontendRuntimeOwners"), {
+stage: "runtime-single-owner", stamp: "CurrentStamp.63"
+}), RT.recordWarning = RT.recordWarning || function() {
+return ! 1
+}, RT.setTimer = RT.setTimer || function(k, f, d, i) {
+k = txt(k || "global");
+var ms = Math.max(0, Number(d || 0)), isInterval =! 0 === i || "interval" === i;
+isInterval && ms < 1e3 && (RT.recordWarning("timer.interval.clamped", {
+message: k + ":" + ms
+}), ms = 1e3);
+var list = RT.__timers[k] = RT.__timers[k] || [];
+list.length > 25 && (RT.clearTimers(k), list = RT.__timers[k] = []);
+var idn = (isInterval ? setInterval: setTimeout)(function() {
+try {
+f && f()
+}
+catch(e) {
+RT.recordWarning("timer." + k, e)
+}
+isInterval || RT.forgetTimer(k, idn)
+}, ms);
+return list.push({
+id: idn, interval: isInterval, createdAt: Date.now()
+}), idn
+}, RT.clearUiBlocks = RT.clearUiBlocks || function(reason, opts) {
+opts = opts || {
+};
+try {
+doc.documentElement.classList.remove("app-page-switching", "app-template-loading"), doc.body && doc.body.classList.remove("app-page-switching", "app-template-loading", "app-ui-unblocking");
+var ov = id("sidebar-overlay");
+ov && (ov.classList.remove("show"), ov.setAttribute("aria-hidden", "true"), ov.style.display = "none");
+var side = id("side");
+if(side &&! 1 !== opts.closeSidebar && side.classList.remove("show"), ! 1 !== opts.closeLoadingSwal && root.Swal && root.Swal.close) {
+var pop = doc.querySelector(".swal2-popup"), loader = pop && pop.querySelector(".swal2-loader"), confirm = pop && pop.querySelector(".swal2-confirm"), visible = confirm && null !== confirm.offsetParent && "none" !== confirm.style.display;
+loader &&! visible && root.Swal.close()
+}
+}
+catch(e) {
+RT.recordWarning && RT.recordWarning("ui.clearBlocks", e)
+}
+return ! 0
+}, RT.forgetTimer = RT.forgetTimer || function(k, id) {
+k = txt(k || "global");
+var list = RT.__timers && RT.__timers[k];
+return ! list || (RT.__timers[k] = list.filter(function(t) {
+return t && t.id !== id
+}), ! 0)
+}, RT.cancelTimer = RT.cancelTimer || function(k, id) {
+var keys;
+return void 0 === id && (id = k, k = ""), (k ? [txt(k)]: Object.keys(RT.__timers || {
+})).forEach(function(key) {
+(RT.__timers[key] || []).forEach(function(t) {
+if(t && t.id === id) {
+try {
+(t.interval ? clearInterval: clearTimeout)(t.id)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+RT.forgetTimer(key, t.id)
+}
+})
+}), ! 0
+}, RT.clearTimers = function(k) {
+var keys;
+return(k ? [txt(k)]: Object.keys(RT.__timers || {
+})).forEach(function(key) {
+(RT.__timers[key] || []).forEach(function(t) {
+try {
+(t.interval ? clearInterval: clearTimeout)(t.id)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+}), RT.__timers[key] = []
+}), ! 0
+}, RT.delay = RT.delay || function(k, f, d) {
+return RT.setTimer(k, f, d, ! 1)
+}, RT.ready = RT.ready || function(f, k) {
+"loading" === doc.readyState ? doc.addEventListener("DOMContentLoaded", function() {
+RT.delay(k || "ready", f, 0)
+}, {
+once: ! 0
+}): RT.delay(k || "ready", f, 0)
+}, RT.debugLog = RT.debugLog || function() {
+try {
+console.debug.apply(console, arguments)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+}, RT.showBanner = RT.showBanner || banner, RT.handleError = function(e, m) {
+var x = txt(m || e && (e.message || e.error && e.error.message) || e || "เกิดข้อผิดพลาด");
+try {
+RT.recordWarning && RT.recordWarning("runtime.handleError", e || x, { message: x })
+}
+catch(_warn) {
+"function" == typeof __appObserve && __appObserve(_warn, "runtime.handleError.warn")
+}
+try {
+if(root.appSwalFire) {
+root.appSwalFire({ title: "ไม่สามารถดำเนินการได้", text: x, icon: "error", confirmButtonText: "ตกลง" });
+return ! 1
+}
+if(root.Swal && root.Swal.fire) {
+root.Swal.fire({ title: "ไม่สามารถดำเนินการได้", text: x, icon: "error", confirmButtonText: "ตกลง" });
+return ! 1
+}
+}
+catch(_popup) {
+"function" == typeof __appObserve && __appObserve(_popup, "runtime.handleError.popup")
+}
+return banner("danger", x, 6500), ! 1
+}, root.AppUi = root.AppUi || {
+__criticalUiFacade: ! 0, fire: function() {
+return root.appSwalFire ? root.appSwalFire.apply(root, arguments): Promise.resolve({
+isConfirmed: ! 1
+})
+}, alert: function(t, m, i) {
+return this.fire(t, m, i || "info")
+}, confirm: function(o) {
+return this.fire(Object.assign({
+showCancelButton: ! 0, icon: "question"
+}, o || {
+}))
+}, setButtonBusy: function(el, on, label) {
+return !! (el = id(el)) && (el.dataset.defaultText || (el.dataset.defaultText = el.textContent || "เข้าสู่ระบบ"), el.disabled =!! on, el.setAttribute("aria-busy", on ? "true": "false"), el.textContent = on ? label || "กำลังเข้าสู่ระบบ": el.dataset.defaultText, ! 0)
+}
+}, root.AppTransport = root.AppTransport || {
+}, root.AppTransport.run = root.AppTransport.run || function(fn, args) {
+return new Promise(function(res, rej) {
+try {
+if(! root.google ||! root.google.script ||! root.google.script.run)throw new Error("google.script.run ไม่พร้อมใช้งาน");
+var r = root.google.script.run.withSuccessHandler(res).withFailureHandler(rej);
+if("function" != typeof r[fn])throw new Error("ไม่พบ server function:" + fn);
+r[fn](args)
+}
+catch(e) {
+rej(e)
+}
+})
+}, RT.rawRun = RT.rawRun || function(fn, args) {
+return root.AppTransport.run(fn, args)
+}, RT.normalizeResponse = RT.normalizeResponse || env, RT.call = RT.call || function(m, p) {
+var a = txt(m), q = data(p);
+if(root.isWriteApiMethod(a) && "apiIssueActionToken" !== a &&! Array.isArray(q)) {
+if(q.clientContext = q.clientContext || ctx(), q.token = q.token || txt(store.get("auth.token", "")), q.csrfToken = q.csrfToken || txt(store.get("auth.csrfToken", "")), q.csrfToken && (q.csrf = q.csrf || q.csrfToken, q._csrf = q._csrf || q.csrfToken), q.actionMethod = q.actionMethod || a, (! q.token ||! q.csrfToken) && root.AppSessionResume && __appIsFn(root.AppSessionResume.tryResume) &&! q.__resumeRetried)return root.AppSessionResume.tryResume({
+reason: "write-before-token:" + a
+}).then(function(ok) {
+return q.__resumeRetried =! 0, ok ? (q.token = q.token || txt(store.get("auth.token", "")), q.csrfToken = q.csrfToken || txt(store.get("auth.csrfToken", "")), q.csrfToken && (q.csrf = q.csrf || q.csrfToken, q._csrf = q._csrf || q.csrfToken), RT.call(a, q)): base(a, q)
+});
+if(root.requiresStrictActionToken && root.requiresStrictActionToken(a) &&! q.__actionTokenIssued)return RT.call("apiIssueActionToken", {
+token: q.token, csrfToken: q.csrfToken, csrf: q.csrf || q.csrfToken, action: a, method: a
+}).then(function(resp) {
+var d = resp && resp.data && "object" == typeof resp.data ? resp.data: resp || {
+}, act = txt(d.actionToken || d.csrfToken || "");
+if(! act)throw new Error("ไม่พบ CSRF action token");
+return q.actionToken = act, q.csrfActionToken = act, q._actionToken = act, q.csrfToken = act, q.csrf = act, q._csrf = act, q.actionMethod = a, q.__actionTokenIssued =! 0, q = preflightWriteReliabilityCrit(a, q), base(a, q)
+});
+q = preflightWriteReliabilityCrit(a, q)
+}
+return base(a, q)
+};
+var appApi = root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi: ns("AppApi");
+__appIsFn(appApi.call) || Object.assign(appApi, {
+__criticalApi: ! 0, normalizeEnvelope: env, call: function(m, p, options) {
+options = options || {};
+return RT.call(m, p).then(function(r) {
+var n = applyTok(env(r), m);
+if(! n.ok) {
+var e = new Error(n.error || n.msg || "คำขอไม่สำเร็จ");
+throw e.code = n.errorCode, e.errorCode = n.errorCode, e.requestId = n.requestId || "", e.latencyMs = n.latencyMs || 0, e.meta = n.meta || null, e
+}
+return !0 === options.preserveEnvelope ? n : n.data
+})
+}, require: function(m, p) {
+return this.call(m, p).then(function(d) {
+return {
+ok: ! 0, data: d
+}
+})
+}
+}), root.apiCall = root.apiCall || function(m, p, ok, fail) {
+var pr = root.AppApi.call(m, p || {
+});
+return(ok || fail) && pr.then(function(d) {
+ok && ok(d)
+}).catch(function(e) {
+fail && fail(e)
+}), pr
+};
+var criticalStoreGet = function(path, directDefault) {
+try {
+return store.get(path, directDefault)
+}
+catch(_) {
+return directDefault
+}
+}, criticalRowsFrom = function(v) {
+for(var x = v, i = 0;
+i < 6;
+i ++ ) {
+if(Array.isArray(x))return x;
+if(! x || "object" != typeof x)return[];
+if(Array.isArray(x.rows))return x.rows;
+if(Array.isArray(x.items))return x.items;
+if(Array.isArray(x.records))return x.records;
+if(Array.isArray(x.data))return x.data;
+x = x.data || x.result || x.payload
+}
+return[]
+}, criticalApiRunner = function(m, p) {
+return root.AppApi.call(m, p || {
+})
+};
+root.ScriptsUtils.storeGet = root.ScriptsUtils.storeGet || criticalStoreGet, root.ScriptsUtils.rowsFrom = root.ScriptsUtils.rowsFrom || criticalRowsFrom, root.ScriptsUtils.setHtml = root.ScriptsUtils.setHtml || root.safeSetInnerHTML, root.AppUtil.apiRunner = root.AppUtil.apiRunner || criticalApiRunner, root.AppSessionResume = {
+key: RESUME_KEY, save: saveResume, get: getResume, clear: clearResume, tryResume: tryResume, disabled: ! 1, mode: "sessionStorage-opaque-resume-handle-currentStamp"
+};
+var criticalOwnerContract = root.__APP_RUNTIME_OWNER_CONTRACT__ || {
+};
+Object.assign(criticalOwnerContract, {
+critical: "SCLR:auth-runtime-current", store: "Scripts_Core_Runtime", assets: "Scripts_Core_Runtime", lifecycle: "Scripts_Core_Runtime", auth: "SCR:session-csrf-production-currentStamp", resume: "SCLR:resume-current"
+}), root.__APP_RUNTIME_OWNER_CONTRACT__ = criticalOwnerContract;
+var appPages = ns("AppPages");
+appPages.__owner = appPages.__owner || "critical-publicBridge-shell-r1", appPages.__criticalShell =! 0, appPages.__singleRuntimeOwner =! 1, appPages.__publicOnly =! 0, function(P) {
+var reg = P.__registry = P.__registry || {
+}, act = P.__actions = P.__actions || {
+}, alias = P.__aliases = P.__aliases || {
+dash: "dashboard", personnel: "people", reportTrack: "report"
+};
+function norm(n) {
+return n = txt(n).trim(), alias[n] || n
+}
+P.alias = P.alias || function(n, t) {
+return n && t && (alias[txt(n)] = txt(t)), P
+}, P.register = P.register || function(n, a) {
+return(n = norm(n)) ? ((a = a || {
+}).pageId = a.pageId || n, reg[n] = a, P[n] = a, a): null
+}, P.get = P.get || function(n) {
+return reg[norm(n)] || null
+}, P.expose = P.expose || function(n, api, opt) {
+n = norm(n);
+var p = P.get(n) || P.register(n, {
+});
+return p.api = Object.assign(p.api || {
+}, api || {
+}), Object.keys(opt && opt.globals || {
+}).forEach(function(g) {
+var m = opt.globals[g];
+! 1 === opt.override && "function" == typeof root[g] || (root[g] = function() {
+var pp = P.get(n) || {
+}, fn = pp.api && pp.api[m];
+return"function" == typeof fn ? fn.apply(root, arguments): void 0
+})
+}), p.api
+}, P.call = P.call || function(n, m) {
+var p = P.get(n) || {
+}, fn = p.api && p.api[m];
+return"function" == typeof fn ? fn.apply(root, [].slice.call(arguments, 2)): void 0
+}, P.registerActions = P.registerActions || function(n, map) {
+return n = norm(n), act[n] = act[n] || {
+}, Object.keys(map || {
+}).forEach(function(k) {
+"function" == typeof map[k] && (act[n][k] = map[k])
+}), act[n]
+}, P.dispatchAction = P.dispatchAction || function(a, t, e, c) {
+a = txt(a).trim();
+var n = norm((c = c || {
+}).pageId || t && t.getAttribute && (t.getAttribute("data-app-page") || t.getAttribute("data-page") || t.getAttribute("data-vue-page")) || P.__currentPage || ""), fn = n && act[n] && act[n][a];
+return fn || Object.keys(act).some(function(k) {
+return ! (! act[k] || "function" != typeof act[k][a]) && (fn = act[k][a], ! 0)
+}), "function" == typeof fn && (e && e.preventDefault && e.preventDefault(), fn({
+action: a, target: t || null, event: e || null, pageId: n, context: c
+}))
+}, P.activate = P.activate || function(n) {
+return P.__currentPage = norm(n), ! 0
+}
+}
+(root.AppPages);
+var loaded = {
+}, inflight = {
+}, htmlCache = {
+}, core = root.__APP_CORE_RUNTIME_FILES__ && root.__APP_CORE_RUNTIME_FILES__.slice() || bundle("appCore");
+core.length || (core = ["Scripts_Core_Runtime"]), root.AppCritical = {
+ensureCoreRuntime: ensureCore, loadPartial: loadPartial, prefetchPartial: prefetchPartial, loadPageScripts: loadPage, executeHtmlPartial: execHtml, critSplit: !0, stage3SingleCore: !0, phase3ParallelPrefetch: !0
+};
+var AL = root.AppAssetLoader = root.AppAssetLoader || {
+};
+Object.assign(AL, {
+__criticalAssetLoader: !0, loadPartial: AL.loadPartial || loadPartial, prefetchPartial: AL.prefetchPartial || prefetchPartial, mountPartial: AL.mountPartial || function(n, t) {
+return loadPartial(n, {
+mountTarget: t
+})
+}, loadPageScripts: AL.loadPageScripts || loadPage, getPageScriptList: AL.getPageScriptList || listFor, getPageScriptMap: AL.getPageScriptMap || function() {
+var o = {
+}, m = chunks();
+return Object.keys(m).forEach(function(k) {
+o[k] = m[k].slice()
+}), o
+}, markLoaded: AL.markLoaded || function(n) {
+return loaded[txt(n)] =! 0, ! 0
+}, isLoaded: AL.isLoaded || function(n) {
+return !! loaded[txt(n)]
+}, ensureExternalGroup: AL.ensureExternalGroup || external, loadScriptOnce: AL.loadScriptOnce || loadScript, loadCssOnce: AL.loadCssOnce || loadCss
+}), ["Bootstrap", "DatePicker", "Xlsx"].forEach(function(n) {
+var g = "Bootstrap" === n ? "bootstrap": "DatePicker" === n ? "datePicker": "xlsx";
+AL["ensure" + n + "Assets"] = AL["ensure" + n + "Assets"] || function() {
+return"DatePicker" === n ? Promise.resolve(root.AppDatePicker || root.AppThaiDatePicker || null): external(g)
+}
+}), AL.ensureAdminPageAssets = AL.ensureAdminPageAssets || function() {
+return external("bootstrap").then(function() {
+return loadPage("admin")
+})
+}, AL.ensureMeetingPageAssets = AL.ensureMeetingPageAssets || function() {
+return Promise.all([external("bootstrap"), AL.ensureDatePickerAssets(), loadPage("meeting")]).then(function() {
+return ! 0
+})
+}, AL.ensurePeoplePageAssets = AL.ensurePeoplePageAssets || function() {
+return loadPage("people")
+}, AL.ensureBudgetPageAssets = AL.ensureBudgetPageAssets || function() {
+return loadPage("budget")
+}, AL.ensureAiBridgeAssets = AL.ensureAiBridgeAssets || function() {
+return loadPage("ai")
+}, AL.ensureReportPageAssets = AL.ensureReportPageAssets || function() {
+return loadPage("report")
+}, AL.ensurePrintAssets = AL.ensurePrintAssets || function() {
+return loadPage("print")
+}, AL.ensureThailandAssets = AL.ensureThailandAssets || function() {
+return Promise.resolve(! 0)
+}, root.ensureDeferredView = function(p) {
+return loadPage(p)
+}, ["ensureBootstrapAssets", "ensureDatePickerAssets", "ensureXlsxAssets", "ensureAdminPageAssets", "ensureMeetingPageAssets", "ensurePeoplePageAssets", "ensureBudgetPageAssets", "ensureAiBridgeAssets", "ensureReportPageAssets", "ensurePrintAssets", "ensureThailandAssets"].forEach(function(k) {
+root[k] = AL[k]
+}), root.patchLogoDirectDefault = root.patchLogoDirectDefault || logo, root.AppTheme = root.AppTheme || {
+}, root.AppTheme.apply = root.AppTheme.apply || function(theme) {
+theme = "dark" === txt(theme || root.AppSafeStorage.get("local", "app-theme") || root.AppSafeStorage.get("local", "app.theme") || "light").toLowerCase() ? "dark": "light";
+try {
+doc.documentElement.setAttribute("data-theme", theme), doc.body.classList.toggle("app-dark-mode", "dark" === theme), root.AppSafeStorage.set("local", "app-theme", theme), root.AppSafeStorage.set("local", "app.theme", theme)
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+return theme
+}, root.AppTheme.toggle = root.AppTheme.toggle || function() {
+return root.AppTheme.apply("dark" === doc.documentElement.getAttribute("data-theme") ? "light": "dark")
+}, RT.setAuthenticatedUser = RT.setAuthenticatedUser || function(user, token, csrf, session) {
+unlockLoginLocksCrit();
+try {
+root.AppRouteContract.absorb(session || {
+})
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+user = user || {
+};
+var __critRawRole = user.role || user.userRole || user.accessRole || "";
+store.assign({
+"auth.user": user, "auth.role": __critRawRole ? normRoleCrit(__critRawRole): "", "auth.name": txt(user.name || user.username), "auth.status": "authenticated", "auth.loginOk": ! 0, "auth.coreReady": ! 1, "auth.uiReady": ! 1, "auth.bootstrapOk": ! 0, "auth.bootstrapPending": ! 1
+}), root.AppSecurity.setSessionTokens(token, csrf);
+try {
+saveResume(session || {
+})
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+updateRoleBadgeCrit(user);
+try {
+doc.dispatchEvent(new CustomEvent("app:user-changed", {
+detail: {
+source: "critical-auth"
+}
+}))
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+return ! 0
+}, RT.bootMainUi = RT.bootMainUi || function(user) {
+shell(! 0), updateRoleBadgeCrit(user || store.get("auth.user", {
+}));
+try {
+root.AppVue3Bridge && root.AppVue3Bridge.syncState && root.AppVue3Bridge.syncState()
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+function routeDashboardCrit(source) {
+try {
+root.__APP_MARK_MAIN_SHELL_READY__ && root.__APP_MARK_MAIN_SHELL_READY__(source || "boot-after-core")
+}
+catch(_mark) {
+__appObserve(_mark, "login.boot.markShell")
+}
+try {
+if(root.AppVue3Bridge && root.AppVue3Bridge.router && __appIsFn(root.AppVue3Bridge.router.replace))return Promise.resolve(root.AppVue3Bridge.router.replace("/dashboard")).catch(function(err) {
+try {
+RT.recordWarning && RT.recordWarning("login.route.vueRecovered", err, {
+source: source || "bootMainUi"
+})
+}
+catch(_warn) {
+__appObserve(_warn, "login.route.warn")
+}
+return ! 0
+});
+if(root.nav)return Promise.resolve(root.nav("dashboard", {
+source: source || "boot-after-core", preserveLoadingSwal: ! 0
+})).catch(function(err) {
+try {
+RT.recordWarning && RT.recordWarning("login.route.navRecovered", err, {
+source: source || "bootMainUi"
+})
+}
+catch(_warn2) {
+__appObserve(_warn2, "login.route.warn2")
+}
+return ! 0
+});
+location.hash = "#/dashboard"
+}
+catch(_route) {
+try {
+RT.recordWarning && RT.recordWarning("login.route.syncRecovered", _route, {
+source: source || "bootMainUi"
+})
+}
+catch(_warn3) {
+__appObserve(_warn3, "login.route.warn3")
+}
+}
+return Promise.resolve(! 0)
+}
+return Promise.resolve(ensureCore()).catch(function(_err) {
+try {
+RT.recordWarning && RT.recordWarning("login.ensureCore.degraded", _err, {
+source: "bootMainUi"
+})
+}
+catch(_warn4) {
+__appObserve(_warn4, "login.ensureCore.warn")
+}
+return ! 0
+}).then(function() {
+try {
+! 0 === root.__APP_EAGER_DASHBOARD_PRELOAD__ && root.AppStore && root.AppStore.get && "dashboard" === String(root.AppStore.get("ui.currentPage", "dashboard") || "dashboard").replace(/^dash$/, "dashboard") && root.AppAssetLoader && __appIsFn(root.AppAssetLoader.loadPageScripts) && root.AppAssetLoader.loadPageScripts("dashboard").catch(function(_err) {
+return"function" == typeof __appObserve && __appObserve(_err, "ec"), ! 0
+})
+}
+catch(_preloadDash) {
+__appObserve(_preloadDash, "ec")
+}
+return routeDashboardCrit("boot-after-core")
+})
+}, RT.afterLogout = RT.afterLogout || function() {
+return finalizeLogout("afterLogout")
+}, root.__APP_RUNTIME_STABILITY_GATE_P1__ = {
+stamp: "p1-runtime-stability-gate-current", actionHubMode: "pass-through-first-for-page-owned-actions", printOwner: "Scripts_Core_Runtime.html/AppPrint.printWithProfile", criticalOwns: ["logout", "toggleTheme", "toggleSidebar", "navigation", "collapse"], pageOwned: ["budgetSaveActiveEntry", "resetBudgetEntryForm", "showPsTab", "renderPeopleSubcommitteeTab", "closePetSummary"], invariants: {
+uiDomChanged: ! 1, cssChanged: ! 1, businessLogicChanged: ! 1
+}
+}, root.AppActionHub = root.AppActionHub || {
+}, root.AppActionHub.dispatch = function(a, t, e) {
+if(! (a = txt(a).trim()))return ! 1;
+var printAction = isPrintActionName(a), p = pageHint(a, t), coreOwned = /^(logout|toggleTheme|toggleSidebar)$/i.test(a), knownAction;
+if(/^login$/i.test(a))return ! 1;
+if(printAction) {
+try {
+e && (e.preventDefault && e.preventDefault(), e.__appPrintActionHandled =! 0, e.__appPrintActionHandledByCritical =! 0)
+}
+catch(_printFlagErr) {
+"function" == typeof __appObserve && __appObserve(_printFlagErr, "actionhub.print.flag")
+}
+return Promise.resolve(runPrintAction(a, t, e, p)).catch(function(err) {
+return RT.handleError && RT.handleError(err, "พิมพ์ไม่สำเร็จ"), ! 1
+}).finally(function() {
+try {
+RT.clearUiBlocks && RT.clearUiBlocks("action-print-finally:" + a, {
+closeLoadingSwal: ! 1, closeSidebar: ! 1, clearSectionOverlays: ! 0, preservePrintOverlays: ! 0, preservePrintSelection: ! 0
+})
+}
+catch(_printFinalizeErr) {
+"function" == typeof __appObserve && __appObserve(_printFinalizeErr, "actionhub.print.finalize")
+}
+}), ! 0
+}
+function nativePageActionPassThrough() {
+return ! 1
+}
+if(e && e.preventDefault && e.preventDefault(), e && e.stopPropagation && e.stopPropagation(), "logout" === a)return logout();
+if("toggleTheme" === a)return root.AppTheme.toggle(), ! 0;
+if("toggleSidebar" === a) {
+if(__appIsFn(root.toggleSidebar))return root.toggleSidebar();
+doc.body.classList.toggle("sidebar-collapsed");
+var ov = id("sidebar-overlay");
+return ov && (ov.classList.toggle("show"), ov.style.display = ov.classList.contains("show") ? "block": "none", ov.setAttribute("aria-hidden", ov.classList.contains("show") ? "false": "true")), ! 0
+}
+var task = printAction ? runPrintAction(a, t, e, p): runPageAction(a, t, e, p);
+return Promise.resolve(task).catch(function(err) {
+return RT.handleError(err, printAction ? "พิมพ์ไม่สำเร็จ": "ดำเนินการไม่สำเร็จ"), ! 1
+}).finally(function() {
+try {
+RT.clearUiBlocks && RT.clearUiBlocks((printAction ? "action-print-finally:": "action-finally:") + a, {
+closeLoadingSwal: ! 1, closeSidebar: ! 1, clearSectionOverlays: ! 0, preservePrintOverlays: !! printAction, preservePrintSelection: !! printAction
+})
+}
+catch(_finalizeErr) {
+"function" == typeof __appObserve && __appObserve(_finalizeErr, "ec")
+}
+}), ! 0
+}, root.__APP_SINGLE_EVENT_DELEGATION__ || (root.__APP_SINGLE_EVENT_DELEGATION__ =! 0, doc.addEventListener("click", function(ev) {
+var t = closest(ev.target, "[data-nav],[data-action],[data-bs-toggle]");
+if(t) {
+var nav = t.getAttribute("data-nav"), act = t.getAttribute("data-action");
+if(nav) {
+ev.preventDefault();
+var role = resolveNavRoleCrit(), navKey = txt(nav).toLowerCase();
+if("Viewer" === role && "dash" !== navKey && "dashboard" !== navKey && "budget" !== navKey && "search" !== navKey)return;
+if("Staff" === role && "admin" === navKey)return;
+return RT.clearUiBlocks && RT.clearUiBlocks("critical-nav-click", {
+closeLoadingSwal: ! 0, closeSidebar: ! 0, clearSectionOverlays: ! 0
+}), __appIsFn(root.toggleSidebar) && root.toggleSidebar(! 1), root.nav && root.nav(nav), void 0
+}
+if("collapse" === t.getAttribute("data-bs-toggle")) {
+ev.preventDefault();
+var pane = doc.querySelector(t.getAttribute("data-bs-target") || t.getAttribute("href") || "");
+return pane && (pane.classList.toggle("show"), t.setAttribute("aria-expanded", pane.classList.contains("show") ? "true": "false")), void 0
+}
+act && root.AppActionHub.dispatch(act, t, ev)
+}
+}, ! 0)), root.__APP_STAGE13_OVERLAY_CLOSE__ || (root.__APP_STAGE13_OVERLAY_CLOSE__ =! 0, doc.addEventListener("click", function(ev) {
+var t = ev && ev.target;
+t && "sidebar-overlay" === t.id && (ev.preventDefault(), __appIsFn(root.toggleSidebar) ? root.toggleSidebar(! 1): RT.clearUiBlocks && RT.clearUiBlocks("overlay-click", {
+closeSidebar: ! 0
+}))
+}, ! 0)), root.__APP_SINGLE_CHANGE_DELEGATION__ || (root.__APP_SINGLE_CHANGE_DELEGATION__ =! 0, doc.addEventListener("change", function(ev) {
+var t = closest(ev.target, "[data-change]");
+t && root.AppActionHub.dispatch(t.getAttribute("data-change"), t, ev)
+}, ! 0)), root.__APP_THAI_DATE_BOOTSTRAP_DELEGATION_CurrentStamp__ || (root.__APP_THAI_DATE_BOOTSTRAP_DELEGATION_CurrentStamp__ =! 0);
+try {
+doc.documentElement.setAttribute("data-critical-datepicker-focus", "bootstrap-only")
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+installCriticalAuthOwnerCurrentStamp(), root.AppLogin = root.AppLogin || {
+}, root.AppLogin.execute = executeLogin, root.AppLogin.init = bindLogin, root.executeLogin = executeLogin, root.AppAccessibility = root.AppAccessibility || {
+}, root.AppAccessibility.ensureLiveRegion = root.AppAccessibility.ensureLiveRegion || function() {
+var n = id("app-live-region");
+return n || ((n = doc.createElement("div")).id = "app-live-region", n.className = "app-live-region app-sr-only", n.setAttribute("role", "status"), n.setAttribute("aria-live", "polite"), doc.body.insertBefore(n, doc.body.firstChild || null)), n
+}, root.AppAccessibility.announce = root.AppAccessibility.announce || function(m, pol) {
+try {
+var n = root.AppAccessibility.ensureLiveRegion();
+n.setAttribute("aria-live", "assertive" === pol ? "assertive": "polite"), n.textContent = txt(m)
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+return ! 0
+}, root.AppAccessibility.apply = root.AppAccessibility.apply || function() {
+try {
+root.AppAccessibility.ensureLiveRegion();
+var e = id("app-login-error") || id("login-error-msg");
+e && (e.setAttribute("role", "alert"), e.setAttribute("aria-live", "assertive"))
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+return ! 0
+}, RT.ready(function() {
+logo(), root.AppTheme.apply(), root.AppAccessibility.apply(), bindLogin();
+try {
+"#/login" === location.hash || /(?:\?|&)_(?:logout|login)=/.test(location.search || "") || criticalReadyHasActiveSession() || root.AppSessionResume && root.AppSessionResume.tryResume && root.AppSessionResume.tryResume({
+reason: "critical-ready"
+}).then(function(restored) {
+restored || bindLogin()
+})
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+("#/login" === location.hash || /(?:\?|&)_(?:logout|login)=/.test(location.search || "")) && (clearResume(), clearFields(), RT.delay("login.clearFields", clearFields, 200))
+}, "critical.ready")
+}
+function ns(name, seed) {
+name = String(name || "");
+var cur = root[name];
+return cur && "object" == typeof cur || (cur = seed || {
+}, root[name] = cur), cur
+}
+function txt(v) {
+return null == v ? "": String(v)
+}
+function normRoleCrit(v) {
+var r = txt(v).trim(), k = r.toLowerCase();
+return"admin" === k || "administrator" === k || "superadmin" === k || "super-admin" === k || /ผู้ดูแลระบบ|ผู้ดูแล/.test(r) ? "Admin": "viewer" === k || "view" === k || "readonly" === k || "read-only" === k || "guest" === k || /อ่านอย่างเดียว|ผู้ดู/.test(r) ? "Viewer": "staff" === k || "officer" === k || "user" === k || "editor" === k || "operator" === k || /(เจ้าหน้าที่|เลขานุการ|ฝ่ายเลขานุการ|ปฏิบัติการ)/.test(r) ? "Staff": r ? "Staff": "Viewer"
+}
+function renderUserBadgeCrit(badge, name, role) {
+if(badge) {
+badge.textContent = "";
+var n = doc.createElement("div"), r = doc.createElement("div");
+n.className = "sidebar-user-name", r.className = "sidebar-user-role", n.setAttribute("data-user-badge-name", "1"), r.setAttribute("data-user-badge-role", "1"), n.textContent = "ชื่อ-สกุล:" + (name || "-"), r.textContent = "ระดับสิทธิ์:" + (role || "Viewer"), badge.appendChild(n), badge.appendChild(r), badge.classList.remove("d-none", "bg-secondary", "bg-danger", "bg-warning", "bg-primary"), badge.classList.add("sidebar-user-badge"), badge.style.display = "block", badge.setAttribute("data-role", role || "Viewer")
+}
+}
+function authReadyCrit() {
+try {
+return !! (store.get("auth.token", "") || store.get("auth.loginOk", ! 1) || store.get("auth.bootstrapOk", ! 1) || "authenticated" === txt(store.get("auth.status", "")))
+}
+catch(_authReadyCritErr) {
+"function" == typeof __appObserve && __appObserve(_authReadyCritErr, "nav2.crit.authReady");
+return ! 1
+}
+}
+function rawRoleCrit(user) {
+user = user || store.get("auth.user", {
+}) || {
+};
+return txt(store.get("auth.role", "") || user.role || user.userRole || user.accessRole || root.currentUserRole || root.userRole || "")
+}
+function resolveNavRoleCrit() {
+var raw = rawRoleCrit();
+return raw ? normRoleCrit(raw): authReadyCrit() ? "Staff": "Viewer"
+}
+function menuMutationReadyCrit(role) {
+var ready = authReadyCrit() && !! rawRoleCrit({
+role: role
+});
+try {
+doc.documentElement && doc.documentElement.setAttribute("data-role-menu-ready", ready ? "1": "0")
+}
+catch(_critReadyAttrErr) {
+"function" == typeof __appObserve && __appObserve(_critReadyAttrErr, "nav2.crit.readyAttr")
+}
+return ready
+}
+function updateRoleBadgeCrit(user) {
+try {
+user = user || store.get("auth.user", {
+}) || {
+};
+var raw = rawRoleCrit(user), role = raw ? normRoleCrit(raw): authReadyCrit() ? "Staff": "Viewer", name = txt(store.get("auth.name", "") || user.fullName || user.fullname || user.name || user.displayName || user.username || "ผู้ใช้งาน");
+renderUserBadgeCrit(id("user-badge"), name, role), root.currentUserRole = role, root.currentUserName = name, applyRoleAccessCrit(role)
+}
+catch(_badge) {
+"function" == typeof __appObserve && __appObserve(_badge, "ec")
+}
+}
+function setMenuVisibleCrit(el, on) {
+el && (el.style.display = on ? "": "none", el.setAttribute("aria-hidden", on ? "false": "true"), el.classList && el.classList.toggle("d-none", ! on))
+}
+function applyPendingStaffMenuCrit(reason) {
+try {
+Array.prototype.slice.call(doc.querySelectorAll("#side [data-nav]")).forEach(function(el) {
+var nav = txt(el.getAttribute("data-nav")).toLowerCase();
+setMenuVisibleCrit(el, "admin" !== nav)
+});
+setMenuVisibleCrit(doc.querySelector('#side [data-bs-target="#caseMenu"]'), !0);
+var caseMenu = id("caseMenu");
+caseMenu && caseMenu.classList.add("show");
+setMenuVisibleCrit(id("menu-admin"), !1);
+doc.documentElement.setAttribute("data-user-role", "staff-pending");
+doc.documentElement.setAttribute("data-role-menu-ready", "0");
+doc.documentElement.setAttribute("data-role-menu-pending", reason || "phase2-critical-role-pending")
+}
+catch(_pendingCrit) {
+"function" == typeof __appObserve && __appObserve(_pendingCrit, "phase2.crit.pendingMenu")
+}
+return "Staff"
+}
+function applyRoleAccessCrit(role) {
+try {
+if(! menuMutationReadyCrit(role)) {
+try {
+root.AppRuntime && root.AppRuntime.recordWarning && root.AppRuntime.recordWarning("phase2.criticalMenuMutationPending", {
+hasAuth: authReadyCrit(), hasRole: !! rawRoleCrit({
+role: role
+})
+})
+}
+catch(_critSkipWarnErr) {
+"function" == typeof __appObserve && __appObserve(_critSkipWarnErr, "phase2.crit.skipWarn")
+}
+return authReadyCrit() ? applyPendingStaffMenuCrit("role-not-ready"): resolveNavRoleCrit()
+}
+var isAdmin = "Admin" === (role = normRoleCrit(role || rawRoleCrit() || "Viewer")), isStaff = "Staff" === role, isViewer = "Viewer" === role, caseToggle;
+Array.prototype.slice.call(doc.querySelectorAll("#side [data-nav]")).forEach(function(el) {
+var nav = txt(el.getAttribute("data-nav")).toLowerCase(), show;
+setMenuVisibleCrit(el, isAdmin || isStaff && "admin" !== nav || isViewer && ("dash" === nav || "dashboard" === nav || "budget" === nav || "search" === nav))
+}), setMenuVisibleCrit(doc.querySelector('#side [data-bs-target="#caseMenu"]'), isAdmin || isStaff || isViewer);
+var caseMenu = id("caseMenu"), admin;
+! caseMenu || isAdmin || isStaff || isViewer ? caseMenu && caseMenu.classList.add("show"): caseMenu && caseMenu.classList.remove("show"), setMenuVisibleCrit(id("menu-admin"), isAdmin), doc.documentElement.setAttribute("data-user-role", role.toLowerCase()), doc.documentElement.setAttribute("data-role-menu-ready", "1"), doc.documentElement.removeAttribute("data-role-menu-pending")
+}
+catch(_role) {
+"function" == typeof __appObserve && __appObserve(_role, "ec")
+}
+}
+function id(x) {
+return"string" == typeof x ? doc.getElementById(x): x
+}
+function copy(v) {
+if(null == v || "object" != typeof v)return v;
+try {
+return JSON_.parse(JSON_.stringify(v))
+}
+catch(_) {
+return Array.isArray(v) ? v.slice(): Object.assign({
+}, v)
+}
+}
+function split(p) {
+return txt(p).split(".").filter(Boolean)
+}
+function emit(p, v) {
+try {
+doc.dispatchEvent(new CustomEvent("app:state-changed", {
+detail: {
+path: txt(p), value: v, crit: ! 0
+}
+}))
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+}
+function ctx() {
+var z = "";
+try {
+z = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return {
+userAgent: txt(navigator.userAgent), language: txt(navigator.language || navigator.userLanguage), platform: txt(navigator.platform), timezone: z, critRt: ! 0
+}
+}
+function scrubUrl() {
+try {
+var q = new URLSearchParams(location.search || ""), c =! 1;
+["username", "user", "email", "password", "pass", "pwd"].forEach(function(k) {
+q.has(k) && (q.delete(k), c =! 0)
+}), c && history.replaceState(null, doc.title, location.pathname + (q.toString() ? "?" + q: "") + (location.hash || ""))
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+}
+function banner(type, msg, ms) {
+type = /^(success|danger|warning|info)$/i.test(txt(type)) ? txt(type): "danger";
+var el = id("global-app-banner");
+return el || ((el = doc.createElement("div")).id = "global-app-banner", el.className = "app-banner alert", el.setAttribute("role", "status"), el.style.cssText = "position:fixed;top:12px;right:12px;z-index:2147483001;max-width:min(520px,calc(100vw-24px));", doc.body.appendChild(el)), el.className = "app-banner alert alert-" + type, el.textContent = txt(msg), el.style.display = "block", RT._bannerTimer && clearTimeout(RT._bannerTimer), RT._bannerTimer = RT.delay("banner", function() {
+el.style.display = "none"
+}, Number(ms || 5200)), el
+}
+function data(p) {
+return null == p ? {
+}
+: Array.isArray(p) ? p.slice(): "object" == typeof p ? Object.assign({
+}, p): {
+value: p
+}
+}
+function env(r) {
+return r && "object" == typeof r && Object.prototype.hasOwnProperty.call(r, "ok") ? {
+ok: !! r.ok, data: Object.prototype.hasOwnProperty.call(r, "data") ? r.data: r, msg: txt(r.msg), error: txt(r.error), errorCode: txt(r.errorCode || r.code), csrfToken: txt(r.csrfToken || r.data && r.data.csrfToken), token: txt(r.token || r.nextToken || r.data && (r.data.token || r.data.nextToken)), requestId: txt(r.requestId || r.reqId || r.meta && r.meta.requestId), latencyMs: Number(r.latencyMs || r.durationMs || 0) || 0, meta: r.meta || null
+}
+: {
+ok: ! 0, data: r || {
+}, msg: "", error: "", errorCode: "", csrfToken: "", token: "", requestId: "", latencyMs: 0, meta: null
+}
+}
+function phaseDWriteErrorCrit(code, message, fields) {
+var e = new Error(txt(message || "ไม่สามารถบันทึกข้อมูลได้"));
+e.code = txt(code || "WRITE_PREFLIGHT_FAILED");
+e.errorCode = e.code;
+e.fields = fields || [];
+e.phaseDPreflight = !0;
+e.writeReliabilityStamp = "phaseK-write-schema-unification-2026-07-02-r1";
+return e
+}
+function phaseKFieldSpecCrit(code, message, fields, paths) { return { code: txt(code || "WRITE_FIELD_REQUIRED"), message: txt(message || "ข้อมูลสำหรับบันทึกไม่ครบถ้วน"), fields: fields || [], paths: paths || fields || [] }; }
+function phaseKWriteSchemaByMethodCrit() { var schema = {"apiSaveCase":{"required":[{"code":"VALIDATION_MISSING_CASE_TITLE","message":"กรุณากรอกชื่อเรื่องก่อนบันทึก","fields":["title","caseTitle","subject"],"paths":["case.title","case.caseTitle","case.subject","title","caseTitle","subject"]}]},"apiDeleteCase":{"required":[{"code":"VALIDATION_MISSING_CASE_ID","message":"ไม่พบรหัสเรื่องที่จะลบ","fields":["caseId"],"paths":["caseId","id","case.caseId","case.id"]}]},"apiSavePetitioner":{"required":[]},"apiDeletePetitioner":{"required":[{"code":"VALIDATION_MISSING_PETITIONER_ID","message":"ไม่พบรหัสผู้ร้องเรียนที่จะลบ","fields":["petId","id"],"paths":["petId","id","petitionerId","row.petId","row.id"]}]},"apiSavePersonnelComm":{"required":[]},"apiSavePersonnelOp":{"required":[]},"apiSavePersonnelStaff":{"required":[]},"apiSavePersonnelSubcommittee":{"required":[]},"apiDeletePersonnelComm":{"required":[{"code":"VALIDATION_MISSING_PERSONNEL_ID","message":"ไม่พบรหัสข้อมูลบุคลากรที่จะลบ","fields":["id","personnelId","commId"],"paths":["id","personnelId","commId","row.id","row.personnelId","row.commId"]}]},"apiDeletePersonnelOp":{"required":[{"code":"VALIDATION_MISSING_PERSONNEL_ID","message":"ไม่พบรหัสข้อมูลบุคลากรที่จะลบ","fields":["id","personnelId","opId"],"paths":["id","personnelId","opId","row.id","row.personnelId","row.opId"]}]},"apiDeletePersonnelStaff":{"required":[{"code":"VALIDATION_MISSING_PERSONNEL_ID","message":"ไม่พบรหัสข้อมูลบุคลากรที่จะลบ","fields":["id","personnelId","staffId"],"paths":["id","personnelId","staffId","row.id","row.personnelId","row.staffId"]}]},"apiDeletePersonnelSubcommittee":{"required":[{"code":"VALIDATION_MISSING_PERSONNEL_ID","message":"ไม่พบรหัสข้อมูลบุคลากรที่จะลบ","fields":["id","personnelId","subcommitteeId"],"paths":["id","personnelId","subcommitteeId","row.id","row.personnelId","row.subcommitteeId"]}]},"apiSaveCommitteeMeetingSystem":{"required":[{"code":"VALIDATION_MISSING_MEETING_NO","message":"กรุณาระบุการประชุมครั้งที่ก่อนบันทึก","fields":["meetingNo","round"],"paths":["meeting.meetingNo","meeting.round","meeting.no","meetingNo","round","no"]},{"code":"VALIDATION_MISSING_MEETING_DATE","message":"กรุณาระบุวันเดือนปีการประชุมก่อนบันทึก","fields":["meetingDate","date"],"paths":["meeting.meetingDate","meeting.date","meetingDate","date"]}]},"apiDeleteCommitteeMeetingSystem":{"required":[{"code":"VALIDATION_MISSING_MEETING_ID","message":"ไม่พบรหัสการประชุมที่จะลบ","fields":["meetingId"],"paths":["meetingId","id","meeting.meetingId","meeting.id"]}]},"apiSaveSalarySettings":{"required":[]},"apiSaveMeetingLog":{"required":[{"code":"VALIDATION_MISSING_CASE_ID","message":"กรุณาเลือกเรื่องพิจารณาก่อนบันทึกประวัติการประชุม","fields":["caseId"],"paths":["caseId","log.caseId","row.caseId"]},{"code":"VALIDATION_MISSING_MEETING_ROUND","message":"กรุณาระบุครั้งที่ประชุม","fields":["round","meetingNo"],"paths":["round","meetingRound","meetingNo","log.round","log.meetingNo"]},{"code":"VALIDATION_MISSING_MEETING_DATE","message":"กรุณาระบุวันที่ประชุม","fields":["date","meetingDate"],"paths":["date","meetingDate","log.date","log.meetingDate"]}]},"apiDeleteMeetingLog":{"required":[{"code":"VALIDATION_MISSING_MEETING_LOG_ID","message":"ไม่พบรหัสประวัติการประชุมที่จะลบ","fields":["id","logId"],"paths":["id","logId","meetingLogId","row.id","log.id"]}]},"apiSaveLetter":{"required":[{"code":"VALIDATION_MISSING_CASE_ID","message":"กรุณาเลือกเรื่องพิจารณาก่อนบันทึกหนังสือ","fields":["caseId"],"paths":["caseId","letter.caseId","row.caseId"]}]},"apiDeleteLetter":{"required":[{"code":"VALIDATION_MISSING_LETTER_ID","message":"ไม่พบรหัสหนังสือที่จะลบ","fields":["letterId","id"],"paths":["letterId","id","letter.id","row.id"]}]},"apiCleanupMeetingData":{"required":[]},"apiBudgetSaveImport":{"required":[]},"apiBudgetDeleteImport":{"required":[{"code":"VALIDATION_MISSING_BUDGET_IMPORT_ID","message":"ไม่พบรหัสรายการงบประมาณที่จะลบ","fields":["id","importId","recordId"],"paths":["id","importId","recordId","budgetId","row.id","record.id"]}]},"apiAdminSaveUser":{"required":[]},"apiAdminDeleteUser":{"required":[{"code":"VALIDATION_MISSING_ADMIN_USER_ID","message":"ไม่พบรหัสหรือชื่อผู้ใช้งานที่จะลบ","fields":["username","id"],"paths":["username","oldUsername","id","user.username","user.id"]}]},"apiAdminSaveSubcommittee":{"required":[{"code":"VALIDATION_MISSING_SUBCOMMITTEE_NAME","message":"กรุณาระบุชื่อคณะอนุกรรมาธิการ","fields":["name"],"paths":["name","subcommittee.name","row.name"]}]},"apiAdminDeleteSubcommittee":{"required":[{"code":"VALIDATION_MISSING_SUBCOMMITTEE_ID","message":"ไม่พบรหัสคณะอนุกรรมาธิการที่จะลบ","fields":["id","subcommitteeId"],"paths":["id","subcommitteeId","subcommittee.id","row.id"]}]},"apiBudgetAdminSaveYearSettingsRows":{"required":[{"code":"VALIDATION_MISSING_FISCAL_YEAR","message":"กรุณาระบุปีงบประมาณ","fields":["fy"],"paths":["fy","fiscalYear","budgetYear","year"]}]}}; try { root.AppWriteSchema = Object.freeze({ stamp:"phaseK-write-schema-unification-2026-07-02-r1", owner:"CriticalRuntime.WRITE_SCHEMA_BY_METHOD", methods:Object.keys(schema).sort(), schemas:schema }) } catch(_e) { "function" == typeof __appObserve && __appObserve(_e,"ec") } return schema; }
+function phaseKValidateRequiredWriteFieldsCrit(method, payload) { var item = phaseKWriteSchemaByMethodCrit()[txt(method)] || null, required = item && item.required || []; for(var i=0;i<required.length;i++){ var spec=required[i] || {}; if(!phaseDValueAtCrit(payload, spec.paths || spec.fields || [])) throw phaseDWriteErrorCrit(spec.code, spec.message, spec.fields || spec.paths || []); } return payload; }
+function phaseDValueAtCrit(obj, paths) {
+obj = obj || {
+};
+for(var i = 0; i < (paths || []).length; i ++) {
+var cur = obj, parts = txt(paths[i]).split("."), ok = !0;
+for(var j = 0; j < parts.length; j ++) {
+if(! cur || "object" != typeof cur || Array.isArray(cur) || ! Object.prototype.hasOwnProperty.call(cur, parts[j])) {
+ok = !1;
+break
+}
+cur = cur[parts[j]]
+}
+if(ok && txt(cur))return txt(cur)
+}
+return ""
+}
+function preflightWriteReliabilityCrit(method, payload) {
+method = txt(method);
+if(! root.isWriteApiMethod(method) || "apiIssueActionToken" === method)return payload;
+var q = payload && "object" == typeof payload &&! Array.isArray(payload) ? payload: {
+}, token = txt(q.token || q._token || q.authToken || store.get("auth.token", "") || root.__authToken), csrf = txt(q.csrfActionToken || q.actionToken || q._actionToken || q.csrfToken || q.csrf || q._csrf || store.get("auth.csrfToken", "") || root.__csrfToken);
+if(! token)throw phaseDWriteErrorCrit("AUTH_REQUIRED_BEFORE_WRITE", "เซสชันหมดอายุหรือยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่", ["token"]);
+if(! csrf)throw phaseDWriteErrorCrit("CSRF_TOKEN_MISSING_BEFORE_WRITE", "ไม่พบรหัสยืนยันความปลอดภัยสำหรับการบันทึก กรุณาโหลด/เข้าสู่ระบบใหม่", ["csrfToken"]);
+q.token = q.token || token;
+q._token = q._token || token;
+q.authToken = q.authToken || token;
+q.csrfToken = q.csrfToken || csrf;
+q.csrf = q.csrf || csrf;
+q._csrf = q._csrf || csrf;
+q.noCache = !0;
+q.forceFresh = !0;
+q.__phaseDWriteReliability = "phaseK-write-schema-unification-2026-07-02-r1";
+q.__phaseKWriteSchemaUnification = "phaseK-write-schema-unification-2026-07-02-r1";
+phaseKValidateRequiredWriteFieldsCrit(method, q);
+return q
+}
+function applyTok(n, methodName) {
+n && (n.token || n.csrfToken) && root.AppSecurity.setSessionTokens(n.token, n.csrfToken);
+try {
+var m = txt(methodName || "");
+var d = n && n.data || null;
+var isLoginEnvelope = /^api(Login|SessionResume)$/i.test(m) || !!(d && (d.routeContractDeferred || d.dataContractDeferred || d.token && d.user));
+if(!isLoginEnvelope && d && root.AppRouteContract.absorb) root.AppRouteContract.absorb(d)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return n
+}
+function base(m, p) {
+var a = txt(m), q = data(p);
+if(! Array.isArray(q)) {
+q.clientContext = q.clientContext || ctx();
+var t = txt(store.get("auth.token", "") || root.__authToken || ""), c = txt(store.get("auth.csrfToken", "") || root.__csrfToken || "");
+t &&! q.token && (q.token = t), c &&! q.csrfToken && (q.csrfToken = c), c && (q.csrf = q.csrf || q.csrfToken, q._csrf = q._csrf || q.csrfToken)
+}
+var publicMethod = /^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|apiBootstrap|apiGetRouteContract|apiGetPhase0ContractGate|apiGetPhase1Contract|apiGetPhase2Contract|apiGetClientDataContract|getDeferredInclude)$/i.test(a);
+if(! publicMethod && ! Array.isArray(q) && ! txt(q.token || q._token || q.authToken || "") && root.AppSessionResume && __appIsFn(root.AppSessionResume.tryResume) && ! q.__resumeRetried) {
+q.__resumeRetried =! 0;
+return Promise.resolve(root.AppSessionResume.tryResume({
+reason: "critical-read-before-token:" + a
+})).then(function() {
+var rt = txt(store.get("auth.token", "") || root.__authToken || ""), rc = txt(store.get("auth.csrfToken", "") || root.__csrfToken || "");
+rt && (q.token = q.token || rt, q._token = q._token || rt), rc && (q.csrfToken = q.csrfToken || rc, q.csrf = q.csrf || rc, q._csrf = q._csrf || rc);
+return base(a, q)
+}, function() {
+return base(a, q)
+})
+}
+return"apiLogin" === a || "apiSessionResume" === a ? RT.rawRun(a, q).catch(function(e) {
+var m = txt(e && e.message || e);
+if(/ไม่พบ server function|not.*function|is not a function/i.test(m))return RT.rawRun("apiRouter", {
+method: a, payload: q
+});
+throw e
+}): RT.rawRun("apiRouter", {
+method: a, payload: q
+})
+}
+function saveResume(d) {
+try {
+var h = txt((d = d || {
+}).resumeHandle || d.sessionResumeHandle || d.data && (d.data.resumeHandle || d.data.sessionResumeHandle) || "");
+if(! h)return ! 1;
+var exp, rec = {
+resumeHandle: h, resumeExpiresAt: txt(d.resumeExpiresAt || d.data && d.data.resumeExpiresAt || ""), savedAt: (new Date).toISOString(), mode: "opaque-resume-handle-currentStamp"
+}, raw = JSON_.stringify(rec);
+if(root.AppSafeStorage && root.AppSafeStorage.set && root.AppSafeStorage.set("session", RESUME_KEY, raw))return ! 0;
+try {
+return sessionStorage.setItem(RESUME_KEY, raw), ! 0
+}
+catch(_s) {
+return"function" == typeof __appObserve && __appObserve(_s, "ec"), ! 1
+}
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), ! 1
+}
+}
+function clearResume() {
+try {
+root.AppSafeStorage && root.AppSafeStorage.remove && root.AppSafeStorage.remove("session", RESUME_KEY, ! 0)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+try {
+sessionStorage.removeItem(RESUME_KEY)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return ! 0
+}
+function getResume() {
+try {
+var raw = null;
+if(root.AppSafeStorage && root.AppSafeStorage.get && (raw = root.AppSafeStorage.get("session", RESUME_KEY)), ! raw)try {
+raw = sessionStorage.getItem(RESUME_KEY)
+}
+catch(_s) {
+"function" == typeof __appObserve && __appObserve(_s, "ec")
+}
+if(! raw)return null;
+var rec = JSON_.parse(raw);
+if(! rec ||! rec.resumeHandle)return null;
+if(! root.__APP_SESSION_EXPIRY_DISABLED__ && rec.resumeExpiresAt) {
+var ms = Date.parse(rec.resumeExpiresAt);
+if(ms && ms < Date.now() + 3e4)return clearResume(), null
+}
+return rec
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), clearResume(), null
+}
+}
+function tryResume(o) {
+o = o || {
+};
+var rec = getResume();
+if(! rec ||! rec.resumeHandle) {
+try {
+store.set("auth.resumePending", ! 1), store.set("auth.sessionRestored", ! 1)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return Promise.resolve(! 1)
+}
+if(root.__APP_SESSION_RESUME_IN_FLIGHT__ && root.__APP_SESSION_RESUME_PROMISE__)return root.__APP_SESSION_RESUME_PROMISE__;
+root.__APP_SESSION_RESUME_IN_FLIGHT__ =! 0;
+try {
+store.set("auth.resumePending", ! 0)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return root.__APP_SESSION_RESUME_PROMISE__ = root.AppApi.call("apiSessionResume", {
+resumeHandle: rec.resumeHandle, clientContext: ctx(), reason: txt(o.reason || "startup")
+}).then(function(d) {
+if(! d ||! d.token ||! d.user)throw new Error("session resume ไม่สมบูรณ์");
+RT.setAuthenticatedUser(d.user, d.token, d.csrfToken || d.csrf || "", d);
+try {
+store.set("auth.sessionRestored", ! 0), store.set("auth.sessionValidatedAt", (new Date).toISOString()), store.set("auth.resumePending", ! 1)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return hydrateContractAfterLoginCrit().then(function() {
+var boot = RT.bootMainUi(d.user);
+return ! boot ||! boot.then || boot.then(function() {
+return ! 0
+})
+})
+}).catch(function(err) {
+var msg = txt(err && (err.message || err.error || err.code || err.errorCode) || err).toUpperCase(), persistent =! 0 === root.__APP_SESSION_EXPIRY_DISABLED__, hardMismatch = /RESUME\s*ไม่ตรง|ไม่ตรงกับ SESSION|BINDING|MISMATCH/.test(msg);
+persistent &&! hardMismatch || clearResume();
+try {
+store.set("auth.sessionRestored", ! 1), store.set("auth.resumePending", ! 1), store.set("auth.reauthRequired", ! 1)
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return ! 1
+}).finally(function() {
+root.__APP_SESSION_RESUME_IN_FLIGHT__ =! 1, root.__APP_SESSION_RESUME_PROMISE__ = null
+}), root.__APP_SESSION_RESUME_PROMISE__
+}
+function manifest() {
+return root.__APP_ASSET_MANIFEST__ || {
+}
+}
+function bundle(n) {
+var b = manifest().bundles && manifest().bundles[txt(n).replace(/^bundle:/i, "")];
+return b && Array.isArray(b.files) ? b.files.slice(): []
+}
+function chunks() {
+return root.__APP_DEFERRED_SCRIPTS__ || manifest().chunks || {
+}
+}
+function listFor(p) {
+var a;
+return"dash" === (p = txt(p).toLowerCase()) && (p = "dashboard"), "personnel" === p && (p = "people"), (Array.isArray(chunks()[p]) ? chunks()[p].slice(): []).filter(function(f) {
+return"Scripts_Core_Runtime" !== txt(f)
+})
+}
+function execHtml(html, target) {
+var t = target ? id(target): null, range = doc.createRange();
+range.selectNode(doc.body || doc.documentElement);
+var frag = range.createContextualFragment(txt(html));
+function looksLikeCodeLeakNode(n) {
+if(! n || 3 !== n.nodeType)return ! 1;
+var v = txt(n.textContent).replace(/\s+/g, "").trim();
+return !! v && (/^(?:<\/?script|<\/?style|\.|#|:root|@media|function\s|var\s|let\s|const\s|window\.|document\.|\/[\/*]|[a-z0-9_-]+\s*\{)/i.test(v) || /(?:\{[^}]*;|;\s*(?:window\.|document\.|var\s|let\s|const\s|function\s))/.test(v))
+}
+return t && (t.textContent = ""), Array.prototype.slice.call(frag.childNodes || []).forEach(function(n) {
+var tag = 1 === n.nodeType ? txt(n.tagName).toLowerCase(): "";
+if("script" === tag) {
+var scriptType = txt(n.getAttribute && n.getAttribute("type") || "").toLowerCase(), scriptId = txt(n.getAttribute && n.getAttribute("id") || "");
+if(/text\/x-template/.test(scriptType) && scriptId && doc.getElementById(scriptId))return;
+var s = doc.createElement("script");
+Array.prototype.slice.call(n.attributes || []).forEach(function(a) {
+s.setAttribute(a.name, a.value)
+}), s.text = n.textContent || "", doc.body.appendChild(s)
+}
+else"style" === tag ? doc.head.appendChild(n.cloneNode(! 0)): t &&! looksLikeCodeLeakNode(n) && t.appendChild(n.cloneNode(! 0))
+}), ! 0
+}
+function fetchPartialHtml(n) {
+if(! (n = txt(n).trim()))return Promise.reject(new Error("ไม่ได้ระบุชื่อ partial"));
+if(Object.prototype.hasOwnProperty.call(htmlCache, n))return Promise.resolve(htmlCache[n]);
+var fetchKey = n + "::fetch";
+return inflight[fetchKey] || (inflight[fetchKey] = root.AppApi.call("getDeferredInclude", {
+name: n
+}).then(function(r) {
+var h = txt(r && r.html || r && r.data && r.data.html || r || "");
+return htmlCache[n] = h, delete inflight[fetchKey], h
+}, function(err) {
+throw delete inflight[fetchKey], err
+}))
+}
+function prefetchPartial(n) {
+return fetchPartialHtml(n).then(function() {
+return !0
+})
+}
+function loadPartial(n, o) {
+if(o = o || {}, ! (n = txt(n).trim()))return Promise.reject(new Error("ไม่ได้ระบุชื่อ partial"));
+var t = o.mountTarget ? id(o.mountTarget): null, k = n + (t ? "::mount": "");
+if(! t && loaded[k])return Promise.resolve(!0);
+return fetchPartialHtml(n).then(function(h) {
+return execHtml(h, t || null), loaded[k] = !0, !0
+})
+}
+function safePartial(n, o) {
+return loadPartial(n, o).catch(function(e) {
+var fs = /^bundle:/i.test(txt(n)) ? bundle(n): [];
+if(! fs.length ||! /DEFERRED_INCLUDE_NOT_ALLOWED|ไม่อนุญาตให้โหลด partial|production bundle not found|ไม่พบ production bundle/i.test(txt(e && e.message || e)))throw e;
+return fs.reduce(function(p, f) {
+return p.then(function() {
+return safePartial(f)
+})
+}, Promise.resolve(! 0))
+})
+}
+function ensureCore() {
+return root.__APP_CORE_RUNTIME_LOADED__ ? Promise.resolve(! 0): (root.__APP_CORE_RUNTIME_INFLIGHT__ || (root.__APP_CORE_RUNTIME_INFLIGHT__ = safePartial("bundle:appCore").catch(function() {
+return core.reduce(function(p, n) {
+return p.then(function() {
+return safePartial(n)
+})
+}, Promise.resolve(! 0))
+}).then(function() {
+root.__APP_CORE_RUNTIME_LOADED__ =! 0, root.__APP_CORE_RUNTIME_INFLIGHT__ = null, store.set("auth.coreReady", ! 0);
+try {
+doc.dispatchEvent(new CustomEvent("app:core-runtime-ready", {
+detail: {
+source: "critical"
+}
+}))
+}
+catch(_) {
+"function" == typeof __appObserve && __appObserve(_, "ec")
+}
+return ! 0
+}, function(err) {
+throw root.__APP_CORE_RUNTIME_INFLIGHT__ = null, err
+})), root.__APP_CORE_RUNTIME_INFLIGHT__)
+}
+function loadPage(p) {
+var n = "dash" === (p = txt(p).toLowerCase()) ? "dashboard": "personnel" === p ? "people": p, list = listFor(n), prefetch = Promise.all(list.map(function(file) {
+return prefetchPartial(file).catch(function(err) {
+return RT.recordWarning("page.prefetch.degraded." + n, err, { partial: file }), !1
+})
+}));
+function executePageFiles() {
+return list.reduce(function(pr, f) {
+return pr.then(function() {
+return safePartial(f)
+})
+}, Promise.resolve(!0))
+}
+return Promise.all([ensureCore(), prefetch]).then(executePageFiles).catch(function(firstErr) {
+return ensureCore().then(executePageFiles).catch(function(err) {
+return RT.recordWarning("page.load.degraded." + n, err || firstErr), !1
+})
+})
+}
+function loadScript(u) {
+return ! (u = txt(u)) || doc.querySelector('script[src="' + u.replace(/"/g, '\\"') + '"]') ? Promise.resolve(! 0): new Promise(function(res, rej) {
+var s = doc.createElement("script");
+s.async =! 0, s.defer =! 0, s.crossOrigin = "anonymous", s.referrerPolicy = "no-referrer", s.src = u, s.onload = function() {
+res(! 0)
+}, s.onerror = function() {
+rej(new Error("โหลดสคริปต์ไม่สำเร็จ: " + u))
+}, doc.head.appendChild(s)
+})
+}
+function loadCss(u) {
+return ! (u = txt(u)) || doc.querySelector('link[href="' + u.replace(/"/g, '\\"') + '"]') ? Promise.resolve(! 0): new Promise(function(res) {
+var l = doc.createElement("link");
+l.rel = "stylesheet", l.crossOrigin = "anonymous", l.referrerPolicy = "no-referrer", l.href = u, l.onload = function() {
+res(! 0)
+}, l.onerror = function() {
+res(! 1)
+}, doc.head.appendChild(l)
+})
+}
+function external(g) {
+return g = (root.APP_EXTERNAL_ASSETS || {
+})[txt(g)] || {
+}, Promise.all([(g.styles || []).map(loadCss).reduce(function(p, x) {
+return p.then(function() {
+return x
+})
+}, Promise.resolve(! 0)), (g.scripts || []).reduce(function(p, u) {
+return p.then(function() {
+return loadScript(u)
+})
+}, Promise.resolve(! 0))]).then(function() {
+return ! 0
+})
+}
+function logo() {
+var src = txt(root.__APP_PARLIAMENT_LOGO__ || root.currentLogoUrl || root.LOGO_URL || root.DEFAULT_LOGO || root.__SAFE_LOGO_URL__);
+return !! src && (Array.prototype.forEach.call(doc.querySelectorAll('[data-logo="parliament"],#login-logo-img,#side-logo-img,#mobile-topbar-logo,.print-logo-img'), function(img) {
+img && (img.getAttribute("src") || img.setAttribute("src", src), img.onerror = function() {
+this.getAttribute("src") !== src && this.setAttribute("src", src)
+})
+}), ! 0)
+}
+function clearFields() {
+try {
+Array.prototype.forEach.call(doc.querySelectorAll('#u_name,#u_pass,#u_user,#login-username,#login-password,input[type="password"],input[autocomplete="username"],input[autocomplete="current-password"]'), function(el) {
+el.value = "", el.setAttribute("value", ""), el.defaultValue = "";
+try {
+el.blur()
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+})
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+}
+function resetLoginSurfaceCrit(reason) {
+try {
+root.Swal && root.Swal.close && root.Swal.close()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+root.AppRuntime && __appIsFn(root.AppRuntime.clearUiBlocks) && root.AppRuntime.clearUiBlocks(reason || "login-surface-reset", {
+closeLoadingSwal: ! 0, closeSidebar: ! 0, clearSectionOverlays: ! 0
+})
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+Array.prototype.forEach.call(doc.querySelectorAll(".modal-backdrop,.offcanvas-backdrop,.swal2-container"), function(el) {
+el && el.parentNode && el.parentNode.removeChild(el)
+})
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+doc.body && doc.body.classList.remove("modal-open", "offcanvas-backdrop", "swal2-shown", "swal2-height-auto", "sidebar-open"), doc.body && (doc.body.style.overflow = "", doc.body.style.paddingRight = "")
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+var ov = id("sidebar-overlay");
+ov && (ov.classList.remove("show"), ov.style.display = "none", ov.setAttribute("aria-hidden", "true"))
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+var btn = id("btn-login-action");
+btn && (btn.disabled =! 1, btn.removeAttribute("disabled"), btn.setAttribute("aria-busy", "false"), btn.textContent = btn.dataset.defaultText || "เข้าสู่ระบบ")
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+return ! 0
+}
+function unlockLoginLocksCrit() {
+return root.__APP_LOGIN_IN_FLIGHT__ =! 1, root.__APP_LOGOUT_IN_PROGRESS__ =! 1, root.__APP_SESSION_RESUME_DISABLED__ =! 1, root.__APP_LOGGED_OUT_LOCK__ =! 1, root.__APP_SESSION_RESUME_IN_FLIGHT__ =! 1, root.__APP_SESSION_RESUME_PROMISE__ = null, root.__APP_SOFT_REAUTH_RESUME_IN_FLIGHT__ =! 1, root.AppSessionResume && (root.AppSessionResume.disabled =! 1, root.AppSessionResume.__disabledByLogoutCurrentStamp =! 1), resetLoginSurfaceCrit("unlock-login-locks"), ! 0
+}
+function shell(auth) {
+try {
+if(__appIsFn(root.__APP_SET_SHELL_MODE__))root.__APP_SET_SHELL_MODE__(!! auth);
+else {
+doc.body.classList.add("app-ready"), doc.documentElement.classList.toggle("app-authenticated", !! auth);
+var lp = id("login-page"), mc = id("main-container"), lh = doc.querySelector(".vue3-login-host"), ms = doc.querySelector(".vue3-main-shell");
+lh && (lh.style.display = auth ? "none": ""), ms && (ms.style.display = auth ? "": "none"), lp && (lp.style.display = auth ? "none": "flex"), mc && (mc.style.display = auth ? "block": "none")
+}
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+}
+function forceLogin(reason) {
+shell(! 1), clearFields();
+try {
+doc.documentElement.classList.remove("app-authenticated"), doc.body.classList.add("app-ready")
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+try {
+var lp = id("login-page"), mc = id("main-container"), lh = doc.querySelector(".vue3-login-host"), ms = doc.querySelector(".vue3-main-shell");
+lp && (lp.style.display = "flex", lp.classList.remove("d-none")), mc && (mc.style.display = "none"), lh && (lh.style.display = "", lh.classList.remove("d-none")), ms && (ms.style.display = "none")
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+try {
+history.replaceState(null, doc.title, location.pathname + location.search.replace(/([?&])_logout=1(&|$)/, "$1").replace(/[?&]$/, "") + "#/login")
+}
+catch(_) {
+try {
+location.hash = "#/login"
+}
+catch(__) {
+"function" == typeof __appObserve && __appObserve(__, "ec")
+}
+}
+try {
+root.__APP_FORCE_LOGIN_VIEW__ && root.__APP_FORCE_LOGIN_VIEW__(reason || "critical-login")
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+try {
+"#/login" !== location.hash && (location.hash = "#/login")
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+root.__APP_LOGOUT_IN_PROGRESS__ =! 1
+}
+function finalizeLogout(reason) {
+return root.AppLogout && root.AppLogout.finalize ? root.AppLogout.finalize(reason): forceLogin(reason || "logout")
+}
+function logout() {
+return root.AppLogout && root.AppLogout.execute ? root.AppLogout.execute(): Promise.resolve(! 1)
+}
+function isAiAction(a) {
+return/^(generateAIExecutiveSummary|loadBudgetRiskDashboard|checkDuplicateTitle|generateCaseExecutiveSummary|startPersonnelAnalysis|clearPersonnelAnalysis|printWorkloadReport|resetAiResult|copyAiResultToLetterForm|resetCaseAiResult|applyCaseAiResult|handleAiPdfUpload|handleCaseAiPdfUpload)$/.test(txt(a))
+}
+function pageHint(a, t) {
+var p = t && t.getAttribute && (t.getAttribute("data-app-page") || t.getAttribute("data-page") || t.getAttribute("data-vue-page"));
+if(p)return p;
+try {
+for(var e = t;
+e && e !== doc;
+) {
+var xid = e.id || "";
+if(/^p-/.test(xid))return xid.replace(/^p-/, "").replace(/^dash$/, "dashboard");
+e = e.parentNode
+}
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+return a = txt(a), /^(addUser|editUser|delUser|loadAdmin|showAdmin|openAdmin|saveAdmin|editSubcommittee|deleteSubcommittee)/i.test(a) ? "admin": /^(saveCase|caseSave|addNewCase|resetCaseForm|closeCaseForm)/i.test(a) ? "case": /^showPs|People|Ps|openPs|editPs|delPs/i.test(a) ? "people": /Budget/i.test(a) ? "budget": /Meeting|Letter/i.test(a) ? "meeting": /Pet/i.test(a) ? "petitioner": /Track/i.test(a) ? "track": /Report|Print|print/i.test(a) ? "report": root.AppPages.__currentPage || txt(store.get("ui.currentPage", ""))
+}
+function closest(el, s) {
+for(;
+el && el !== doc;
+) {
+if(el.matches && el.matches(s))return el;
+el = el.parentNode
+}
+return null
+}
+function isPrintActionName(a) {
+return/^(printPage|printReportPdf|printTrack|printBudgetSummary|printTypeSummary|printPersonnelReportMenu|printSalaryReportOnly|printWorkloadReport|printBudgetImportRecord|searchPrintCase)$/i.test(txt(a))
+}
+function runPageAction(a, t, e, p) {
+var targetPage = (p = txt(p || pageHint(a, t) || "")) || txt(root.AppPages && root.AppPages.__currentPage || store.get("ui.currentPage", "") || ""), actionPageMap = {
+addUserPopup: "admin", editUserPopup: "admin", delUser: "admin", loadAdminData: "admin", openAdminBudgetSettings: "admin", openSubcommitteePrompt: "admin", saveAdminSalarySettings: "admin", showAdminTab: "admin", editSubcommitteePrompt: "admin", deleteSubcommitteePrompt: "admin",
+openPetModal: "petitioner", renderPetitionerList: "petitioner", reloadPetitioners: "petitioner", showPetSummary: "petitioner", editPetModal: "petitioner", deletePetitionerById: "petitioner", closePetSummary: "petitioner", printPetitionerSummary: "petitioner",
+showBudgetTab: "budget", budgetSaveActiveEntry: "budget", resetBudgetEntryForm: "budget", loadBudgetTypeSummary: "budget", loadBudgetSummary: "budget", toggleBudgetForms: "budget", calcBudgetTotalNow: "budget", viewBudgetImportRecord: "budget", editBudgetImportRecord: "budget", deleteBudgetImportRecord: "budget", exportBudgetReportExcel: "budget", budgetTypeView: "budget", budgetTypeEdit: "budget", budgetTypeDelete: "budget", budgetTypeChangePage: "budget",
+showPsTab: "people", openPsCommModal: "people", editPsComm: "people", delPsComm: "people", openPsStaffModal: "people", editPsStaff: "people", delPsStaff: "people", openPsOpModal: "people", editPsOp: "people", delPsOp: "people", openPsSubcommitteeModal: "people", editPsSubcommittee: "people", delPsSubcommittee: "people", renderPeopleSubcommitteeTab: "people", searchPersonnelHistory: "people", printPersonnelReportMenu: "people", peopleChangePage: "people", peopleReload: "people",
+meetingCreateNew: "meeting", meetingSearchCase: "meeting", meetingGoSearch: "meeting", meetingSetMode: "meeting", meetingSharedSave: "meeting", meetingSharedDelete: "meeting", meetingCloseWorkspace: "meeting", meetingRefreshData: "meeting", meetingAddReplyRow: "meeting", meetingEditLog: "meeting", meetingDeleteLog: "meeting", meetingEditLetter: "meeting", meetingDeleteLetter: "meeting", meetingShowDetail: "meeting", meetingPrint: "meeting", meetingChangePage: "meeting",
+saveCase: "case", saveCaseData: "case", caseSave: "case", addNewCase: "case", resetCaseForm: "case", closeCaseForm: "case",
+searchAll: "search", searchAllInput: "search", loadReportData: "report", filterTrack: "track", loadTrackData: "track", exportToExcel: targetPage || "report", closeSummary: "search", closePrintView: "report", searchShowCase: "search", searchEditCase: "search", searchDeleteCase: "search", searchChangePage: "search", reportChangePage: "report", trackChangePage: "track"
+};
+function safe(fn, label) {
+try {
+return fn()
+}
+catch(err) {
+return RT.recordWarning("action." + String(label || a), err, {
+action: a, pageId: targetPage
+}), ! 1
+}
+}
+function callRegistered(pageName) {
+return safe(function() {
+if(pageName = txt(pageName || targetPage || ""), root.AppPages && __appIsFn(root.AppPages.dispatchAction)) {
+var rr = root.AppPages.dispatchAction(a, t, e, {
+pageId: pageName, source: "action-hub-production-r5"
+});
+if(! 1 !== rr && void 0 !== rr)return rr
+}
+return ! 1
+}, "registered." + String(pageName || targetPage || ""))
+}
+function globalArgs() {
+return"showBudgetTab" === a ? [t && t.getAttribute && (t.getAttribute("data-budget-tab") || t.getAttribute("data-tab")) || "summary", t]: "showPsTab" === a ? [t && t.getAttribute && (t.getAttribute("data-ps-tab") || t.getAttribute("data-tab")) || "comm", t]: "showAdminTab" === a ? [t && t.getAttribute && (t.getAttribute("data-admin-tab") || t.getAttribute("data-tab")) || "user", t]: "budgetSaveActiveEntry" === a ? [e || t]: "meetingSearchCase" === a ? [! 0]: "meetingSetMode" === a ? [t && t.getAttribute && (t.getAttribute("data-mode") || t.getAttribute("data-meeting-mode")) || "case", t]: "meetingSharedSave" === a || "meetingSharedDelete" === a ? [e || t]: "searchAll" === a || "searchAllInput" === a || "loadReportData" === a || "loadTrackData" === a || "filterTrack" === a ? []: [t, e]
+}
+function callGlobal() {
+return safe(function() {
+return"meetingCreateNew" === a && __appIsFn(root.meetingCreateNew) ? root.meetingCreateNew(): "function" == typeof root[a] && root[a].apply(root, globalArgs())
+}, "global." + a)
+}
+function setShown(el, show) {
+if(! el)return ! 1;
+try {
+el.classList && el.classList.toggle("d-none", ! show), el.setAttribute && el.setAttribute("aria-hidden", show ? "false": "true");
+try {
+el.hidden =! show
+}
+catch(_hiddenErr) {
+__appObserve(_hiddenErr, "crit.s")
+}
+return show && el.removeAttribute && el.removeAttribute("hidden"), el.style && (show ? (el.style.display = "", el.style.visibility = ""): el.style.display = "none"), ! 0
+}
+catch(err) {
+return RT.recordWarning("action.dom.setShown", err, {
+id: el && el.id, show: show
+}), ! 1
+}
+}
+function clearNode(el) {
+try {
+el && (el.innerHTML = "")
+}
+catch(err) {
+RT.recordWarning("action.dom.clear", err, {
+id: el && el.id
+})
+}
+}
+function activateCaseTab() {
+try {
+var tab = id("tab-case-data"), pane = doc.querySelector && doc.querySelector("#content-case-data");
+return Array.prototype.forEach.call(doc.querySelectorAll ? doc.querySelectorAll("#meeting-tabs .nav-link"): [], function(n) {
+n.classList.remove("active"), n.setAttribute("aria-selected", "false")
+}), Array.prototype.forEach.call(doc.querySelectorAll ? doc.querySelectorAll("#meeting-workspace .tab-pane"): [], function(n) {
+n.classList.remove("show", "active")
+}), tab && (tab.classList.add("active"), tab.setAttribute("aria-selected", "true")), pane && pane.classList.add("show", "active"), ! 0
+}
+catch(err) {
+return RT.recordWarning("action.meetingCreateNew.activateTab", err), ! 1
+}
+}
+function resetMeetingForm() {
+try {
+var form = id("meeting-case-form");
+form && __appIsFn(form.reset) && form.reset(), ["meeting-caseId", "meeting-caseNum", "meeting-recNo", "meeting-offerDate", "meeting-recDate", "meeting-title", "meeting-caseTitle", "meeting-petitioners", "meeting-petitionerPhone", "meeting-respondent", "meeting-assignees", "meeting-coAssignees", "meeting-staffs", "meeting-opStaff", "meeting-keySummary", "meeting-remark", "meeting-pendingRemark", "meeting-agencyName", "meeting-closedReason", "meeting-rejectionReason", "meeting-currentLogId", "meeting-letterId"].forEach(function(k) {
+var n = id(k);
+n && (n.value = "")
+});
+var status = id("meeting-status");
+status && (status.value = "เรื่องเข้าใหม่");
+var cat = id("meeting-cat");
+cat &&! cat.value && (cat.value = "เรื่องร้องเรียน");
+var hist = id("meeting-history-tbody");
+hist && (hist.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">ยังไม่มีประวัติการประชุม</td></tr>');
+var letters = id("meeting-letter-tbody");
+return letters && (letters.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">ยังไม่มีข้อมูลหนังสือติดตาม</td></tr>'), ! 0
+}
+catch(err) {
+return RT.recordWarning("action.meetingCreateNew.resetForm", err), ! 1
+}
+}
+function openMeetingWorkspaceDirect() {
+try {
+var page = id("p-meeting"), ws = id("meeting-workspace"), res = id("meeting-search-results"), pager = id("meeting-pagination-container"), badge = id("meeting-case-badge");
+setShown(page, ! 0), setShown(res, ! 1), clearNode(res), setShown(pager, ! 1), clearNode(pager), resetMeetingForm(), activateCaseTab(), setShown(ws, ! 0), badge && (badge.textContent = "เรื่องใหม่");
+try {
+ws && ws.scrollIntoView && ws.scrollIntoView({
+block: "start", behavior: "smooth"
+})
+}
+catch(_scroll) {
+__appObserve(_scroll, "crit.s")
+}
+return !! ws
+}
+catch(err) {
+return RT.recordWarning("action.meetingCreateNew.directOpen", err), ! 1
+}
+}
+if(actionPageMap[a] && (targetPage = actionPageMap[a]), "meetingCreateNew" === a && (targetPage = "meeting"), "meetingCreateNew" === a) {
+var openedNow = openMeetingWorkspaceDirect();
+return Promise.resolve().then(function() {
+return ! __appIsFn(root.nav) || root.nav("meeting")
+}).catch(function(err) {
+return RT.recordWarning("action.meetingCreateNew.nav", err), ! 0
+}).then(function() {
+return loadPage("meeting").catch(function(err) {
+return RT.recordWarning("action.meetingCreateNew.loadPage", err), ! 0
+})
+}).then(function() {
+openMeetingWorkspaceDirect(), callGlobal(), openMeetingWorkspaceDirect(), callRegistered("meeting"), openMeetingWorkspaceDirect()
+}).catch(function(err) {
+RT.recordWarning("action.meetingCreateNew.loadAfterOpen", err), openMeetingWorkspaceDirect()
+}), ! 0
+}
+return Promise.resolve().then(function() {
+return ! targetPage || loadPage(targetPage)
+}).catch(function(err) {
+return RT.recordWarning("action.loadPage.degraded." + String(targetPage || "unknown"), err, {
+action: a
+}), ! 0
+}).then(function() {
+var registered = callRegistered(targetPage);
+if(! 1 !== registered && void 0 !== registered)return registered;
+var direct = callGlobal();
+return ! 1 !== direct && void 0 !== direct ? direct: !! isAiAction(a) && loadPage("ai").then(function() {
+var ai = callRegistered("ai");
+return ! 1 !== ai && void 0 !== ai ? ai: callGlobal()
+})
+})
+}
+function printPageForAction(a, t, p) {
+var hint = txt(p || pageHint(a, t) || "").toLowerCase();
+if(a = txt(a), /printPersonnelReportMenu|printSalaryReportOnly/i.test(a))return"people";
+if(/printBudgetSummary|printTypeSummary|printBudgetImportRecord/i.test(a))return"budget";
+if(/printTrack/i.test(a))return"track";
+if(/printReportPdf|searchPrintCase/i.test(a))return"report";
+if(/printPage/i.test(a)) {
+if(t && t.closest) {
+if(t.closest("#p-petitioner,#pet-summary-view"))return"petitioner";
+if(t.closest("#summary-view,#p-search"))return"report";
+if(t.closest("#p-budget"))return"budget";
+if(t.closest("#p-personnel"))return"people"
+}
+return hint || "report"
+}
+return hint || "report"
+}
+function ensurePrintReady(a, t, p) {
+var page = printPageForAction(a, t, p);
+return ensureCore().then(function() {
+return ! page || loadPage(page).catch(function(err) {
+return RT.recordWarning("action.print.pageLoad." + page, err, {
+action: a
+}), ! 0
+})
+})
+}
+function runPrintAction(a, t, e, p) {
+return p = txt(p || pageHint(a, t) || "report"), ensurePrintReady(a, t, p).then(function() {
+var out =! 1;
+if(root.AppPrintActionDispatcher && __appIsFn(root.AppPrintActionDispatcher.dispatch))out = root.AppPrintActionDispatcher.dispatch(a, t, {
+event: e, pageId: p, source: "action-hub-print-current"
+});
+else if(root.AppPrint && __appIsFn(root.AppPrint.dispatch))out = root.AppPrint.dispatch(a, t, {
+event: e, pageId: p, source: "action-hub-print-current"
+});
+else if(root.AppPages && __appIsFn(root.AppPages.dispatchAction)) {
+var rr = root.AppPages.dispatchAction(a, t, e, {
+pageId: p || "print", source: "action-hub-print-current"
+});
+! 1 !== rr && void 0 !== rr && (out = rr)
+}
+else"function" == typeof root[a] && (out = root[a](t, e));
+return ! 1 !== out && void 0 !== out && out
+})
+}
+function loginEl(k) {
+return id("password" === k ? "u_pass": "u_name")
+}
+function busy(btn, on) {
+(btn = id(btn || "btn-login-action")) && (btn.dataset.defaultText || (btn.dataset.defaultText = btn.textContent || "เข้าสู่ระบบ"), btn.disabled =!! on, btn.setAttribute("aria-busy", on ? "true": "false"), btn.textContent = on ? "กำลังเข้าสู่ระบบ": btn.dataset.defaultText)
+}
+function commitLoginSuccessCrit(data) {
+var user = (data = data || {
+}).user || {
+}, token = txt(data.token || data.nextToken || ""), csrf = txt(data.csrfToken || data.csrf || "");
+if(! token ||! user)throw new Error("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+unlockLoginLocksCrit();
+try {
+data && (data.routeContractDeferred = !0, data.dataContractDeferred = !0)
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+root.AppSecurity && root.AppSecurity.setSessionTokens && root.AppSecurity.setSessionTokens(token, csrf)
+}
+catch(_e) {
+try {
+store.set("auth.token", token), store.set("auth.csrfToken", csrf)
+}
+catch(_e2) {
+"function" == typeof __appObserve && __appObserve(_e2, "ec")
+}
+}
+try {
+store.assign({
+"auth.user": user, "auth.role": normRoleCrit(user.role), "auth.name": txt(user.name || user.username), "auth.status": "authenticated", "auth.loginOk": ! 0, "auth.coreReady": ! 0, "auth.uiReady": ! 1, "auth.bootstrapOk": ! 0, "auth.bootstrapPending": ! 1, "auth.resumePending": ! 1, "auth.sessionRestored": ! 1, "auth.reauthRequired": ! 1, "auth.reauthReason": ""
+})
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+saveResume(data || {
+})
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+updateRoleBadgeCrit(user)
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+doc.documentElement.classList.add("app-authenticated"), doc.body && doc.body.classList.add("app-ready")
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+doc.dispatchEvent(new CustomEvent("app:user-changed", {
+detail: {
+user: user, source: "login-success-after-logout-safe"
+}
+}))
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+return user
+}
+function hydrateContractAfterLoginCrit() {
+var token = "";
+try {
+token = txt(store.get("auth.token", "") || root.__authToken || "")
+}
+catch(_tok) {
+token = txt(root.__authToken || "")
+}
+if(! token ||! root.AppApi ||! root.AppApi.call)return Promise.resolve(! 1);
+if(root.AppRouteContract && root.AppRouteContract.loaded && root.AppRouteContract.routes)return Promise.resolve(! 0);
+if(root.__APP_CONTRACT_HYDRATE_PROMISE__)return root.__APP_CONTRACT_HYDRATE_PROMISE__;
+root.__APP_CONTRACT_HYDRATE_PROMISE__ = root.AppApi.call("apiBootstrap", {
+token: token, reason: "post-login-contract-hydrate"
+}).then(function(data) {
+data = data && data.data ? data.data: data || {
+};
+try {
+root.AppRouteContract && root.AppRouteContract.absorb && root.AppRouteContract.absorb(data)
+}
+catch(_route) {
+__appObserve(_route, "login.contract.absorb")
+}
+try {
+store.assign({
+"auth.bootstrapOk": ! 0, "auth.bootstrapPending": ! 1, "app.routeContract": data.routeContract || data.appConfig && data.appConfig.routeContract || {
+}, "data.contract": data.dataContract || data.appConfig && data.appConfig.dataContract || {
+}, "phase1.contract": data.phase1SingleSourceContract || data.dataContract && data.dataContract.phase1SingleSourceContract || {
+}, "phase1.fieldMap": data.fieldMap || data.dataContract && data.dataContract.fieldMap || {
+}, "phase1.statusMap": data.statusMap || data.dataContract && data.dataContract.statusMap || {
+}
+})
+}
+catch(_store) {
+__appObserve(_store, "login.contract.store")
+}
+try {
+root.AppData && root.AppData.seed && root.AppData.seed(data.dataContract || data.appConfig && data.appConfig.dataContract || {
+})
+}
+catch(_seed) {
+__appObserve(_seed, "login.contract.seed")
+}
+root.__APP_ROUTE_CONTRACT_READY_AFTER_LOGIN__ = !0;
+root.__APP_CONTRACT_HYDRATE_PROMISE__ = null;
+return ! 0
+}).catch(function(err) {
+try {
+store.set("auth.bootstrapPending", ! 1)
+}
+catch(_st) {
+__appObserve(_st, "login.contract.pending")
+}
+try {
+RT.recordWarning && RT.recordWarning("login.contractHydrate.degraded", err, {
+source: "hydrateContractAfterLoginCrit"
+})
+}
+catch(_warn) {
+__appObserve(_warn, "login.contract.warn")
+}
+root.__APP_CONTRACT_HYDRATE_PROMISE__ = null;
+return ! 1
+});
+return root.__APP_CONTRACT_HYDRATE_PROMISE__
+}
+function bootAfterLoginCrit(user) {
+try {
+var boot =! RT.bootMainUi || RT.bootMainUi(user);
+return Promise.resolve(boot).catch(function(err) {
+try {
+RT.recordWarning && RT.recordWarning("login.bootMainUi.recovered", err, {
+source: "bootAfterLoginCrit"
+})
+}
+catch(_warn) {
+__appObserve(_warn, "login.boot.warn")
+}
+try {
+shell(! 0), updateRoleBadgeCrit(user || store.get("auth.user", {
+}))
+}
+catch(_shell) {
+__appObserve(_shell, "login.boot.shell")
+}
+return ! 0
+})
+}
+catch(_e) {
+try {
+RT.recordWarning && RT.recordWarning("login.bootMainUi.syncRecovered", _e, {
+source: "bootAfterLoginCrit"
+})
+}
+catch(_warn2) {
+__appObserve(_warn2, "login.boot.warn2")
+}
+try {
+shell(! 0), updateRoleBadgeCrit(user || store.get("auth.user", {
+}))
+}
+catch(_e2) {
+"function" == typeof __appObserve && __appObserve(_e2, "ec")
+}
+return Promise.resolve(! 0)
+}
+}
+function executeLogin(ev) {
+if(ev && (ev.preventDefault && ev.preventDefault(), ev.stopPropagation && ev.stopPropagation(), ev.stopImmediatePropagation && ev.stopImmediatePropagation()), root.__APP_LOGIN_IN_FLIGHT__)return ! 1;
+var u = loginEl("username"), p = loginEl("password"), un = txt(u && u.value).trim(), pw = txt(p && p.value), err = id("login-error-msg");
+return err && (err.style.display = "none", err.textContent = ""), un && pw ? (unlockLoginLocksCrit(), resetLoginSurfaceCrit("before-login-submit"), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 0, root.__APP_LOGIN_IN_FLIGHT__ =! 0, busy("btn-login-action", ! 0), root.AppApi.call("apiLogin", {
+username: un, email: un, password: pw, clientContext: ctx()
+}).then(function(d) {
+var user = commitLoginSuccessCrit(d);
+return hydrateContractAfterLoginCrit().then(function() {
+return root.__APP_HIDE_LOGIN_ROUTE_ALT__ && root.__APP_HIDE_LOGIN_ROUTE_ALT__(), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1), bootAfterLoginCrit(user)
+})
+}, function(e) {
+var m = txt(e && e.message || e || "เข้าสู่ระบบไม่สำเร็จ");
+err && (err.textContent = m, err.style.display = "block"), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1);
+try {
+RT.handleError && RT.handleError(e, m)
+}
+catch(_handle) {
+__appObserve(_handle, "login.handleError.fail")
+}
+return ! 1
+}).catch(function(e) {
+var authenticated =! 1;
+try {
+authenticated = "authenticated" === store.get("auth.status", "") ||! 0 === store.get("auth.loginOk", ! 1)
+}
+catch(_authCheck) {
+__appObserve(_authCheck, "login.catch.authCheck")
+}
+root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1);
+try {
+RT.recordWarning && RT.recordWarning("login.execute.recovered", e, {
+authenticated: authenticated
+})
+}
+catch(_warn) {
+__appObserve(_warn, "login.catch.warn")
+}
+if(authenticated)try {
+return shell(! 0), bootAfterLoginCrit(store.get("auth.user", {
+}) || {
+})
+}
+catch(_boot) {
+return __appObserve(_boot, "login.catch.boot"), ! 0
+}
+var m = txt(e && e.message || e || "เข้าสู่ระบบไม่สำเร็จ");
+err && (err.textContent = m, err.style.display = "block");
+try {
+RT.handleError && RT.handleError(e, m)
+}
+catch(_handle2) {
+__appObserve(_handle2, "login.catch.handleError")
+}
+return ! 1
+}), ! 1): (err && (err.textContent = "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน", err.style.display = "block"), ! 1)
+}
+function bindOnceCrit(el, eventName, handler, options, key) {
+if(! el || "function" != typeof handler)return ! 1;
+var flag = String(key || "critical_" + eventName).replace(/[^a-zA-Z0-9_]/g, "_");
+try {
+if(el.dataset) {
+if("1" === el.dataset[flag])return ! 1;
+el.dataset[flag] = "1"
+}
+else {
+if(el.__criticalBoundEvents = el.__criticalBoundEvents || {
+}, el.__criticalBoundEvents[flag])return ! 1;
+el.__criticalBoundEvents[flag] =! 0
+}
+}
+catch(_bindErr) {
+if(el.__criticalBoundEvents = el.__criticalBoundEvents || {
+}, el.__criticalBoundEvents[flag])return ! 1;
+el.__criticalBoundEvents[flag] =! 0
+}
+return el.addEventListener(eventName, handler, options), ! 0
+}
+function bindLogin() {
+scrubUrl(), resetLoginSurfaceCrit("bind-login");
+var f = id("login-form"), p = loginEl("password"), b = id("btn-login-action");
+f && (f.setAttribute("method", "post"), f.setAttribute("action", "javascript:void(0)"), f.setAttribute("onsubmit", "return false"), bindOnceCrit(f, "submit", executeLogin, ! 0, "criticalBound")), b && (b.setAttribute("type", "button"), b.disabled =! 1, b.removeAttribute("disabled"), b.setAttribute("aria-busy", "false"), bindOnceCrit(b, "click", executeLogin, ! 0, "criticalClickBound")), p && bindOnceCrit(p, "keydown", function(ev) {
+"Enter" === ev.key && executeLogin(ev)
+}, ! 0, "criticalEnterBound")
+}
+function installCriticalAuthOwnerCurrentStamp() {
+if(! root.__APP_CRITICAL_AUTH_SINGLE_OWNER_CurrentStamp__) {
+root.__APP_CRITICAL_AUTH_SINGLE_OWNER_CurrentStamp__ =! 0;
+var criticalAuthOwnerContract = root.__APP_RUNTIME_OWNER_CONTRACT__ || {
+};
+Object.assign(criticalAuthOwnerContract, {
+critical: "SCLR:auth-runtime-current", resume: "SCLR:resume-current", logout: "SCLR:logout-current"
+}), root.__APP_RUNTIME_OWNER_CONTRACT__ = criticalAuthOwnerContract, root.AppLogout = {
+__owner: "SCLR:logout-current", confirm: logoutConfirm, execute: logoutExecute, finalize: logoutShowLogin, refreshToLogin: logoutShowLogin, clearFields: logoutClearFields, clearResume: clearResume, disableResume: logoutDisableResume, clearLogoutLocks: unlockLoginLocksCrit
+}, root.logout = logoutExecute;
+var criticalAuthNs = root.AppAuth || {
+};
+if(Object.assign(criticalAuthNs, {
+__criticalOwner: "SCLR:auth-current", __canonicalOwner: "auth-current", login: executeLogin, logout: logoutExecute, finalizeLogout: logoutShowLogin, readResume: logoutReadResume, clearResume: clearResume, clearLogoutLocks: unlockLoginLocksCrit, prepareFreshLoginAttempt: unlockLoginLocksCrit, getRuntimeAuthStateReport: function() {
+return {
+ok: ! 0, loggedOutLock: !! root.__APP_LOGGED_OUT_LOCK__, resumeDisabled: !! root.__APP_SESSION_RESUME_DISABLED__
+}
+}
+}), root.AppAuth = criticalAuthNs, root.AppSessionResume && __appIsFn(root.AppSessionResume.tryResume) &&! root.AppSessionResume.__logoutCleanCurrentStamp) {
+var oldTry = root.AppSessionResume.tryResume;
+root.AppSessionResume.tryResume = function(o) {
+return root.__APP_SESSION_RESUME_DISABLED__ || root.__APP_LOGGED_OUT_LOCK__ || this.disabled || root.__APP_LOGOUT_IN_PROGRESS__ ? Promise.resolve(! 1): oldTry.call(this, o || {
+})
+}, root.AppSessionResume.__logoutCleanCurrentStamp =! 0
+}
+}
+function logoutReadResume() {
+try {
+var rec = getResume();
+return txt(rec && (rec.resumeHandle || rec.sessionResumeHandle) || "")
+}
+catch(_e) {
+return""
+}
+}
+function logoutClearFields() {
+try {
+clearFields()
+}
+catch(_e) {
+["username", "password", "login-username", "login-password", "login-user", "login-pass", "u_name", "u_pass"].forEach(function(k) {
+var el = id(k);
+el && (el.value = "")
+})
+}
+}
+function logoutDisableResume() {
+root.__APP_SESSION_RESUME_DISABLED__ =! 0, root.__APP_LOGGED_OUT_LOCK__ =! 0, root.AppSessionResume && (root.AppSessionResume.disabled =! 0, root.AppSessionResume.__disabledByLogoutCurrentStamp =! 0)
+}
+function logoutClearAuth() {
+root.__APP_LOGOUT_IN_PROGRESS__ =! 0, logoutDisableResume();
+try {
+clearResume()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+root.AppSecurity && root.AppSecurity.clearBrowserAuthStorage && root.AppSecurity.clearBrowserAuthStorage()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+store.assign({
+"auth.token": "", "auth.csrfToken": "", "auth.user": null, "auth.role": "", "auth.name": "", "auth.status": "anonymous", "auth.loginOk": ! 1, "auth.sessionRestored": ! 1, "auth.resumePending": ! 1
+})
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+store.reset && store.reset("auth", {
+})
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+clearResume()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+}
+function logoutShowLogin(reason) {
+logoutClearAuth(), logoutClearFields();
+try {
+root.Swal && root.Swal.close && root.Swal.close()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+doc.documentElement.classList.remove("app-authenticated"), doc.body && doc.body.classList.add("app-ready")
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+shell(! 1)
+}
+catch(_e) {
+try {
+var lp = id("login-page"), mc = id("main-container"), lh = doc.querySelector(".vue3-login-host"), ms = doc.querySelector(".vue3-main-shell");
+lp && (lp.style.display = "flex", lp.classList.remove("d-none"), lp.setAttribute("aria-hidden", "false")), mc && (mc.style.display = "none", mc.setAttribute("aria-hidden", "true")), lh && (lh.style.display = "", lh.classList.remove("d-none")), ms && (ms.style.display = "none", ms.setAttribute("aria-hidden", "true"))
+}
+catch(_e2) {
+"function" == typeof __appObserve && __appObserve(_e2, "ec")
+}
+}
+try {
+history.replaceState(null, doc.title, location.pathname + location.search.replace(/([?&])_logout=1(&|$)/, "$1").replace(/[?&]$/, "") + "#/login")
+}
+catch(_e) {
+try {
+location.hash = "#/login"
+}
+catch(_e2) {
+"function" == typeof __appObserve && __appObserve(_e2, "ec")
+}
+}
+try {
+doc.dispatchEvent(new CustomEvent("app:user-changed", {
+detail: {
+user: null, source: reason || "logout-currentStamp"
+}
+}))
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+try {
+resetLoginSurfaceCrit("after-logout-show-login"), bindLogin()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+return root.__APP_LOGOUT_IN_PROGRESS__ =! 1, logoutDisableResume(), ! 0
+}
+function logoutConfirm() {
+return root.Swal && root.Swal.fire ? Promise.resolve(root.Swal.fire({
+title: "ยืนยันออกจากระบบ", text: "ต้องการออกจากระบบหรือไม่", icon: "question", showCancelButton: ! 0, confirmButtonText: "ออกจากระบบ", cancelButtonText: "ยกเลิก"
+})).then(function(r) {
+return ! (! r ||! r.isConfirmed)
+}): Promise.resolve(! root.confirm || root.confirm("ออกจากระบบ?"))
+}
+function logoutExecute() {
+return logoutConfirm().then(function(ok) {
+if(! ok)return ! 1;
+root.__APP_LOGOUT_IN_PROGRESS__ =! 0, logoutDisableResume();
+var token = "";
+try {
+token = txt(store.get("auth.token", ""))
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+var resume = logoutReadResume();
+logoutClearAuth(), logoutShowLogin("logout-ui");
+try {
+root.AppApi && root.AppApi.call && root.AppApi.call("apiLogout", {
+token: token, resumeHandle: resume, clientContext: {
+reason: "logout-ui", at: (new Date).toISOString()
+}
+}).catch(function(err) {
+try {
+root.AppRuntime && root.AppRuntime.recordWarning && root.AppRuntime.recordWarning("logout.serverRevoke", err)
+}
+catch(_warnErr) {
+__appObserve(_warnErr, "ec")
+}
+return ! 0
+})
+}
+catch(_logoutApiErr) {
+try {
+root.AppRuntime && root.AppRuntime.recordWarning && root.AppRuntime.recordWarning("logout.serverRevoke.sync", _logoutApiErr)
+}
+catch(_warnSyncErr) {
+"function" == typeof __appObserve && __appObserve(_warnSyncErr, "ec")
+}
+}
+return ! 0
+})
+}
+}
+function criticalHasResumeHandle() {
+try {
+var rec = root.AppSessionResume && __appIsFn(root.AppSessionResume.get) ? root.AppSessionResume.get(): null;
+return ! (! rec ||! rec.resumeHandle)
+}
+catch(_) {
+return"function" == typeof __appObserve && __appObserve(_, "ec"), ! 1
+}
+}
+function criticalReadyHasActiveSession() {
+try {
+var token = txt(store.get("auth.token", "")), csrf = txt(store.get("auth.csrfToken", "")), ok =! 0 === store.get("auth.bootstrapOk", ! 1) || "authenticated" === store.get("auth.status", ""), restored =! 0 === store.get("auth.sessionRestored", ! 1);
+if(criticalHasResumeHandle() &&! restored)return ! 1;
+if(token && (csrf || ok))return ! 0;
+if(ok && store.get("auth.user", null))return ! 0
+}
+catch(_) {
+__appObserve(_, "ec")
+}
+return ! 1
+}
+}
+(window);
+;
+/* extracted from github-pages/index.html script #33 */
+! function(r) {
+"use strict";
+if(r &&! r.__APP_LAL_CurrentStampS__) {
+r.__APP_LAL_CurrentStampS__ =! 0;
+var d = r.document;
+d &&! d.__APP_LAL_CurrentStampS_BOUND__ && (d.__APP_LAL_CurrentStampS_BOUND__ =! 0, ["pointerdown", "mousedown", "touchstart", "focusin", "input", "keydown"].forEach(function(evt) {
+d.addEventListener(evt, function(e) {
+var h;
+(e && e.target && e.target.closest ? e.target.closest('#login-form,#btn-login-action,#u_name,#u_pass,#u_user,#login-username,#login-password,input[autocomplete="username"],input[autocomplete="current-password"]'): null) && x()
+}, ! 0)
+}), d.addEventListener("click", function(e) {
+var h;
+if(e && e.target && e.target.closest ? e.target.closest('#btn-login-action,#login-form button[type="submit"],#login-form [data-action="login"],#login-form .login-btn'): null) {
+x();
+try {
+r.AppLogin && r.AppLogin.init && r.AppLogin.init()
+}
+catch(_e) {
+__appObserve(_e, "ec")
+}
+}
+}, ! 0), d.addEventListener("submit", function(e) {
+e && e.target && "login-form" === e.target.id && x()
+}, ! 0), d.addEventListener("app:user-changed", function(e) {
+if(! (e && e.detail && e.detail.user))try {
+r.setTimeout(y, 0), r.setTimeout(y, 120), r.setTimeout(y, 300)
+}
+catch(t) {
+y()
+}
+}, ! 1)), r.__APP_PREPARE_FRESH_LOGIN_AFTER_LOGOUT__ = x, r.AppAuth = Object.assign(r.AppAuth || {
+}, {
+clearLogoutLocks: x, prepareFreshLoginAttempt: x
+}), y()
+}
+function x() {
+try {
+r.__APP_LOGIN_IN_FLIGHT__ =! 1, r.__APP_LOGOUT_IN_PROGRESS__ =! 1, r.__APP_SESSION_RESUME_DISABLED__ =! 1, r.__APP_LOGGED_OUT_LOCK__ =! 1, r.__APP_SESSION_RESUME_IN_FLIGHT__ =! 1, r.__APP_SESSION_RESUME_PROMISE__ = null, r.__APP_SOFT_REAUTH_RESUME_IN_FLIGHT__ =! 1, r.AppSessionResume && (r.AppSessionResume.disabled =! 1, r.AppSessionResume.__disabledByLogoutCurrentStamp =! 1)
+}
+catch(e) {
+__appObserve(e, "ec")
+}
+try {
+var b = d && d.getElementById("btn-login-action");
+b && (b.disabled =! 1, b.removeAttribute("disabled"), b.setAttribute("aria-busy", "false"), b.textContent = b.dataset && b.dataset.defaultText ? b.dataset.defaultText: "เข้าสู่ระบบ")
+}
+catch(e) {
+__appObserve(e, "ec")
+}
+try {
+r.AppRuntime && r.AppRuntime.clearUiBlocks && r.AppRuntime.clearUiBlocks("login-after-logout", {
+closeLoadingSwal: ! 0, closeSidebar: ! 0, clearSectionOverlays: ! 0
+})
+}
+catch(e) {
+__appObserve(e, "ec")
+}
+return ! 0
+}
+function y() {
+x();
+try {
+r.AppLogin && r.AppLogin.init && r.AppLogin.init()
+}
+catch(e) {
+__appObserve(e, "ec")
+}
+}
+}
+(window);
+;
+/* extracted from github-pages/index.html script #34 */
+! function(root) {
+"use strict";
+if(! root.__APP_ASYNC_RUNTIME_LOADER__) {
+root.__APP_ASYNC_RUNTIME_LOADER__ =! 0;
+var store = root.AppStore || null;
+function isFn(v) {
+return"function" == typeof v
+}
+function authenticated() {
+try {
+return !! (store && store.get && store.get("auth.token", "") || root.AppStore && root.AppStore.get && root.AppStore.get("auth.token", ""))
+}
+catch(_e) {
+return ! 1
+}
+}
+function idle(fn) {
+return(root.requestIdleCallback || function(cb) {
+return setTimeout(cb, 1)
+})(fn, {
+timeout: 1200
+})
+}
+function ensure(reason) {
+try {
+if(root.AppCritical && isFn(root.AppCritical.ensureCoreRuntime))return Promise.resolve(root.AppCritical.ensureCoreRuntime({
+reason: reason || "async-index"
+}))
+}
+catch(e) {
+try {
+root.__appObserve && root.__appObserve(e, "index.asyncRuntime.ensure")
+}
+catch(_ignore) {
+void _ignore;
+}
+}
+return Promise.resolve(! 1)
+}
+root.AppAsyncRuntimeLoader = {
+owner: "Index.html:async-runtime-loader-current", ensureCoreRuntime: ensure, schedule: function(reason) {
+return idle(function() {
+if(authenticated() || String(root.location && root.location.hash || "") != "#/login")ensure(reason || "idle-first-paint")
+}), ! 0
+}
+};
+document.addEventListener("DOMContentLoaded", function() {
+root.AppAsyncRuntimeLoader.schedule("dom-ready")
+}, {
+once: ! 0
+});
+}
+}
+("undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this);
