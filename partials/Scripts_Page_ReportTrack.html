@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <script>
 ! function(root) {
   "use strict";
@@ -141,11 +142,7 @@
       }, payload): {
       }).forceFresh && (payload.forceFresh =! 1, payload.noCache =! 1, payload.bypassCache =! 1, null == payload.cacheTtlSeconds && (payload.cacheTtlSeconds = 180));
       var preserveEnvelope = /^apiGetTracking$/.test(method);
-      return root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, payload, {
-        moduleName: "Scripts_Page_ReportTrack", timeoutMs: 45e3, preserveEnvelope: preserveEnvelope
-      }): root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi.call(method, payload, {
-        moduleName: "Scripts_Page_ReportTrack", timeoutMs: 45e3, preserveEnvelope: preserveEnvelope
-      }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+      return root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload, "Scripts_Page_ReportTrack", 45e3): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
     }, unwrap = __appIsFn(pageKit.unwrap) ? pageKit.unwrap: function(res) {
       for(var x = res, i = 0;
       i < 8 && (x && "object" == typeof x);
@@ -1138,7 +1135,7 @@
     }
     function payloadFor(pageNo, prefetch) {
       var payload = {
-        query: requestedQuery, page: pageNo, limit: requestedPageSize, pageSize: requestedPageSize, noPage: ! 1, fullList: ! 1, sortBy: "caseNum", sortDir: "asc", forceFresh: ! 0, cacheTtlSeconds: 0, noCache: ! 0, bypassCache: ! 0, serverPaged: ! 0, compactReadModel: ! 0, includeMeetingHistory: ! 1, receiveNoFix: "single-owner", receiveDateFix: "MainData.phase3ReadModel", pagingContract: "case-search-page-envelope-v3", source: prefetch ? "search-report-page-prefetch-disabled": "search-report-phase3-read-model", requestStabilityContract: "latest-request-wins-phase3-read-model", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
+        query: requestedQuery, page: pageNo, limit: requestedPageSize, pageSize: requestedPageSize, noPage: ! 1, fullList: ! 1, sortBy: "caseNum", sortDir: "asc", forceFresh: ! 1, cacheTtlSeconds: 600, noCache: ! 1, bypassCache: ! 1, serverPaged: ! 0, compactReadModel: ! 0, includeMeetingHistory: ! 1, receiveNoFix: "single-owner", receiveDateFix: "MainData.phase3ReadModel", pagingContract: "case-search-page-envelope-v3", source: prefetch ? "search-report-page-prefetch-cache-first": "search-report-phase3-read-model-cache-first", requestStabilityContract: "latest-request-wins-phase3-read-model", productionSingleOwner: ! 0, productionSingleOwnerOnly: ! 0
       };
       return"report" === mode && (payload.reportType = requestedReportType, payload.reportValue = requestedReportValue), payload
     }
@@ -1824,11 +1821,9 @@
   function generateAiSummary() {
     var b = currentBundle() || {
     }, id = currentCaseId();
-    return setSummary("กำลังสรุปข้อมูลโดย AI..."), root.AppApi && __appIsFn(root.AppApi.call) ? Promise.resolve(root.AppApi.call("apiAiAssistantSummarizeCase", {
+    return setSummary("กำลังสรุปข้อมูลโดย AI..."), root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? Promise.resolve(root.AppPageKit.apiRunner("apiAiAssistantSummarizeCase", {
       caseId: id, case: b.case || b.detail || b.main || b, source: OWNER
-    }, {
-      moduleName: OWNER, timeoutMs: 45e3
-    })).then(function(res) {
+    }, OWNER, 45e3)).then(function(res) {
       var data = res && res.data ? res.data: res;
       return setSummary(data && (data.summary || data.text || data.result || data.message) || localSummary()), ! 0
     }).catch(function(err) {

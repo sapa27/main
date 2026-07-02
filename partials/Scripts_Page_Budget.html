@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <script>
 ! function() {
   "use strict";
@@ -99,7 +100,7 @@
     t.__budgetPageInitialized =!! t.__budgetPageInitialized, t.__budgetStaticBound =!! t.__budgetStaticBound;
     try {
       t.AppPageController && __appIsFn(t.AppPageController.registerModule) && t.AppPageController.registerModule("Budget", {
-        owner: "Scripts_Page_Budget.html", phase: "Phase2", apiOwner: "AppPageController.api", eventOwner: "budgetStaticBound/current", saveOwner: "budgetSaveActiveEntry", typeSummaryOwner: "loadBudgetTypeSummary"
+        owner: "Scripts_Page_Budget.html", phase: "Phase2", apiOwner: "AppPageKit.apiRunner", eventOwner: "budgetStaticBound/current", saveOwner: "budgetSaveActiveEntry", typeSummaryOwner: "loadBudgetTypeSummary"
       })
     }
     catch(_budgetPhase2RegisterErr) {
@@ -147,13 +148,8 @@
     }, h = (e.fmtDate || t.fmtDate, e.getModuleApi ? e.getModuleApi("Scripts_Page_Budget"): null), A = function(n, r, a, o) {
       var i;
       try {
-        i = t.AppPageController && __appIsFn(t.AppPageController.api) ? t.AppPageController.api(n, r || {
-        }, {
-          moduleName: "Scripts_Page_Budget", timeoutMs: 25e3
-        }): t.AppApi && __appIsFn(t.AppApi.call) ? t.AppApi.call(n, r || {
-        }, {
-          moduleName: "Scripts_Page_Budget", timeoutMs: 25e3
-        }): Promise.reject(e.apiUnavailableError ? e.apiUnavailableError(): new Error("AppApi.call ไม่พร้อมใช้งาน"))
+        i = t.AppPageKit && __appIsFn(t.AppPageKit.apiRunner) ? t.AppPageKit.apiRunner(n, r || {
+        }, "Scripts_Page_Budget", 25e3): Promise.reject(e.apiUnavailableError ? e.apiUnavailableError(): new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
       }
       catch(t) {
         i = Promise.reject(t)
@@ -391,7 +387,7 @@
       return ! force && m._summaryPromise && m._summaryPromiseKey === requestKey ? m._summaryPromise: ! force && m._summaryCacheKey === requestKey && Array.isArray(m.summaryRows) && m.summaryRows.length ? Promise.resolve({
         rows: m.summaryRows, cacheHit: ! 0, frontendCache: ! 0
       }): (b("budget-summary-body", '<tr><td colspan="4" class="text-center p-4"><i class="fas fa-spinner fa-spin me-2"></i>กำลังโหลดข้อมูล...</td></tr>'), m._summaryPromiseKey = requestKey, m._summaryPromise = A("apiBudgetGetSummary", {
-        fy: fy, page: pageNo, limit: limit, fast: ! 0, includeSpent: ! 0, includePersonnelCompensation: ! 0, preferCache: ! force, forceFresh: force, forceRefresh: force, noCache: force, bypassCache: force, cacheTtlSeconds: force ? 0: 180
+        fy: fy, page: pageNo, limit: limit, fast: ! 0, noWait: !0, includeSpent: ! 0, includePersonnelCompensation: ! 0, preferCache: ! force, forceFresh: force, forceRefresh: force, noCache: force, bypassCache: force, cacheTtlSeconds: force ? 0: 300, source: "budget-summary-fast-cache-r6"
       }).then(function(resp) {
         if(O(resp)) {
           var data = H(resp), rows = Array.isArray(data.rows) ? data.rows: Array.isArray(data.data) ? data.data: [];
@@ -782,7 +778,7 @@
       return ! (! table ||! Array.prototype.slice.call(table.querySelectorAll("tbody tr")).some(function(tr) {
         return ! isStatusRow(tr)
       })) ? doPrint(): Promise.resolve(t.loadBudgetSummary ? t.loadBudgetSummary(1): A("apiBudgetGetSummary", {
-        fy: M(), page: 1, limit: 500, fast: ! 0, includeSpent: ! 0, preferCache: ! 0, cacheTtlSeconds: 180
+        fy: M(), page: 1, limit: 500, fast: ! 0, noWait: !0, includeSpent: ! 0, preferCache: ! 0, cacheTtlSeconds: 300, source: "budget-summary-print-fast-cache-r6"
       }).then(function(resp) {
         var data = O(resp) ? H(resp): {
         }, rows = Array.isArray(data.rows) ? data.rows: Array.isArray(data.data) ? data.data: [];
@@ -1321,23 +1317,11 @@
       }
 
       function callSave(record) {
-        if(t.AppApi && __appIsFn(t.AppApi.call)) {
-          return t.AppApi.call("apiBudgetSaveImport", record, {
-            moduleName: "Scripts_Page_Budget",
-            timeoutMs: 45000,
-            actionMethod: "apiBudgetSaveImport",
-            write: true
-          });
-        }
-        if(t.AppPageController && __appIsFn(t.AppPageController.api)) {
-          return t.AppPageController.api("apiBudgetSaveImport", record, {
-            moduleName: "Scripts_Page_Budget",
-            timeoutMs: 45000,
-            actionMethod: "apiBudgetSaveImport",
-            write: true
-          });
-        }
-        return Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"));
+        var payload = Object.assign({
+          actionMethod: "apiBudgetSaveImport", write: true
+        }, record || {
+        });
+        return t.AppPageKit && __appIsFn(t.AppPageKit.apiRunner) ? t.AppPageKit.apiRunner("apiBudgetSaveImport", payload, "Scripts_Page_Budget", 45e3): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"));
       }
 
       function finish(result) {
@@ -2782,11 +2766,7 @@
     (e || {
     });
     var n = "apiBudgetGetTypeSummaryByFY";
-    return t.AppPageController && __appIsFn(t.AppPageController.api) ? t.AppPageController.api(n, e, {
-      moduleName: "Scripts_Page_Budget.typeSummary", timeoutMs: 3e4
-    }): t.AppApi && __appIsFn(t.AppApi.call) ? t.AppApi.call(n, e, {
-      moduleName: "Scripts_Page_Budget.typeSummary", timeoutMs: 3e4
-    }): t.AppPageKit && __appIsFn(t.AppPageKit.apiRunner) ? t.AppPageKit.apiRunner(n, e, "Scripts_Page_Budget.typeSummary", 3e4): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+    return t.AppPageKit && __appIsFn(t.AppPageKit.apiRunner) ? t.AppPageKit.apiRunner(n, e, "Scripts_Page_Budget.typeSummary", 3e4): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
   }
   function budgetTypeSummaryRows_(value) {
     var meta = H(value) || {

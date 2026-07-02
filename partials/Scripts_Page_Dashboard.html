@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <!-- C5_MOVED_AI_RUNTIME_FROM_CORE_TO_DASHBOARD -->
 <script id="app-ai-bridge-shared-owner">
 ! function() {
@@ -265,9 +266,7 @@
   function resolveApiCall() {
     return function(method, payload) {
       return payload = payload || {
-      }, root.AppAi && __appIsFn(root.AppAi.call) && root.AppAi.isAiMethod && root.AppAi.isAiMethod(method) ? root.AppAi.call(method, payload, {
-        timeoutMs: 9e4, retries: 0
-      }): Utils.apiRunner(method, payload, "Scripts_AI_Bridge", 9e4)
+      }, root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload, "Scripts_AI_Bridge", 9e4): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
     }
   }
   function renderAiInsightBlock(el, textValue) {
@@ -407,7 +406,7 @@
     var api = resolveApiCall();
     return"function" == typeof api ? api(method, payload).then(function(res) {
       return normalizeAiApiResult(res, method)
-    }): Promise.reject(Utils && Utils.apiUnavailableError ? Utils.apiUnavailableError(): new Error("AppApi.call ไม่พร้อมใช้งาน"))
+    }): Promise.reject(Utils && Utils.apiUnavailableError ? Utils.apiUnavailableError(): new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
   }
   function callApi(method, payload, options) {
     payload = payload || {
@@ -582,10 +581,7 @@
             stamp: STAMP, lazyOnly: ! 0, advisoryOnly: ! 0, noDataMutation: ! 0, initialLoadAllowed: ! 1
           }
         }, msg: "เลื่อนการประมวลผล AI เป็น lazy load เพื่อไม่ให้กระทบการโหลดหน้าหลัก"
-      })): root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi.call(method, payload, Object.assign({
-        moduleName: "AppAi"
-      }, options || {
-      })): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+      })): root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload, options.moduleName || "AppAi", options.timeoutMs || 9e4): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
     };
     root.AppAi = {
       __aiProductionOwner: STAMP, isAiMethod: function(method) {
@@ -1487,11 +1483,7 @@
       requestId: "dash-runtime-final-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8)
     }, payload || {
     });
-    return root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, payload, {
-      moduleName: "Dashboard", timeoutMs: phase1Cfg("dashboardApiTimeoutMs", 30000)
-    }): root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi.call(method, payload, {
-      moduleName: "Dashboard", timeoutMs: phase1Cfg("dashboardApiTimeoutMs", 30000)
-    }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+    return root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload, "Dashboard", phase1Cfg("dashboardApiTimeoutMs", 30000)): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
   };
   function authText(value) {
     return String(null == value ? "": value).trim()
@@ -1582,7 +1574,7 @@
       includeMeetingRows = !0 === options.includeMeetingRows || !0 === phase1Cfg("dashboardLazyIncludeMeetingRows", false);
     }
     var caseLimit = includeCases ? Math.max(10, Math.min(Number(options.caseLimit || phase1Cfg("dashboardLazyCaseLimit", 30)) || 30, 120)): 0;
-    var ttl = !0 === options.forceFresh ? 15 : Math.max(30, Math.min(Number(options.cacheTtlSeconds || (isLazy ? 180 : 90)) || (isLazy ? 180 : 90), 300));
+    var ttl = !0 === options.forceFresh ? 60 : Math.max(60, Math.min(Number(options.cacheTtlSeconds || (isLazy ? 300 : 180)) || (isLazy ? 300 : 180), 900));
     var payload = {
       forceFresh: !0 === options.forceFresh,
       includeBudget: includeBudget,
@@ -1662,7 +1654,7 @@
         var snapshot = readDashboardAuthSnapshot();
         if(state.data && hasData(state.data))return;
         if(snapshot && snapshot.ready) {
-          load({ forceFresh: !0, includeBudget: !0, includeCases: !0, source: "dashboard-visible-data-auto-retry", authWaitMs: 1500 }).catch(function(err) {
+          load({ forceFresh: !1, includeBudget: !0, includeCases: !0, cacheTtlSeconds: 300, source: "dashboard-visible-data-auto-retry-cache-first", authWaitMs: 1500 }).catch(function(err) {
             warn("dashboard.visibleDataRetry.load", err, { owner: OWNER, reason: reason || "no-data" })
           })
         } else {
@@ -1685,7 +1677,7 @@
         state.__authRetryScheduled = !1;
         var snapshot = readDashboardAuthSnapshot();
         if(snapshot && snapshot.ready) {
-          load({ forceFresh: !0, source: "dashboard-auth-ready-auto-retry", authWaitMs: 1200 }).catch(function(err) {
+          load({ forceFresh: !1, cacheTtlSeconds: 300, source: "dashboard-auth-ready-auto-retry-cache-first", authWaitMs: 1200 }).catch(function(err) {
             warn("dashboard.authRetry.load", err, { owner: OWNER, reason: reason || "auth-retry" });
           });
         } else if(!state.data || !hasData(state.data)) {

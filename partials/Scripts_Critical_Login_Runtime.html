@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <script id="app-critical-foundation-consumer">
 ! function(root) {
   "use strict";
@@ -160,14 +161,13 @@ catch(__appRootBridgeErr) {
       return ! (! c.loaded ||! c.writeMethods[txt(m)])
     }, c.validateApiMethod = function(m) {
       if(! (m = txt(m)))return new Error("API_METHOD_EMPTY");
-      var bootstrapRoutes = {
-        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
-      }, ok;
-      var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1))), readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(m);
+      c.bootstrapMethods = c.bootstrapMethods || {
+        getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetPhase2Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+      };
+      var bootstrapRoutes = c.bootstrapMethods;
       if(bootstrapRoutes[m])return null;
-      if(c.loaded && c.routes && (Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1: c.routes[m]))return null;
-      if(readBeforeContract)return null;
-      return null
+      if(c.loaded && c.routes)return Array.isArray(c.routes) ? c.routes.indexOf(m) >- 1 ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m): c.routes[m] ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + m);
+      return /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(m) ? null: new Error("API_METHOD_NOT_IN_CONTRACT_PENDING_BOOTSTRAP:" + m)
     }, root.requiresStrictActionToken = root.requiresStrictActionToken || function(m) {
       return m = txt(m), /^api(?:Admin)?(?:SaveUser|Delete|Revoke|Migrate|SystemOwner|BudgetProcessQueue|BudgetQueueImport|BudgetDeleteImport|Cleanup|RefreshMaterialized|BudgetAdminSave)/.test(m)
     }, root.isWriteApiMethod = function(m) {
@@ -1076,11 +1076,18 @@ catch(__appRootBridgeErr) {
       catch(_) {
         "function" == typeof __appObserve && __appObserve(_, "ec")
       }
-      return hydrateContractAfterLoginCrit().then(function() {
-        var boot = RT.bootMainUi(d.user);
-        return ! boot ||! boot.then || boot.then(function() {
-          return ! 0
+      try {
+        var hydrate = hydrateContractAfterLoginCrit();
+        hydrate && hydrate.catch && hydrate.catch(function(err) {
+          try { RT.recordWarning && RT.recordWarning("login.resume.contractHydrate.nonBlocking", err, { source: "tryResume" }) } catch(_warn) { __appObserve(_warn, "login.resume.contractHydrate.warn") }
         })
+      }
+      catch(_hydrateKickErr) {
+        try { RT.recordWarning && RT.recordWarning("login.resume.contractHydrate.kickFailed", _hydrateKickErr, { source: "tryResume" }) } catch(_warn2) { __appObserve(_warn2, "login.resume.contractHydrate.warn2") }
+      }
+      var boot = RT.bootMainUi(d.user);
+      return ! boot ||! boot.then || boot.then(function() {
+        return ! 0
       })
     }).catch(function(err) {
       var msg = txt(err && (err.message || err.error || err.code || err.errorCode) || err).toUpperCase(), persistent =! 0 === root.__APP_SESSION_EXPIRY_DISABLED__, hardMismatch = /RESUME\s*ไม่ตรง|ไม่ตรงกับ SESSION|BINDING|MISMATCH/.test(msg);
@@ -1791,9 +1798,16 @@ catch(__appRootBridgeErr) {
       username: un, email: un, password: pw, clientContext: ctx()
     }).then(function(d) {
       var user = commitLoginSuccessCrit(d);
-      return hydrateContractAfterLoginCrit().then(function() {
-        return root.__APP_HIDE_LOGIN_ROUTE_ALT__ && root.__APP_HIDE_LOGIN_ROUTE_ALT__(), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1), bootAfterLoginCrit(user)
-      })
+      try {
+        var hydrate = hydrateContractAfterLoginCrit();
+        hydrate && hydrate.catch && hydrate.catch(function(err) {
+          try { RT.recordWarning && RT.recordWarning("login.contractHydrate.nonBlocking", err, { source: "executeLogin" }) } catch(_warn) { __appObserve(_warn, "login.contractHydrate.warn") }
+        })
+      }
+      catch(_hydrateKickErr) {
+        try { RT.recordWarning && RT.recordWarning("login.contractHydrate.kickFailed", _hydrateKickErr, { source: "executeLogin" }) } catch(_warn2) { __appObserve(_warn2, "login.contractHydrate.warn2") }
+      }
+      return root.__APP_HIDE_LOGIN_ROUTE_ALT__ && root.__APP_HIDE_LOGIN_ROUTE_ALT__(), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1), bootAfterLoginCrit(user)
     }, function(e) {
       var m = txt(e && e.message || e || "เข้าสู่ระบบไม่สำเร็จ");
       err && (err.textContent = m, err.style.display = "block"), root.__APP_EXPLICIT_LOGIN_ATTEMPT__ =! 1, root.__APP_LOGIN_IN_FLIGHT__ =! 1, busy("btn-login-action", ! 1);

@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <script id="app-core-runtime-phase9-size" type="application/json" data-bytes="461747" data-owner="Phase9.FunctionalReconciliation">{"phase":9,"functionalReconciliation":true,"diagnosticsDeferred":true}</script>
 <script id="app-core-location-aging-owner">
 ! function(root, doc) {
@@ -1658,14 +1659,17 @@ catch(__appRootBridgeErr) {
       }, validateApiMethod: function(methodName) {
         if(! (methodName = String(methodName || "")))return new Error("API_METHOD_EMPTY");
         var bootstrapRoutes = this.bootstrapMethods || {
-          getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+          getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetPhase2Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
         };
-        var hasAuth = !! (e.__authToken || e.AppStore && e.AppStore.get && (e.AppStore.get("auth.token", "") || e.AppStore.get("auth.loginOk", !1)));
-        var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
         if(bootstrapRoutes[methodName])return null;
-        if(this.routes && (Array.isArray(this.routes) ?- 1 !== this.routes.indexOf(methodName): this.routes[methodName]))return null;
-        if(readBeforeContract)return null;
-        return null
+        var routes = this.routes || null;
+        var loaded = !! (this.loaded && routes);
+        if(loaded) {
+          var exists = Array.isArray(routes) ? routes.indexOf(methodName) >- 1 : !! routes[methodName];
+          return exists ? null : new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+        }
+        var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
+        return readBeforeContract ? null : new Error("API_METHOD_NOT_IN_CONTRACT_PENDING_BOOTSTRAP:" + methodName)
       }
     }), e.PUBLIC_API_METHODS = e.PUBLIC_API_METHODS || {
       apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0
@@ -2986,15 +2990,16 @@ catch(__appRootBridgeErr) {
   function safeValidateApiMethod(methodName) {
     if(! (methodName = String(methodName || "")))return new Error("API_METHOD_EMPTY");
     contract.bootstrapMethods = contract.bootstrapMethods || {
-      getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
+      getDeferredInclude: ! 0, apiRouter: ! 0, apiLogin: ! 0, apiLogout: ! 0, apiSessionResume: ! 0, apiSessionCheck: ! 0, apiBootstrap: ! 0, apiGetRouteContract: ! 0, apiGetPhase0ContractGate: ! 0, apiGetPhase1Contract: ! 0, apiGetPhase2Contract: ! 0, apiGetClientDataContract: ! 0, apiGetAppTerminology: ! 0
     };
-    var bootstrapRoutes = contract.bootstrapMethods, ok;
-    var hasAuth = !! (root.__authToken || root.AppStore && root.AppStore.get && (root.AppStore.get("auth.token", "") || root.AppStore.get("auth.loginOk", !1)));
-    var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
+    var bootstrapRoutes = contract.bootstrapMethods, routes = contract.routes || null, loaded = !! (contract.loaded && routes);
     if(bootstrapRoutes[methodName])return null;
-    if(contract.routes && (Array.isArray(contract.routes) ? contract.routes.indexOf(methodName) >- 1: !! contract.routes[methodName]))return null;
-    if(readBeforeContract)return null;
-    return null
+    if(loaded) {
+      var exists = Array.isArray(routes) ? routes.indexOf(methodName) >- 1: !! routes[methodName];
+      return exists ? null: new Error("API_METHOD_NOT_IN_CONTRACT:" + methodName)
+    }
+    var readBeforeContract = /^(apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase|apiExtract|apiExport|apiAi|apiAudit)/i.test(methodName);
+    return readBeforeContract ? null: new Error("API_METHOD_NOT_IN_CONTRACT_PENDING_BOOTSTRAP:" + methodName)
   }
 }
 ("undefined" != typeof window ? window: "undefined" != typeof globalThis ? globalThis: this);
@@ -7058,8 +7063,12 @@ catch(__appRootBridgeErr) {
   }
   function routeGuardApiRequest(ctx) {
     var err = routeError(ctx.method);
-    if(err && !/^API_METHOD_NOT_IN_CONTRACT:/.test(String(err.message || err)))throw err;
-    return ctx
+    if(! err)return ctx;
+    var msg = String(err.message || err || "");
+    var pendingBootstrap = /^API_METHOD_NOT_IN_CONTRACT_PENDING_BOOTSTRAP:/.test(msg);
+    var loaded = !! (root.AppRouteContract && root.AppRouteContract.loaded && root.AppRouteContract.routes);
+    if(pendingBootstrap && ! loaded)return ctx;
+    throw err
   }
   function enrichApiRequestPayload(ctx) {
     return ctx.finalPayload = enrichPayload(ctx.payload || {

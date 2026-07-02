@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <script>
 ! function() {
   "use strict";
@@ -59,15 +60,9 @@
     }, csrfToken = Utils.csrfToken || function() {
       return storeGet("auth.csrfToken", "") || storeGet("csrfToken", "") || root.__csrfToken || ""
     }, apiCall = function(method, payload) {
-      return root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, Object.assign({
+      return root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, Object.assign({
       }, payload || {
-      }), {
-        moduleName: "Scripts_Page_Petitioner", timeoutMs: 2e4
-      }): root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi.call(method, Object.assign({
-      }, payload || {
-      }), {
-        moduleName: "Scripts_Page_Petitioner", timeoutMs: 2e4
-      }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+      }), "Scripts_Page_Petitioner", 2e4): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
     }, appSwalFire = function() {
       return root.AppUi && __appIsFn(root.AppUi.fire) ? root.AppUi.fire.apply(root.AppUi, arguments): root.appSwalFire ? root.appSwalFire.apply(root, arguments): Promise.resolve({
         isConfirmed: ! 1

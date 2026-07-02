@@ -1,3 +1,4 @@
+<!-- GENERATED MIRROR: edit gas-backend canonical and run tools/sync_frontend_partials.py -->
 <script id="people-phone-display-owner">
 function phoneDisplay(v) {
   var F = window.AppFormat && window.AppFormat.phone && window.AppFormat.phone.display;
@@ -11,7 +12,7 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     }): root.AppPageKit && root.AppPageKit.moduleKit ? root.AppPageKit.moduleKit("People.PageKit", {
       timeoutMs: 6e4
     }): root.AppKit || root.AppPageKit || {
-    }, Api = root.AppApi && root.AppApi.call ? root.AppApi: {
+    }, Api = root.AppPageKit && root.AppPageKit.apiRunner ? root.AppPageKit: {
     }, Print = function() {
       var owner = root.AppPrintProfile || root.AppPrint || {
       };
@@ -76,11 +77,7 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
       return options = options || {
       }, payload = root.AppPeopleShared && __appIsFn(root.AppPeopleShared.enrichPayload) ? root.AppPeopleShared.enrichPayload(payload || {
       }): payload || {
-      }, root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, payload, {
-        moduleName: options.moduleName || "Scripts_Page_People", timeoutMs: options.timeoutMs || 6e4
-      }): Api.call ? Api.call(method, payload, {
-        moduleName: options.moduleName || "Scripts_Page_People", timeoutMs: options.timeoutMs || 6e4
-      }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน: " + method))
+      }, root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload, options.moduleName || "Scripts_Page_People", options.timeoutMs || 6e4): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน: " + method))
     }, print = function(profile, title, html, extra) {
       if(! clean(html))return notify("ไม่พบข้อมูล", "ไม่มีข้อมูลสำหรับพิมพ์", "warning");
       var payload = {
@@ -96,7 +93,7 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     };
     try {
       root.AppPageController && __appIsFn(root.AppPageController.registerModule) && root.AppPageController.registerModule("People", {
-        owner: "Scripts_Page_People.html", phase: "Phase2", apiOwner: "AppPageController.api", kitOwner: "AppPeoplePageKit", printOwner: "AppPrint"
+        owner: "Scripts_Page_People.html", phase: "Phase2", apiOwner: "AppPageKit.apiRunner", kitOwner: "AppPeoplePageKit", printOwner: "AppPrint"
       })
     }
     catch(_peoplePhase2RegisterErr) {
@@ -253,19 +250,12 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
   }
   var A = function(t, r) {
     try {
-      if(e.AppPageController && __appIsFn(e.AppPageController.api))return e.AppPageController.api(t, r || {
-      }, {
-        moduleName: "Scripts_Page_People.shared", timeoutMs: o
-      }).then(unwrap);
-      if(e.AppApi && __appIsFn(e.AppApi.call))return e.AppApi.call(t, r || {
-      }, {
-        moduleName: "Scripts_Page_People.shared", timeoutMs: o
-      }).then(unwrap)
+      return e.AppPageKit && __appIsFn(e.AppPageKit.apiRunner) ? e.AppPageKit.apiRunner(t, r || {
+      }, "Scripts_Page_People.shared", o).then(unwrap): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน: " + t))
     }
     catch(e) {
       return Promise.reject(e)
     }
-    return Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน: " + t))
   };
   function h(e) {
     if(! e && 0 !== e)return null;
@@ -431,7 +421,7 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
       return null
     })("staff-fy-filter") || {
     }).value || "", S = A("apiGetPeoplePageBundle", {
-      fy: m, source: "people-page-bundle"
+      fy: m, source: "people-page-bundle", includeSalaryRows: false, liteFirstPaint: true, cacheTtlSeconds: 360
     }).then(function(e) {
       var t = function(e) {
         var t = p(e), r = t.data && "object" == typeof t.data ? t.data: t, n = i(r.staffs || r.personnelStaffs || r.rows || r.items).map(w).filter(function(e) {
@@ -512,13 +502,8 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     u("personnel.salarySettings", null) || d("personnel.salarySettings", {
     });
     var v = function(t, e, n, r) {
-      var p = window.AppPageController && __appIsFn(window.AppPageController.api) ? window.AppPageController.api(t, e || {
-      }, {
-        moduleName: "Scripts_Page_People.salary", timeoutMs: 45e3
-      }): window.AppApi && __appIsFn(window.AppApi.call) ? window.AppApi.call(t, e || {
-      }, {
-        moduleName: "Scripts_Page_People.salary", timeoutMs: 45e3
-      }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"));
+      var p = window.AppPageKit && __appIsFn(window.AppPageKit.apiRunner) ? window.AppPageKit.apiRunner(t, e || {
+      }, "Scripts_Page_People.salary", 45e3): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"));
       return"function" != typeof n && "function" != typeof r || p.then(function(v) {
         return"function" == typeof n && n(v), v
       }).catch(function(err) {
@@ -1188,17 +1173,12 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     }
     (o);
     try {
-      if(t.AppPageController && __appIsFn(t.AppPageController.api))return i(t.AppPageController.api(r, s, {
-        moduleName: "Scripts_Page_People.bundle", timeoutMs: 45e3
-      }));
-      if(t.AppApi && __appIsFn(t.AppApi.call))return i(t.AppApi.call(r, s, {
-        moduleName: "Scripts_Page_People.bundle", timeoutMs: 45e3
-      }))
+      if(t.AppPageKit && __appIsFn(t.AppPageKit.apiRunner))return i(t.AppPageKit.apiRunner(r, s, "Scripts_Page_People.bundle", 45e3))
     }
     catch(t) {
       "function" == typeof __appObserve && __appObserve(t, "ec")
     }
-    return Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน: " + r))
+    return Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน: " + r))
   }
   function G(e, n) {
     return(e = (Array.isArray(e) ? e: []).map(function(t, e) {
@@ -1380,11 +1360,7 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     })), setPeopleState(g.saving, {
       kind: Y(e), message: "กำลังบันทึกข้อมูล...", source: "savePeopleWrite"
     }), z(), function(e, n) {
-      return t.AppPageController && __appIsFn(t.AppPageController.api) ? t.AppPageController.api(e, n, {
-        moduleName: "Scripts_Page_People.save", timeoutMs: 45e3
-      }).then($): t.AppApi && __appIsFn(t.AppApi.call) ? t.AppApi.call(e, n, {
-        moduleName: "Scripts_Page_People.save", timeoutMs: 45e3
-      }).then($): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+      return t.AppPageKit && __appIsFn(t.AppPageKit.apiRunner) ? t.AppPageKit.apiRunner(e, n, "Scripts_Page_People.save", 45e3).then($): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
     }
     (e, n).then(function(t) {
       return K(e, n, t), setPeopleState(g.ready, {
@@ -1769,17 +1745,11 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
       })
     }
     try {
-      if(e.AppPageController && __appIsFn(e.AppPageController.api))return o(e.AppPageController.api(t, s, {
-        moduleName: "Scripts_Page_People.page", timeoutMs: 45e3
-      }));
-      if(e.AppApi && __appIsFn(e.AppApi.call))return o(e.AppApi.call(t, s, {
-        moduleName: "Scripts_Page_People.page", timeoutMs: 45e3
-      }))
+      return e.AppPageKit && __appIsFn(e.AppPageKit.apiRunner) ? o(e.AppPageKit.apiRunner(t, s, "Scripts_Page_People.page", 45e3)): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน: " + t))
     }
     catch(e) {
       return Promise.reject(e)
     }
-    return Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน: " + t))
   }
   var v = r.parseDate || function(e) {
     if(! e && 0 !== e)return null;
@@ -2608,13 +2578,8 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
         })
       })
     }, runPageApi = function(method, payload, moduleName, timeoutMs) {
-      var to = timeoutMs || 2e4, p = root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, payload || {
-      }, {
-        moduleName: moduleName || "Scripts_Page_People", timeoutMs: to
-      }): root.AppApi && __appIsFn(root.AppApi.call) ? root.AppApi.call(method, payload || {
-      }, {
-        moduleName: moduleName || "Scripts_Page_People", timeoutMs: to
-      }): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"));
+      var to = timeoutMs || 2e4, p = root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload || {
+      }, moduleName || "Scripts_Page_People", to): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"));
       return withTimeout(p, to, method)
     }, api = {
       readyToken: READY_TOKEN, DEFAULT_API_TIMEOUT_MS: 2e4, HEAVY_API_TIMEOUT_MS: 55e3, text: text, byId: byId, esc: esc, normalizeKey: normalizeKey, storeGet: storeGet, storeSet: storeSet, token: token, unwrap: unwrap, rowsFrom: rowsFrom, objectFrom: objectFrom, pick: pick, parseDate: parseDate, thaiDate: thaiDate, currentFy: currentFy, fiscalRange: fiscalRange, overlapsFiscalYear: overlapsFiscalYear, enrichPayload: enrichPayload, withTimeout: withTimeout, apiRunner: runPageApi
@@ -2871,15 +2836,12 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
       }))
     }
     : function(method, payload, opts) {
-      return root.AppPageController && __appIsFn(root.AppPageController.api) ? root.AppPageController.api(method, payload || {
-      }, Object.assign({
+      opts = Object.assign({
         moduleName: OWNER, timeoutMs: 6e4
       }, opts || {
-      })): root.AppApi && root.AppApi.call ? root.AppApi.call(method, payload || {
-      }, Object.assign({
-        moduleName: OWNER, timeoutMs: 6e4
-      }, opts || {
-      })): Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"))
+      });
+      return root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload || {
+      }, opts.moduleName || OWNER, opts.timeoutMs || 6e4): Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
     }, storeGet = Kit && __appIsFn(Kit.storeGet) ? Kit.storeGet: function(key, defaultValue) {
       try {
         return root.AppStore && __appIsFn(root.AppStore.get) ? root.AppStore.get(key, defaultValue): defaultValue
@@ -3237,18 +3199,17 @@ window.AppPeoplePhoneDisplay = phoneDisplay, function(root, doc) {
     return"staff" === (tab = tab || state.activeTab || "comm") ? renderStaff(): "op" === tab ? renderOp(): "subcommittee" === tab ? renderSubcommittee(): "salary" === tab ? renderSalary(): renderCommittee()
   }
   function renderAll() {
-    return["comm", "staff", "op", "subcommittee", "salary"].forEach(function(t) {
-      try {
-        render(t)
-      }
-      catch(e) {
-        warn("render." + t, e)
-      }
-    }), ! 0
+    try {
+      render(state.activeTab || "comm")
+    }
+    catch(e) {
+      warn("render.active", e)
+    }
+    return !0
   }
   function load(force) {
     return state.loading &&! force || (state.loading = api("apiGetPeoplePageBundle", {
-      forceFresh: !! force, source: OWNER
+      forceFresh: !! force, source: OWNER, activeTab: state.activeTab || "comm", includeSalaryRows: "salary" === (state.activeTab || "comm"), liteFirstPaint: "salary" !== (state.activeTab || "comm"), cacheTtlSeconds: force ? 0 : 360
     }).then(function(res) {
       return setBundle(res), renderAll(), state.bundle
     }).catch(function(err) {
