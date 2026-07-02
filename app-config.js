@@ -1,3 +1,4 @@
+// release: dashboard-budget-snapshot-safe-2026-07-02-r1
 /* GitHub Pages configuration for GAS backend. */
 (function(root) {
   'use strict';
@@ -11,7 +12,7 @@
   }
   var defaults = {
     appTitle: 'ระบบบริหารจัดการเรื่องพิจารณา',
-    gasWebAppUrl: 'https://script.google.com/macros/s/AKfycbyvhxZLdC1jTOK6IzUnUOk4qQTa1MqcrjQ04RTwxYULCJEzryIdBajyeIt3L6lwSqW5Fg/exec',
+    gasWebAppUrl: '',
     logoUrl: FALLBACK_LOGO,
     fallbackLogoUrl: FALLBACK_LOGO,
     localAssetBase: './partials/',
@@ -23,24 +24,24 @@
     phase2GeneratedMirrorPolicy: 'edit-canonical-run-sync-do-not-edit-generated-mirrors',
     dashboardFirstPaintEnabled: true,
     dashboardLazyHydrationEnabled: true,
-    dashboardInitialIncludeBudget: false,
+    dashboardInitialIncludeBudget: true,
     dashboardInitialIncludeCases: false,
     dashboardInitialIncludeMeetingRows: false,
     dashboardLazyIncludeBudget: true,
     dashboardLazyIncludeCases: true,
     dashboardLazyIncludeMeetingRows: false,
     dashboardLazyCaseLimit: 30,
-    dashboardLazyHydrationDelayMs: 450,
-    dashboardSessionCacheTtlSec: 90,
+    dashboardLazyHydrationDelayMs: 250,
+    dashboardSessionCacheTtlSec: 300,
     dashboardFirstPaintTargetMs: 1800,
     dashboardLazyHydrationTargetMs: 6500,
     apiPerformanceTimingEnabled: true,
     inlinePartialsEnabled: false,
-    bridgeReadyTimeoutMs: 12000,
+    bridgeReadyTimeoutMs: 8000,
     bridgeLoadGraceMs: 1000,
     forceBridgeClientOnly: false,
-    apiTimeoutMs: 30000,
-    bridgeNoMessageTimeoutMs: 22000,
+    apiTimeoutMs: 45000,
+    bridgeNoMessageTimeoutMs: 45000,
     publicConfigTimeoutMs: 4000,
     fastLoginJsonp: true,
     loginFormPost: true,
@@ -52,19 +53,22 @@
     writeFormPost: false,
     clientApiCacheEnabled: true,
     clientInFlightDedupe: true,
-    jsonpApiTimeoutMs: 18000,
+    jsonpApiTimeoutMs: 25000,
+    jsonpReadCircuitBreaker: false,
+    jsonpReadCircuitBreakMs: 60000,
     phase0ProductionStabilization: true,
-    releaseStamp: 'phase2-hotfix-read-jsonp-bridge-write-2026-07-01-r2',
+    releaseStamp: 'phase2-hotfix-login-perf-tab-isolation-2026-07-02-r2',
     requireGasWebAppUrl: true,
     forceAuthenticatedReadBridge: false,
     publicJsonpReadMethods: ['apiGetRouteContract','apiGetPhase0ContractGate','apiGetPhase1Contract','apiGetPhase2Contract','apiGetClientDataContract','apiGetAppTerminology','apiSessionCheck','apiBootstrap'],
     clientApiCacheDefaultTtlSec: 30,
     clientApiCacheTtlSecMap: {
-      apiGetDashboardBundle: 75,
-      apiSearchCasesLite: 45,
-      apiGetTracking: 60,
-      apiBudgetGetSummary: 120,
+      apiGetDashboardBundle: 300,
+      apiSearchCasesLite: 300,
+      apiGetTracking: 300,
+      apiBudgetGetSummary: 600,
       apiGetMasterDataBundle: 900,
+      apiGetPeoplePageBundle: 360,
       apiGetRouteContract: 300,
       apiGetClientDataContract: 300,
       apiSessionCheck: 20,
@@ -73,8 +77,8 @@
     strictBridgeOriginCheck: true,
     allowedBridgeOrigins: ['https://script.google.com'],
     bridgeTargetOrigin: '',
-    phase5ReleaseManifest: {stamp:'phase2-hotfix-read-jsonp-bridge-write-2026-07-01-r2', githubCommitHash:'', gasDeploymentId:'', cacheBustVersion:'phase2-hotfix-read-jsonp-bridge-write-2026-07-01-r2'},
-    assetManifest: {"stamp":"asset-manifest-phase2-hotfix-read-jsonp-bridge-write-2026-07-01-r2","bundles":{"appCritical":{"files":["Scripts_Critical_Login_Runtime"]},"appCore":{"files":["Scripts_Core_Runtime"]},"pageDashboard":{"files":["Scripts_Page_Dashboard"]},"pageMeeting":{"files":["Scripts_Page_Meeting"]},"pageCommitteeMeeting":{"files":["Scripts_Page_Meeting"]},"pageTrackReport":{"files":["Scripts_Page_ReportTrack"]},"pagePetitioner":{"files":["Scripts_Page_Petitioner"]},"pagePeople":{"files":["Scripts_Page_People"]},"pageBudget":{"files":["Scripts_Page_Budget"]},"pageAdmin":{"files":["Scripts_Page_Admin"],"minRole":"admin"},"pageAiPrint":{"files":["Scripts_Core_Runtime"]}},"upfrontScripts":["Scripts_Critical_Login_Runtime"],"chunks":{"dashboard":["Scripts_Page_Dashboard"],"search":["Scripts_Page_ReportTrack"],"petitioner":["Scripts_Page_Petitioner"],"meeting":["Scripts_Page_Meeting"],"committee-meeting":["Scripts_Page_Meeting"],"track":["Scripts_Page_ReportTrack"],"report":["Scripts_Page_ReportTrack"],"people":["Scripts_Page_People"],"personnel":["Scripts_Page_People"],"budget":["Scripts_Page_Budget"],"admin":["Scripts_Page_Admin"],"ai":["Scripts_Core_Runtime"],"print":["Scripts_Core_Runtime"]},"templates":{},"externalGroups":["bootstrap","xlsx"],"externalAssets":{"bootstrap":{"script":"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js","onDemand":true},"xlsx":{"script":"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js","onDemand":true}}}
+    phase5ReleaseManifest: {stamp:'phase2-hotfix-login-perf-tab-isolation-2026-07-02-r2', githubCommitHash:'', gasDeploymentId:'', cacheBustVersion:'phase2-hotfix-login-perf-tab-isolation-2026-07-02-r2'},
+    assetManifest: {"stamp":"asset-manifest-login-perf-tab-isolation-2026-07-02-r2","bundles":{"appCritical":{"files":["Scripts_Critical_Login_Runtime"]},"appCore":{"files":["Scripts_Core_Runtime"]},"pageDashboard":{"files":["Scripts_Page_Dashboard"]},"pageMeeting":{"files":["Scripts_Page_Meeting"]},"pageCommitteeMeeting":{"files":["Scripts_Page_Meeting"]},"pageTrackReport":{"files":["Scripts_Page_ReportTrack"]},"pagePetitioner":{"files":["Scripts_Page_Petitioner"]},"pagePeople":{"files":["Scripts_Page_People"]},"pageBudget":{"files":["Scripts_Page_Budget"]},"pageAdmin":{"files":["Scripts_Page_Admin"],"minRole":"admin"},"pageAiPrint":{"files":["Scripts_Core_Runtime"]}},"upfrontScripts":["Scripts_Critical_Login_Runtime"],"chunks":{"dashboard":["Scripts_Page_Dashboard"],"search":["Scripts_Page_ReportTrack"],"petitioner":["Scripts_Page_Petitioner"],"meeting":["Scripts_Page_Meeting"],"committee-meeting":["Scripts_Page_Meeting"],"track":["Scripts_Page_ReportTrack"],"report":["Scripts_Page_ReportTrack"],"people":["Scripts_Page_People"],"personnel":["Scripts_Page_People"],"budget":["Scripts_Page_Budget"],"admin":["Scripts_Page_Admin"],"ai":["Scripts_Core_Runtime"],"print":["Scripts_Core_Runtime"]},"templates":{},"externalGroups":["bootstrap","xlsx"],"externalAssets":{"bootstrap":{"script":"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js","onDemand":true},"xlsx":{"script":"https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js","onDemand":true}}}
   };
   root.APP_CONFIG = Object.assign(defaults, existing || {});
   try {
