@@ -1,11 +1,13 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r111";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r111";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
-    "https://script.google.com/macros/s/AKfycbxMfZp41tDrJnna6TRMefb_2Wnw-wWZzK68jprzDfOunxfxLI7fWBBCjaxKCGmrc460/exec"
+    "https://script.google.com/macros/s/",
+    "AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm",
+    "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
@@ -109,7 +111,7 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-gas-direct-jsonp-read-script-safe",
+    transportMode: "github-pages-gas-direct-authenticated-bridge-only",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -168,12 +170,14 @@
     dataApiPostBridgeEnabled: true,
     authenticatedDataPostFirst: false,
     dataApiIframeBridgeEnabled: true,
-    dataApiJsonpReadEnabled: true,
+    dataApiJsonpReadEnabled: false,
     jsonpReadTimeoutMs: 110000,
     loginViaVercelProxy: false,
-    readJsonpApi: true,
-    authenticatedJsonpReadFirst: true,
-    authenticatedReadBridgeFirst: false,
+    readJsonpApi: false,
+    authenticatedJsonpReadFirst: false,
+    authenticatedReadBridgeFirst: true,
+    authenticatedReadBridgeOnly: true,
+    publicJsonpReadEnabled: true,
     publicJsonpReadMethods: [
       "apiGetRouteContract",
       "apiGetPhase0ContractGate",

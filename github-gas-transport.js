@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r111";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r111";
-  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-jsonp-read-script-safe-r111";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
+  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-authenticated-bridge-only-r112";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
   var assetInFlight = Object.create(null);
@@ -336,7 +336,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-write-r111", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-write-r112", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -369,29 +369,40 @@
   function jsonpGlobalCallbackName(id) {
     return "window." + jsonpCallbackName(id);
   }
-  function attachAuthParamsToJsonpUrl(url, payload) {
-    payload = isObj(payload) ? payload : {};
-    var ctx = isObj(payload.clientContext) ? payload.clientContext : {};
-    var token = text(payload.token || payload._token || payload.authToken || payload.nextToken || "");
-    var csrf = text(payload.csrfToken || payload.csrf || payload._csrf || payload._csrfToken || "");
-    var username = text(payload.username || payload.userId || payload.email || payload.githubUsername || ctx.username || ctx.user || ctx.userId || ctx.email || "");
-    if (token) { url.searchParams.set("token", token); url.searchParams.set("authToken", token); }
-    if (csrf) { url.searchParams.set("csrfToken", csrf); url.searchParams.set("csrf", csrf); url.searchParams.set("_csrf", csrf); }
-    if (username) { url.searchParams.set("username", username); }
-    url.searchParams.set("githubAuthenticatedJsonpRead", "1");
-    url.searchParams.set("transportOwner", "github-pages-jsonp-read-script-safe-r111");
-    return url;
+  function stripSensitiveJsonpFields(payload) {
+    payload = isObj(payload) ? Object.assign({}, payload) : {};
+    [
+      "token", "_token", "authToken", "nextToken",
+      "csrfToken", "csrf", "_csrf", "_csrfToken",
+      "actionToken", "csrfActionToken", "_actionToken",
+      "password", "pass", "pwd"
+    ].forEach(function(key) { delete payload[key]; });
+    if (isObj(payload.clientContext)) {
+      payload.clientContext = Object.assign({}, payload.clientContext);
+      ["token", "authToken", "csrf", "csrfToken"].forEach(function(key) {
+        delete payload.clientContext[key];
+      });
+    }
+    return payload;
   }
+
   function runJsonpApi(method, payload, options) {
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
-    payload = isObj(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
+    if (!isPublicJsonpReadMethod(method)) {
+      return Promise.reject(bridgeError(
+        "Phase C: authenticated read API ต้องเรียกผ่าน bridge transport เท่านั้น ไม่อนุญาต JSONP: " + method,
+        "AUTHENTICATED_JSONP_FORBIDDEN",
+        method
+      ));
+    }
+    payload = stripSensitiveJsonpFields(payload);
     return new Promise(function(resolve, reject) {
       var id = requestId(method + "Jsonp");
       var cb = jsonpCallbackName(id);
       var cbExpr = jsonpGlobalCallbackName(id);
-      var timeoutMs = Number(options && (options.timeoutMs || options.clientTimeoutMs) || cfg("jsonpReadTimeoutMs", cfg("apiTimeoutMs", 110000))) || 110000;
-      timeoutMs = Math.max(12000, Math.min(timeoutMs, 120000));
+      var timeoutMs = Number(options && (options.timeoutMs || options.clientTimeoutMs) || cfg("jsonpReadTimeoutMs", 15000)) || 15000;
+      timeoutMs = Math.max(5000, Math.min(timeoutMs, 30000));
       var script = null;
       function cleanup() {
         try { script && script.parentNode && script.parentNode.removeChild(script); } catch (_) {}
@@ -400,7 +411,7 @@
       }
       var timer = setTimeout(function() {
         cleanup();
-        reject(bridgeError("GAS JSONP read timeout: " + method, "GITHUB_JSONP_READ_TIMEOUT", method));
+        reject(bridgeError("GAS public JSONP read timeout: " + method, "GITHUB_JSONP_READ_TIMEOUT", method));
       }, timeoutMs);
       jsonpPending[id] = { method: method, timer: timer, callback: cbExpr };
       root[cb] = function(result) {
@@ -409,9 +420,16 @@
         result = result || { ok: false, error: "empty JSONP response", errorCode: "GITHUB_JSONP_EMPTY_RESPONSE" };
         if (isObj(result)) {
           result.method = result.method || method;
-          result.transport = result.transport || "github-jsonp-read";
+          result.transport = result.transport || "github-public-jsonp-read";
           result.releaseStamp = result.releaseStamp || PHASE_RELEASE_STAMP;
-          result.meta = Object.assign({}, isObj(result.meta) ? result.meta : {}, { githubGasDirect: true, jsonpRead: true, callback: cbExpr, transport: result.transport, releaseStamp: PHASE_RELEASE_STAMP });
+          result.meta = Object.assign({}, isObj(result.meta) ? result.meta : {}, {
+            githubGasDirect: true,
+            publicJsonpRead: true,
+            authenticatedJsonp: false,
+            callback: cbExpr,
+            transport: result.transport,
+            releaseStamp: PHASE_RELEASE_STAMP
+          });
         }
         resolve(result);
       };
@@ -424,19 +442,20 @@
         u.searchParams.set("cb", cbExpr);
         u.searchParams.set("parentOrigin", root.location && root.location.origin || "");
         u.searchParams.set("r", PHASE_RELEASE_STAMP);
-        u.searchParams.set("payload", encodeURIComponent(JSON.stringify(payload || {})));
-        attachAuthParamsToJsonpUrl(u, payload);
+        u.searchParams.set("payload", encodeURIComponent(JSON.stringify(payload)));
+        u.searchParams.set("githubPublicJsonpRead", "1");
+        u.searchParams.set("transportOwner", "github-pages-public-jsonp-r112");
         script = doc.createElement("script");
         script.async = true;
         script.defer = true;
         script.charset = "utf-8";
-        script.setAttribute("data-github-jsonp-method", method);
+        script.setAttribute("data-github-public-jsonp-method", method);
         script.setAttribute("data-github-jsonp-request-id", id);
         script.src = u.href;
         script.onerror = function() {
           clearTimeout(timer);
           cleanup();
-          reject(bridgeError("GAS JSONP read failed: " + method, "GITHUB_JSONP_READ_FAILED", method));
+          reject(bridgeError("GAS public JSONP read failed: " + method, "GITHUB_JSONP_READ_FAILED", method));
         };
         (doc.head || doc.documentElement).appendChild(script);
       } catch (err) {
@@ -446,31 +465,31 @@
       }
     });
   }
+
   function runReadApi(method, payload, options) {
-    var jsonpEnabled = cfg("readJsonpApi", true) !== false && isReadApiMethod(method);
+    method = text(method).trim();
+    if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
 
-    // R111 root-cause fix:
-    // Never submit authenticated READ requests through form POST -> hidden iframe.
-    // GAS converts HtmlService POST responses to a temporary /macros/echo?user_content_key URL;
-    // that temporary document can return HTTP 403 when loaded as a third-party iframe by GitHub Pages.
-    // JSONP is the canonical GitHub Pages read transport. GAS emits script-safe JSONP; the persistent bridge remains fallback only.
-    if (jsonpEnabled) {
-      return runJsonpApi(method, payload, options).then(function(result) {
-        if (isObj(result) && result.ok === false && isTransportFailure(result)) {
-          return runBridgeApi(method, payload, options);
-        }
-        return result;
-      }, function(jsonpErr) {
-        return runBridgeApi(method, payload, options).catch(function() { throw jsonpErr; });
-      });
+    // Phase C contract:
+    // - JSONP is allowed only for explicitly public contract APIs and never carries token/CSRF.
+    // - Every authenticated read API uses the persistent GAS iframe bridge (google.script.run).
+    // - There is no JSONP fallback for authenticated reads.
+    if (isPublicJsonpReadMethod(method)) {
+      return runJsonpApi(method, payload, options);
     }
-
     return runBridgeApi(method, payload, options);
   }
 
   function runBridgeApi(method, payload, options) {
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
+    payload = isObj(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
+    payload.__authTransportOwner = payload.__authTransportOwner || "AppApiMiddlewarePipeline";
+    payload.__bridgeTransport = "github-pages-persistent-gas-bridge-r112";
+    payload.clientContext = isObj(payload.clientContext) ? Object.assign({}, payload.clientContext) : {};
+    payload.clientContext.transport = "github-authenticated-bridge";
+    payload.clientContext.bridgeOnly = true;
+    payload.clientContext.releaseStamp = PHASE_RELEASE_STAMP;
     return ensureBridge().then(function(frame) {
       return new Promise(function(resolve, reject) {
         var id = requestId(method);
@@ -484,7 +503,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r111",
+            bridge: "github-pages-gas-direct-r112",
             releaseStamp: PHASE_RELEASE_STAMP
           });
         } catch (err) {
@@ -497,18 +516,19 @@
     var cached = getCachedRead(method, payload);
     if (cached) return Promise.resolve(cached);
     var key = stableKey(method, payload), isWrite = isWriteApiMethod(method), isLogin = /^apiLogin$/i.test(method);
-    if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: "github-api-jsonp-read-script-safe" }); return apiInFlight[key]; }
+    if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-bridge" }); return apiInFlight[key]; }
 
-    // R111: login remains POST-only. Read APIs use JSONP first to avoid temporary GAS echo iframe 403 responses.
-    // Write APIs retain POST for compatibility; the persistent google.script.run bridge is fallback.
+    // R112 Phase C: login remains POST-only; authenticated reads use the persistent
+    // google.script.run bridge only; JSONP is restricted to public contract APIs.
+    // Write APIs retain the established POST transport.
     var apiInvoker = isLogin ? runLoginPostApi : (isWrite ? runApiPost : runReadApi);
     var p = apiInvoker(method, payload, options).then(function(result) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : "github-api-jsonp-read-script-safe"), error: isObj(result) && result.ok === false });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : (isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-bridge")), error: isObj(result) && result.ok === false });
       if (isWrite && isObj(result) && result.ok !== false) invalidateClientApiCache("write-success", method);
       else putCachedRead(method, payload, result);
       return result;
     }, function(err) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : "github-api-jsonp-read-script-safe"), error: true, message: err && err.message || String(err || "") });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : (isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-bridge")), error: true, message: err && err.message || String(err || "") });
       if (!isWrite) {
         var stale = staleRead(method, payload);
         if (stale) {
@@ -613,10 +633,12 @@
   root.AppTransport.__legacyTransportRemoved = false;
   root.AppTransport.__staticGasDirectDisabled = false;
   root.AppTransport.__singleTransportPathPhase2 = true;
+  root.AppTransport.__authenticatedReadBridgeOnly = true;
+  root.AppTransport.__authenticatedJsonpDisabled = true;
   root.AppTransport.__clientReadResponseCacheEnabled = true;
   root.AppTransport.transportMode = PHASE_TRANSPORT_MODE;
   root.AppTransport.bridgeClientState = function(){ return { ready: bridgeReady, loaded: !!bridgeFrame, assumedReady: false, removed: false, mode: PHASE_TRANSPORT_MODE, gasWebAppUrl: normalizeUrl(root.GAS_WEB_APP_URL || cfg("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL || "") }; };
-  root.AppTransport.phase2Status = function(){ return { ok: runtimeOwnerStatus().ok, stamp: PHASE_RELEASE_STAMP, phase: "GitHub Pages + GAS Direct", release: releaseStatus(), transportMode: PHASE_TRANSPORT_MODE, githubPagesGasDirect: true, vercelApiProxyEnabled: false, legacyTransportRemoved: false, gasDirectAvailable: true, clientReadResponseCacheEnabled: true, clientReadCacheEntries: Object.keys(apiReadCache).length, inFlight: Object.keys(apiInFlight).length, assetCacheEntries: Object.keys(cache).length, bridge: root.AppTransport.bridgeClientState(), metrics: Object.assign({}, apiMetrics) }; };
+  root.AppTransport.phase2Status = function(){ return { ok: runtimeOwnerStatus().ok, stamp: PHASE_RELEASE_STAMP, phase: "GitHub Pages + GAS Direct Phase C", release: releaseStatus(), transportMode: PHASE_TRANSPORT_MODE, githubPagesGasDirect: true, vercelApiProxyEnabled: false, legacyTransportRemoved: false, gasDirectAvailable: true, authenticatedReadBridgeOnly: true, authenticatedJsonpDisabled: true, publicJsonpOnly: true, clientReadResponseCacheEnabled: true, clientReadCacheEntries: Object.keys(apiReadCache).length, inFlight: Object.keys(apiInFlight).length, assetCacheEntries: Object.keys(cache).length, bridge: root.AppTransport.bridgeClientState(), metrics: Object.assign({}, apiMetrics) }; };
   root.AppTransport.phase1Status = root.AppTransport.phase2Status;
   root.AppTransport.phase0Status = root.AppTransport.phase2Status;
   root.AppTransport.releaseStatus = releaseStatus;
