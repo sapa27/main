@@ -3,8 +3,8 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22/%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22/%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C/text%3E%3C/svg%3E";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r98";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r98";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r99";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r99";
   var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-iframe-bridge";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
@@ -17,6 +17,7 @@
   var bridgeReady = false;
   var bridgeInFlight = null;
   var bridgePending = Object.create(null);
+  var loginPostPending = Object.create(null);
 
   function text(v) { return v == null ? "" : String(v); }
   function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
@@ -169,6 +170,23 @@
     var data = ev && ev.data;
     if (typeof data === "string") { try { data = JSON.parse(data); } catch (_) { return; } }
     if (!isObj(data) || data.__gasIframeTransport !== true && data.__gasIframeTransport !== "true") return;
+    if (data.type === "GAS_LOGIN_POST_RESPONSE") {
+      var loginId = text(data.requestId || data.id || "");
+      var loginPending = loginId && loginPostPending[loginId];
+      if (!loginPending) return;
+      delete loginPostPending[loginId];
+      clearTimeout(loginPending.timer);
+      try { loginPending.cleanup && loginPending.cleanup(); } catch (_) {}
+      var loginResult = data.result || { ok: false, error: "empty login response", errorCode: "GITHUB_LOGIN_POST_EMPTY_RESPONSE" };
+      if (isObj(loginResult)) {
+        loginResult.method = loginResult.method || "apiLogin";
+        loginResult.transport = loginResult.transport || "github-login-post";
+        loginResult.releaseStamp = loginResult.releaseStamp || PHASE_RELEASE_STAMP;
+        loginResult.meta = Object.assign({}, isObj(loginResult.meta) ? loginResult.meta : {}, { githubGasDirect: true, loginPost: true, transport: loginResult.transport, releaseStamp: PHASE_RELEASE_STAMP });
+      }
+      loginPending.resolve(loginResult);
+      return;
+    }
     if (data.type === "GAS_IFRAME_TRANSPORT_READY") {
       bridgeReady = true;
       var callbacks = root.__APP_GAS_DIRECT_BRIDGE_READY_CALLBACKS__ || [];
@@ -192,6 +210,62 @@
       pending.resolve(result);
     }
   });
+  function hiddenField(form, name, value) {
+    var input = doc.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = value == null ? "" : String(value);
+    form.appendChild(input);
+    return input;
+  }
+  function runLoginPostApi(method, payload, options) {
+    method = text(method).trim();
+    if (!/^apiLogin$/i.test(method)) return runBridgeApi(method, payload, options);
+    payload = isObj(payload) ? Object.assign({}, payload) : {};
+    return new Promise(function(resolve, reject) {
+      var id = requestId("apiLoginPost");
+      var timeoutMs = Number(options && (options.loginTimeoutMs || options.timeoutMs || options.clientTimeoutMs) || cfg("loginPostTimeoutMs", 45000)) || 45000;
+      timeoutMs = Math.max(12000, Math.min(timeoutMs, 65000));
+      var iframe = null, form = null;
+      function cleanup() {
+        try { form && form.parentNode && form.parentNode.removeChild(form); } catch (_) {}
+        try { iframe && iframe.parentNode && iframe.parentNode.removeChild(iframe); } catch (_) {}
+      }
+      var timer = setTimeout(function() {
+        delete loginPostPending[id];
+        cleanup();
+        reject(bridgeError("GAS Login POST timeout: apiLogin", "GITHUB_LOGIN_POST_TIMEOUT", "apiLogin"));
+      }, timeoutMs);
+      loginPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: "apiLogin", cleanup: cleanup };
+      try {
+        payload.__loginPostRequestId = id;
+        payload.__loginPostParentOrigin = root.location && root.location.origin || "";
+        iframe = doc.createElement("iframe");
+        iframe.name = "app-gas-login-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
+        iframe.id = iframe.name;
+        iframe.title = "GAS Login POST";
+        iframe.setAttribute("aria-hidden", "true");
+        iframe.style.cssText = "position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;";
+        form = doc.createElement("form");
+        form.method = "POST";
+        form.target = iframe.name;
+        form.action = withQuery(gasWebAppUrl(), { __githubLoginPost: "1", requestId: id, parentOrigin: root.location && root.location.origin || "", r: PHASE_RELEASE_STAMP });
+        form.style.cssText = "display:none;position:absolute;left:-9999px;top:-9999px;";
+        hiddenField(form, "payload", JSON.stringify(payload));
+        if (payload.username != null) hiddenField(form, "username", payload.username);
+        if (payload.email != null) hiddenField(form, "email", payload.email);
+        if (payload.password != null) hiddenField(form, "password", payload.password);
+        (doc.body || doc.documentElement).appendChild(iframe);
+        (doc.body || doc.documentElement).appendChild(form);
+        form.submit();
+      } catch (err) {
+        delete loginPostPending[id];
+        clearTimeout(timer);
+        cleanup();
+        reject(err);
+      }
+    });
+  }
   function runBridgeApi(method, payload, options) {
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
@@ -208,7 +282,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r95",
+            bridge: "github-pages-gas-direct-r99",
             releaseStamp: PHASE_RELEASE_STAMP
           }, gasOrigin());
         } catch (err) {
@@ -222,7 +296,8 @@
     if (cached) return Promise.resolve(cached);
     var key = stableKey(method, payload), isWrite = isWriteApiMethod(method);
     if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: "github-gas-direct" }); return apiInFlight[key]; }
-    var p = runBridgeApi(method, payload, options).then(function(result) {
+    var apiInvoker = /^apiLogin$/i.test(method) ? runLoginPostApi : runBridgeApi;
+    var p = apiInvoker(method, payload, options).then(function(result) {
       recordApiMetric({ kind: "call", method: method, transport: "github-gas-direct", error: isObj(result) && result.ok === false });
       if (isWrite && isObj(result) && result.ok !== false) invalidateClientApiCache("write-success", method);
       else putCachedRead(method, payload, result);
@@ -368,6 +443,7 @@
   root.AppTransport.vercelProxyEnabled = function(){ return false; };
   root.AppTransport.ensureBridgeClient = ensureBridge;
   root.AppTransport.runGasDirectBridge = runBridgeApi;
+  root.AppTransport.runLoginPost = runLoginPostApi;
 
   try { setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config"); } catch (_) {}
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", function(){ setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config-dom"); ensureBridge().catch(function(e){ try { console.warn(e); } catch (_) {} }); }, { once: true });
