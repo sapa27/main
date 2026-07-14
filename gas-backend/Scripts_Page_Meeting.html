@@ -1,4 +1,3 @@
-<!-- GENERATED MIRROR: gas-backend/Scripts_Page_Meeting.html -->
 <script>
 !function(){"use strict";var e=window,t=e.AppTermGet||window.AppTermGet||function(e,t){return t||e||""};e.AppMeetingBindEvent_=e.AppMeetingBindEvent_||function(target,type,handler,options,key){var node=target;if("function"!=typeof handler)return!1;try{if("string"==typeof target)node=document.getElementById(target)||document.querySelector(target)}catch(_meetingBindTargetErr){node=null}
 if(!node)return!1;var bindKey=String(key||"meeting_"+type).replace(/[^a-zA-Z0-9_]/g,"_");if(e.AppEvents&&"function"==typeof e.AppEvents.on){try{return e.AppEvents.on(node,type,handler,options,bindKey)}catch(_meetingAppEventsBindErr){"function"==typeof e.__appObserve&&e.__appObserve(_meetingAppEventsBindErr,"meeting.bind.AppEvents")}}
