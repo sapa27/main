@@ -26,7 +26,7 @@
     VERCEL_LOGO_URL = cleanUrl(GITHUB_DIRECT_CONFIG.logoUrl || GITHUB_DIRECT_CONFIG.APP_LOGO_URL || "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg"),
     defaults = {
       appTitle: "ระบบบริหารจัดการเรื่องพิจารณา",
-      gasWebAppUrl: VERCEL_GAS_WEB_APP_URL || "https://script.google.com/macros/s/AKfycbx9TklQ7bVLM7kEVgdblQcnezHkz9aEGXjq-MjhtyAvabzpaK5hECqra5Oeh8kfgjgO/exec",
+      gasWebAppUrl: VERCEL_GAS_WEB_APP_URL || "",
       logoUrl: VERCEL_LOGO_URL && isSafeLogoUrl(VERCEL_LOGO_URL) ? VERCEL_LOGO_URL: FALLBACK_LOGO,
       fallbackLogoUrl: FALLBACK_LOGO,
       localAssetBase: "./partials/",
