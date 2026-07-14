@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r109";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r109";
-  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-jsonp-read-primary-r109";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r111";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r111";
+  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-jsonp-read-script-safe-r111";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
   var assetInFlight = Object.create(null);
@@ -336,7 +336,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-write-r109", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-write-r111", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -379,7 +379,7 @@
     if (csrf) { url.searchParams.set("csrfToken", csrf); url.searchParams.set("csrf", csrf); url.searchParams.set("_csrf", csrf); }
     if (username) { url.searchParams.set("username", username); }
     url.searchParams.set("githubAuthenticatedJsonpRead", "1");
-    url.searchParams.set("transportOwner", "github-pages-jsonp-read-primary-r109");
+    url.searchParams.set("transportOwner", "github-pages-jsonp-read-script-safe-r111");
     return url;
   }
   function runJsonpApi(method, payload, options) {
@@ -429,6 +429,9 @@
         script = doc.createElement("script");
         script.async = true;
         script.defer = true;
+        script.charset = "utf-8";
+        script.setAttribute("data-github-jsonp-method", method);
+        script.setAttribute("data-github-jsonp-request-id", id);
         script.src = u.href;
         script.onerror = function() {
           clearTimeout(timer);
@@ -446,11 +449,11 @@
   function runReadApi(method, payload, options) {
     var jsonpEnabled = cfg("readJsonpApi", true) !== false && isReadApiMethod(method);
 
-    // R109 root-cause fix:
+    // R111 root-cause fix:
     // Never submit authenticated READ requests through form POST -> hidden iframe.
     // GAS converts HtmlService POST responses to a temporary /macros/echo?user_content_key URL;
     // that temporary document can return HTTP 403 when loaded as a third-party iframe by GitHub Pages.
-    // JSONP is the canonical GitHub Pages read transport. The persistent GAS bridge is fallback only.
+    // JSONP is the canonical GitHub Pages read transport. GAS emits script-safe JSONP; the persistent bridge remains fallback only.
     if (jsonpEnabled) {
       return runJsonpApi(method, payload, options).then(function(result) {
         if (isObj(result) && result.ok === false && isTransportFailure(result)) {
@@ -481,7 +484,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r109",
+            bridge: "github-pages-gas-direct-r111",
             releaseStamp: PHASE_RELEASE_STAMP
           });
         } catch (err) {
@@ -494,18 +497,18 @@
     var cached = getCachedRead(method, payload);
     if (cached) return Promise.resolve(cached);
     var key = stableKey(method, payload), isWrite = isWriteApiMethod(method), isLogin = /^apiLogin$/i.test(method);
-    if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: "github-api-jsonp-read-primary" }); return apiInFlight[key]; }
+    if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: "github-api-jsonp-read-script-safe" }); return apiInFlight[key]; }
 
-    // R109: login remains POST-only. Read APIs use JSONP first to avoid temporary GAS echo iframe 403 responses.
+    // R111: login remains POST-only. Read APIs use JSONP first to avoid temporary GAS echo iframe 403 responses.
     // Write APIs retain POST for compatibility; the persistent google.script.run bridge is fallback.
     var apiInvoker = isLogin ? runLoginPostApi : (isWrite ? runApiPost : runReadApi);
     var p = apiInvoker(method, payload, options).then(function(result) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : "github-api-jsonp-read-primary"), error: isObj(result) && result.ok === false });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : "github-api-jsonp-read-script-safe"), error: isObj(result) && result.ok === false });
       if (isWrite && isObj(result) && result.ok !== false) invalidateClientApiCache("write-success", method);
       else putCachedRead(method, payload, result);
       return result;
     }, function(err) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : "github-api-jsonp-read-primary"), error: true, message: err && err.message || String(err || "") });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : "github-api-jsonp-read-script-safe"), error: true, message: err && err.message || String(err || "") });
       if (!isWrite) {
         var stale = staleRead(method, payload);
         if (stale) {
