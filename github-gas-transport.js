@@ -3,8 +3,8 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22/%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22/%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C/text%3E%3C/svg%3E";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r99";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r99";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r100";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r100";
   var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-iframe-bridge";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
@@ -18,6 +18,7 @@
   var bridgeInFlight = null;
   var bridgePending = Object.create(null);
   var loginPostPending = Object.create(null);
+  var apiPostPending = Object.create(null);
 
   function text(v) { return v == null ? "" : String(v); }
   function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
@@ -187,6 +188,23 @@
       loginPending.resolve(loginResult);
       return;
     }
+    if (data.type === "GAS_API_POST_RESPONSE") {
+      var apiId = text(data.requestId || data.id || "");
+      var apiPending = apiId && apiPostPending[apiId];
+      if (!apiPending) return;
+      delete apiPostPending[apiId];
+      clearTimeout(apiPending.timer);
+      try { apiPending.cleanup && apiPending.cleanup(); } catch (_) {}
+      var apiResult = data.result || { ok: false, error: "empty api response", errorCode: "GITHUB_API_POST_EMPTY_RESPONSE" };
+      if (isObj(apiResult)) {
+        apiResult.method = apiResult.method || data.method || apiPending.method;
+        apiResult.transport = apiResult.transport || "github-api-post";
+        apiResult.releaseStamp = apiResult.releaseStamp || PHASE_RELEASE_STAMP;
+        apiResult.meta = Object.assign({}, isObj(apiResult.meta) ? apiResult.meta : {}, { githubGasDirect: true, apiPost: true, transport: apiResult.transport, releaseStamp: PHASE_RELEASE_STAMP });
+      }
+      apiPending.resolve(apiResult);
+      return;
+    }
     if (data.type === "GAS_IFRAME_TRANSPORT_READY") {
       bridgeReady = true;
       var callbacks = root.__APP_GAS_DIRECT_BRIDGE_READY_CALLBACKS__ || [];
@@ -266,6 +284,54 @@
       }
     });
   }
+  function runApiPost(method, payload, options) {
+    method = text(method).trim();
+    if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
+    payload = isObj(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
+    return new Promise(function(resolve, reject) {
+      var id = requestId(method + "Post");
+      var isWrite = isWriteApiMethod(method);
+      var timeoutMs = Number(options && (options.timeoutMs || options.clientTimeoutMs) || (isWrite ? cfg("writePostTimeoutMs", 110000) : cfg("readPostTimeoutMs", cfg("apiTimeoutMs", 110000)))) || 110000;
+      timeoutMs = Math.max(15000, Math.min(timeoutMs, 120000));
+      var iframe = null, form = null;
+      function cleanup() {
+        try { form && form.parentNode && form.parentNode.removeChild(form); } catch (_) {}
+        try { iframe && iframe.parentNode && iframe.parentNode.removeChild(iframe); } catch (_) {}
+      }
+      var timer = setTimeout(function() {
+        delete apiPostPending[id];
+        cleanup();
+        reject(bridgeError("GAS API POST timeout: " + method, "GITHUB_API_POST_TIMEOUT", method));
+      }, timeoutMs);
+      apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
+      try {
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r100", releaseStamp: PHASE_RELEASE_STAMP };
+        iframe = doc.createElement("iframe");
+        iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
+        iframe.id = iframe.name;
+        iframe.title = "GAS API POST";
+        iframe.setAttribute("aria-hidden", "true");
+        iframe.style.cssText = "position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;";
+        form = doc.createElement("form");
+        form.method = "POST";
+        form.target = iframe.name;
+        form.action = withQuery(gasWebAppUrl(), { __githubApiPost: "1", method: method, requestId: id, parentOrigin: root.location && root.location.origin || "", r: PHASE_RELEASE_STAMP });
+        form.style.cssText = "display:none;position:absolute;left:-9999px;top:-9999px;";
+        hiddenField(form, "method", method);
+        hiddenField(form, "payload", JSON.stringify(envelope));
+        hiddenField(form, "data", JSON.stringify(envelope));
+        (doc.body || doc.documentElement).appendChild(iframe);
+        (doc.body || doc.documentElement).appendChild(form);
+        form.submit();
+      } catch (err) {
+        delete apiPostPending[id];
+        clearTimeout(timer);
+        cleanup();
+        reject(err);
+      }
+    });
+  }
+
   function runBridgeApi(method, payload, options) {
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
@@ -282,7 +348,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r99",
+            bridge: "github-pages-gas-direct-r100",
             releaseStamp: PHASE_RELEASE_STAMP
           }, gasOrigin());
         } catch (err) {
@@ -296,7 +362,7 @@
     if (cached) return Promise.resolve(cached);
     var key = stableKey(method, payload), isWrite = isWriteApiMethod(method);
     if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: "github-gas-direct" }); return apiInFlight[key]; }
-    var apiInvoker = /^apiLogin$/i.test(method) ? runLoginPostApi : runBridgeApi;
+    var apiInvoker = /^apiLogin$/i.test(method) ? runLoginPostApi : runApiPost;
     var p = apiInvoker(method, payload, options).then(function(result) {
       recordApiMetric({ kind: "call", method: method, transport: "github-gas-direct", error: isObj(result) && result.ok === false });
       if (isWrite && isObj(result) && result.ok !== false) invalidateClientApiCache("write-success", method);
@@ -437,7 +503,7 @@
     return url;
   };
   root.AppTransport.setLogoUrl = function(url){ return setLogo(url, "manual"); };
-  root.AppTransport.ping = function(){ return runBridgeApi("apiGithubBridgePing", { at: new Date().toISOString(), transportMode: PHASE_TRANSPORT_MODE }); };
+  root.AppTransport.ping = function(){ return runApiPost("apiGithubBridgePing", { at: new Date().toISOString(), transportMode: PHASE_TRANSPORT_MODE }); };
   root.AppTransport.loadPublicConfig = loadPublicConfig;
   root.AppTransport.invalidateClientApiCache = invalidateClientApiCache;
   root.AppTransport.vercelProxyEnabled = function(){ return false; };
@@ -446,6 +512,6 @@
   root.AppTransport.runLoginPost = runLoginPostApi;
 
   try { setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config"); } catch (_) {}
-  if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", function(){ setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config-dom"); ensureBridge().catch(function(e){ try { console.warn(e); } catch (_) {} }); }, { once: true });
-  else { setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config-dom"); ensureBridge().catch(function(e){ try { console.warn(e); } catch (_) {} }); }
+  if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", function(){ setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config-dom"); }, { once: true });
+  else { setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config-dom"); }
 })(window, document);
