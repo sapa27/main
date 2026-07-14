@@ -22,7 +22,7 @@
     ,
     STORED_GAS_WEB_APP_URL = (function(){ try { return root.localStorage && root.localStorage.getItem("GITHUB_GAS_WEB_APP_URL") || ""; } catch (_) { return ""; } })(),
     VERCEL_MIGRATION_CONFIG = GITHUB_DIRECT_CONFIG,
-    VERCEL_GAS_WEB_APP_URL = cleanUrl(GITHUB_DIRECT_CONFIG.gasWebAppUrl || GITHUB_DIRECT_CONFIG.GAS_WEB_APP_URL || root.GITHUB_GAS_WEB_APP_URL || root.GAS_WEB_APP_URL || STORED_GAS_WEB_APP_URL || "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec"),
+    VERCEL_GAS_WEB_APP_URL = cleanUrl(GITHUB_DIRECT_CONFIG.gasWebAppUrl || GITHUB_DIRECT_CONFIG.GAS_WEB_APP_URL || root.GITHUB_GAS_WEB_APP_URL || root.GAS_WEB_APP_URL || STORED_GAS_WEB_APP_URL || "https://script.google.com/macros/s/AKfycbwQLbOZ47UVJmvJ6ckeipmw6NcOPZB5wZFBmJzAAyqvgoV21_om3QzLFYE6tqHDcNhS/exec"),
     VERCEL_LOGO_URL = cleanUrl(GITHUB_DIRECT_CONFIG.logoUrl || GITHUB_DIRECT_CONFIG.APP_LOGO_URL || "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg"),
     defaults = {
       appTitle: "ระบบบริหารจัดการเรื่องพิจารณา",
