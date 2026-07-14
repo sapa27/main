@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive">
-<title>R107 GitHub Pages + GAS Direct Diagnostic</title>
+<title>R108 GitHub Pages + GAS Direct Diagnostic</title>
 <style>
 body{font-family:Sarabun,Arial,sans-serif;margin:24px;line-height:1.55;background:#f8fafc;color:#0f172a}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;max-width:1040px;box-shadow:0 8px 24px rgba(15,23,42,.08)}
@@ -15,8 +15,8 @@ button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#f
 </head>
 <body>
 <div class="card">
-<h1>ตรวจสอบ R107: GitHub Pages → GAS Direct</h1>
-<p>ตรวจการตั้งค่า transport, GAS iframe bridge และ Public JSONP API โดยไม่รับชื่อผู้ใช้ รหัสผ่าน หรือ token</p>
+<h1>ตรวจสอบ R108: GitHub Pages → GAS Direct</h1>
+<p>ตรวจการตั้งค่า transport, Authenticated API POST, GAS iframe bridge fallback และ Public JSONP API โดยไม่รับชื่อผู้ใช้ รหัสผ่าน หรือ token</p>
 <div class="grid">
 <div class="label">GAS Web App</div><code id="gasUrl">-</code>
 <div class="label">Transport</div><code id="transportMode">-</code>
@@ -27,8 +27,8 @@ button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#f
 <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
 <p class="muted">การตรวจข้อมูลหลัง Login ต้องทดสอบจากหน้า <code>index.html</code> เพราะ token ถูกเก็บในหน่วยความจำของหน้าแอปเท่านั้น</p>
 </div>
-<script src="./app-config.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r107"></script>
-<script src="./github-gas-transport.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r107"></script>
+<script src="./app-config.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r108"></script>
+<script src="./github-gas-transport.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r108"></script>
 <script>
 (function(root,doc){
   "use strict";
@@ -51,7 +51,9 @@ button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#f
     if(c.hostingTarget!=="github-pages-gas-direct")errors.push("HOSTING_TARGET_NOT_GITHUB_DIRECT");
     if(c.vercelApiProxyEnabled!==false)errors.push("VERCEL_PROXY_MUST_BE_DISABLED");
     if(c.loginFormPost!==true)errors.push("LOGIN_POST_MUST_BE_ENABLED");
-    if(c.authenticatedReadBridgeFirst!==true)errors.push("AUTHENTICATED_READ_BRIDGE_FIRST_REQUIRED");
+    if(c.authenticatedDataPostFirst!==true)errors.push("AUTHENTICATED_DATA_POST_FIRST_REQUIRED");
+    if(c.dataApiPostBridgeEnabled!==true)errors.push("API_POST_MUST_BE_ENABLED");
+    if(c.authenticatedReadBridgeFirst!==false)errors.push("AUTHENTICATED_READ_BRIDGE_FIRST_MUST_BE_DISABLED");
     if(c.dataApiIframeBridgeEnabled!==true)errors.push("IFRAME_BRIDGE_MUST_BE_ENABLED");
     if(c.readJsonpApi!==true||c.dataApiJsonpReadEnabled!==true)errors.push("JSONP_FALLBACK_MUST_BE_ENABLED");
     if(c.legacyTransportRemoved!==false)errors.push("GITHUB_DIRECT_TRANSPORT_FLAG_INVALID");
@@ -68,13 +70,16 @@ button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#f
       print("Runtime owner",owner,owner.ok!==false);
       var publicCfg=await root.AppTransport.loadPublicConfig();
       print("Public config",publicCfg,publicCfg&&publicCfg.ok!==false);
-      var bridge=await root.AppTransport.ping();
-      print("GAS iframe bridge",bridge,bridge&&bridge.ok!==false);
-      if(!bridge||bridge.ok===false)throw new Error(bridge&&bridge.error||"GAS_BRIDGE_PING_FAILED");
+      if(typeof root.AppTransport.runApiPost!=="function")throw new Error("API_POST_TRANSPORT_NOT_READY");
+      var postContract=await root.AppTransport.runApiPost("apiGetRouteContract",{diagnostic:true},{timeoutMs:30000});
+      print("Primary API POST apiGetRouteContract",postContract,postContract&&postContract.ok!==false);
+      if(!postContract||postContract.ok===false)throw new Error(postContract&&postContract.error||"API_POST_ROUTE_CONTRACT_FAILED");
       var contract=await root.AppTransport.run("apiGetRouteContract",{diagnostic:true},{timeoutMs:30000,noCache:true});
       print("Public JSONP apiGetRouteContract",contract,contract&&contract.ok!==false);
-      if(contract&&contract.ok===false)throw new Error(contract.error||contract.msg||"PUBLIC_ROUTE_CONTRACT_FAILED");
-      print("ผลรวม","GitHub Pages ติดต่อ GAS iframe bridge และ Public JSONP endpoint ได้",true);
+      var bridge=null;
+      try{bridge=await root.AppTransport.ping();print("GAS iframe bridge fallback",bridge,bridge&&bridge.ok!==false)}
+      catch(bridgeErr){print("GAS iframe bridge fallback",text(bridgeErr&&bridgeErr.message||bridgeErr),false)}
+      print("ผลรวม","เส้นทางหลัก API POST ติดต่อ GAS ได้; JSONP/bridge เป็นเส้นทางสำรอง",true);
     }catch(err){
       print("ผลรวม",text(err&&err.message||err),false);
     }
