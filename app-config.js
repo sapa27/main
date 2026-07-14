@@ -5,9 +5,7 @@
   var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
-    "https://script.google.com/macros/s/",
-    "AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm",
-    "/exec"
+    "https://script.google.com/macros/s/AKfycbwur5XPGfo3c0trvGbTyC44UGkVXk6835R0vjD0jsD8FQVfUloDcsNpJF4jxxTRLUG8/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
