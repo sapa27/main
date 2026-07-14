@@ -1,8 +1,8 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
@@ -114,7 +114,7 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-verified-session-bridge-r115",
+    transportMode: "github-pages-phase-c-verified-session-bridge-r116",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -175,7 +175,11 @@
     fastLoginJsonpDisabled: true,
     apiTimeoutMs: 110000,
     publicConfigTimeoutMs: 4000,
-    loginFormPost: true,
+    loginFormPost: false,
+    loginBridgeFirst: true,
+    loginBridgeTimeoutMs: 30000,
+    loginPostFallbackEnabled: true,
+    loginCallbackCrossReleaseCompatible: true,
     dataApiPostBridgeEnabled: false,
     authenticatedDataPostFirst: false,
     dataApiIframeBridgeEnabled: true,
@@ -206,8 +210,8 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r115",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r115",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r116",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r116",
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
     legacyJsonpTransportRemoved: false,

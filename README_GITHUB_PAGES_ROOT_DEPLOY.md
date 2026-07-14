@@ -1,26 +1,36 @@
-# GitHub Pages + GAS Verified Session Bridge — R115
+# GitHub Pages + GAS Verified Bridge — R116
 
 สถาปัตยกรรม Production ของชุดนี้:
 
 ```text
 GitHub Pages (static frontend)
-  ├─ Login: form POST → GAS doPost → nonce-bound postMessage
+  ├─ Login: verified GAS bridge → google.script.run.apiGithubBridgeCall(apiLogin)
+  │          └─ fallback: form POST → GAS doPost → postMessage callback
   ├─ Authenticated API: persistent GAS iframe → nonce + ping verification
   │                    → google.script.run.apiGithubBridgeCall → apiRouter
   ├─ Public contract API: JSONP แบบไม่มี token/CSRF เท่านั้น
-  └─ Deferred page assets: static filesจาก ./partials พร้อม asset stamp
+  └─ Deferred page assets: static files จาก ./partials พร้อม asset stamp
 ```
 
-## หลักการเจ้าของระบบ
+## การแก้ไขสำคัญใน R116
+
+- ยกเลิกการบังคับ Login ผ่าน POST iframe เป็นเส้นทางแรก
+- Login ใช้ verified bridge ชุดเดียวกับ authenticated API
+- POST Login เหลือเป็น compatibility fallback
+- Login callback ตรวจ Google origin และ request ID เป็นเงื่อนไขหลัก
+- ถ้า callback มี nonce ต้องตรงกับคำขอ
+- release stamp ต่างรุ่นไม่ทำให้ callback ถูกทิ้งจน timeout แต่บันทึกเป็น diagnostic
+- bridge ใช้ stamp ที่ backend ประกาศใน READY message ป้องกัน GitHub/GAS ต่างรุ่นชั่วคราว
+- Login/Logout/Session Resume ไม่ใช้ in-flight dedupe เพื่อไม่รวมคำขอคนละรหัสผ่านเข้าด้วยกัน
+
+## เจ้าของระบบ
 
 - Transport owner: `github-gas-transport.js`
 - API owner: `apiRouter` ใน `Code_20_Router.gs`
 - Web entry owner: `doGet`/`doPost` ใน `Code_00_PlatformCore.gs`
 - Editable frontend partials: `gas-backend/Scripts_*.html`
 - Static mirrors: `partials/Scripts_*.html`
-- GAS deployment URL ต้องกำหนดใน `app-config.js` และ `index.html` เท่านั้น
-
-R115 ปิดการเปลี่ยน GAS URL ผ่าน query string และ localStorage โดยค่าเริ่มต้น เพื่อไม่ให้ username/password ถูกส่งไปยัง deployment ที่ไม่ได้กำหนดไว้
+- GAS deployment URL กำหนดใน `app-config.js`
 
 ## ไฟล์ที่ต้อง Deploy
 
@@ -36,7 +46,7 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 - โฟลเดอร์ `partials/`
 - `.nojekyll`
 
-อย่าอัปโหลดเฉพาะ `index.html` เพราะ R115 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
+อย่าอัปโหลดเฉพาะ `index.html` เพราะ R116 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
 
 ### Google Apps Script
 
@@ -46,51 +56,44 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 - Who has access: **Anyone** หรือ **Anyone with the link** ตามนโยบายองค์กร
 - URL ต้องลงท้าย `/exec`
 
-ไฟล์สำคัญที่ต้อง Deploy พร้อมกันคือ `Code_00_PlatformCore.gs` เพราะมี nonce handshake, Login callback และ bridge renderer รุ่น R115
+ไฟล์สำคัญคือ `Code_00_PlatformCore.gs` เพราะมี bridge renderer, Login callback และ `doPost`
 
 ## การตรวจหลัง Deploy
 
 1. ปิดแท็บระบบเดิมทั้งหมด
 2. เปิด Incognito หรือ Hard Reload
-3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r115`:
-   - `app-config.js?v=r115`
-   - `github-gas-transport.js?v=r115`
-   - `app-index-foundation-pre-vue.js?v=r115`
-   - `app-index-foundation-after-vue.js?v=r115`
-   - `app-index-foundation-after-swal.js?v=r115`
-   - `critical-login-runtime.js?v=r115`
-   - `app-index-bootstrap.js?v=r115`
-4. เปิด `diagnostic.html` แล้วให้ผ่าน:
-   - READY + nonce-bound source
-   - Ping-verified bridge
-   - `google.script.run` ping
-   - Public JSONP contract โดยไม่มี credentials
+3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r116`:
+   - `app-config.js?v=r116`
+   - `github-gas-transport.js?v=r116`
+   - `app-index-foundation-pre-vue.js?v=r116`
+   - `app-index-foundation-after-vue.js?v=r116`
+   - `app-index-foundation-after-swal.js?v=r116`
+   - `critical-login-runtime.js?v=r116`
+   - `app-index-bootstrap.js?v=r116`
+4. เปิด `diagnostic.html` แล้วตรวจ READY, nonce, ping และ `google.script.run`
+5. Login ต้องไม่ขึ้น `GAS Login POST timeout`
 
 ## Security contract
 
 - Authenticated API ห้ามใช้ JSONP
 - JSONP ใช้เฉพาะ public contract API
-- token/CSRF ไม่อยู่ใน URL
-- Login callback ต้องมี request ID, release stamp และ nonce ที่ตรงกัน
-- Data bridge ต้องมี release stamp, bridge nonce และ ping verification
-- Client read cache ถูกแบ่งตาม session token hash และล้างเมื่อ Login/Logout/เปลี่ยนผู้ใช้/บันทึกข้อมูล
-- ไม่อนุญาตเปลี่ยน GAS deployment ระหว่าง runtime เว้นแต่แก้ `app-config.js` โดยตั้งใจ
+- token/CSRF/password ไม่อยู่ใน URL
+- Bridge ต้องมี Google origin, request-bound nonce และ ping verification
+- Login POST callback ต้องมี request ID ที่ตรงกับคำขอ และ nonce ต้องตรงเมื่อ callback ส่ง nonce มา
+- Client read cache แบ่งตาม session token และล้างเมื่อ Login/Logout/เปลี่ยนผู้ใช้/บันทึกข้อมูล
+- ไม่อนุญาตเปลี่ยน GAS deployment ระหว่าง runtime เว้นแต่แก้ `app-config.js`
 
 ## Troubleshooting
 
+### GAS Login POST timeout
+
+R116 จะใช้ verified bridge ก่อน หากยังพบ timeout ให้ตรวจว่า:
+
+- GitHub โหลด `github-gas-transport.js?v=r116`
+- GAS Web App เปิด `/exec` ได้
+- `Code_00_PlatformCore.gs` ถูกเขียนทับและ Deploy เป็น New version
+- Browser ไม่บล็อก third-party iframe หรือ Google Apps Script
+
 ### Login สำเร็จแต่ข้อมูลไม่แสดง
 
-เปิด `diagnostic.html` ก่อน หาก bridge ไม่ผ่าน ให้ตรวจ:
-
-- GAS ได้ Deploy `Code_00_PlatformCore.gs` รุ่น R115 แล้ว
-- GitHub โหลด JavaScript ทุกไฟล์เป็น `?v=r115`
-- URL ใน `app-config.js`, `index.html` และ fallback ใน `github-gas-transport.js` เป็น deployment เดียวกัน
-- Web app permission อนุญาตให้ผู้ใช้เปิด `/exec`
-
-### พบ release mismatch หรือ bridge timeout
-
-แปลว่า GitHub และ GAS เป็นคนละรุ่น ห้ามแก้ด้วย JSONP fallback ให้ Deploy ทั้งสองฝั่งจาก ZIP เดียวกัน
-
-### ปุ่มค้างหลัง transport error
-
-R115 จะปลด UI lock และแสดงแถบ “เชื่อมต่อใหม่” ด้านบน หากเกิดซ้ำให้ใช้ `diagnostic.html` เพื่อดู bridge status แทนการซ่อน error เป็นข้อมูลว่าง
+เปิด `diagnostic.html` และตรวจว่า bridge ผ่าน READY + ping จากนั้นตรวจว่า token ถูกเก็บใน memory store และ `apiBootstrap` ใช้ authenticated bridge

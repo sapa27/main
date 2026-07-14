@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
-  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r115";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
+  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r116";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
 
   var includeCache = Object.create(null);
@@ -21,6 +21,7 @@
   var bridgeFrame = null;
   var bridgeClientWindow = null;
   var bridgeClientOrigin = "";
+  var bridgeServerStamp = "";
   var bridgeNonce = "";
   var bridgeReady = false;
   var bridgeVerified = false;
@@ -85,7 +86,6 @@
   function isTrustedBridgeEvent(event, data) {
     if (!event || !event.source || !isObject(data)) return false;
     if (!isTrustedGoogleMessageOrigin(event.origin)) return false;
-    if (text(data.stamp || data.releaseStamp || "") !== RELEASE_STAMP) return false;
     if (!bridgeNonce || text(data.nonce || "") !== bridgeNonce) return false;
     return true;
   }
@@ -282,6 +282,7 @@
     bridgeVerified = false;
     bridgeClientWindow = null;
     bridgeClientOrigin = "";
+    bridgeServerStamp = "";
     bridgeLastVerifiedAt = 0;
     bridgeVerifyRequestId = "";
     bridgeNonce = "";
@@ -305,7 +306,7 @@
   }
   function postToBridgeWindow(message) {
     if (!bridgeClientWindow || !bridgeClientOrigin || !bridgeNonce) return false;
-    message = Object.assign({}, message || {}, { nonce: bridgeNonce, releaseStamp: RELEASE_STAMP });
+    message = Object.assign({}, message || {}, { nonce: bridgeNonce, releaseStamp: bridgeServerStamp || RELEASE_STAMP, clientReleaseStamp: RELEASE_STAMP });
     try {
       bridgeClientWindow.postMessage(message, bridgeClientOrigin === "null" ? "*" : bridgeClientOrigin);
       return true;
@@ -412,8 +413,9 @@
       var loginRequest = loginId && loginPending[loginId];
       if (!loginRequest) return;
       if (!isTrustedGoogleMessageOrigin(event && event.origin)) return;
-      if (text(data.stamp || data.releaseStamp || "") !== RELEASE_STAMP) return;
-      if (!loginRequest.nonce || text(data.nonce || "") !== loginRequest.nonce) return;
+      var responseNonce = text(data.nonce || "");
+      if (responseNonce && loginRequest.nonce && responseNonce !== loginRequest.nonce) return;
+      var responseStamp = text(data.stamp || data.releaseStamp || "");
       delete loginPending[loginId];
       root.clearTimeout(loginRequest.timer);
       try { loginRequest.cleanup(); } catch (_) {}
@@ -421,7 +423,13 @@
       if (isObject(loginResult)) {
         loginResult.method = loginResult.method || "apiLogin";
         loginResult.transport = loginResult.transport || "github-login-post";
-        loginResult.releaseStamp = loginResult.releaseStamp || RELEASE_STAMP;
+        loginResult.releaseStamp = loginResult.releaseStamp || responseStamp || RELEASE_STAMP;
+        loginResult.meta = Object.assign({}, isObject(loginResult.meta) ? loginResult.meta : {}, {
+          callbackNoncePresent: !!responseNonce,
+          callbackReleaseStamp: responseStamp,
+          frontendReleaseStamp: RELEASE_STAMP,
+          crossReleaseCallback: !!responseStamp && responseStamp !== RELEASE_STAMP
+        });
       }
       loginRequest.resolve(loginResult);
       return;
@@ -432,7 +440,9 @@
       if (bridgeClientWindow && event.source !== bridgeClientWindow) return;
       bridgeClientWindow = event.source;
       bridgeClientOrigin = text(event.origin || "null");
+      bridgeServerStamp = text(data.stamp || data.releaseStamp || RELEASE_STAMP) || RELEASE_STAMP;
       root.__APP_GAS_INNER_BRIDGE_ORIGIN__ = bridgeClientOrigin;
+      root.__APP_GAS_INNER_BRIDGE_SERVER_STAMP__ = bridgeServerStamp;
       root.__APP_GAS_INNER_BRIDGE_READY_AT__ = new Date().toISOString();
       verifyBridgeCandidate();
       return;
@@ -526,6 +536,34 @@
         cleanup();
         reject(error);
       }
+    });
+  }
+
+  function runLogin(method, payload, options) {
+    method = text(method).trim();
+    payload = isObject(payload) ? Object.assign({}, payload) : {};
+    options = options || {};
+    return runBridge(method, payload, Object.assign({}, options, {
+      timeoutMs: Math.max(15000, Math.min(Number(options.loginBridgeTimeoutMs || options.timeoutMs || config("loginBridgeTimeoutMs", 30000)) || 30000, 60000))
+    })).then(function(result) {
+      if (isObject(result)) {
+        result.transport = result.transport || "github-login-verified-bridge";
+        result.meta = Object.assign({}, isObject(result.meta) ? result.meta : {}, { loginBridgeFirst: true, loginPostFallback: false });
+      }
+      return result;
+    }).catch(function(bridgeError) {
+      if (config("loginPostFallbackEnabled", true) !== true) throw bridgeError;
+      return runLoginPost(method, payload, options).then(function(result) {
+        if (isObject(result)) {
+          result.meta = Object.assign({}, isObject(result.meta) ? result.meta : {}, {
+            loginBridgeFirst: true,
+            loginPostFallback: true,
+            bridgeErrorCode: text(bridgeError && (bridgeError.code || bridgeError.errorCode) || ""),
+            bridgeErrorMessage: text(bridgeError && bridgeError.message || bridgeError || "")
+          });
+        }
+        return result;
+      });
     });
   }
 
@@ -644,14 +682,14 @@
     var isWrite = isWriteMethod(method);
     var isLogin = /^apiLogin$/i.test(method);
     var isAuthTransition = /^(apiLogin|apiLogout|apiSessionResume)$/i.test(method);
-    if (!isWrite && apiInFlight[key]) {
+    if (!isWrite && !isAuthTransition && apiInFlight[key]) {
       recordMetric({ kind: "call", method: method, dedupeHit: true, transport: TRANSPORT_MODE });
       return apiInFlight[key];
     }
 
-    var invoker = isLogin ? runLoginPost : (isPublicJsonpMethod(method) ? runJsonp : runBridge);
+    var invoker = isLogin ? runLogin : (isPublicJsonpMethod(method) ? runJsonp : runBridge);
     var promise = invoker(method, payload, options).then(function(result) {
-      recordMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isPublicJsonpMethod(method) ? "github-public-jsonp" : TRANSPORT_MODE), error: isObject(result) && result.ok === false });
+      recordMetric({ kind: "call", method: method, transport: isObject(result) && result.transport || (isLogin ? "github-login-verified-bridge" : (isPublicJsonpMethod(method) ? "github-public-jsonp" : TRANSPORT_MODE)), error: isObject(result) && result.ok === false });
       if (isAuthTransition && isObject(result) && result.ok !== false) {
         invalidateCache("auth-transition-success", method);
         lastAuthScope = /^apiLogout$/i.test(method) ? "anonymous" : authScopeForPayload(result && (result.data || result) || payload);
@@ -675,7 +713,7 @@
       } catch (_) {}
       throw error;
     });
-    if (!isWrite) {
+    if (!isWrite && !isAuthTransition) {
       apiInFlight[key] = promise.then(function(value) { delete apiInFlight[key]; return value; }, function(error) { delete apiInFlight[key]; throw error; });
       return apiInFlight[key];
     }
@@ -799,7 +837,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r115";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r116";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = true;
   root.AppTransport.__authenticatedJsonpDisabled = true;
@@ -887,6 +925,7 @@
   root.AppTransport.runAuthenticatedPostMessageBridge = runBridge;
   root.AppTransport.runApiPost = runBridge;
   root.AppTransport.runJsonpApi = runJsonp;
+  root.AppTransport.runLogin = runLogin;
   root.AppTransport.runLoginPost = runLoginPost;
 
   try { setLogo(config("logoUrl", FALLBACK_LOGO), "app-config"); } catch (_) {}
