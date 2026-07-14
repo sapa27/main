@@ -3,8 +3,8 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22/%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22/%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C/text%3E%3C/svg%3E";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r101";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r101";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r102";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r102";
   var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-iframe-bridge";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
@@ -47,6 +47,25 @@
   }
   function gasOrigin() {
     try { return new URL(gasWebAppUrl()).origin; } catch (_) { return "https://script.google.com"; }
+  }
+  function gasBridgeTargetOrigins() {
+    var origins = [gasOrigin(), "https://script.googleusercontent.com"];
+    var seen = Object.create(null);
+    return origins.filter(function(origin) {
+      origin = text(origin).trim();
+      if (!/^https:\/\//i.test(origin) || seen[origin]) return false;
+      seen[origin] = true;
+      return true;
+    });
+  }
+  function postToBridgeFrame(message) {
+    var win = bridgeFrame && bridgeFrame.contentWindow;
+    if (!win) return false;
+    var sent = false;
+    gasBridgeTargetOrigins().forEach(function(origin) {
+      try { win.postMessage(message, origin); sent = true; } catch (_) {}
+    });
+    return sent;
   }
   function withQuery(url, params) {
     var u = new URL(url, root.location && root.location.href || undefined);
@@ -151,7 +170,7 @@
         bridgeFrame.onload = function() { setTimeout(function(){ if (!bridgeReady) probeBridge(); }, 20); };
         if (bridgeFrame.src !== bridgeUrl()) bridgeFrame.src = bridgeUrl();
         function probeBridge() {
-          try { bridgeFrame.contentWindow && bridgeFrame.contentWindow.postMessage({ type: "GAS_IFRAME_TRANSPORT_PING_READY", __gasIframeTransport: true }, gasOrigin()); } catch (_) {}
+          postToBridgeFrame({ type: "GAS_IFRAME_TRANSPORT_PING_READY", __gasIframeTransport: true });
         }
         var probes = [40, 120, 300, 700, 1500, 3000];
         probes.forEach(function(ms) { setTimeout(function(){ if (!bridgeReady) probeBridge(); }, ms); });
@@ -305,7 +324,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r101", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r102", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -342,15 +361,15 @@
         var timer = setTimeout(function() { delete bridgePending[id]; reject(bridgeError("GAS Direct bridge timeout: " + method, "GAS_DIRECT_BRIDGE_TIMEOUT", method)); }, timeoutMs);
         bridgePending[id] = { resolve: resolve, reject: reject, timer: timer, method: method };
         try {
-          frame.contentWindow.postMessage({
+          postToBridgeFrame({
             __gasIframeTransport: true,
             type: "GAS_IFRAME_TRANSPORT_REQUEST",
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r101",
+            bridge: "github-pages-gas-direct-r102",
             releaseStamp: PHASE_RELEASE_STAMP
-          }, gasOrigin());
+          });
         } catch (err) {
           delete bridgePending[id]; clearTimeout(timer); reject(err);
         }
@@ -363,10 +382,10 @@
     var key = stableKey(method, payload), isWrite = isWriteApiMethod(method), isLogin = /^apiLogin$/i.test(method);
     if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: "github-gas-direct-bridge" }); return apiInFlight[key]; }
 
-    // R101: login still uses POST iframe because it carries the password safely.
-    // All post-login data APIs use the GAS iframe bridge (google.script.run) instead of
-    // HtmlService POST echo pages. Google may return 403 on script.googleusercontent.com/echo
-    // for repeated POST callback pages, which caused successful login but no data rendering.
+    // R102: login still uses POST iframe because it carries the password safely.
+    // Post-login data APIs use the GAS iframe bridge. Apps Script HtmlService frames
+    // normally run on script.googleusercontent.com after redirect, so bridge messages
+    // are posted to both the script.google.com URL and the googleusercontent origin.
     var apiInvoker = isLogin ? runLoginPostApi : runBridgeApi;
     var p = apiInvoker(method, payload, options).then(function(result) {
       recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : "github-gas-direct-bridge", error: isObj(result) && result.ok === false });
