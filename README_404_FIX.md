@@ -1,46 +1,20 @@
-# GitHub Pages 404 Fix
+# GitHub Pages Root/404 Checklist — R115
 
-สาเหตุ 404: GitHub Pages หา `index.html` ที่ root ของแหล่ง publish ไม่พบ เพราะชุดก่อนหน้าเก็บไฟล์หน้าเว็บไว้ใน `github-pages/index.html`.
+ไฟล์ `index.html`, `.nojekyll`, `app-config.js`, `github-gas-transport.js`, `critical-login-runtime.js`, `app-index-*.js` และโฟลเดอร์ `partials/` ต้องอยู่ที่ root ที่ GitHub Pages publish จริง
 
-ชุด R96 นี้แก้โดยวางไฟล์หน้าเว็บสำหรับ GitHub Pages ไว้ที่ root โดยตรง:
+## ตรวจเส้นทาง
 
-- `index.html`
-- `app-config.js`
-- `github-gas-transport.js`
-- `critical-login-runtime.js`
-- `app-index-*.js`
-- `partials/`
-- `.nojekyll`
+- `/<repo>/index.html` ต้องได้ HTTP 200
+- `/<repo>/app-config.js?v=r115` ต้องได้ HTTP 200
+- `/<repo>/github-gas-transport.js?v=r115` ต้องได้ HTTP 200
+- `/<repo>/partials/Scripts_Core_Runtime.html?v=<asset stamp>` ต้องได้ HTTP 200
+- `/<repo>/diagnostic.html` ต้องเปิดได้
 
-วิธีใช้:
+## อาการที่บอกว่าไฟล์คนละรุ่น
 
-1. อัปโหลดไฟล์และโฟลเดอร์ทั้งหมดใน ZIP นี้ไปที่ root ของ repository ที่ใช้ GitHub Pages
-2. ตรวจ `app-config.js` แล้วแทน `https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec` ด้วย GAS Web App URL ที่ลงท้าย `/exec`
-3. GitHub Settings → Pages → Build and deployment → Deploy from a branch → เลือก branch และ `/root`
-4. รอ deploy แล้วเปิด URL ของ GitHub Pages ใหม่
+- `Invalid or unexpected token`
+- ปุ่มไม่ตอบสนองหลัง Login
+- transport mode หรือ release stamp ไม่ตรงกัน
+- ไฟล์บางตัวเป็น `r115` แต่ `app-index-*.js` ไม่มี `?v=r115`
 
-หมายเหตุ: โฟลเดอร์ `gas-backend/` ใช้สำหรับอัปโหลดเข้า Google Apps Script ไม่ใช่ไฟล์ที่ GitHub Pages ต้องโหลดโดยตรง
-
-
-## R97 note
-This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
-
-
-## R109: GAS URL hardening
-
-ชุดนี้ตั้งค่า GAS Web App URL ล่าสุดไว้ทั้งใน `app-config.js`, `index.html` และ fallback ภายใน `github-gas-transport.js` แล้ว:
-
-```text
-https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec
-```
-
-กรุณาอัปโหลด/commit ไฟล์ root ทั้งชุด ไม่ใช่เฉพาะ `index.html` เพื่อป้องกัน browser ใช้ไฟล์ transport หรือ config รุ่นเก่าค้างอยู่
-
-
-## R109 note
-- Login uses POST iframe.
-- Read APIs use JSONP authenticated read first, then bridge fallback, to avoid hidden iframe message loss on GitHub Pages.
-- Upload root files and deploy GAS backend Code_00_PlatformCore.gs from this package.
-
-
-R109: โลโก้รัฐสภาใช้ URL: https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg
+R115 ใส่ cache version ให้ JavaScript local ทั้ง 7 ไฟล์แล้ว ต้อง commit ทั้งชุดและล้าง cache หลัง GitHub Pages deploy สำเร็จ

@@ -4,75 +4,79 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive">
-<title>R114 GitHub Pages → GAS Bridge Diagnostic</title>
+<title>R115 GitHub Pages → GAS Verified Bridge Diagnostic</title>
 <style>
-body{font-family:Sarabun,Arial,sans-serif;margin:24px;background:#f8fafc;color:#0f172a;line-height:1.55}.card{max-width:1040px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(15,23,42,.08)}.grid{display:grid;grid-template-columns:190px 1fr;gap:8px 12px;margin:16px 0}.label{font-weight:700}code,pre{background:#f1f5f9;border-radius:8px}code{padding:2px 6px;overflow-wrap:anywhere}pre{padding:12px;white-space:pre-wrap;min-height:280px;overflow:auto}button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#fff;cursor:pointer}.muted{color:#64748b}@media(max-width:640px){body{margin:10px}.grid{grid-template-columns:1fr}}
+:root{color-scheme:light}body{font-family:Sarabun,Arial,sans-serif;margin:24px;background:#f1f5f9;color:#0f172a;line-height:1.55}.card{max-width:1040px;margin:auto;background:#fff;border:1px solid #dbe3ea;border-radius:18px;padding:22px;box-shadow:0 12px 32px rgba(15,23,42,.09)}.grid{display:grid;grid-template-columns:210px 1fr;gap:9px 14px;margin:18px 0}.label{font-weight:700}code,pre{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}code{padding:3px 7px;overflow-wrap:anywhere}pre{padding:14px;white-space:pre-wrap;min-height:320px;overflow:auto}button{padding:10px 16px;border:0;border-radius:11px;background:#0f3b68;color:#fff;cursor:pointer;font:600 15px Sarabun,Arial,sans-serif}button:disabled{opacity:.55;cursor:wait}.muted{color:#64748b}.pass{color:#166534}.fail{color:#b91c1c}@media(max-width:640px){body{margin:10px}.grid{grid-template-columns:1fr}.card{padding:16px}}
 </style>
 </head>
 <body>
 <div class="card">
-<h1>ตรวจสอบ R114: Inner Source-Window Bridge</h1>
-<p>ตรวจว่า GitHub ได้รับ READY จาก iframe ชั้นที่มี <code>google.script.run</code> และส่งคำขอกลับไปยัง <code>event.source</code> เดิม ไม่ใช้ POST API ต่อคำขอและไม่ใช้ authenticated JSONP</p>
+<h1>ตรวจสอบ R115: Verified Session Bridge</h1>
+<p>ตรวจสอบลำดับ <code>READY → nonce validation → ping verification → google.script.run</code> และตรวจว่า authenticated API ไม่ใช้ JSONP หรือ POST iframe ต่อคำขอ</p>
 <div class="grid">
 <div class="label">GAS Web App</div><code id="gasUrl">-</code>
 <div class="label">Transport</div><code id="transportMode">-</code>
 <div class="label">Release</div><code id="releaseStamp">-</code>
 <div class="label">Bridge origin</div><code id="bridgeOrigin">-</code>
+<div class="label">Bridge verification</div><code id="bridgeVerified">ยังไม่ตรวจ</code>
+<div class="label">Client cache scope</div><code id="cacheScope">-</code>
 </div>
 <p><button id="runBtn" type="button">เริ่มตรวจสอบ</button></p>
 <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
-<p class="muted">การตรวจนี้ไม่ใช้ชื่อผู้ใช้ รหัสผ่าน token หรือ CSRF</p>
+<p class="muted">หน้านี้ไม่แสดงชื่อผู้ใช้ รหัสผ่าน token, CSRF หรือ bridge nonce</p>
 </div>
-<script src="./app-config.js?v=r114"></script>
-<script src="./github-gas-transport.js?v=r114"></script>
+<script src="./app-config.js?v=r115"></script>
+<script src="./github-gas-transport.js?v=r115"></script>
 <script>
 (function(root,doc){
   "use strict";
   var output=doc.getElementById("out");
+  var button=doc.getElementById("runBtn");
   function text(v){return v==null?"":String(v)}
   function config(){return root.APP_CONFIG||{}}
-  function line(label,value,ok){
-    output.textContent+=(output.textContent?"\n":"")+(ok===false?"[FAIL] ":ok===true?"[PASS] ":"[INFO] ")+label+": "+(typeof value==="string"?value:JSON.stringify(value,null,2));
-  }
+  function line(label,value,ok){output.textContent+=(output.textContent?"\n":"")+(ok===false?"[FAIL] ":ok===true?"[PASS] ":"[INFO] ")+label+": "+(typeof value==="string"?value:JSON.stringify(value,null,2))}
   function summary(){
     var state=root.AppTransport&&root.AppTransport.bridgeClientState?root.AppTransport.bridgeClientState():{};
+    var cache=root.AppTransport&&root.AppTransport.clientCacheStatus?root.AppTransport.clientCacheStatus():{};
     doc.getElementById("gasUrl").textContent=text(config().gasWebAppUrl||root.GAS_WEB_APP_URL||"");
     doc.getElementById("transportMode").textContent=text(config().transportMode||"");
     doc.getElementById("releaseStamp").textContent=text(config().releaseStamp||"");
     doc.getElementById("bridgeOrigin").textContent=text(state.sourceOrigin||"ยังไม่ READY");
+    doc.getElementById("bridgeVerified").textContent=state.verified?"ผ่าน ping verification":"ยังไม่ผ่าน";
+    doc.getElementById("cacheScope").textContent=text(cache.authScope||"anonymous")+" / epoch "+text(cache.cacheEpoch||0);
   }
   async function run(){
-    output.textContent="";
-    summary();
+    output.textContent="";button.disabled=true;summary();
     try{
       var c=config();
       var checks={
         gasUrl:/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(text(c.gasWebAppUrl)),
-        transport:c.transportMode==="github-pages-phase-c-inner-source-window-bridge-r114",
-        iframeBridge:c.dataApiIframeBridgeEnabled===true,
+        transport:c.transportMode==="github-pages-phase-c-verified-session-bridge-r115",
+        nonceRequired:c.bridgeNonceRequired===true,
+        pingRequired:c.bridgePingVerificationRequired===true,
         requireReady:c.requireBridgeReadyMessage===true,
         noAssumedReady:c.allowAssumedBridgeReady===false,
         noPerRequestApiPost:c.perRequestApiPostDisabled===true,
-        noAuthenticatedJsonp:c.authenticatedReadBridgeOnly===true&&c.dataApiJsonpReadEnabled===false
+        noAuthenticatedJsonp:c.authenticatedReadBridgeOnly===true&&c.dataApiJsonpReadEnabled===false,
+        mirrorRoot:c.generatedMirrorRoot==="partials"
       };
-      line("Config",checks,Object.keys(checks).every(function(k){return checks[k]===true}));
+      line("Configuration contract",checks,Object.keys(checks).every(function(k){return checks[k]===true}));
       if(!root.AppTransport||typeof root.AppTransport.ensureBridgeClient!=="function")throw new Error("APP_TRANSPORT_NOT_READY");
       var ready=await root.AppTransport.ensureBridgeClient();
       summary();
-      line("Inner bridge READY",ready,!!(ready&&ready.sourceWindow&&ready.sourceOrigin));
+      line("READY + nonce-bound source",{sourceOrigin:ready&&ready.sourceOrigin,generation:ready&&ready.generation,verifiedAt:ready&&ready.verifiedAt},!!(ready&&ready.sourceWindow&&ready.sourceOrigin&&ready.verifiedAt));
       var state=root.AppTransport.bridgeClientState();
-      line("Captured event.source",state,!!(state.ready&&state.innerSourceWindowCaptured&&state.sourceOrigin));
+      line("Ping-verified bridge",{ready:state.ready,verified:state.verified,sourceOrigin:state.sourceOrigin,generation:state.generation},!!(state.ready&&state.verified&&state.innerSourceWindowCaptured));
       var ping=await root.AppTransport.ping();
       line("google.script.run ping",ping,!!(ping&&ping.ok!==false));
-      var publicContract=await root.AppTransport.runJsonpApi("apiGetRouteContract",{diagnostic:true},{timeoutMs:30000});
-      line("Public JSONP contract",publicContract,!!(publicContract&&publicContract.ok!==false));
-      line("ผลรวม","bridge พร้อมและตอบกลับผ่าน source window เดียวกัน",true);
-    }catch(error){
-      line("ผลรวม",text(error&&error.message||error),false);
-    }
+      var publicContract=await root.AppTransport.runJsonpApi("apiGetRouteContract",{diagnostic:true,token:"must-be-stripped",csrfToken:"must-be-stripped"},{timeoutMs:30000});
+      line("Public JSONP contract (credentials stripped)",publicContract,!!(publicContract&&publicContract.ok!==false));
+      summary();
+      line("ผลรวม","transport พร้อมใช้งานและยืนยัน source window แล้ว",true);
+    }catch(error){line("ผลรวม",text(error&&error.message||error),false);summary()}
+    finally{button.disabled=false}
   }
-  summary();
-  doc.getElementById("runBtn").addEventListener("click",run);
+  summary();button.addEventListener("click",run);
 })(window,document);
 </script>
 </body>

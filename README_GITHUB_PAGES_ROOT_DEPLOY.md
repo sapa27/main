@@ -1,105 +1,96 @@
-# GitHub Pages + GAS Direct Edition (R95)
+# GitHub Pages + GAS Verified Session Bridge — R115
 
-ชุดนี้แยกจาก Vercel Edition เพื่อใช้งานแบบ:
-
-```text
-GitHub Pages (Static frontend)
-  -> hidden iframe bridge ไปยัง GAS Web App
-  -> google.script.run / apiGithubBridgeCall
-  -> Google Sheets
-```
-
-## ไฟล์ที่ต้องใช้งาน
-
-### 1) อัปโหลด/Deploy ฝั่ง GAS
-นำไฟล์ทั้งหมดในโฟลเดอร์ `gas-backend/` ไปใส่ใน Google Apps Script แล้ว Deploy เป็น Web app:
-
-- Execute as: Me
-- Who has access: Anyone หรือ Anyone with the link
-- คัดลอก URL ที่ลงท้าย `/exec`
-
-### 2) ตั้งค่า GitHub Pages
-นำไฟล์ทั้งหมดในโฟลเดอร์ `github-pages/` ไปไว้ใน repository ที่เปิด GitHub Pages
-
-ต้องแก้ไฟล์:
+สถาปัตยกรรม Production ของชุดนี้:
 
 ```text
-github-pages/app-config.js
+GitHub Pages (static frontend)
+  ├─ Login: form POST → GAS doPost → nonce-bound postMessage
+  ├─ Authenticated API: persistent GAS iframe → nonce + ping verification
+  │                    → google.script.run.apiGithubBridgeCall → apiRouter
+  ├─ Public contract API: JSONP แบบไม่มี token/CSRF เท่านั้น
+  └─ Deferred page assets: static filesจาก ./partials พร้อม asset stamp
 ```
 
-ค้นหา:
+## หลักการเจ้าของระบบ
 
-```text
-https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec
-```
+- Transport owner: `github-gas-transport.js`
+- API owner: `apiRouter` ใน `Code_20_Router.gs`
+- Web entry owner: `doGet`/`doPost` ใน `Code_00_PlatformCore.gs`
+- Editable frontend partials: `gas-backend/Scripts_*.html`
+- Static mirrors: `partials/Scripts_*.html`
+- GAS deployment URL ต้องกำหนดใน `app-config.js` และ `index.html` เท่านั้น
 
-แล้วแทนด้วย GAS Web App URL ที่ลงท้าย `/exec`
+R115 ปิดการเปลี่ยน GAS URL ผ่าน query string และ localStorage โดยค่าเริ่มต้น เพื่อไม่ให้ username/password ถูกส่งไปยัง deployment ที่ไม่ได้กำหนดไว้
 
-ตัวอย่าง:
+## ไฟล์ที่ต้อง Deploy
 
-```javascript
-gasWebAppUrl: "https://script.google.com/macros/s/XXXXX/exec"
-```
+### GitHub Pages
 
-## วิธีทดสอบเร็วโดยไม่แก้ไฟล์
+Commit ไฟล์ root ทั้งชุด รวมถึง:
 
-เปิด URL GitHub Pages พร้อม query parameter:
+- `index.html`
+- `app-config.js`
+- `github-gas-transport.js`
+- `critical-login-runtime.js`
+- `app-index-*.js`
+- โฟลเดอร์ `partials/`
+- `.nojekyll`
 
-```text
-https://<user>.github.io/<repo>/?gas=https%3A%2F%2Fscript.google.com%2Fmacros%2Fs%2FXXXXX%2Fexec
-```
+อย่าอัปโหลดเฉพาะ `index.html` เพราะ R115 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
 
-ระบบจะบันทึก URL ลง `localStorage` key:
+### Google Apps Script
 
-```text
-GITHUB_GAS_WEB_APP_URL
-```
+เขียนทับไฟล์ทั้งหมดใน `gas-backend/` แล้ว Deploy เป็น Web app เวอร์ชันใหม่:
 
-## สิ่งที่ตัดออกจาก Vercel Edition
+- Execute as: **Me**
+- Who has access: **Anyone** หรือ **Anyone with the link** ตามนโยบายองค์กร
+- URL ต้องลงท้าย `/exec`
 
-- ไม่ใช้ `/api/gas`
-- ไม่ใช้ `/api/login`
-- ไม่ใช้ `/api/public-config`
-- ไม่ใช้ Vercel proxy timeout
-- ไม่ใช้ Vercel CSP/runtime-owner guard
+ไฟล์สำคัญที่ต้อง Deploy พร้อมกันคือ `Code_00_PlatformCore.gs` เพราะมี nonce handshake, Login callback และ bridge renderer รุ่น R115
 
-## Transport ที่ใช้
+## การตรวจหลัง Deploy
 
-- ใช้ hidden iframe ไปยัง `GAS_WEB_APP_URL?__githubBridgeClient=1`
-- iframe ใช้ `google.script.run.apiGithubBridgeCall()`
-- ใช้ `postMessage` ระหว่าง GitHub Pages กับ GAS iframe
-- รองรับ read/write API เดิมทั้งหมดโดยไม่เพิ่ม API ใหม่
+1. ปิดแท็บระบบเดิมทั้งหมด
+2. เปิด Incognito หรือ Hard Reload
+3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r115`:
+   - `app-config.js?v=r115`
+   - `github-gas-transport.js?v=r115`
+   - `app-index-foundation-pre-vue.js?v=r115`
+   - `app-index-foundation-after-vue.js?v=r115`
+   - `app-index-foundation-after-swal.js?v=r115`
+   - `critical-login-runtime.js?v=r115`
+   - `app-index-bootstrap.js?v=r115`
+4. เปิด `diagnostic.html` แล้วให้ผ่าน:
+   - READY + nonce-bound source
+   - Ping-verified bridge
+   - `google.script.run` ping
+   - Public JSONP contract โดยไม่มี credentials
 
-## หมายเหตุสำคัญ
+## Security contract
 
-หากหน้า login ขึ้นว่า `GAS_WEB_APP_URL_REQUIRED` หรือ bridge timeout ให้ตรวจว่า:
+- Authenticated API ห้ามใช้ JSONP
+- JSONP ใช้เฉพาะ public contract API
+- token/CSRF ไม่อยู่ใน URL
+- Login callback ต้องมี request ID, release stamp และ nonce ที่ตรงกัน
+- Data bridge ต้องมี release stamp, bridge nonce และ ping verification
+- Client read cache ถูกแบ่งตาม session token hash และล้างเมื่อ Login/Logout/เปลี่ยนผู้ใช้/บันทึกข้อมูล
+- ไม่อนุญาตเปลี่ยน GAS deployment ระหว่าง runtime เว้นแต่แก้ `app-config.js` โดยตั้งใจ
 
-1. แก้ `https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec` แล้ว
-2. GAS Web App URL ลงท้าย `/exec`
-3. Deploy GAS เป็นเวอร์ชันใหม่แล้ว
-4. สิทธิ์ Web App เป็น Anyone / Anyone with link
-5. เปิด GitHub Pages ผ่าน `https://` ไม่ใช่เปิดไฟล์จากเครื่องโดยตรง
+## Troubleshooting
 
+### Login สำเร็จแต่ข้อมูลไม่แสดง
 
-## R97 note
-This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
+เปิด `diagnostic.html` ก่อน หาก bridge ไม่ผ่าน ให้ตรวจ:
 
+- GAS ได้ Deploy `Code_00_PlatformCore.gs` รุ่น R115 แล้ว
+- GitHub โหลด JavaScript ทุกไฟล์เป็น `?v=r115`
+- URL ใน `app-config.js`, `index.html` และ fallback ใน `github-gas-transport.js` เป็น deployment เดียวกัน
+- Web app permission อนุญาตให้ผู้ใช้เปิด `/exec`
 
-## R109: GAS URL hardening
+### พบ release mismatch หรือ bridge timeout
 
-ชุดนี้ตั้งค่า GAS Web App URL ล่าสุดไว้ทั้งใน `app-config.js`, `index.html` และ fallback ภายใน `github-gas-transport.js` แล้ว:
+แปลว่า GitHub และ GAS เป็นคนละรุ่น ห้ามแก้ด้วย JSONP fallback ให้ Deploy ทั้งสองฝั่งจาก ZIP เดียวกัน
 
-```text
-https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec
-```
+### ปุ่มค้างหลัง transport error
 
-กรุณาอัปโหลด/commit ไฟล์ root ทั้งชุด ไม่ใช่เฉพาะ `index.html` เพื่อป้องกัน browser ใช้ไฟล์ transport หรือ config รุ่นเก่าค้างอยู่
-
-
-## R109 note
-- Login uses POST iframe.
-- Read APIs use JSONP authenticated read first, then bridge fallback, to avoid hidden iframe message loss on GitHub Pages.
-- Upload root files and deploy GAS backend Code_00_PlatformCore.gs from this package.
-
-
-R109: โลโก้รัฐสภาใช้ URL: https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg
+R115 จะปลด UI lock และแสดงแถบ “เชื่อมต่อใหม่” ด้านบน หากเกิดซ้ำให้ใช้ `diagnostic.html` เพื่อดู bridge status แทนการซ่อน error เป็นข้อมูลว่าง

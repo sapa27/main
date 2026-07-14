@@ -1,11 +1,13 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r114";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r114";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
-    "https://script.google.com/macros/s/AKfycbw1Pi4dJiQyiVuvcCdEi5IkzEG9A2Y8Dm9S-ue5prBBjIXmpl54Pd7oqnBkWZPaKNmy/exec"
+    "https://script.google.com/macros/s/",
+    "AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm",
+    "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
@@ -80,7 +82,8 @@
   var fallbackLogo = makeFallbackLogo();
   var injected = root.__GITHUB_PAGES_GAS_CONFIG__ || root.__GITHUB_GAS_CONFIG__ || {};
   var existing = root.APP_CONFIG && typeof root.APP_CONFIG === "object" ? root.APP_CONFIG : {};
-  var storedGasUrl = cleanUrl(safeStorageGet("GITHUB_GAS_WEB_APP_URL"));
+  var runtimeGasOverrideAllowed = injected.allowRuntimeGasUrlOverride === true;
+  var storedGasUrl = runtimeGasOverrideAllowed ? cleanUrl(safeStorageGet("GITHUB_GAS_WEB_APP_URL")) : "";
   var injectedGasUrl = cleanUrl(
     injected.gasWebAppUrl ||
     injected.GAS_WEB_APP_URL ||
@@ -105,16 +108,18 @@
   var defaults = {
     appTitle: "ระบบบริหารจัดการเรื่องพิจารณา",
     gasWebAppUrl: injectedGasUrl,
+    trustedGasWebAppUrl: injectedGasUrl,
+    allowRuntimeGasUrlOverride: runtimeGasOverrideAllowed,
     logoUrl: injectedLogoUrl || fallbackLogo,
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-inner-source-window-bridge-r114",
+    transportMode: "github-pages-phase-c-verified-session-bridge-r115",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
-    vercelEnvBuildTool: "tools/generate_vercel_env.py",
-    releaseGate: "tools/phaseN_legacy_transport_gate.py",
+    vercelEnvBuildTool: "",
+    releaseGate: "",
     vercelApiProxyUrl: "",
     vercelLoginProxyUrl: "",
     vercelPublicConfigProxyUrl: "",
@@ -132,14 +137,14 @@
     dataLoadingPerformance: true,
     canonicalPartialRoot: "gas-backend",
     canonicalEditableRoot: "gas-backend",
-    generatedMirrorRoot: "github-pages/partials",
+    generatedMirrorRoot: "partials",
     generatedMirrorPolicy: "edit-gas-backend-run-sync-do-not-edit-generated-mirrors",
-    syncTool: "tools/generate_vercel_env.py",
-    contractGate: "tools/phaseN_legacy_transport_gate.py",
+    syncTool: "",
+    contractGate: "",
     contractGateEnabled: true,
-    runtimeSlimmingEnabled: true,
-    writeSchemaUnification: true,
-    writeSchemaGate: "tools/phaseN_legacy_transport_gate.py",
+    runtimeSlimmingEnabled: false,
+    writeSchemaUnification: false,
+    writeSchemaGate: "",
     apiRouteAllowlistOwner: "Code_20_Router._routerCanonicalHandlerMap_",
     apiDtoContractOwner: "AppBackendCore.API_DTO_CONTRACT_BY_METHOD",
     staticApiContractAllowlistDisabled: true,
@@ -157,6 +162,12 @@
     dashboardBudgetHydrationDelayMs: 350,
     inlinePartialsEnabled: false,
     bridgeLoadGraceMs: 30000,
+    bridgeReadyTimeoutMs: 22000,
+    bridgeVerifyTimeoutMs: 10000,
+    bridgeRequestTimeoutMs: 45000,
+    bridgeRetryCount: 1,
+    bridgeNonceRequired: true,
+    bridgePingVerificationRequired: true,
     requireBridgeReadyMessage: true,
     allowAssumedBridgeReady: false,
     securityHardening: true,
@@ -190,12 +201,13 @@
     clientReadResponseCacheEnabled: true,
     clientReadCacheTtlMs: 60000,
     clientReadCacheMaxTtlMs: 120000,
+    clientReadCacheMaxEntries: 120,
     clientReadStaleIfErrorMs: 600000,
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "backend-router-cache",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::AppTransport.inFlightOnly",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r115",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r115",
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
     legacyJsonpTransportRemoved: false,
@@ -258,6 +270,11 @@
   };
 
   root.APP_CONFIG = Object.assign({}, defaults, existing);
+  root.APP_CONFIG.allowRuntimeGasUrlOverride = runtimeGasOverrideAllowed;
+  root.APP_CONFIG.trustedGasWebAppUrl = injectedGasUrl;
+  if (runtimeGasOverrideAllowed !== true) {
+    root.APP_CONFIG.gasWebAppUrl = injectedGasUrl;
+  }
 
   var params = readQueryParams();
   if (params) {
@@ -270,17 +287,22 @@
     var logoParam = cleanUrl(params.get("logo") || params.get("logoUrl") || "");
     var transportParam = cleanUrl(params.get("transport") || "");
 
-    if (isGasWebAppUrl(gasParam)) {
+    if (root.APP_CONFIG.allowRuntimeGasUrlOverride === true && isGasWebAppUrl(gasParam)) {
       root.APP_CONFIG.gasWebAppUrl = gasParam;
+      root.APP_CONFIG.trustedGasWebAppUrl = gasParam;
       safeStorageSet("GITHUB_GAS_WEB_APP_URL", gasParam);
     }
     if (logoParam && isSafeLogoUrl(logoParam)) {
       root.APP_CONFIG.logoUrl = logoParam;
       safeStorageSet("APP_LOGO_URL", logoParam);
     }
-    if (transportParam && /github-pages-gas-direct/i.test(transportParam)) {
-      root.APP_CONFIG.transportMode = transportParam;
+    if (transportParam && transportParam === defaults.transportMode) {
+      root.APP_CONFIG.transportMode = defaults.transportMode;
     }
+  }
+
+  if (root.APP_CONFIG.allowRuntimeGasUrlOverride !== true) {
+    safeStorageRemove("GITHUB_GAS_WEB_APP_URL");
   }
 
   var storedLogo = cleanUrl(safeStorageGet("APP_LOGO_URL"));

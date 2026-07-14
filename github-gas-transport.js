@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r114";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r114";
-  var TRANSPORT_MODE = "github-pages-phase-c-inner-source-window-bridge-r114";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r115";
+  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r115";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
 
   var includeCache = Object.create(null);
@@ -21,10 +21,17 @@
   var bridgeFrame = null;
   var bridgeClientWindow = null;
   var bridgeClientOrigin = "";
+  var bridgeNonce = "";
   var bridgeReady = false;
+  var bridgeVerified = false;
   var bridgeInFlight = null;
+  var bridgeReadyResolve = null;
+  var bridgeReadyReject = null;
   var bridgeReadyTimer = 0;
   var bridgeGeneration = 0;
+  var bridgeLastVerifiedAt = 0;
+  var bridgeVerifyRequestId = "";
+  var lastAuthScope = "anonymous";
 
   function text(value) { return value == null ? "" : String(value); }
   function isObject(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
@@ -43,11 +50,15 @@
   }
   function gasWebAppUrl() {
     var value = normalizeUrl(root.GAS_WEB_APP_URL || config("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL);
+    var trusted = normalizeUrl(config("trustedGasWebAppUrl", DEFAULT_GAS_WEB_APP_URL) || DEFAULT_GAS_WEB_APP_URL);
     if (!value || value === "PUT_GAS_WEB_APP_URL_HERE") {
       throw makeError("ยังไม่ได้ตั้งค่า GAS Web App URL", "GAS_WEB_APP_URL_REQUIRED");
     }
     if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(value)) {
       throw makeError("GAS Web App URL ไม่ถูกต้อง ต้องลงท้ายด้วย /exec", "GAS_WEB_APP_URL_INVALID");
+    }
+    if (config("allowRuntimeGasUrlOverride", false) !== true && trusted && value !== trusted) {
+      throw makeError("GAS Web App URL ไม่ตรงกับ deployment ที่กำหนดใน app-config.js", "GAS_WEB_APP_URL_UNTRUSTED");
     }
     return value;
   }
@@ -61,23 +72,34 @@
   function requestId(method) {
     return "gh_" + text(method || "api").replace(/[^A-Za-z0-9_-]/g, "_") + "_" + Date.now() + "_" + Math.random().toString(36).slice(2);
   }
-  function isTrustedBridgeReadyEvent(event, data) {
-    var origin = text(event && event.origin || "");
-    if (origin === "null") {
-      return !!(event && event.source) && text(data && data.stamp || "") === RELEASE_STAMP;
-    }
+  function isTrustedGoogleMessageOrigin(origin) {
+    origin = text(origin || "");
+    if (origin === "null") return true;
     try {
       var host = new URL(origin).hostname.toLowerCase();
-      var googleHost = host === "script.google.com" || host === "script.googleusercontent.com" || /\.googleusercontent\.com$/.test(host);
-      return googleHost && text(data && data.stamp || "") === RELEASE_STAMP;
+      return host === "script.google.com" || host === "script.googleusercontent.com" || /\.googleusercontent\.com$/.test(host);
     } catch (_) {
       return false;
     }
   }
+  function isTrustedBridgeEvent(event, data) {
+    if (!event || !event.source || !isObject(data)) return false;
+    if (!isTrustedGoogleMessageOrigin(event.origin)) return false;
+    if (text(data.stamp || data.releaseStamp || "") !== RELEASE_STAMP) return false;
+    if (!bridgeNonce || text(data.nonce || "") !== bridgeNonce) return false;
+    return true;
+  }
   function isWriteMethod(method) {
     method = text(method).trim();
     if (!method) return false;
-    return /^api(?:[A-Za-z0-9_]*?)(?:Save|Delete|Update|Create|Import|Extract|Upload|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh|Start)(?:[A-Z_]|$)/.test(method);
+    if (/^(apiAiAssistantStartJob|apiAiAssistantAsk|apiAiAssistantGetJob|apiAiAssistantSummarizeCase|apiGenerateExecutiveSummary|apiGenerateBudgetTrendSummary)$/i.test(method)) return false;
+    try {
+      if (root.AppRouteContract && typeof root.AppRouteContract.isWrite === "function" && root.AppRouteContract.loaded) {
+        return !!root.AppRouteContract.isWrite(method);
+      }
+      if (typeof root.isWriteApiMethod === "function") return !!root.isWriteApiMethod(method);
+    } catch (_) {}
+    return /^api(?:[A-Za-z0-9_]*?)(?:Save|Delete|Update|Create|Import|Extract|Upload|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh)(?:[A-Z_]|$)/.test(method);
   }
   function isReadMethod(method) {
     method = text(method).trim();
@@ -100,9 +122,39 @@
     });
     return output;
   }
+  function hashText(value) {
+    var input = text(value || "");
+    var hash = 2166136261;
+    for (var i = 0; i < input.length; i += 1) {
+      hash ^= input.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
+  function authScopeForPayload(payload) {
+    payload = isObject(payload) ? payload : {};
+    var token = text(payload.token || payload._token || payload.authToken || "");
+    if (!token) {
+      try { token = text(root.AppStore && root.AppStore.get && root.AppStore.get("auth.token", "") || ""); } catch (_) {}
+    }
+    if (!token) return "anonymous";
+    return "auth-" + hashText(token);
+  }
   function stableKey(method, payload) {
-    try { return method + "|" + JSON.stringify(stableClone(payload || {})); }
-    catch (_) { return method + "|" + Date.now(); }
+    try { return authScopeForPayload(payload) + "|" + method + "|" + JSON.stringify(stableClone(payload || {})); }
+    catch (_) { return authScopeForPayload(payload) + "|" + method + "|" + Date.now(); }
+  }
+  function syncAuthScope(payload, reason) {
+    var next = authScopeForPayload(payload);
+    if (next !== lastAuthScope) {
+      readCache = Object.create(null);
+      apiInFlight = Object.create(null);
+      cacheEpoch += 1;
+      lastAuthScope = next;
+      root.__APP_CLIENT_API_CACHE_EPOCH__ = cacheEpoch;
+      recordMetric({ kind: "auth-scope-change", reason: reason || "request", authScope: next, cacheEpoch: cacheEpoch });
+    }
+    return next;
   }
   function cloneJson(value) {
     try { return value == null ? value : JSON.parse(JSON.stringify(value)); }
@@ -131,6 +183,18 @@
     if (isFinite(seconds) && seconds > 0) return Math.max(5000, Math.min(seconds * 1000, Number(config("clientReadCacheMaxTtlMs", 120000)) || 120000));
     return Number(config("clientReadCacheTtlMs", 60000)) || 60000;
   }
+  function pruneReadCache() {
+    var now = Date.now();
+    Object.keys(readCache).forEach(function(key) {
+      var item = readCache[key];
+      if (!item || Number(item.staleUntil || item.expiresAt || 0) <= now) delete readCache[key];
+    });
+    var keys = Object.keys(readCache);
+    var maxEntries = Math.max(20, Math.min(Number(config("clientReadCacheMaxEntries", 120)) || 120, 500));
+    if (keys.length <= maxEntries) return;
+    keys.sort(function(a, b) { return Number(readCache[a] && readCache[a].storedAt || 0) - Number(readCache[b] && readCache[b].storedAt || 0); });
+    keys.slice(0, keys.length - maxEntries).forEach(function(key) { delete readCache[key]; });
+  }
   function getCached(method, payload) {
     if (!config("clientReadResponseCacheEnabled", true) || wantsFresh(payload) || !cacheSafe(method)) return null;
     var hit = readCache[stableKey(method, payload)];
@@ -138,6 +202,7 @@
       recordMetric({ kind: "cache", method: method, cacheHit: true, transport: TRANSPORT_MODE });
       return cloneJson(hit.value);
     }
+    if (hit && Number(hit.staleUntil || 0) <= Date.now()) delete readCache[stableKey(method, payload)];
     return null;
   }
   function putCached(method, payload, value) {
@@ -145,14 +210,19 @@
     var ttl = cacheTtl(payload);
     readCache[stableKey(method, payload)] = {
       value: cloneJson(value),
+      storedAt: Date.now(),
       expiresAt: Date.now() + ttl,
       staleUntil: Date.now() + (Number(config("clientReadStaleIfErrorMs", 600000)) || 600000)
     };
+    pruneReadCache();
     recordMetric({ kind: "cache", method: method, cacheWrite: true, ttlMs: ttl, transport: TRANSPORT_MODE });
   }
   function staleCached(method, payload) {
-    var hit = readCache[stableKey(method, payload)];
-    return hit && hit.staleUntil > Date.now() ? cloneJson(hit.value) : null;
+    var key = stableKey(method, payload);
+    var hit = readCache[key];
+    if (hit && hit.staleUntil > Date.now()) return cloneJson(hit.value);
+    if (hit) delete readCache[key];
+    return null;
   }
   function invalidateCache(reason, method) {
     apiInFlight = Object.create(null);
@@ -163,75 +233,79 @@
     return true;
   }
 
+  function newBridgeNonce() {
+    return "br_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2) + "_" + Math.random().toString(36).slice(2);
+  }
   function bridgeUrl() {
     return withQuery(gasWebAppUrl(), {
       __githubBridgeClient: "1",
       parentOrigin: root.location && root.location.origin || "",
+      bridgeNonce: bridgeNonce,
       r: RELEASE_STAMP
     });
   }
-  function clearBridgeReadyState(removeFrame) {
-    bridgeReady = false;
-    bridgeClientWindow = null;
-    bridgeClientOrigin = "";
+  function rejectBridgeReady(error) {
+    if (bridgeVerifyRequestId && bridgePending[bridgeVerifyRequestId]) {
+      var verifyPending = bridgePending[bridgeVerifyRequestId];
+      if (verifyPending.timer) root.clearTimeout(verifyPending.timer);
+      delete bridgePending[bridgeVerifyRequestId];
+    }
+    bridgeVerifyRequestId = "";
+    var reject = bridgeReadyReject;
+    bridgeReadyResolve = null;
+    bridgeReadyReject = null;
+    bridgeInFlight = null;
     if (bridgeReadyTimer) {
       root.clearTimeout(bridgeReadyTimer);
       bridgeReadyTimer = 0;
     }
+    if (typeof reject === "function") reject(error);
+  }
+  function resolveBridgeReady() {
+    if (!bridgeReady || !bridgeVerified || !bridgeClientWindow || !bridgeClientOrigin) return false;
+    var resolve = bridgeReadyResolve;
+    bridgeReadyResolve = null;
+    bridgeReadyReject = null;
     bridgeInFlight = null;
+    if (bridgeReadyTimer) {
+      root.clearTimeout(bridgeReadyTimer);
+      bridgeReadyTimer = 0;
+    }
+    if (typeof resolve === "function") {
+      resolve({ frame: bridgeFrame, sourceWindow: bridgeClientWindow, sourceOrigin: bridgeClientOrigin, generation: bridgeGeneration,
+      verifiedAt: bridgeLastVerifiedAt ? new Date(bridgeLastVerifiedAt).toISOString() : "", nonce: bridgeNonce });
+    }
+    return true;
+  }
+  function clearBridgeReadyState(removeFrame) {
+    bridgeReady = false;
+    bridgeVerified = false;
+    bridgeClientWindow = null;
+    bridgeClientOrigin = "";
+    bridgeLastVerifiedAt = 0;
+    bridgeVerifyRequestId = "";
+    bridgeNonce = "";
+    if (bridgeReadyTimer) {
+      root.clearTimeout(bridgeReadyTimer);
+      bridgeReadyTimer = 0;
+    }
+    bridgeReadyResolve = null;
+    bridgeReadyReject = null;
+    bridgeInFlight = null;
+    Object.keys(bridgePending).forEach(function(id) {
+      var pending = bridgePending[id];
+      if (pending && pending.timer) root.clearTimeout(pending.timer);
+      if (pending && typeof pending.reject === "function") pending.reject(makeError("GAS bridge ถูกรีเซ็ต", "GAS_BRIDGE_RESET", pending.method));
+      delete bridgePending[id];
+    });
     if (removeFrame && bridgeFrame) {
       try { bridgeFrame.parentNode && bridgeFrame.parentNode.removeChild(bridgeFrame); } catch (_) {}
       bridgeFrame = null;
     }
   }
-  function ensureBridge() {
-    if (bridgeReady && bridgeClientWindow && bridgeClientOrigin) {
-      return Promise.resolve({ frame: bridgeFrame, sourceWindow: bridgeClientWindow, sourceOrigin: bridgeClientOrigin, generation: bridgeGeneration });
-    }
-    if (bridgeInFlight) return bridgeInFlight;
-
-    bridgeInFlight = new Promise(function(resolve, reject) {
-      var readyTimeoutMs = Math.max(8000, Math.min(Number(config("bridgeReadyTimeoutMs", 30000)) || 30000, 45000));
-      function failReady() {
-        bridgeReadyTimer = 0;
-        bridgeInFlight = null;
-        reject(makeError("GAS bridge ไม่ส่ง READY จาก iframe ชั้นที่มี google.script.run", "GAS_BRIDGE_INNER_READY_TIMEOUT"));
-      }
-      root.__APP_R114_BRIDGE_READY_RESOLVE__ = function() {
-        if (!bridgeReady || !bridgeClientWindow || !bridgeClientOrigin) return;
-        if (bridgeReadyTimer) root.clearTimeout(bridgeReadyTimer);
-        bridgeReadyTimer = 0;
-        bridgeInFlight = null;
-        resolve({ frame: bridgeFrame, sourceWindow: bridgeClientWindow, sourceOrigin: bridgeClientOrigin, generation: bridgeGeneration });
-      };
-      bridgeReadyTimer = root.setTimeout(failReady, readyTimeoutMs);
-      try {
-        bridgeFrame = doc.getElementById("app-gas-direct-bridge");
-        if (!bridgeFrame) {
-          bridgeFrame = doc.createElement("iframe");
-          bridgeFrame.id = "app-gas-direct-bridge";
-          bridgeFrame.name = "app-gas-direct-bridge";
-          bridgeFrame.title = "GAS Authenticated API Bridge";
-          bridgeFrame.setAttribute("aria-hidden", "true");
-          bridgeFrame.style.cssText = "position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;";
-          (doc.body || doc.documentElement).appendChild(bridgeFrame);
-        }
-        var expected = bridgeUrl();
-        if (bridgeFrame.src !== expected) {
-          bridgeGeneration += 1;
-          bridgeFrame.src = expected;
-        }
-      } catch (error) {
-        if (bridgeReadyTimer) root.clearTimeout(bridgeReadyTimer);
-        bridgeReadyTimer = 0;
-        bridgeInFlight = null;
-        reject(error);
-      }
-    });
-    return bridgeInFlight;
-  }
-  function sendToInnerBridge(message) {
-    if (!bridgeReady || !bridgeClientWindow || !bridgeClientOrigin) return false;
+  function postToBridgeWindow(message) {
+    if (!bridgeClientWindow || !bridgeClientOrigin || !bridgeNonce) return false;
+    message = Object.assign({}, message || {}, { nonce: bridgeNonce, releaseStamp: RELEASE_STAMP });
     try {
       bridgeClientWindow.postMessage(message, bridgeClientOrigin === "null" ? "*" : bridgeClientOrigin);
       return true;
@@ -239,7 +313,93 @@
       return false;
     }
   }
-
+  function verifyBridgeCandidate() {
+    if (bridgeVerified) return resolveBridgeReady();
+    if (bridgeVerifyRequestId && bridgePending[bridgeVerifyRequestId]) return true;
+    if (!bridgeClientWindow || !bridgeClientOrigin || !bridgeNonce) return false;
+    var id = requestId("bridgeVerify");
+    bridgeVerifyRequestId = id;
+    var timer = root.setTimeout(function() {
+      var pending = bridgePending[id];
+      delete bridgePending[id];
+      bridgeVerifyRequestId = "";
+      if (pending && typeof pending.reject === "function") pending.reject(makeError("GAS bridge verification timeout", "GAS_BRIDGE_VERIFY_TIMEOUT", "apiGithubBridgePing"));
+      rejectBridgeReady(makeError("GAS bridge READY แต่ ping ไม่ตอบกลับ", "GAS_BRIDGE_VERIFY_TIMEOUT"));
+    }, Math.max(4000, Math.min(Number(config("bridgeVerifyTimeoutMs", 10000)) || 10000, 15000)));
+    bridgePending[id] = {
+      method: "apiGithubBridgePing",
+      timer: timer,
+      probe: true,
+      resolve: function(result) {
+        bridgeVerifyRequestId = "";
+        if (isObject(result) && result.ok === false) {
+          rejectBridgeReady(makeError(text(result.error || result.msg || "GAS bridge ping failed"), text(result.errorCode || "GAS_BRIDGE_VERIFY_FAILED"), "apiGithubBridgePing"));
+          return;
+        }
+        bridgeVerified = true;
+        bridgeReady = true;
+        bridgeLastVerifiedAt = Date.now();
+        resolveBridgeReady();
+      },
+      reject: function(error) {
+        bridgeVerifyRequestId = "";
+        rejectBridgeReady(error);
+      }
+    };
+    if (!postToBridgeWindow({
+      __gasIframeTransport: true,
+      type: "GAS_IFRAME_TRANSPORT_REQUEST",
+      requestId: id,
+      method: "apiGithubBridgePing",
+      payload: { at: new Date().toISOString(), transportMode: TRANSPORT_MODE },
+      bridge: TRANSPORT_MODE
+    })) {
+      root.clearTimeout(timer);
+      delete bridgePending[id];
+      bridgeVerifyRequestId = "";
+      rejectBridgeReady(makeError("ส่ง bridge verification ไม่สำเร็จ", "GAS_BRIDGE_VERIFY_SEND_FAILED"));
+      return false;
+    }
+    return true;
+  }
+  function ensureBridge() {
+    if (bridgeReady && bridgeVerified && bridgeClientWindow && bridgeClientOrigin) {
+      return Promise.resolve({ frame: bridgeFrame, sourceWindow: bridgeClientWindow, sourceOrigin: bridgeClientOrigin, generation: bridgeGeneration,
+      verifiedAt: bridgeLastVerifiedAt ? new Date(bridgeLastVerifiedAt).toISOString() : "", nonce: bridgeNonce });
+    }
+    if (bridgeInFlight) return bridgeInFlight;
+    bridgeInFlight = new Promise(function(resolve, reject) {
+      bridgeReadyResolve = resolve;
+      bridgeReadyReject = reject;
+      var readyTimeoutMs = Math.max(8000, Math.min(Number(config("bridgeReadyTimeoutMs", 22000)) || 22000, 45000));
+      bridgeReadyTimer = root.setTimeout(function() {
+        rejectBridgeReady(makeError("GAS bridge ไม่ผ่าน READY + ping handshake", "GAS_BRIDGE_VERIFIED_READY_TIMEOUT"));
+      }, readyTimeoutMs);
+      try {
+        bridgeReady = false;
+        bridgeVerified = false;
+        bridgeClientWindow = null;
+        bridgeClientOrigin = "";
+        bridgeNonce = newBridgeNonce();
+        bridgeGeneration += 1;
+        bridgeFrame = doc.getElementById("app-gas-direct-bridge");
+        if (bridgeFrame) {
+          try { bridgeFrame.parentNode && bridgeFrame.parentNode.removeChild(bridgeFrame); } catch (_) {}
+        }
+        bridgeFrame = doc.createElement("iframe");
+        bridgeFrame.id = "app-gas-direct-bridge";
+        bridgeFrame.name = "app-gas-direct-bridge-" + bridgeGeneration;
+        bridgeFrame.title = "GAS Authenticated API Bridge";
+        bridgeFrame.setAttribute("aria-hidden", "true");
+        bridgeFrame.style.cssText = "position:fixed;width:1px;height:1px;left:-10000px;top:-10000px;border:0;opacity:0;pointer-events:none;";
+        bridgeFrame.src = bridgeUrl();
+        (doc.body || doc.documentElement).appendChild(bridgeFrame);
+      } catch (error) {
+        rejectBridgeReady(error);
+      }
+    });
+    return bridgeInFlight;
+  }
   root.addEventListener("message", function(event) {
     var data = event && event.data;
     if (typeof data === "string") {
@@ -251,6 +411,9 @@
       var loginId = text(data.requestId || data.id || "");
       var loginRequest = loginId && loginPending[loginId];
       if (!loginRequest) return;
+      if (!isTrustedGoogleMessageOrigin(event && event.origin)) return;
+      if (text(data.stamp || data.releaseStamp || "") !== RELEASE_STAMP) return;
+      if (!loginRequest.nonce || text(data.nonce || "") !== loginRequest.nonce) return;
       delete loginPending[loginId];
       root.clearTimeout(loginRequest.timer);
       try { loginRequest.cleanup(); } catch (_) {}
@@ -265,22 +428,19 @@
     }
 
     if (data.type === "GAS_IFRAME_TRANSPORT_READY") {
-      if (!event.source || !isTrustedBridgeReadyEvent(event, data)) return;
+      if (!isTrustedBridgeEvent(event, data)) return;
+      if (bridgeClientWindow && event.source !== bridgeClientWindow) return;
       bridgeClientWindow = event.source;
-      bridgeClientOrigin = event.origin;
-      bridgeReady = true;
+      bridgeClientOrigin = text(event.origin || "null");
       root.__APP_GAS_INNER_BRIDGE_ORIGIN__ = bridgeClientOrigin;
       root.__APP_GAS_INNER_BRIDGE_READY_AT__ = new Date().toISOString();
-      if (typeof root.__APP_R114_BRIDGE_READY_RESOLVE__ === "function") {
-        var readyResolver = root.__APP_R114_BRIDGE_READY_RESOLVE__;
-        root.__APP_R114_BRIDGE_READY_RESOLVE__ = null;
-        readyResolver();
-      }
+      verifyBridgeCandidate();
       return;
     }
 
     if (data.type === "GAS_IFRAME_TRANSPORT_RESPONSE") {
-      if (!bridgeClientWindow || event.source !== bridgeClientWindow || event.origin !== bridgeClientOrigin) return;
+      if (!isTrustedBridgeEvent(event, data)) return;
+      if (!bridgeClientWindow || event.source !== bridgeClientWindow || text(event.origin || "null") !== bridgeClientOrigin) return;
       var responseId = text(data.requestId || data.id || "");
       var pending = responseId && bridgePending[responseId];
       if (!pending) return;
@@ -294,8 +454,9 @@
         result.meta = Object.assign({}, isObject(result.meta) ? result.meta : {}, {
           githubGasDirect: true,
           phaseCAuthenticatedBridge: true,
-          innerSourceWindowCaptured: true,
+          verifiedSessionBridge: true,
           bridgeOrigin: bridgeClientOrigin,
+          bridgeGeneration: bridgeGeneration,
           releaseStamp: RELEASE_STAMP
         });
       }
@@ -316,6 +477,7 @@
     payload = isObject(payload) ? Object.assign({}, payload) : {};
     return new Promise(function(resolve, reject) {
       var id = requestId("apiLoginPost");
+      var loginNonce = newBridgeNonce();
       var timeoutMs = Math.max(12000, Math.min(Number(options && (options.loginTimeoutMs || options.timeoutMs || options.clientTimeoutMs) || config("loginPostTimeoutMs", 45000)) || 45000, 65000));
       var iframe = null;
       var form = null;
@@ -328,10 +490,11 @@
         cleanup();
         reject(makeError("GAS Login POST timeout", "GITHUB_LOGIN_POST_TIMEOUT", "apiLogin"));
       }, timeoutMs);
-      loginPending[id] = { resolve: resolve, reject: reject, timer: timer, cleanup: cleanup };
+      loginPending[id] = { resolve: resolve, reject: reject, timer: timer, cleanup: cleanup, nonce: loginNonce };
       try {
         payload.__loginPostRequestId = id;
         payload.__loginPostParentOrigin = root.location && root.location.origin || "";
+        payload.__loginPostNonce = loginNonce;
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-login-post-" + id.replace(/[^A-Za-z0-9_-]/g, "_");
         iframe.id = iframe.name;
@@ -345,10 +508,12 @@
           __githubLoginPost: "1",
           requestId: id,
           parentOrigin: root.location && root.location.origin || "",
+          loginNonce: loginNonce,
           r: RELEASE_STAMP
         });
         form.style.cssText = "display:none;position:absolute;left:-9999px;top:-9999px;";
         hiddenField(form, "payload", JSON.stringify(payload));
+        hiddenField(form, "loginNonce", loginNonce);
         if (payload.username != null) hiddenField(form, "username", payload.username);
         if (payload.email != null) hiddenField(form, "email", payload.email);
         if (payload.password != null) hiddenField(form, "password", payload.password);
@@ -364,43 +529,43 @@
     });
   }
 
-  function runBridge(method, payload, options) {
-    method = text(method).trim();
-    if (!method) return Promise.reject(makeError("method required", "METHOD_REQUIRED"));
-    payload = isObject(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
-    payload.__authTransportOwner = payload.__authTransportOwner || "AppApiMiddlewarePipeline";
-    payload.__bridgeTransport = TRANSPORT_MODE;
-    payload.clientContext = isObject(payload.clientContext) ? Object.assign({}, payload.clientContext) : {};
-    payload.clientContext.transport = TRANSPORT_MODE;
-    payload.clientContext.bridgeOnly = true;
-    payload.clientContext.releaseStamp = RELEASE_STAMP;
-
+  function runBridgeAttempt(method, payload, options, attempt) {
     return ensureBridge().then(function() {
       return new Promise(function(resolve, reject) {
         var id = requestId(method);
-        var timeoutMs = Math.max(10000, Math.min(Number(options && (options.timeoutMs || options.clientTimeoutMs) || config("apiTimeoutMs", 110000)) || 110000, 120000));
+        var timeoutMs = Math.max(10000, Math.min(Number(options && (options.timeoutMs || options.clientTimeoutMs) || config("bridgeRequestTimeoutMs", config("apiTimeoutMs", 45000))) || 45000, 90000));
         var timer = root.setTimeout(function() {
           delete bridgePending[id];
-          reject(makeError("GAS inner bridge timeout: " + method, "GAS_INNER_BRIDGE_TIMEOUT", method));
+          reject(makeError("GAS verified bridge timeout: " + method, "GAS_VERIFIED_BRIDGE_TIMEOUT", method));
         }, timeoutMs);
-        bridgePending[id] = { resolve: resolve, reject: reject, timer: timer, method: method };
-        var sent = sendToInnerBridge({
+        bridgePending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, probe: false };
+        if (!postToBridgeWindow({
           __gasIframeTransport: true,
           type: "GAS_IFRAME_TRANSPORT_REQUEST",
           requestId: id,
           method: method,
           payload: payload,
-          bridge: TRANSPORT_MODE,
-          releaseStamp: RELEASE_STAMP
-        });
-        if (!sent) {
+          bridge: TRANSPORT_MODE
+        })) {
           delete bridgePending[id];
           root.clearTimeout(timer);
-          clearBridgeReadyState(true);
-          reject(makeError("ไม่สามารถส่งคำขอไปยัง iframe ชั้นที่มี google.script.run", "GAS_INNER_BRIDGE_SEND_FAILED", method));
+          reject(makeError("ไม่สามารถส่งคำขอไปยัง verified GAS bridge", "GAS_VERIFIED_BRIDGE_SEND_FAILED", method));
         }
       });
+    }).catch(function(error) {
+      var retryable = /GAS_(?:BRIDGE|VERIFIED)|timeout|postMessage|READY|PING/i.test(text(error && (error.code || error.message) || error));
+      if (retryable && attempt < Math.max(0, Math.min(Number(config("bridgeRetryCount", 1)) || 1, 2))) {
+        clearBridgeReadyState(true);
+        return runBridgeAttempt(method, payload, options, attempt + 1);
+      }
+      throw error;
     });
+  }
+  function runBridge(method, payload, options) {
+    method = text(method).trim();
+    if (!method) return Promise.reject(makeError("method required", "METHOD_REQUIRED"));
+    payload = isObject(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
+    return runBridgeAttempt(method, payload, options || {}, 0);
   }
 
   function stripSensitiveJsonpFields(payload) {
@@ -472,11 +637,13 @@
   }
 
   function runWithPolicy(method, payload, options) {
+    syncAuthScope(payload, "before:" + method);
     var cached = getCached(method, payload);
     if (cached) return Promise.resolve(cached);
     var key = stableKey(method, payload);
     var isWrite = isWriteMethod(method);
     var isLogin = /^apiLogin$/i.test(method);
+    var isAuthTransition = /^(apiLogin|apiLogout|apiSessionResume)$/i.test(method);
     if (!isWrite && apiInFlight[key]) {
       recordMetric({ kind: "call", method: method, dedupeHit: true, transport: TRANSPORT_MODE });
       return apiInFlight[key];
@@ -485,18 +652,27 @@
     var invoker = isLogin ? runLoginPost : (isPublicJsonpMethod(method) ? runJsonp : runBridge);
     var promise = invoker(method, payload, options).then(function(result) {
       recordMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isPublicJsonpMethod(method) ? "github-public-jsonp" : TRANSPORT_MODE), error: isObject(result) && result.ok === false });
-      if (isWrite && isObject(result) && result.ok !== false) invalidateCache("write-success", method);
-      else putCached(method, payload, result);
+      if (isAuthTransition && isObject(result) && result.ok !== false) {
+        invalidateCache("auth-transition-success", method);
+        lastAuthScope = /^apiLogout$/i.test(method) ? "anonymous" : authScopeForPayload(result && (result.data || result) || payload);
+      } else if (isWrite && isObject(result) && result.ok !== false) {
+        invalidateCache("write-success", method);
+      } else {
+        putCached(method, payload, result);
+      }
       return result;
     }, function(error) {
       recordMetric({ kind: "call", method: method, transport: TRANSPORT_MODE, error: true, message: error && error.message || String(error || "") });
-      if (!isWrite) {
+      if (!isWrite && !isAuthTransition) {
         var stale = staleCached(method, payload);
         if (stale) {
-          stale.meta = Object.assign({}, isObject(stale.meta) ? stale.meta : {}, { staleIfError: true, staleReason: error && error.message || String(error || "") });
+          stale.meta = Object.assign({}, isObject(stale.meta) ? stale.meta : {}, { staleIfError: true, staleReason: error && error.message || String(error || ""), authScope: authScopeForPayload(payload) });
           return stale;
         }
       }
+      try {
+        doc.dispatchEvent(new CustomEvent("app:transport-error", { detail: { method: method, code: text(error && (error.code || error.errorCode) || "TRANSPORT_ERROR"), message: text(error && error.message || error), transport: TRANSPORT_MODE } }));
+      } catch (_) {}
       throw error;
     });
     if (!isWrite) {
@@ -608,7 +784,7 @@
       ok: !errors.length,
       host: text(root.location && root.location.hostname || ""),
       expectedOwner: "github-pages-gas-direct",
-      actualOwner: "github-pages/github-gas-transport.js::phase-c-inner-source-window",
+      actualOwner: "github-pages/github-gas-transport.js::verified-session-bridge",
       transportMode: TRANSPORT_MODE,
       releaseStamp: RELEASE_STAMP,
       errors: errors
@@ -623,7 +799,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::phase-c-inner-source-window-r114";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r115";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = true;
   root.AppTransport.__authenticatedJsonpDisabled = true;
@@ -648,9 +824,15 @@
       authenticatedReadBridgeOnly: true,
       authenticatedJsonpDisabled: true,
       innerBridgeSourceCaptured: !!bridgeClientWindow,
+      bridgeVerified: bridgeVerified,
+      bridgeLastVerifiedAt: bridgeLastVerifiedAt ? new Date(bridgeLastVerifiedAt).toISOString() : "",
       bridgeReady: bridgeReady,
       bridgeOrigin: bridgeClientOrigin,
       bridgeGeneration: bridgeGeneration,
+      bridgeNonceBound: !!bridgeNonce,
+      bridgePingVerified: bridgeVerified,
+      authScope: lastAuthScope,
+      cacheEpoch: cacheEpoch,
       perRequestApiPostDisabled: true,
       clientReadCacheEntries: Object.keys(readCache).length,
       inFlight: Object.keys(apiInFlight).length,
@@ -664,15 +846,17 @@
   root.AppTransport.bridgeClientState = function() {
     return {
       ready: bridgeReady,
+      verified: bridgeVerified,
       innerSourceWindowCaptured: !!bridgeClientWindow,
       sourceOrigin: bridgeClientOrigin,
       generation: bridgeGeneration,
+      verifiedAt: bridgeLastVerifiedAt ? new Date(bridgeLastVerifiedAt).toISOString() : "",
       mode: TRANSPORT_MODE,
       gasWebAppUrl: normalizeUrl(root.GAS_WEB_APP_URL || config("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL)
     };
   };
   root.AppTransport.clientCacheStatus = function() {
-    return { ok: true, cacheEntries: Object.keys(readCache).length, inFlight: Object.keys(apiInFlight).length, cacheEpoch: cacheEpoch, metrics: Object.assign({}, metrics) };
+    return { ok: true, authScope: lastAuthScope, cacheEntries: Object.keys(readCache).length, inFlight: Object.keys(apiInFlight).length, cacheEpoch: cacheEpoch, metrics: Object.assign({}, metrics) };
   };
   root.AppTransport.clearApiCache = function(reason) {
     invalidateCache(reason || "manual-clear", "__manual__");
@@ -681,6 +865,10 @@
   root.AppTransport.setGasWebAppUrl = function(value) {
     value = normalizeUrl(value || "");
     if (!value) return "";
+    var trusted = normalizeUrl(config("trustedGasWebAppUrl", DEFAULT_GAS_WEB_APP_URL) || DEFAULT_GAS_WEB_APP_URL);
+    if (config("allowRuntimeGasUrlOverride", false) !== true && value !== trusted) {
+      throw makeError("ไม่อนุญาตให้เปลี่ยน GAS deployment ระหว่าง runtime", "GAS_WEB_APP_URL_OVERRIDE_DISABLED");
+    }
     root.GAS_WEB_APP_URL = value;
     root.APP_CONFIG = root.APP_CONFIG || {};
     root.APP_CONFIG.gasWebAppUrl = value;
