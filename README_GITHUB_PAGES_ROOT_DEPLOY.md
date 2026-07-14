@@ -30,7 +30,7 @@ github-pages/app-config.js
 ค้นหา:
 
 ```text
-https://script.google.com/macros/s/AKfycbyePJucr2k5kt5xvyOymbatxKIxEJf4pSYWjzeABKPHRjFwlWrmVMZuP7sw2mXWnx-f/exec
+https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec
 ```
 
 แล้วแทนด้วย GAS Web App URL ที่ลงท้าย `/exec`
@@ -74,7 +74,7 @@ GITHUB_GAS_WEB_APP_URL
 
 หากหน้า login ขึ้นว่า `GAS_WEB_APP_URL_REQUIRED` หรือ bridge timeout ให้ตรวจว่า:
 
-1. แก้ `https://script.google.com/macros/s/AKfycbyePJucr2k5kt5xvyOymbatxKIxEJf4pSYWjzeABKPHRjFwlWrmVMZuP7sw2mXWnx-f/exec` แล้ว
+1. แก้ `https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec` แล้ว
 2. GAS Web App URL ลงท้าย `/exec`
 3. Deploy GAS เป็นเวอร์ชันใหม่แล้ว
 4. สิทธิ์ Web App เป็น Anyone / Anyone with link
@@ -83,3 +83,14 @@ GITHUB_GAS_WEB_APP_URL
 
 ## R97 note
 This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
+
+
+## R98: GAS URL hardening
+
+ชุดนี้ตั้งค่า GAS Web App URL ล่าสุดไว้ทั้งใน `app-config.js`, `index.html` และ fallback ภายใน `github-gas-transport.js` แล้ว:
+
+```text
+https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec
+```
+
+กรุณาอัปโหลด/commit ไฟล์ root ทั้งชุด ไม่ใช่เฉพาะ `index.html` เพื่อป้องกัน browser ใช้ไฟล์ transport หรือ config รุ่นเก่าค้างอยู่

@@ -3,9 +3,10 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22/%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22/%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C/text%3E%3C/svg%3E";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r95";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r95";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r98";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r98";
   var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-iframe-bridge";
+  var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
   var assetInFlight = Object.create(null);
   var apiInFlight = Object.create(null);
@@ -33,7 +34,7 @@
     return err;
   }
   function gasWebAppUrl() {
-    var url = normalizeUrl(root.GAS_WEB_APP_URL || cfg("gasWebAppUrl", "") || "");
+    var url = normalizeUrl(root.GAS_WEB_APP_URL || cfg("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL || "");
     if (!url || url === "PUT_GAS_WEB_APP_URL_HERE") {
       throw bridgeError("ยังไม่ได้ตั้งค่า GAS Web App URL สำหรับ GitHub Pages ให้แก้ github-pages/app-config.js ค่า gasWebAppUrl เป็น URL ที่ลงท้าย /exec", "GAS_WEB_APP_URL_REQUIRED");
     }
@@ -334,7 +335,7 @@
   root.AppTransport.__singleTransportPathPhase2 = true;
   root.AppTransport.__clientReadResponseCacheEnabled = true;
   root.AppTransport.transportMode = PHASE_TRANSPORT_MODE;
-  root.AppTransport.bridgeClientState = function(){ return { ready: bridgeReady, loaded: !!bridgeFrame, assumedReady: false, removed: false, mode: PHASE_TRANSPORT_MODE, gasWebAppUrl: normalizeUrl(cfg("gasWebAppUrl", "")) }; };
+  root.AppTransport.bridgeClientState = function(){ return { ready: bridgeReady, loaded: !!bridgeFrame, assumedReady: false, removed: false, mode: PHASE_TRANSPORT_MODE, gasWebAppUrl: normalizeUrl(root.GAS_WEB_APP_URL || cfg("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL || "") }; };
   root.AppTransport.phase2Status = function(){ return { ok: runtimeOwnerStatus().ok, stamp: PHASE_RELEASE_STAMP, phase: "GitHub Pages + GAS Direct", release: releaseStatus(), transportMode: PHASE_TRANSPORT_MODE, githubPagesGasDirect: true, vercelApiProxyEnabled: false, legacyTransportRemoved: false, gasDirectAvailable: true, clientReadResponseCacheEnabled: true, clientReadCacheEntries: Object.keys(apiReadCache).length, inFlight: Object.keys(apiInFlight).length, assetCacheEntries: Object.keys(cache).length, bridge: root.AppTransport.bridgeClientState(), metrics: Object.assign({}, apiMetrics) }; };
   root.AppTransport.phase1Status = root.AppTransport.phase2Status;
   root.AppTransport.phase0Status = root.AppTransport.phase2Status;

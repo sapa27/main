@@ -15,7 +15,7 @@
 วิธีใช้:
 
 1. อัปโหลดไฟล์และโฟลเดอร์ทั้งหมดใน ZIP นี้ไปที่ root ของ repository ที่ใช้ GitHub Pages
-2. ตรวจ `app-config.js` แล้วแทน `https://script.google.com/macros/s/AKfycbyePJucr2k5kt5xvyOymbatxKIxEJf4pSYWjzeABKPHRjFwlWrmVMZuP7sw2mXWnx-f/exec` ด้วย GAS Web App URL ที่ลงท้าย `/exec`
+2. ตรวจ `app-config.js` แล้วแทน `https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec` ด้วย GAS Web App URL ที่ลงท้าย `/exec`
 3. GitHub Settings → Pages → Build and deployment → Deploy from a branch → เลือก branch และ `/root`
 4. รอ deploy แล้วเปิด URL ของ GitHub Pages ใหม่
 
@@ -24,3 +24,14 @@
 
 ## R97 note
 This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
+
+
+## R98: GAS URL hardening
+
+ชุดนี้ตั้งค่า GAS Web App URL ล่าสุดไว้ทั้งใน `app-config.js`, `index.html` และ fallback ภายใน `github-gas-transport.js` แล้ว:
+
+```text
+https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec
+```
+
+กรุณาอัปโหลด/commit ไฟล์ root ทั้งชุด ไม่ใช่เฉพาะ `index.html` เพื่อป้องกัน browser ใช้ไฟล์ transport หรือ config รุ่นเก่าค้างอยู่
