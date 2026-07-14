@@ -3,8 +3,8 @@
     var existing = root.APP_CONFIG || {
     }
     ,
-    APP_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r108",
-    APP_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r108",
+    APP_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r109",
+    APP_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r109",
     APP_VERSION = "1.2.0-production-current",
     FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22%2F%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22%2F%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22%2F%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C%2Ftext%3E%3C%2Fsvg%3E"; 
     function text(v) {
@@ -22,7 +22,7 @@
     ,
     STORED_GAS_WEB_APP_URL = (function(){ try { return root.localStorage && root.localStorage.getItem("GITHUB_GAS_WEB_APP_URL") || ""; } catch (_) { return ""; } })(),
     VERCEL_MIGRATION_CONFIG = GITHUB_DIRECT_CONFIG,
-    VERCEL_GAS_WEB_APP_URL = cleanUrl(GITHUB_DIRECT_CONFIG.gasWebAppUrl || GITHUB_DIRECT_CONFIG.GAS_WEB_APP_URL || root.GITHUB_GAS_WEB_APP_URL || root.GAS_WEB_APP_URL || STORED_GAS_WEB_APP_URL || "https://script.google.com/macros/s/AKfycbx6MM77fvYdG2UMsqKscev1v7r9sJF2ARtERzv_LvnkM4Hk93s0Ja6amRsia3by4TpO/exec"),
+    VERCEL_GAS_WEB_APP_URL = cleanUrl(GITHUB_DIRECT_CONFIG.gasWebAppUrl || GITHUB_DIRECT_CONFIG.GAS_WEB_APP_URL || root.GITHUB_GAS_WEB_APP_URL || root.GAS_WEB_APP_URL || STORED_GAS_WEB_APP_URL || "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec"),
     VERCEL_LOGO_URL = cleanUrl(GITHUB_DIRECT_CONFIG.logoUrl || GITHUB_DIRECT_CONFIG.APP_LOGO_URL || "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg"),
     defaults = {
       appTitle: "ระบบบริหารจัดการเรื่องพิจารณา",
@@ -33,7 +33,7 @@
       localAssetBaseCandidates: ["./partials/",
         "partials/",
         "../partials/"],
-      transportMode: "github-pages-gas-direct-post-primary",
+      transportMode: "github-pages-gas-direct-jsonp-read-primary",
       hostingTarget: "github-pages-gas-direct",
       vercelStaticFrontendReady: !1,
       vercelApiProxyEnabled: !1,
@@ -90,7 +90,7 @@
       fastLoginJsonp: !1,
       loginFormPost: !0,
       dataApiPostBridgeEnabled: !0,
-      authenticatedDataPostFirst: !0,
+      authenticatedDataPostFirst: !1,
       dataApiIframeBridgeEnabled: !0,
       dataApiJsonpReadEnabled: !0,
       jsonpReadTimeoutMs: 110e3,
@@ -231,7 +231,7 @@
     root.APP_CONFIG.requireBridgeReadyMessage = true;
     root.APP_CONFIG.allowAssumedBridgeReady = false;
     root.APP_CONFIG.bridgeLoadGraceMs = 12000;
-    root.APP_CONFIG.transportMode = "github-pages-gas-direct-post-primary";
+    root.APP_CONFIG.transportMode = "github-pages-gas-direct-jsonp-read-primary";
     root.APP_CONFIG.contractGate = "tools/phaseN_legacy_transport_gate.py";
     root.APP_CONFIG.runtimeSlimmingEnabled = true;
     root.APP_CONFIG.vercelStaticFrontendReady = false;
@@ -253,8 +253,9 @@
     root.APP_CONFIG.frontendTransportSinglePathPhase2 = true;
     root.APP_CONFIG.staticGasDirectDisabled = false;
     root.APP_CONFIG.readJsonpApi = true;
+    root.APP_CONFIG.authenticatedJsonpReadFirst = true;
     root.APP_CONFIG.authenticatedReadBridgeFirst = false;
-    root.APP_CONFIG.authenticatedDataPostFirst = true;
+    root.APP_CONFIG.authenticatedDataPostFirst = false;
     root.APP_CONFIG.dataApiPostBridgeEnabled = true;
     root.APP_CONFIG.publicJsonpReadMethods = ["apiGetRouteContract", "apiGetPhase0ContractGate", "apiGetPhase1Contract", "apiGetPhase2Contract"];
     root.APP_CONFIG.releaseStamp = APP_RELEASE_STAMP;
@@ -314,7 +315,7 @@
       if (!root.APP_CONFIG.logoUrl) root.APP_CONFIG.logoUrl = FALLBACK_LOGO;
       root.APP_CONFIG.transportMode = transport && /github-pages-gas-direct/i.test(transport)
         ? transport
-        : "github-pages-gas-direct-post-primary";
+        : "github-pages-gas-direct-jsonp-read-primary";
     } catch (_configError) {
       // Preserve safe defaults when browser storage or URL parsing is unavailable.
     }

@@ -1,21 +1,17 @@
-# R108 GitHub Pages Data Bridge 403 Fixed
+# R109 GitHub Pages Read Transport 403 Fix
 
-สาเหตุ: หลัง Login สำเร็จ R100 เปลี่ยน API อ่านข้อมูลทั้งหมดไปใช้ form POST iframe (`__githubApiPost`) ทำให้ Google Apps Script สร้าง HtmlService callback ผ่าน `script.googleusercontent.com/macros/echo?...` หลายครั้ง และบางครั้ง Google ส่ง 403 ทำให้ข้อมูลไม่โหลดแสดง
+## สาเหตุที่ยืนยันแล้ว
+R108 กำหนด `runReadApi()` ให้เรียก `runApiPost()` ก่อนสำหรับ API อ่านข้อมูลหลัง Login ทุกตัว การ POST ไปยัง GAS ผ่าน hidden iframe ทำให้ GAS ส่งผลลัพธ์ HtmlService ผ่าน URL ชั่วคราว `script.googleusercontent.com/macros/echo?user_content_key=...` ซึ่งอาจตอบ HTTP 403 เมื่อถูกโหลดเป็น third-party iframe จาก GitHub Pages
 
-การแก้ไข R108:
-- Login ยังใช้ POST iframe ตามเดิม เพราะต้องส่งรหัสผ่าน
-- API หลัง Login ทั้ง read/write กลับมาใช้ hidden GAS iframe bridge (`google.script.run.apiGithubBridgeCall`) เพื่อลดปัญหา echo 403
-- prewarm bridge หลัง Login สำเร็จ
-- ปิด data API POST bridge ใน `app-config.js`
-- cache bust เป็น r108
+ผลคือ Login สำเร็จและหน้าแอปแสดง แต่ Dashboard และโมดูลทั้งหมดรอ POST timeout ก่อน fallback จึงไม่แสดงข้อมูล
 
-ต้องอัปโหลดทั้ง root ของ ZIP ไป GitHub Pages และ deploy GAS เวอร์ชันที่มี `apiGithubBridgeCall` อยู่แล้ว
+## การแก้ไข R109
+- Login ยังคงใช้ POST iframe เพราะต้องส่งรหัสผ่าน
+- Read API ทุกตัวใช้ JSONP เป็นเส้นทางหลัก
+- Read API ไม่เรียก `__githubApiPost` อีก
+- ยกเลิกการ prewarm GAS iframe หลัง Login เพื่อไม่สร้าง `echo?... 403` โดยไม่จำเป็น
+- GAS iframe bridge ใช้เมื่อ JSONP เกิด transport failure เท่านั้น
+- Write API ยังคงใช้ POST เดิมเพื่อไม่เปลี่ยน Business Logic ในรอบแก้ข้อมูลไม่แสดง
+- อัปเดต release/cache stamp เป็น R109
 
-
-## R108 note
-- Login uses POST iframe.
-- Read APIs use JSONP authenticated read first, then bridge fallback, to avoid hidden iframe message loss on GitHub Pages.
-- Upload root files and deploy GAS backend Code_00_PlatformCore.gs from this package.
-
-
-R108: โลโก้รัฐสภาใช้ URL: https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg
+ต้องเขียนทับไฟล์ GitHub Pages ทั้งชุด และเขียนทับ/Deploy GAS จาก `gas-backend` เป็น New version

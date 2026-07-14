@@ -85,7 +85,7 @@ GITHUB_GAS_WEB_APP_URL
 This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
 
 
-## R108: GAS URL hardening
+## R109: GAS URL hardening
 
 ชุดนี้ตั้งค่า GAS Web App URL ล่าสุดไว้ทั้งใน `app-config.js`, `index.html` และ fallback ภายใน `github-gas-transport.js` แล้ว:
 
@@ -96,10 +96,10 @@ https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm
 กรุณาอัปโหลด/commit ไฟล์ root ทั้งชุด ไม่ใช่เฉพาะ `index.html` เพื่อป้องกัน browser ใช้ไฟล์ transport หรือ config รุ่นเก่าค้างอยู่
 
 
-## R108 note
+## R109 note
 - Login uses POST iframe.
 - Read APIs use JSONP authenticated read first, then bridge fallback, to avoid hidden iframe message loss on GitHub Pages.
 - Upload root files and deploy GAS backend Code_00_PlatformCore.gs from this package.
 
 
-R108: โลโก้รัฐสภาใช้ URL: https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg
+R109: โลโก้รัฐสภาใช้ URL: https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg
