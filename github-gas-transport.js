@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r105";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r105";
-  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-jsonp-read-r105";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r106";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r106";
+  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-jsonp-read-r106";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
   var assetInFlight = Object.create(null);
@@ -325,7 +325,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r105", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r106", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -368,7 +368,7 @@
     if (csrf) { url.searchParams.set("csrfToken", csrf); url.searchParams.set("csrf", csrf); url.searchParams.set("_csrf", csrf); }
     if (username) { url.searchParams.set("username", username); }
     url.searchParams.set("githubAuthenticatedJsonpRead", "1");
-    url.searchParams.set("transportOwner", "github-pages-jsonp-read-r105");
+    url.searchParams.set("transportOwner", "github-pages-jsonp-read-r106");
     return url;
   }
   function runJsonpApi(method, payload, options) {
@@ -462,7 +462,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r105",
+            bridge: "github-pages-gas-direct-r106",
             releaseStamp: PHASE_RELEASE_STAMP
           });
         } catch (err) {
