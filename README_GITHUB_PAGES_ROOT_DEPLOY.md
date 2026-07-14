@@ -85,7 +85,7 @@ GITHUB_GAS_WEB_APP_URL
 This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
 
 
-## R100: GAS URL hardening
+## R101: GAS URL hardening
 
 ชุดนี้ตั้งค่า GAS Web App URL ล่าสุดไว้ทั้งใน `app-config.js`, `index.html` และ fallback ภายใน `github-gas-transport.js` แล้ว:
 
