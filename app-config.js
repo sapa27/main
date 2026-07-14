@@ -1,11 +1,13 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r113";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r113";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
-    "https://script.google.com/macros/s/AKfycbwur5XPGfo3c0trvGbTyC44UGkVXk6835R0vjD0jsD8FQVfUloDcsNpJF4jxxTRLUG8/exec"
+    "https://script.google.com/macros/s/",
+    "AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm",
+    "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
@@ -109,7 +111,7 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-gas-direct-authenticated-bridge-only",
+    transportMode: "github-pages-gas-direct-authenticated-postmessage-bridge-only",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -157,8 +159,8 @@
     dashboardBudgetHydrationDelayMs: 350,
     inlinePartialsEnabled: false,
     bridgeLoadGraceMs: 12000,
-    requireBridgeReadyMessage: true,
-    allowAssumedBridgeReady: false,
+    requireBridgeReadyMessage: false,
+    allowAssumedBridgeReady: true,
     securityHardening: true,
     fastLoginJsonp: false,
     fastLoginJsonpDisabled: true,
@@ -166,15 +168,17 @@
     publicConfigTimeoutMs: 4000,
     loginFormPost: true,
     dataApiPostBridgeEnabled: true,
-    authenticatedDataPostFirst: false,
-    dataApiIframeBridgeEnabled: true,
+    authenticatedDataPostFirst: true,
+    dataApiIframeBridgeEnabled: false,
     dataApiJsonpReadEnabled: false,
     jsonpReadTimeoutMs: 110000,
     loginViaVercelProxy: false,
     readJsonpApi: false,
     authenticatedJsonpReadFirst: false,
-    authenticatedReadBridgeFirst: true,
+    authenticatedReadBridgeFirst: false,
     authenticatedReadBridgeOnly: true,
+    authenticatedPostMessageBridgeOnly: true,
+    persistentGasIframeBridgeDisabled: true,
     publicJsonpReadEnabled: true,
     publicJsonpReadMethods: [
       "apiGetRouteContract",

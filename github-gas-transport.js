@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r112";
-  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-authenticated-bridge-only-r112";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r113";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r113";
+  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-authenticated-postmessage-bridge-r113";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
   var assetInFlight = Object.create(null);
@@ -159,44 +159,13 @@
     return withQuery(gasWebAppUrl(), { __githubBridgeClient: "1", parentOrigin: root.location.origin, r: PHASE_RELEASE_STAMP });
   }
   function ensureBridge() {
-    if (bridgeReady && bridgeFrame && bridgeFrame.contentWindow) return Promise.resolve(bridgeFrame);
-    if (bridgeInFlight) return bridgeInFlight;
-    bridgeInFlight = new Promise(function(resolve, reject) {
-      var timeoutMs = Number(cfg("bridgeReadyTimeoutMs", cfg("apiTimeoutMs", 110000))) || 30000;
-      timeoutMs = Math.max(8000, Math.min(timeoutMs, 30000));
-      var timer = setTimeout(function() {
-        bridgeInFlight = null;
-        reject(bridgeError("GAS bridge ยังไม่พร้อมใช้งาน ให้ตรวจ GAS_WEB_APP_URL และการ Deploy Web App แบบ Anyone", "GAS_BRIDGE_READY_TIMEOUT"));
-      }, timeoutMs);
-      function done(frame) { clearTimeout(timer); bridgeReady = true; bridgeInFlight = null; resolve(frame); }
-      try {
-        bridgeFrame = doc.getElementById("app-gas-direct-bridge");
-        if (!bridgeFrame) {
-          bridgeFrame = doc.createElement("iframe");
-          bridgeFrame.id = "app-gas-direct-bridge";
-          bridgeFrame.title = "GAS Direct Bridge";
-          bridgeFrame.setAttribute("aria-hidden", "true");
-          bridgeFrame.style.cssText = "position:absolute;width:1px;height:1px;left:-9999px;top:-9999px;border:0;opacity:0;pointer-events:none;";
-          (doc.body || doc.documentElement).appendChild(bridgeFrame);
-        }
-        bridgeFrame.onload = function() { setTimeout(function(){ if (!bridgeReady) probeBridge(); }, 20); };
-        if (bridgeFrame.src !== bridgeUrl()) bridgeFrame.src = bridgeUrl();
-        function probeBridge() {
-          postToBridgeFrame({ type: "GAS_IFRAME_TRANSPORT_PING_READY", __gasIframeTransport: true });
-        }
-        var probes = [40, 120, 300, 700, 1500, 3000];
-        probes.forEach(function(ms) { setTimeout(function(){ if (!bridgeReady) probeBridge(); }, ms); });
-        if (bridgeReady) done(bridgeFrame);
-        else {
-          var prev = root.__APP_GAS_DIRECT_BRIDGE_READY_CALLBACKS__ || [];
-          prev.push(done);
-          root.__APP_GAS_DIRECT_BRIDGE_READY_CALLBACKS__ = prev;
-        }
-      } catch (err) {
-        clearTimeout(timer); bridgeInFlight = null; reject(err);
-      }
+    // Compatibility alias only. R113 deliberately does not create a persistent GAS iframe.
+    // Every authenticated request gets its own POST target iframe and a one-shot postMessage response.
+    return Promise.resolve({
+      perRequestPostMessage: true,
+      persistentIframeDisabled: true,
+      mode: PHASE_TRANSPORT_MODE
     });
-    return bridgeInFlight;
   }
   root.addEventListener("message", function(ev) {
     var data = ev && ev.data;
@@ -229,9 +198,9 @@
       var apiResult = data.result || { ok: false, error: "empty api response", errorCode: "GITHUB_API_POST_EMPTY_RESPONSE" };
       if (isObj(apiResult)) {
         apiResult.method = apiResult.method || data.method || apiPending.method;
-        apiResult.transport = apiResult.transport || "github-api-post";
+        apiResult.transport = apiResult.transport || "github-authenticated-postmessage-bridge";
         apiResult.releaseStamp = apiResult.releaseStamp || PHASE_RELEASE_STAMP;
-        apiResult.meta = Object.assign({}, isObj(apiResult.meta) ? apiResult.meta : {}, { githubGasDirect: true, apiPost: true, transport: apiResult.transport, releaseStamp: PHASE_RELEASE_STAMP });
+        apiResult.meta = Object.assign({}, isObj(apiResult.meta) ? apiResult.meta : {}, { githubGasDirect: true, apiPost: true, authenticatedPostMessageBridge: true, transport: apiResult.transport, releaseStamp: PHASE_RELEASE_STAMP });
       }
       apiPending.resolve(apiResult);
       return;
@@ -336,7 +305,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-write-r112", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-authenticated-postmessage-bridge-r113", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -444,7 +413,7 @@
         u.searchParams.set("r", PHASE_RELEASE_STAMP);
         u.searchParams.set("payload", encodeURIComponent(JSON.stringify(payload)));
         u.searchParams.set("githubPublicJsonpRead", "1");
-        u.searchParams.set("transportOwner", "github-pages-public-jsonp-r112");
+        u.searchParams.set("transportOwner", "github-pages-public-jsonp-r113");
         script = doc.createElement("script");
         script.async = true;
         script.defer = true;
@@ -470,65 +439,39 @@
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
 
-    // Phase C contract:
-    // - JSONP is allowed only for explicitly public contract APIs and never carries token/CSRF.
-    // - Every authenticated read API uses the persistent GAS iframe bridge (google.script.run).
-    // - There is no JSONP fallback for authenticated reads.
+    // Phase C contract, corrected for GAS HtmlService embedding:
+    // - Public contract APIs may use JSONP and never carry token/CSRF.
+    // - Authenticated reads use one POST form request per call. The GAS response posts
+    //   the result back to the GitHub page, exactly like the working login transport.
+    // - The persistent iframe/google.script.run path is not used because GAS renders
+    //   user HTML inside an additional Google-owned iframe; messages sent from GitHub
+    //   reach the outer wrapper, not the listener in the inner user-code iframe.
     if (isPublicJsonpReadMethod(method)) {
       return runJsonpApi(method, payload, options);
     }
-    return runBridgeApi(method, payload, options);
+    return runApiPost(method, payload, options);
   }
 
   function runBridgeApi(method, payload, options) {
-    method = text(method).trim();
-    if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
-    payload = isObj(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
-    payload.__authTransportOwner = payload.__authTransportOwner || "AppApiMiddlewarePipeline";
-    payload.__bridgeTransport = "github-pages-persistent-gas-bridge-r112";
-    payload.clientContext = isObj(payload.clientContext) ? Object.assign({}, payload.clientContext) : {};
-    payload.clientContext.transport = "github-authenticated-bridge";
-    payload.clientContext.bridgeOnly = true;
-    payload.clientContext.releaseStamp = PHASE_RELEASE_STAMP;
-    return ensureBridge().then(function(frame) {
-      return new Promise(function(resolve, reject) {
-        var id = requestId(method);
-        var timeoutMs = Math.max(10000, Math.min(Number(options && (options.timeoutMs || options.clientTimeoutMs) || cfg("apiTimeoutMs", 110000)) || 110000, 120000));
-        var timer = setTimeout(function() { delete bridgePending[id]; reject(bridgeError("GAS Direct bridge timeout: " + method, "GAS_DIRECT_BRIDGE_TIMEOUT", method)); }, timeoutMs);
-        bridgePending[id] = { resolve: resolve, reject: reject, timer: timer, method: method };
-        try {
-          postToBridgeFrame({
-            __gasIframeTransport: true,
-            type: "GAS_IFRAME_TRANSPORT_REQUEST",
-            requestId: id,
-            method: method,
-            payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r112",
-            releaseStamp: PHASE_RELEASE_STAMP
-          });
-        } catch (err) {
-          delete bridgePending[id]; clearTimeout(timer); reject(err);
-        }
-      });
-    });
+    // Backward-compatible name. The actual Phase C bridge is the per-request POST bridge.
+    return runApiPost(method, payload, options);
   }
   function runWithPolicy(method, payload, options) {
     var cached = getCachedRead(method, payload);
     if (cached) return Promise.resolve(cached);
     var key = stableKey(method, payload), isWrite = isWriteApiMethod(method), isLogin = /^apiLogin$/i.test(method);
-    if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-bridge" }); return apiInFlight[key]; }
+    if (!isWrite && apiInFlight[key]) { recordApiMetric({ kind: "call", method: method, dedupeHit: true, transport: isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-postmessage-bridge" }); return apiInFlight[key]; }
 
-    // R112 Phase C: login remains POST-only; authenticated reads use the persistent
-    // google.script.run bridge only; JSONP is restricted to public contract APIs.
-    // Write APIs retain the established POST transport.
+    // R113 Phase C: login and every authenticated API use the same per-request
+    // POST -> GAS HtmlService -> postMessage bridge. JSONP remains public-contract only.
     var apiInvoker = isLogin ? runLoginPostApi : (isWrite ? runApiPost : runReadApi);
     var p = apiInvoker(method, payload, options).then(function(result) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : (isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-bridge")), error: isObj(result) && result.ok === false });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : (isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-postmessage-bridge")), error: isObj(result) && result.ok === false });
       if (isWrite && isObj(result) && result.ok !== false) invalidateClientApiCache("write-success", method);
       else putCachedRead(method, payload, result);
       return result;
     }, function(err) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : (isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-bridge")), error: true, message: err && err.message || String(err || "") });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-api-post" : (isPublicJsonpReadMethod(method) ? "github-public-jsonp-read" : "github-authenticated-postmessage-bridge")), error: true, message: err && err.message || String(err || "") });
       if (!isWrite) {
         var stale = staleRead(method, payload);
         if (stale) {
@@ -637,8 +580,8 @@
   root.AppTransport.__authenticatedJsonpDisabled = true;
   root.AppTransport.__clientReadResponseCacheEnabled = true;
   root.AppTransport.transportMode = PHASE_TRANSPORT_MODE;
-  root.AppTransport.bridgeClientState = function(){ return { ready: bridgeReady, loaded: !!bridgeFrame, assumedReady: false, removed: false, mode: PHASE_TRANSPORT_MODE, gasWebAppUrl: normalizeUrl(root.GAS_WEB_APP_URL || cfg("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL || "") }; };
-  root.AppTransport.phase2Status = function(){ return { ok: runtimeOwnerStatus().ok, stamp: PHASE_RELEASE_STAMP, phase: "GitHub Pages + GAS Direct Phase C", release: releaseStatus(), transportMode: PHASE_TRANSPORT_MODE, githubPagesGasDirect: true, vercelApiProxyEnabled: false, legacyTransportRemoved: false, gasDirectAvailable: true, authenticatedReadBridgeOnly: true, authenticatedJsonpDisabled: true, publicJsonpOnly: true, clientReadResponseCacheEnabled: true, clientReadCacheEntries: Object.keys(apiReadCache).length, inFlight: Object.keys(apiInFlight).length, assetCacheEntries: Object.keys(cache).length, bridge: root.AppTransport.bridgeClientState(), metrics: Object.assign({}, apiMetrics) }; };
+  root.AppTransport.bridgeClientState = function(){ return { ready: true, loaded: false, assumedReady: false, removed: true, perRequestPostMessage: true, persistentIframeDisabled: true, mode: PHASE_TRANSPORT_MODE, gasWebAppUrl: normalizeUrl(root.GAS_WEB_APP_URL || cfg("gasWebAppUrl", "") || DEFAULT_GAS_WEB_APP_URL || "") }; };
+  root.AppTransport.phase2Status = function(){ return { ok: runtimeOwnerStatus().ok, stamp: PHASE_RELEASE_STAMP, phase: "GitHub Pages + GAS Direct Phase C", release: releaseStatus(), transportMode: PHASE_TRANSPORT_MODE, githubPagesGasDirect: true, vercelApiProxyEnabled: false, legacyTransportRemoved: false, gasDirectAvailable: true, authenticatedReadBridgeOnly: true, authenticatedPostMessageBridge: true, persistentIframeDisabled: true, authenticatedJsonpDisabled: true, publicJsonpOnly: true, clientReadResponseCacheEnabled: true, clientReadCacheEntries: Object.keys(apiReadCache).length, inFlight: Object.keys(apiInFlight).length, assetCacheEntries: Object.keys(cache).length, bridge: root.AppTransport.bridgeClientState(), metrics: Object.assign({}, apiMetrics) }; };
   root.AppTransport.phase1Status = root.AppTransport.phase2Status;
   root.AppTransport.phase0Status = root.AppTransport.phase2Status;
   root.AppTransport.releaseStatus = releaseStatus;
@@ -660,19 +603,20 @@
     if (!url) return "";
     root.GAS_WEB_APP_URL = url; root.APP_CONFIG = root.APP_CONFIG || {}; root.APP_CONFIG.gasWebAppUrl = url;
     try { root.localStorage && root.localStorage.setItem("GITHUB_GAS_WEB_APP_URL", url); } catch (_) {}
-    bridgeReady = false; bridgeInFlight = null; bridgeFrame && (bridgeFrame.src = bridgeUrl());
+    bridgeReady = false; bridgeInFlight = null; bridgeFrame = null;
     return url;
   };
   root.AppTransport.setLogoUrl = function(url){ return setLogo(url, "manual"); };
-  root.AppTransport.ping = function(){ return runBridgeApi("apiGithubBridgePing", { at: new Date().toISOString(), transportMode: PHASE_TRANSPORT_MODE }); };
+  root.AppTransport.ping = function(){ return runApiPost("apiGithubBridgePing", { at: new Date().toISOString(), transportMode: PHASE_TRANSPORT_MODE }, { timeoutMs: 30000 }); };
   root.AppTransport.loadPublicConfig = loadPublicConfig;
   root.AppTransport.invalidateClientApiCache = invalidateClientApiCache;
   root.AppTransport.vercelProxyEnabled = function(){ return false; };
-  root.AppTransport.ensureBridgeClient = ensureBridge;
-  root.AppTransport.runGasDirectBridge = runBridgeApi;
+  root.AppTransport.ensureBridgeClient = function(){ return Promise.resolve({ perRequestPostMessage: true, persistentIframeDisabled: true, mode: PHASE_TRANSPORT_MODE }); };
+  root.AppTransport.runGasDirectBridge = runApiPost;
   root.AppTransport.runJsonpApi = runJsonpApi;
   root.AppTransport.runLoginPost = runLoginPostApi;
   root.AppTransport.runApiPost = runApiPost;
+  root.AppTransport.runAuthenticatedPostMessageBridge = runApiPost;
 
   try { setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config"); } catch (_) {}
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", function(){ setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config-dom"); }, { once: true });
