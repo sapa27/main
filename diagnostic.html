@@ -4,87 +4,74 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive">
-<title>R113 GitHub Pages + GAS Direct Diagnostic</title>
+<title>R114 GitHub Pages → GAS Bridge Diagnostic</title>
 <style>
-body{font-family:Sarabun,Arial,sans-serif;margin:24px;line-height:1.55;background:#f8fafc;color:#0f172a}
-.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;max-width:1040px;box-shadow:0 8px 24px rgba(15,23,42,.08)}
-.grid{display:grid;grid-template-columns:180px 1fr;gap:8px 12px;margin:16px 0}.label{font-weight:700}code,pre{background:#f1f5f9;border-radius:8px}code{padding:2px 6px;overflow-wrap:anywhere}pre{padding:12px;white-space:pre-wrap;overflow:auto;min-height:260px}
-button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#fff;cursor:pointer}.ok{color:#047857}.bad{color:#b91c1c}.muted{color:#64748b}
-@media(max-width:640px){body{margin:10px}.grid{grid-template-columns:1fr}.label{margin-top:8px}}
+body{font-family:Sarabun,Arial,sans-serif;margin:24px;background:#f8fafc;color:#0f172a;line-height:1.55}.card{max-width:1040px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(15,23,42,.08)}.grid{display:grid;grid-template-columns:190px 1fr;gap:8px 12px;margin:16px 0}.label{font-weight:700}code,pre{background:#f1f5f9;border-radius:8px}code{padding:2px 6px;overflow-wrap:anywhere}pre{padding:12px;white-space:pre-wrap;min-height:280px;overflow:auto}button{padding:10px 16px;border:0;border-radius:10px;background:#0f172a;color:#fff;cursor:pointer}.muted{color:#64748b}@media(max-width:640px){body{margin:10px}.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="card">
-<h1>ตรวจสอบ R113: GitHub Pages → GAS Direct</h1>
-<p>ตรวจการตั้งค่า transport, Public JSONP contract API และ POST → postMessage bridge สำหรับ authenticated API โดยไม่รับชื่อผู้ใช้ รหัสผ่าน หรือ token</p>
+<h1>ตรวจสอบ R114: Inner Source-Window Bridge</h1>
+<p>ตรวจว่า GitHub ได้รับ READY จาก iframe ชั้นที่มี <code>google.script.run</code> และส่งคำขอกลับไปยัง <code>event.source</code> เดิม ไม่ใช้ POST API ต่อคำขอและไม่ใช้ authenticated JSONP</p>
 <div class="grid">
 <div class="label">GAS Web App</div><code id="gasUrl">-</code>
 <div class="label">Transport</div><code id="transportMode">-</code>
 <div class="label">Release</div><code id="releaseStamp">-</code>
-<div class="label">Hosting</div><code id="hostingTarget">-</code>
+<div class="label">Bridge origin</div><code id="bridgeOrigin">-</code>
 </div>
 <p><button id="runBtn" type="button">เริ่มตรวจสอบ</button></p>
 <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
-<p class="muted">การตรวจข้อมูลหลัง Login ต้องทดสอบจากหน้า <code>index.html</code> เพราะ token ถูกเก็บในหน่วยความจำของหน้าแอปเท่านั้น</p>
+<p class="muted">การตรวจนี้ไม่ใช้ชื่อผู้ใช้ รหัสผ่าน token หรือ CSRF</p>
 </div>
-<script src="./app-config.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r113"></script>
-<script src="./github-gas-transport.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r113"></script>
+<script src="./app-config.js?v=r114"></script>
+<script src="./github-gas-transport.js?v=r114"></script>
 <script>
 (function(root,doc){
   "use strict";
-  var out=doc.getElementById("out");
+  var output=doc.getElementById("out");
   function text(v){return v==null?"":String(v)}
-  function cfg(){return root.APP_CONFIG||{}}
-  function print(label,value,ok){
-    var line=(ok===false?"[FAIL] ":ok===true?"[PASS] ":"[INFO] ")+label+": "+(typeof value==="string"?value:JSON.stringify(value,null,2));
-    out.textContent+=(out.textContent?"\n":"")+line;
+  function config(){return root.APP_CONFIG||{}}
+  function line(label,value,ok){
+    output.textContent+=(output.textContent?"\n":"")+(ok===false?"[FAIL] ":ok===true?"[PASS] ":"[INFO] ")+label+": "+(typeof value==="string"?value:JSON.stringify(value,null,2));
   }
-  function setSummary(){
-    doc.getElementById("gasUrl").textContent=text(cfg().gasWebAppUrl||root.GAS_WEB_APP_URL||"");
-    doc.getElementById("transportMode").textContent=text(cfg().transportMode||"");
-    doc.getElementById("releaseStamp").textContent=text(cfg().releaseStamp||"");
-    doc.getElementById("hostingTarget").textContent=text(cfg().hostingTarget||"");
-  }
-  function validateConfig(){
-    var c=cfg(),errors=[];
-    if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:[?#].*)?$/i.test(text(c.gasWebAppUrl)))errors.push("GAS_WEB_APP_URL_INVALID");
-    if(c.hostingTarget!=="github-pages-gas-direct")errors.push("HOSTING_TARGET_NOT_GITHUB_DIRECT");
-    if(c.vercelApiProxyEnabled!==false)errors.push("VERCEL_PROXY_MUST_BE_DISABLED");
-    if(c.loginFormPost!==true)errors.push("LOGIN_POST_MUST_BE_ENABLED");
-    if(c.authenticatedDataPostFirst!==true)errors.push("AUTHENTICATED_DATA_POST_FIRST_MUST_BE_ENABLED");
-    if(c.dataApiPostBridgeEnabled!==true)errors.push("WRITE_API_POST_MUST_REMAIN_AVAILABLE");
-    if(c.dataApiIframeBridgeEnabled!==false)errors.push("PERSISTENT_IFRAME_BRIDGE_MUST_BE_DISABLED");
-    if(c.authenticatedReadBridgeOnly!==true||c.authenticatedPostMessageBridgeOnly!==true)errors.push("AUTHENTICATED_POSTMESSAGE_BRIDGE_ONLY_REQUIRED");
-    if(c.readJsonpApi!==false||c.dataApiJsonpReadEnabled!==false)errors.push("AUTHENTICATED_JSONP_MUST_BE_DISABLED");
-    if(c.publicJsonpReadEnabled!==true)errors.push("PUBLIC_JSONP_REQUIRED");
-    if(c.legacyTransportRemoved!==false)errors.push("GITHUB_DIRECT_TRANSPORT_FLAG_INVALID");
-    return errors;
+  function summary(){
+    var state=root.AppTransport&&root.AppTransport.bridgeClientState?root.AppTransport.bridgeClientState():{};
+    doc.getElementById("gasUrl").textContent=text(config().gasWebAppUrl||root.GAS_WEB_APP_URL||"");
+    doc.getElementById("transportMode").textContent=text(config().transportMode||"");
+    doc.getElementById("releaseStamp").textContent=text(config().releaseStamp||"");
+    doc.getElementById("bridgeOrigin").textContent=text(state.sourceOrigin||"ยังไม่ READY");
   }
   async function run(){
-    out.textContent="";setSummary();
+    output.textContent="";
+    summary();
     try{
-      var errors=validateConfig();
-      print("Config",errors.length?errors:"ค่าหลักถูกต้อง",!errors.length);
-      if(errors.length)throw new Error(errors.join(", "));
-      if(!root.AppTransport||typeof root.AppTransport.run!=="function")throw new Error("APP_TRANSPORT_NOT_READY");
-      var owner=root.AppTransport.runtimeOwnerStatus?root.AppTransport.runtimeOwnerStatus():{};
-      print("Runtime owner",owner,owner.ok!==false);
-      var publicCfg=await root.AppTransport.loadPublicConfig();
-      print("Public config",publicCfg,publicCfg&&publicCfg.ok!==false);
-      if(typeof root.AppTransport.runJsonpApi!=="function")throw new Error("JSONP_READ_TRANSPORT_NOT_READY");
-      var directJsonp=await root.AppTransport.runJsonpApi("apiGetRouteContract",{diagnostic:true},{timeoutMs:30000});
-      print("Public JSONP apiGetRouteContract",directJsonp,directJsonp&&directJsonp.ok!==false);
-      if(!directJsonp||directJsonp.ok===false)throw new Error(directJsonp&&directJsonp.error||"JSONP_ROUTE_CONTRACT_FAILED");
-      var contract=await root.AppTransport.run("apiGetRouteContract",{diagnostic:true},{timeoutMs:30000,noCache:true});
-      print("AppTransport read route",contract,contract&&contract.ok!==false);
-      var bridgeState=root.AppTransport.bridgeClientState?root.AppTransport.bridgeClientState():{};
-      print("Authenticated bridge policy",bridgeState,bridgeState&&bridgeState.perRequestPostMessage===true&&bridgeState.persistentIframeDisabled===true);
-      print("ผลรวม","Public JSONP ใช้เฉพาะ contract API; authenticated read/write ใช้ POST → postMessage bridge ต่อคำขอ และไม่สร้าง persistent GAS iframe",true);
-    }catch(err){
-      print("ผลรวม",text(err&&err.message||err),false);
+      var c=config();
+      var checks={
+        gasUrl:/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(text(c.gasWebAppUrl)),
+        transport:c.transportMode==="github-pages-phase-c-inner-source-window-bridge-r114",
+        iframeBridge:c.dataApiIframeBridgeEnabled===true,
+        requireReady:c.requireBridgeReadyMessage===true,
+        noAssumedReady:c.allowAssumedBridgeReady===false,
+        noPerRequestApiPost:c.perRequestApiPostDisabled===true,
+        noAuthenticatedJsonp:c.authenticatedReadBridgeOnly===true&&c.dataApiJsonpReadEnabled===false
+      };
+      line("Config",checks,Object.keys(checks).every(function(k){return checks[k]===true}));
+      if(!root.AppTransport||typeof root.AppTransport.ensureBridgeClient!=="function")throw new Error("APP_TRANSPORT_NOT_READY");
+      var ready=await root.AppTransport.ensureBridgeClient();
+      summary();
+      line("Inner bridge READY",ready,!!(ready&&ready.sourceWindow&&ready.sourceOrigin));
+      var state=root.AppTransport.bridgeClientState();
+      line("Captured event.source",state,!!(state.ready&&state.innerSourceWindowCaptured&&state.sourceOrigin));
+      var ping=await root.AppTransport.ping();
+      line("google.script.run ping",ping,!!(ping&&ping.ok!==false));
+      var publicContract=await root.AppTransport.runJsonpApi("apiGetRouteContract",{diagnostic:true},{timeoutMs:30000});
+      line("Public JSONP contract",publicContract,!!(publicContract&&publicContract.ok!==false));
+      line("ผลรวม","bridge พร้อมและตอบกลับผ่าน source window เดียวกัน",true);
+    }catch(error){
+      line("ผลรวม",text(error&&error.message||error),false);
     }
   }
-  setSummary();
+  summary();
   doc.getElementById("runBtn").addEventListener("click",run);
 })(window,document);
 </script>

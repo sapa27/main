@@ -1,11 +1,13 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r113";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r113";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r114";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r114";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
-    "https://script.google.com/macros/s/AKfycbzymtGr7-dkxGkAgzZF5UzUpe3QIFAh4Z20JGHquUlfhngVsFhWjSiSbjPSe2wRL_7w/exec"
+    "https://script.google.com/macros/s/",
+    "AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm",
+    "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
@@ -109,7 +111,7 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-gas-direct-authenticated-postmessage-bridge-only",
+    transportMode: "github-pages-phase-c-inner-source-window-bridge-r114",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -156,27 +158,29 @@
     dashboardBudgetHydrationEnabled: true,
     dashboardBudgetHydrationDelayMs: 350,
     inlinePartialsEnabled: false,
-    bridgeLoadGraceMs: 12000,
-    requireBridgeReadyMessage: false,
-    allowAssumedBridgeReady: true,
+    bridgeLoadGraceMs: 30000,
+    requireBridgeReadyMessage: true,
+    allowAssumedBridgeReady: false,
     securityHardening: true,
     fastLoginJsonp: false,
     fastLoginJsonpDisabled: true,
     apiTimeoutMs: 110000,
     publicConfigTimeoutMs: 4000,
     loginFormPost: true,
-    dataApiPostBridgeEnabled: true,
-    authenticatedDataPostFirst: true,
-    dataApiIframeBridgeEnabled: false,
+    dataApiPostBridgeEnabled: false,
+    authenticatedDataPostFirst: false,
+    dataApiIframeBridgeEnabled: true,
     dataApiJsonpReadEnabled: false,
     jsonpReadTimeoutMs: 110000,
     loginViaVercelProxy: false,
     readJsonpApi: false,
     authenticatedJsonpReadFirst: false,
-    authenticatedReadBridgeFirst: false,
+    authenticatedReadBridgeFirst: true,
     authenticatedReadBridgeOnly: true,
     authenticatedPostMessageBridgeOnly: true,
-    persistentGasIframeBridgeDisabled: true,
+    innerBridgeSourceWindowRequired: true,
+    perRequestApiPostDisabled: true,
+    persistentGasIframeBridgeDisabled: false,
     publicJsonpReadEnabled: true,
     publicJsonpReadMethods: [
       "apiGetRouteContract",
