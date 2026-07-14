@@ -2,10 +2,10 @@
   "use strict";
   if (!root || !doc) return;
 
-  var FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22/%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22/%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C/text%3E%3C/svg%3E";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r104";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r104";
-  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-iframe-bridge";
+  var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r105";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r105";
+  var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-login-post-jsonp-read-r105";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
   var assetInFlight = Object.create(null);
@@ -325,7 +325,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r104", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r105", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -355,6 +355,22 @@
   function jsonpCallbackName(id) {
     return "__APP_GITHUB_JSONP_CB_" + id.replace(/[^A-Za-z0-9_$]/g, "_");
   }
+  function jsonpGlobalCallbackName(id) {
+    return "window." + jsonpCallbackName(id);
+  }
+  function attachAuthParamsToJsonpUrl(url, payload) {
+    payload = isObj(payload) ? payload : {};
+    var ctx = isObj(payload.clientContext) ? payload.clientContext : {};
+    var token = text(payload.token || payload._token || payload.authToken || payload.nextToken || "");
+    var csrf = text(payload.csrfToken || payload.csrf || payload._csrf || payload._csrfToken || "");
+    var username = text(payload.username || payload.userId || payload.email || payload.githubUsername || ctx.username || ctx.user || ctx.userId || ctx.email || "");
+    if (token) { url.searchParams.set("token", token); url.searchParams.set("authToken", token); }
+    if (csrf) { url.searchParams.set("csrfToken", csrf); url.searchParams.set("csrf", csrf); url.searchParams.set("_csrf", csrf); }
+    if (username) { url.searchParams.set("username", username); }
+    url.searchParams.set("githubAuthenticatedJsonpRead", "1");
+    url.searchParams.set("transportOwner", "github-pages-jsonp-read-r105");
+    return url;
+  }
   function runJsonpApi(method, payload, options) {
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
@@ -362,6 +378,7 @@
     return new Promise(function(resolve, reject) {
       var id = requestId(method + "Jsonp");
       var cb = jsonpCallbackName(id);
+      var cbExpr = jsonpGlobalCallbackName(id);
       var timeoutMs = Number(options && (options.timeoutMs || options.clientTimeoutMs) || cfg("jsonpReadTimeoutMs", cfg("apiTimeoutMs", 110000))) || 110000;
       timeoutMs = Math.max(12000, Math.min(timeoutMs, 120000));
       var script = null;
@@ -374,7 +391,7 @@
         cleanup();
         reject(bridgeError("GAS JSONP read timeout: " + method, "GITHUB_JSONP_READ_TIMEOUT", method));
       }, timeoutMs);
-      jsonpPending[id] = { method: method, timer: timer };
+      jsonpPending[id] = { method: method, timer: timer, callback: cbExpr };
       root[cb] = function(result) {
         clearTimeout(timer);
         cleanup();
@@ -383,7 +400,7 @@
           result.method = result.method || method;
           result.transport = result.transport || "github-jsonp-read";
           result.releaseStamp = result.releaseStamp || PHASE_RELEASE_STAMP;
-          result.meta = Object.assign({}, isObj(result.meta) ? result.meta : {}, { githubGasDirect: true, jsonpRead: true, transport: result.transport, releaseStamp: PHASE_RELEASE_STAMP });
+          result.meta = Object.assign({}, isObj(result.meta) ? result.meta : {}, { githubGasDirect: true, jsonpRead: true, callback: cbExpr, transport: result.transport, releaseStamp: PHASE_RELEASE_STAMP });
         }
         resolve(result);
       };
@@ -392,10 +409,12 @@
         u.searchParams.set("__githubJsonpApi", "1");
         u.searchParams.set("method", method);
         u.searchParams.set("requestId", id);
-        u.searchParams.set("callback", cb);
+        u.searchParams.set("callback", cbExpr);
+        u.searchParams.set("cb", cbExpr);
         u.searchParams.set("parentOrigin", root.location && root.location.origin || "");
         u.searchParams.set("r", PHASE_RELEASE_STAMP);
         u.searchParams.set("payload", encodeURIComponent(JSON.stringify(payload || {})));
+        attachAuthParamsToJsonpUrl(u, payload);
         script = doc.createElement("script");
         script.async = true;
         script.defer = true;
@@ -443,7 +462,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r104",
+            bridge: "github-pages-gas-direct-r105",
             releaseStamp: PHASE_RELEASE_STAMP
           });
         } catch (err) {
