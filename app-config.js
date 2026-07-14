@@ -26,7 +26,7 @@
     VERCEL_LOGO_URL = cleanUrl(GITHUB_DIRECT_CONFIG.logoUrl || GITHUB_DIRECT_CONFIG.APP_LOGO_URL || ""),
     defaults = {
       appTitle: "ระบบบริหารจัดการเรื่องพิจารณา",
-      gasWebAppUrl: VERCEL_GAS_WEB_APP_URL || "",
+      gasWebAppUrl: VERCEL_GAS_WEB_APP_URL || "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec",
       logoUrl: VERCEL_LOGO_URL && isSafeLogoUrl(VERCEL_LOGO_URL) ? VERCEL_LOGO_URL: FALLBACK_LOGO,
       fallbackLogoUrl: FALLBACK_LOGO,
       localAssetBase: "./partials/",
