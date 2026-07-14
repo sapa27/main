@@ -1,4 +1,4 @@
-# R106 GitHub Pages Data / Session Token Fix
+# R107 GitHub Pages Data / Session Token Fix
 
 ## สาเหตุหลักที่ตรวจพบ
 
@@ -6,7 +6,7 @@
 
 ฟังก์ชัน `AppSecurity.setSessionTokens(token, csrf)` เดิมเขียนค่าว่างทับ `auth.token` เมื่อ response มีเฉพาะ CSRF ทำให้คำขอ Dashboard และทุกโมดูลหลังจากนั้นถูกส่งโดยไม่มี token แม้หน้า Login จะแสดงว่าสำเร็จแล้ว
 
-## การแก้ไข R106
+## การแก้ไข R107
 
 1. เปลี่ยน token update เป็นแบบ merge ใน runtime ทั้งก่อนและหลังโหลด Core
    - รับได้ทั้ง `(token, csrfToken)` และ object
@@ -15,7 +15,7 @@
    - การ Logout ยังคงล้าง token ผ่านฟังก์ชัน logout โดยตรง
 2. แก้ People runtime ไม่ให้ส่ง object ผิดรูปแบบเข้า setter แบบสองพารามิเตอร์
 3. จัดค่า GitHub Pages / JSONP / iframe bridge ใน `app-config.js` ให้ไม่ขัดแย้งกับ Vercel edition เดิม
-4. อัปเดต release/cache bust เป็น `r106`
+4. อัปเดต release/cache bust เป็น `r107`
 5. เปลี่ยน `diagnostic.html` ให้ตรวจ GitHub Pages → GAS Direct และ Public JSONP endpoint โดยตรง
 6. คง URL โลโก้รัฐสภา
    - `https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg`
@@ -45,7 +45,7 @@
 
 ### 3. ล้าง cache ฝั่ง Browser
 
-หลัง GitHub Pages deploy เสร็จ ให้ปิดแท็บเดิม เปิดหน้าใหม่ และกด `Ctrl+F5` หนึ่งครั้ง เพื่อให้โหลด asset stamp `r106`
+หลัง GitHub Pages deploy เสร็จ ให้ปิดแท็บเดิม เปิดหน้าใหม่ และกด `Ctrl+F5` หนึ่งครั้ง เพื่อให้โหลด asset stamp `r107`
 
 ## วิธีตรวจสอบ
 
@@ -60,3 +60,12 @@ AppTransport.phase2Status()
 ```
 
 สองบรรทัดแรกควรเป็น `true` และ `phase2Status().ok` ควรเป็น `true`
+
+
+## R107 — GitHub authenticated data transport correction
+
+- Authenticated read APIs now use the GAS iframe `google.script.run` bridge first.
+- JSONP remains only for public contract reads and as a transport fallback.
+- Bootstrap transport errors no longer clear a valid login token/session.
+- Network/bridge/JSONP transport errors are no longer converted into empty arrays; the UI receives the real error instead of displaying blank modules.
+- Release/cache stamp: `r107`.
