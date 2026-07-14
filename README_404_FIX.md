@@ -15,8 +15,12 @@
 วิธีใช้:
 
 1. อัปโหลดไฟล์และโฟลเดอร์ทั้งหมดใน ZIP นี้ไปที่ root ของ repository ที่ใช้ GitHub Pages
-2. ตรวจ `app-config.js` แล้วแทน `PUT_GAS_WEB_APP_URL_HERE` ด้วย GAS Web App URL ที่ลงท้าย `/exec`
+2. ตรวจ `app-config.js` แล้วแทน `https://script.google.com/macros/s/AKfycbyePJucr2k5kt5xvyOymbatxKIxEJf4pSYWjzeABKPHRjFwlWrmVMZuP7sw2mXWnx-f/exec` ด้วย GAS Web App URL ที่ลงท้าย `/exec`
 3. GitHub Settings → Pages → Build and deployment → Deploy from a branch → เลือก branch และ `/root`
 4. รอ deploy แล้วเปิด URL ของ GitHub Pages ใหม่
 
 หมายเหตุ: โฟลเดอร์ `gas-backend/` ใช้สำหรับอัปโหลดเข้า Google Apps Script ไม่ใช่ไฟล์ที่ GitHub Pages ต้องโหลดโดยตรง
+
+
+## R97 note
+This package has `app-config.js` preconfigured with the known GAS Web App URL from the previous Vercel proxy configuration. If a newer GAS deployment is used, replace `gasWebAppUrl` in `app-config.js` with the latest `/exec` URL.
