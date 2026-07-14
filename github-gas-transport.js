@@ -3,8 +3,8 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22128%22%20height%3D%22128%22%20viewBox%3D%220%200%20128%20128%22%3E%3Crect%20width%3D%22128%22%20height%3D%22128%22%20rx%3D%2224%22%20fill%3D%22%23f8fafc%22/%3E%3Ccircle%20cx%3D%2264%22%20cy%3D%2248%22%20r%3D%2226%22%20fill%3D%22%23d4af37%22/%3E%3Cpath%20d%3D%22M28%20100h72M40%2088h48M48%2074h32%22%20stroke%3D%22%23334155%22%20stroke-width%3D%227%22%20stroke-linecap%3D%22round%22/%3E%3Ctext%20x%3D%2264%22%20y%3D%2255%22%20text-anchor%3D%22middle%22%20font-family%3D%22Sarabun%2C%20Arial%22%20font-size%3D%2218%22%20fill%3D%22%23334155%22%3E%E0%B8%AA%E0%B8%A0%E0%B8%B2%3C/text%3E%3C/svg%3E";
-  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r102";
-  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r102";
+  var PHASE_RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r103";
+  var PHASE_ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r103";
   var PHASE_TRANSPORT_MODE = "github-pages-gas-direct-iframe-bridge";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
   var cache = Object.create(null);
@@ -19,6 +19,7 @@
   var bridgePending = Object.create(null);
   var loginPostPending = Object.create(null);
   var apiPostPending = Object.create(null);
+  var jsonpPending = Object.create(null);
 
   function text(v) { return v == null ? "" : String(v); }
   function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
@@ -324,7 +325,7 @@
       }, timeoutMs);
       apiPostPending[id] = { resolve: resolve, reject: reject, timer: timer, method: method, cleanup: cleanup };
       try {
-        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r102", releaseStamp: PHASE_RELEASE_STAMP };
+        var envelope = { method: method, payload: payload, requestId: id, bridge: "github-api-post-r103", releaseStamp: PHASE_RELEASE_STAMP };
         iframe = doc.createElement("iframe");
         iframe.name = "app-gas-api-post-" + id.replace(/[^a-z0-9_-]/ig, "_");
         iframe.id = iframe.name;
@@ -351,6 +352,81 @@
     });
   }
 
+  function jsonpCallbackName(id) {
+    return "__APP_GITHUB_JSONP_CB_" + id.replace(/[^A-Za-z0-9_$]/g, "_");
+  }
+  function runJsonpApi(method, payload, options) {
+    method = text(method).trim();
+    if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
+    payload = isObj(payload) ? Object.assign({}, payload) : (payload == null ? {} : { value: payload });
+    return new Promise(function(resolve, reject) {
+      var id = requestId(method + "Jsonp");
+      var cb = jsonpCallbackName(id);
+      var timeoutMs = Number(options && (options.timeoutMs || options.clientTimeoutMs) || cfg("jsonpReadTimeoutMs", cfg("apiTimeoutMs", 110000))) || 110000;
+      timeoutMs = Math.max(12000, Math.min(timeoutMs, 120000));
+      var script = null;
+      function cleanup() {
+        try { script && script.parentNode && script.parentNode.removeChild(script); } catch (_) {}
+        try { delete root[cb]; } catch (_) { root[cb] = undefined; }
+        delete jsonpPending[id];
+      }
+      var timer = setTimeout(function() {
+        cleanup();
+        reject(bridgeError("GAS JSONP read timeout: " + method, "GITHUB_JSONP_READ_TIMEOUT", method));
+      }, timeoutMs);
+      jsonpPending[id] = { method: method, timer: timer };
+      root[cb] = function(result) {
+        clearTimeout(timer);
+        cleanup();
+        result = result || { ok: false, error: "empty JSONP response", errorCode: "GITHUB_JSONP_EMPTY_RESPONSE" };
+        if (isObj(result)) {
+          result.method = result.method || method;
+          result.transport = result.transport || "github-jsonp-read";
+          result.releaseStamp = result.releaseStamp || PHASE_RELEASE_STAMP;
+          result.meta = Object.assign({}, isObj(result.meta) ? result.meta : {}, { githubGasDirect: true, jsonpRead: true, transport: result.transport, releaseStamp: PHASE_RELEASE_STAMP });
+        }
+        resolve(result);
+      };
+      try {
+        var u = new URL(gasWebAppUrl());
+        u.searchParams.set("__githubJsonpApi", "1");
+        u.searchParams.set("method", method);
+        u.searchParams.set("requestId", id);
+        u.searchParams.set("callback", cb);
+        u.searchParams.set("parentOrigin", root.location && root.location.origin || "");
+        u.searchParams.set("r", PHASE_RELEASE_STAMP);
+        u.searchParams.set("payload", encodeURIComponent(JSON.stringify(payload || {})));
+        script = doc.createElement("script");
+        script.async = true;
+        script.defer = true;
+        script.src = u.href;
+        script.onerror = function() {
+          clearTimeout(timer);
+          cleanup();
+          reject(bridgeError("GAS JSONP read failed: " + method, "GITHUB_JSONP_READ_FAILED", method));
+        };
+        (doc.head || doc.documentElement).appendChild(script);
+      } catch (err) {
+        clearTimeout(timer);
+        cleanup();
+        reject(err);
+      }
+    });
+  }
+  function runReadApi(method, payload, options) {
+    if (cfg("readJsonpApi", true) !== false && isReadApiMethod(method)) {
+      return runJsonpApi(method, payload, options).then(function(result) {
+        if (isObj(result) && result.ok === false && /JSONP_API_FAILED|JSONP_READ_API_DISABLED|JSONP_API_NOT_ALLOWED/i.test(text(result.errorCode || result.code || ""))) {
+          return runBridgeApi(method, payload, options);
+        }
+        return result;
+      }, function(err) {
+        return runBridgeApi(method, payload, options).catch(function() { throw err; });
+      });
+    }
+    return runBridgeApi(method, payload, options);
+  }
+
   function runBridgeApi(method, payload, options) {
     method = text(method).trim();
     if (!method) return Promise.reject(bridgeError("method required", "METHOD_REQUIRED"));
@@ -367,7 +443,7 @@
             requestId: id,
             method: method,
             payload: payload == null ? {} : payload,
-            bridge: "github-pages-gas-direct-r102",
+            bridge: "github-pages-gas-direct-r103",
             releaseStamp: PHASE_RELEASE_STAMP
           });
         } catch (err) {
@@ -386,9 +462,9 @@
     // Post-login data APIs use the GAS iframe bridge. Apps Script HtmlService frames
     // normally run on script.googleusercontent.com after redirect, so bridge messages
     // are posted to both the script.google.com URL and the googleusercontent origin.
-    var apiInvoker = isLogin ? runLoginPostApi : runBridgeApi;
+    var apiInvoker = isLogin ? runLoginPostApi : (isWrite ? runBridgeApi : runReadApi);
     var p = apiInvoker(method, payload, options).then(function(result) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : "github-gas-direct-bridge", error: isObj(result) && result.ok === false });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-gas-direct-bridge" : "github-jsonp-read"), error: isObj(result) && result.ok === false });
       if (isLogin && isObj(result) && result.ok !== false) {
         try { ensureBridge().catch(function(_){}); } catch (_) {}
       }
@@ -396,7 +472,7 @@
       else putCachedRead(method, payload, result);
       return result;
     }, function(err) {
-      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : "github-gas-direct-bridge", error: true, message: err && err.message || String(err || "") });
+      recordApiMetric({ kind: "call", method: method, transport: isLogin ? "github-login-post" : (isWrite ? "github-gas-direct-bridge" : "github-jsonp-read"), error: true, message: err && err.message || String(err || "") });
       if (!isWrite) {
         var stale = staleRead(method, payload);
         if (stale) {
@@ -536,6 +612,7 @@
   root.AppTransport.vercelProxyEnabled = function(){ return false; };
   root.AppTransport.ensureBridgeClient = ensureBridge;
   root.AppTransport.runGasDirectBridge = runBridgeApi;
+  root.AppTransport.runJsonpApi = runJsonpApi;
   root.AppTransport.runLoginPost = runLoginPostApi;
 
   try { setLogo(cfg("logoUrl", FALLBACK_LOGO), "app-config"); } catch (_) {}
