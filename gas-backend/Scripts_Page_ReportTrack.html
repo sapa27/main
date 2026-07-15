@@ -1095,34 +1095,117 @@
       }),
         (root.searchDeleteCase.__reportTrackDeleteWrapped = !0),
         (root.searchEditCase = function (id) {
-          if (!(id = clean(id))) return !1;
+          id = normalizeCaseSequenceKey(id);
+          if (!id) return !1;
+          var localRow = findCase(id);
+          if (!localRow) {
+            notify(
+              "ดำเนินการไม่สำเร็จ",
+              "ไม่พบข้อมูลลำดับเรื่องในผลค้นหา: " + id,
+              "error",
+            );
+            return Promise.resolve(!1);
+          }
+          var localNormalized = normalizeCase(localRow);
+          if (
+            normalizeCaseSequenceKey(localNormalized.caseNum) !==
+            normalizeCaseSequenceKey(id)
+          ) {
+            notify(
+              "ดำเนินการไม่สำเร็จ",
+              "ข้อมูลที่เลือกไม่ตรงกับลำดับเรื่อง: " + id,
+              "error",
+            );
+            return Promise.resolve(!1);
+          }
           var editLoadingShown = showCaseLoading(
               "กำลังโหลดข้อมูล",
               "กำลังเปิดข้อมูลเรื่องพิจารณาเพื่อแก้ไข...",
             ),
             finishEditLoading = function () {
               editLoadingShown && closeCaseLoadingAfterMin(450);
-            };
-          return fetchBundle(id)
+            },
+            stage = "prepare";
+          function actualRecordId(row) {
+            row = obj(row || {});
+            var sequence = normalizeCaseSequenceKey(
+                row.caseNum ||
+                  row.caseNo ||
+                  row.runningNo ||
+                  row["ลำดับเรื่อง"] ||
+                  "",
+              ),
+              direct = clean(
+                row.caseId ||
+                  row.uid ||
+                  row.rowId ||
+                  row._id ||
+                  (row.raw && row.raw.caseId) ||
+                  "",
+              ),
+              legacyId = clean(row.id || "");
+            if (direct) return direct;
+            return legacyId && normalizeCaseSequenceKey(legacyId) !== sequence
+              ? legacyId
+              : "";
+          }
+          function waitMeetingReady(remaining) {
+            remaining = Number(remaining == null ? 30 : remaining);
+            var owner = root.AppMeetingRouteActionOwner,
+              host = byId("p-meeting") || byId("meeting-workspace"),
+              ready =
+                __appIsFn(root.initMeetingPage) &&
+                __appIsFn(root.meetingEditCase) &&
+                !!host;
+            if (ready) return Promise.resolve(!0);
+            if (remaining <= 0) return Promise.resolve(!1);
+            return new Promise(function (resolve) {
+              setTimeout(resolve, 100);
+            }).then(function () {
+              return waitMeetingReady(remaining - 1);
+            });
+          }
+          function formOpenedFor(caseNum) {
+            var value = normalizeCaseSequenceKey(
+                byId("meeting-caseNum") && byId("meeting-caseNum").value,
+              ),
+              workspace = byId("meeting-workspace");
+            return !!(
+              value === normalizeCaseSequenceKey(caseNum) &&
+              workspace &&
+              !workspace.classList.contains("d-none") &&
+              workspace.style.display !== "none"
+            );
+          }
+          return fetchBundle(id, { forEdit: !0 })
             .then(function (bundle) {
+              stage = "resolve-case";
               var item = bundle && (bundle.rawCase || bundle.case);
-              if (!item)
-                throw new Error("ไม่พบรายการเรื่องพิจารณาที่ต้องการจัดการ");
+              if (!item) item = localRow;
               var normalized = normalizeCase(item),
-                editKey = clean(normalized.caseNum || id),
-                editSeed = Object.assign({}, item, normalized, {
+                editKey = normalizeCaseSequenceKey(normalized.caseNum || id);
+              if (editKey !== normalizeCaseSequenceKey(id))
+                throw new Error("ข้อมูลที่ได้รับไม่ตรงกับลำดับเรื่อง: " + id);
+              var recordId = actualRecordId(item) || actualRecordId(localRow),
+                editSeed = Object.assign({}, localRow, item, normalized, {
+                  caseNum: editKey,
+                  caseNo: editKey,
+                  runningNo: editKey,
+                  "ลำดับเรื่อง": editKey,
                   __fromSearchEdit: !0,
                   __suppressEditLoading: !0,
                   __singlePassEdit: !0,
                   __searchEditAt: Date.now ? Date.now() : 0,
                 });
+              recordId && (editSeed.caseId = recordId);
               root.__MEETING_SEARCH_EDIT_IN_PROGRESS__ = {
                 caseNum: editKey,
-                caseId: editKey,
+                caseId: recordId,
+                recordId: recordId,
                 primaryLinkKey: "caseNum",
                 seed: editSeed,
-                until: (Date.now ? Date.now() : 0) + 6e3,
-                source: "searchEditCase.singlePass",
+                until: (Date.now ? Date.now() : 0) + 12000,
+                source: "searchEditCase.seedFirst.r126",
               };
               try {
                 root.AppStore &&
@@ -1131,58 +1214,88 @@
               } catch (_seedStoreErr) {
                 __appObserve(_seedStoreErr, "reportTrack.searchEdit.seedStore");
               }
+              stage = "navigate";
               var navMeeting = root.nav
                 ? root.nav("meeting", {
                     preserveLoadingSwal: !0,
-                    source: "searchEditCase.singlePass",
+                    source: "searchEditCase.seedFirst.r126",
                     caseNum: editKey,
-                    caseId: editKey,
+                    recordId: recordId,
                     primaryLinkKey: "caseNum",
                     seed: editSeed,
                   })
                 : ((location.hash = "#/meeting"), !0);
               return Promise.resolve(navMeeting)
                 .then(function () {
+                  stage = "load-script";
                   return root.AppAssetLoader &&
                     __appIsFn(root.AppAssetLoader.loadPageScripts)
                     ? root.AppAssetLoader.loadPageScripts("meeting")
                     : !0;
                 })
                 .then(function () {
-                  return __appIsFn(root.initMeetingPage)
-                    ? root.initMeetingPage({
-                        force: !0,
-                        reload: !1,
-                        source: "searchEditCase.singlePass",
-                      })
-                    : !1;
+                  stage = "wait-controller";
+                  return waitMeetingReady(30);
                 })
-                .then(function (initOk) {
-                  if (!1 === initOk)
+                .then(function (ready) {
+                  if (!ready)
                     throw new Error(
-                      "เปิดตัวควบคุมหน้าจัดการเรื่องพิจารณาไม่สำเร็จ",
+                      "ตัวควบคุมหน้าจัดการเรื่องพิจารณายังไม่พร้อมใช้งาน",
                     );
-                  if (!__appIsFn(root.meetingEditCase))
+                  stage = "initialize";
+                  return Promise.resolve(
+                    root.initMeetingPage({
+                      force: !0,
+                      reload: !1,
+                      source: "searchEditCase.seedFirst.r126",
+                    }),
+                  );
+                })
+                .then(function () {
+                  stage = "apply-seed";
+                  var actionOwner = root.AppMeetingRouteActionOwner;
+                  if (
+                    actionOwner &&
+                    __appIsFn(actionOwner.openManagementForm)
+                  )
+                    actionOwner.openManagementForm();
+                  if (actionOwner && __appIsFn(actionOwner.applySearchSeed))
+                    actionOwner.applySearchSeed(editSeed);
+                  stage = "open-editor";
+                  return Promise.resolve(
+                    root.meetingEditCase(editSeed, {
+                      source: "searchEditCase.seedFirst.r126",
+                      silentLoading: !0,
+                      seed: editSeed,
+                      __singlePass: !0,
+                      __useProvidedSeed: !0,
+                      __skipCreateNewOnActivate: !0,
+                    }),
+                  );
+                })
+                .then(function (result) {
+                  if (result === !1 && !formOpenedFor(editKey))
                     throw new Error(
-                      "ไม่พบ meetingEditCase หลังโหลดหน้าจัดการเรื่องพิจารณา",
+                      "ตัวควบคุมไม่สามารถเติมข้อมูลลำดับเรื่อง " + editKey,
                     );
-                  return root.meetingEditCase(editSeed, {
-                    source: "searchEditCase.singlePass",
-                    silentLoading: !0,
-                    seed: editSeed,
-                    __singlePass: !0,
-                    __skipCreateNewOnActivate: !0,
-                  });
+                  return !0;
                 });
             })
             .catch(function (err) {
               return (
                 editLoadingShown &&
                   (closeCaseLoading(), (editLoadingShown = !1)),
+                err && "object" == typeof err && (err.stage = stage),
+                reportTrackWarn("reportTrack.searchEdit.failed.r126", err, {
+                  caseNum: id,
+                  stage: stage,
+                }),
                 root.AppRuntime && root.AppRuntime.handleError
                   ? root.AppRuntime.handleError(
                       err,
-                      "เปิดหน้าจัดการเรื่องพิจารณาไม่สำเร็จ",
+                      "เปิดหน้าจัดการเรื่องพิจารณาไม่สำเร็จ (ขั้นตอน: " +
+                        stage +
+                        ")",
                     )
                   : notify(
                       "ดำเนินการไม่สำเร็จ",
@@ -3913,7 +4026,8 @@
         ),
       };
     }
-    function fetchBundle(caseNum) {
+    function fetchBundle(caseNum, options) {
+      options = options || {};
       var localCaseRow = findCase(caseNum),
         fc = localCaseRow ? normalizeCase(localCaseRow) : {};
       caseNum = clean(fc.caseNum || caseNum);
@@ -3941,7 +4055,9 @@
               normalizeCaseSequenceKey(caseNum)
           )
             throw new Error("ข้อมูลที่ได้รับไม่ตรงกับลำดับเรื่อง: " + caseNum);
-          return enrichBundleLetterDetails(bundle, caseNum, localCaseRow);
+          return options.forEdit === !0
+            ? bundle
+            : enrichBundleLetterDetails(bundle, caseNum, localCaseRow);
         })
         .catch(function (err) {
           var local = localCaseRow ? normalizeCase(localCaseRow) : null;
@@ -3951,7 +4067,7 @@
             normalizeCaseSequenceKey(local.caseNum) ===
               normalizeCaseSequenceKey(caseNum)
           ) {
-            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r125", err, {
+            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r126", err, {
               caseNum: caseNum,
               primaryLinkKey: "caseNum",
             });

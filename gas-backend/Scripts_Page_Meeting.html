@@ -1249,7 +1249,9 @@
           }
           function a(n) {
             if (!n) return !1;
-            (V(n.caseId || t || ""),
+            var recordId = d(n.caseId || n.uid || n.rowId || n._id || "").trim(),
+              sequenceKey = A(n);
+            (V(recordId || sequenceKey || ""),
               Re(),
               (function (t) {
                 if (t) {
@@ -1580,6 +1582,14 @@
               return Promise.reject(
                 new Error("ไม่พบลำดับเรื่องสำหรับเปิดข้อมูล"),
               );
+            if (
+              opts &&
+              opts.__useProvidedSeed === !0 &&
+              e &&
+              "object" == typeof e &&
+              A(e) === strictCaseNum
+            )
+              return Promise.resolve(e);
             return s("apiGetCanonicalCaseBundle", {
               caseNum: strictCaseNum,
               caseNo: strictCaseNum,
@@ -9008,6 +9018,20 @@
               .replace(/\s+/g, " ")
               .trim();
           },
+        caseSequenceKey = function (row) {
+          if (null == row) return "";
+          if ("string" == typeof row || "number" == typeof row)
+            return text(row);
+          row = "object" == typeof row ? row : {};
+          return text(
+            row.caseNum ||
+              row.caseNo ||
+              row.runningNo ||
+              row.orderNo ||
+              row["ลำดับเรื่อง"] ||
+              "",
+          );
+        },
         setVal = __Scripts_Page_Meeting_setVal,
         delay =
           (Kit && Kit.delay) ||
@@ -9137,7 +9161,7 @@
           var seed =
               (opts && opts.seed) ||
               (row && "object" == typeof row ? row : null),
-            key = A(
+            key = caseSequenceKey(
               row && "object" == typeof row
                 ? row
                 : seed && "object" == typeof seed
@@ -9146,9 +9170,13 @@
             );
           if (seed && key)
             try {
+              var recordId = text(
+                seed.caseId || seed.uid || seed.rowId || seed._id || "",
+              );
               ((root.__MEETING_SEARCH_EDIT_IN_PROGRESS__ = {
                 caseNum: key,
-                caseId: key,
+                caseId: recordId,
+                recordId: recordId,
                 primaryLinkKey: "caseNum",
                 seed: seed,
                 until: Date.now ? Date.now() + 9000 : 0,
