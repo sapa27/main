@@ -1,12 +1,12 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r123";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r123";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r126";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r126";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
-    "AKfycbyt9q_rK7zFBj1-U16S4bkHI4hrRs1Yl0mxCP3ZiYH8BtMHjc83SQn7JkcnwVc97bfi",
+    "AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c",
     "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
@@ -114,9 +114,9 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-verified-session-bridge-r123",
+    transportMode: "github-pages-phase-c-verified-session-bridge-r126",
     deploymentBindingVerified: true,
-    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r123",
+    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r126",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -219,11 +219,11 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r123",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r123",
-    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r123",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r126",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r126",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r126",
     safeHtmlRendererNonRecursive: true,
-    dashboardRecoveryCacheScope: "session-token-hash-r123",
+    dashboardRecoveryCacheScope: "session-token-hash-r126",
     dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
