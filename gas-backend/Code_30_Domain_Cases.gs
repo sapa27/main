@@ -843,13 +843,50 @@ function getCanonicalCaseBundleImpl_(payload) {
     runningNo: caseNum,
     ลำดับเรื่อง: caseNum,
   };
-  var history = _Domain_getMeetingHistory(strictPayload);
-  var letters = _Domain_getLetters(
-    _c30O_({}, strictPayload, {
-      includeLetters: !0,
-      __meetingListMode: "caseLetters",
-    }),
-  );
+  var history = [],
+    letters = [],
+    relatedWarnings = [];
+  try {
+    history = _Domain_getMeetingHistory(strictPayload);
+    _c30A_(history) || (history = []);
+  } catch (historyErr) {
+    _recordWarning_("canonical_case_bundle.history.case_sequence_strict", historyErr, {
+      caseNum: caseNum,
+    });
+    relatedWarnings.push({
+      section: "history",
+      errorCode: "CASE_HISTORY_LOAD_FAILED",
+      message: String(
+        historyErr && historyErr.message
+          ? historyErr.message
+          : "โหลดประวัติการประชุมไม่สำเร็จ",
+      ),
+    });
+    history = [];
+  }
+  try {
+    letters = _Domain_getLetters(
+      _c30O_({}, strictPayload, {
+        includeLetters: !0,
+        __meetingListMode: "caseLetters",
+      }),
+    );
+    _c30A_(letters) || (letters = []);
+  } catch (lettersErr) {
+    _recordWarning_("canonical_case_bundle.letters.case_sequence_strict", lettersErr, {
+      caseNum: caseNum,
+    });
+    relatedWarnings.push({
+      section: "letters",
+      errorCode: "CASE_LETTERS_LOAD_FAILED",
+      message: String(
+        lettersErr && lettersErr.message
+          ? lettersErr.message
+          : "โหลดหนังสือติดตามไม่สำเร็จ",
+      ),
+    });
+    letters = [];
+  }
   return {
     case: seed,
     rawCase: seed,
@@ -865,6 +902,9 @@ function getCanonicalCaseBundleImpl_(payload) {
       history: _c30A_(history) ? history.length : 0,
       letters: _c30A_(letters) ? letters.length : 0,
     },
+    relatedLoadOk: relatedWarnings.length === 0,
+    relatedWarnings: relatedWarnings,
+    partialRelatedData: relatedWarnings.length > 0,
     resolvedAt: new Date().toISOString(),
   };
 }
@@ -3971,14 +4011,22 @@ function _Domain_getLetters(caseId) {
     var targetCaseNum = _caseSequenceFrom_(payload);
     if (!targetCaseNum && !letterId)
       throw new Error("กรุณาระบุลำดับเรื่องสำหรับหนังสือติดตาม");
-    readCaseRows().forEach(function (row) {
-      if (!row || isSoftDeletedRow_(row)) return;
-      if (_caseSequenceFrom_(row) === targetCaseNum) caseRows.push(row);
-    });
-    if (!letterId && caseRows.length !== 1) {
-      if (!caseRows.length)
-        throw new Error("ไม่พบข้อมูลลำดับเรื่อง: " + targetCaseNum);
-      throw new Error("พบลำดับเรื่องซ้ำในข้อมูลหลัก: " + targetCaseNum);
+    if (!letterId) {
+      var resolvedCaseForLetters = _requireUniqueCaseBySequence_({
+        caseNum: targetCaseNum,
+        caseNo: targetCaseNum,
+        runningNo: targetCaseNum,
+        ลำดับเรื่อง: targetCaseNum,
+      });
+      caseRows = resolvedCaseForLetters && resolvedCaseForLetters.row
+        ? [resolvedCaseForLetters.row]
+        : [];
+      var resolvedCaseId = _s_(
+        resolvedCaseForLetters &&
+          resolvedCaseForLetters.row &&
+          (resolvedCaseForLetters.row.caseId || resolvedCaseForLetters.row.id),
+      ).trim();
+      resolvedCaseId && (idMap[resolvedCaseId] = !0);
     }
     function identity(row) {
       row = row || {};
