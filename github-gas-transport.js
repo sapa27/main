@@ -3,10 +3,10 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
-  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r118";
-  var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r119";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r119";
+  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r119";
+  var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";
 
   var includeCache = Object.create(null);
   var includeInFlight = Object.create(null);
@@ -844,7 +844,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r118";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r119";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = true;
   root.AppTransport.__authenticatedJsonpDisabled = true;

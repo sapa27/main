@@ -1,8 +1,8 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r119";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r119";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
@@ -114,7 +114,9 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-verified-session-bridge-r118",
+    transportMode: "github-pages-phase-c-verified-session-bridge-r119",
+    deploymentBindingVerified: true,
+    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r119",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -214,11 +216,11 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r118",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r118",
-    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r118",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r119",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r119",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r119",
     safeHtmlRendererNonRecursive: true,
-    dashboardRecoveryCacheScope: "session-token-hash-r118",
+    dashboardRecoveryCacheScope: "session-token-hash-r119",
     dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
