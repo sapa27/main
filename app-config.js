@@ -1,11 +1,13 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
-    "https://script.google.com/macros/s/AKfycbyLGQyFwdtgfUUEpj5bAcwDs1ZytEmOTaMIpj5jYXt3_KAjuXLwZXN2Wz2ktyAJko0I/exec"
+    "https://script.google.com/macros/s/",
+    "AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm",
+    "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
@@ -112,7 +114,7 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-verified-session-bridge-r116",
+    transportMode: "github-pages-phase-c-verified-session-bridge-r118",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -131,7 +133,7 @@
     vercelPublicConfigProxyTimeoutMs: 8000,
     proxyRejectGoogleHostedFrontend: false,
     gasBackendUiDisabled: false,
-    gasBackendFrontendEntryProperty: "VERCEL_FRONTEND_URL",
+    gasBackendFrontendEntryProperty: "",
     dataLoadingPerformance: true,
     canonicalPartialRoot: "gas-backend",
     canonicalEditableRoot: "gas-backend",
@@ -159,6 +161,10 @@
     dashboardBudgetHydrationEnabled: true,
     dashboardBudgetHydrationDelayMs: 350,
     inlinePartialsEnabled: false,
+    pageScriptLoadTimeoutMs: 20000,
+    pageTemplateLoadTimeoutMs: 10000,
+    pageActivationTimeoutMs: 30000,
+    partialScriptFailFastEnabled: true,
     bridgeLoadGraceMs: 30000,
     bridgeReadyTimeoutMs: 22000,
     bridgeVerifyTimeoutMs: 10000,
@@ -208,8 +214,12 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r116",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r116",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r118",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r118",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r118",
+    safeHtmlRendererNonRecursive: true,
+    dashboardRecoveryCacheScope: "session-token-hash-r118",
+    dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
     legacyJsonpTransportRemoved: false,

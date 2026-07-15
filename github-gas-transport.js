@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-14-r116";
-  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r116";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r118";
+  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r118";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzt3p-NLOg8QpmnB_Bj03Rds6H9SlNevnbcOAqzm1vzuAFXPtXhYVlDUTblCclmjSAm/exec";
 
   var includeCache = Object.create(null);
@@ -393,6 +393,11 @@
         bridgeFrame.title = "GAS Authenticated API Bridge";
         bridgeFrame.setAttribute("aria-hidden", "true");
         bridgeFrame.style.cssText = "position:fixed;width:1px;height:1px;left:-10000px;top:-10000px;border:0;opacity:0;pointer-events:none;";
+        bridgeFrame.onerror = function () {
+          if (!bridgeReady || !bridgeVerified) {
+            rejectBridgeReady(makeError("โหลด GAS bridge ไม่สำเร็จ", "GAS_BRIDGE_FRAME_LOAD_FAILED"));
+          }
+        };
         bridgeFrame.src = bridgeUrl();
         (doc.body || doc.documentElement).appendChild(bridgeFrame);
       } catch (error) {
@@ -413,6 +418,7 @@
       var loginRequest = loginId && loginPending[loginId];
       if (!loginRequest) return;
       if (!isTrustedGoogleMessageOrigin(event && event.origin)) return;
+      if (loginRequest.sourceWindow && event && event.source !== loginRequest.sourceWindow) return;
       var responseNonce = text(data.nonce || "");
       if (responseNonce && loginRequest.nonce && responseNonce !== loginRequest.nonce) return;
       var responseStamp = text(data.stamp || data.releaseStamp || "");
@@ -528,6 +534,7 @@
         if (payload.email != null) hiddenField(form, "email", payload.email);
         if (payload.password != null) hiddenField(form, "password", payload.password);
         (doc.body || doc.documentElement).appendChild(iframe);
+        if (loginPending[id]) loginPending[id].sourceWindow = iframe.contentWindow || null;
         (doc.body || doc.documentElement).appendChild(form);
         form.submit();
       } catch (error) {
@@ -837,7 +844,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r116";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r118";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = true;
   root.AppTransport.__authenticatedJsonpDisabled = true;

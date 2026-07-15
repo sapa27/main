@@ -1,4 +1,4 @@
-# GitHub Pages + GAS Verified Bridge — R116
+# GitHub Pages + GAS Verified Bridge — R118
 
 สถาปัตยกรรม Production ของชุดนี้:
 
@@ -12,8 +12,12 @@ GitHub Pages (static frontend)
   └─ Deferred page assets: static files จาก ./partials พร้อม asset stamp
 ```
 
-## การแก้ไขสำคัญใน R116
+## การแก้ไขสำคัญใน R118
 
+- ยุบ HTML renderer ให้มีเจ้าของเดียวและไม่เรียกย้อนกลับระหว่าง `AppProductionFinal.setTrustedHtml()` กับ `safeSetInnerHTML()`
+- แก้สาเหตุ `Maximum call stack size exceeded` ที่ทำให้เนื้อหา เมนูย่อย และปุ่มหยุดทำงาน
+- Dashboard recovery cache แบ่งตาม session token hash ไม่คืนข้อมูลข้ามผู้ใช้
+- ล้าง cache รุ่นเก่า `dashboard_bundle_last_good_r93` และปฏิเสธ cache ที่ release ไม่ตรง
 - ยกเลิกการบังคับ Login ผ่าน POST iframe เป็นเส้นทางแรก
 - Login ใช้ verified bridge ชุดเดียวกับ authenticated API
 - POST Login เหลือเป็น compatibility fallback
@@ -46,7 +50,7 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 - โฟลเดอร์ `partials/`
 - `.nojekyll`
 
-อย่าอัปโหลดเฉพาะ `index.html` เพราะ R116 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
+อย่าอัปโหลดเฉพาะ `index.html` เพราะ R118 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
 
 ### Google Apps Script
 
@@ -62,14 +66,14 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 
 1. ปิดแท็บระบบเดิมทั้งหมด
 2. เปิด Incognito หรือ Hard Reload
-3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r116`:
-   - `app-config.js?v=r116`
-   - `github-gas-transport.js?v=r116`
-   - `app-index-foundation-pre-vue.js?v=r116`
-   - `app-index-foundation-after-vue.js?v=r116`
-   - `app-index-foundation-after-swal.js?v=r116`
-   - `critical-login-runtime.js?v=r116`
-   - `app-index-bootstrap.js?v=r116`
+3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r118`:
+   - `app-config.js?v=r118`
+   - `github-gas-transport.js?v=r118`
+   - `app-index-foundation-pre-vue.js?v=r118`
+   - `app-index-foundation-after-vue.js?v=r118`
+   - `app-index-foundation-after-swal.js?v=r118`
+   - `critical-login-runtime.js?v=r118`
+   - `app-index-bootstrap.js?v=r118`
 4. เปิด `diagnostic.html` แล้วตรวจ READY, nonce, ping และ `google.script.run`
 5. Login ต้องไม่ขึ้น `GAS Login POST timeout`
 
@@ -87,9 +91,9 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 
 ### GAS Login POST timeout
 
-R116 จะใช้ verified bridge ก่อน หากยังพบ timeout ให้ตรวจว่า:
+R118 จะใช้ verified bridge ก่อน หากยังพบ timeout ให้ตรวจว่า:
 
-- GitHub โหลด `github-gas-transport.js?v=r116`
+- GitHub โหลด `github-gas-transport.js?v=r118`
 - GAS Web App เปิด `/exec` ได้
 - `Code_00_PlatformCore.gs` ถูกเขียนทับและ Deploy เป็น New version
 - Browser ไม่บล็อก third-party iframe หรือ Google Apps Script
@@ -97,3 +101,11 @@ R116 จะใช้ verified bridge ก่อน หากยังพบ timeo
 ### Login สำเร็จแต่ข้อมูลไม่แสดง
 
 เปิด `diagnostic.html` และตรวจว่า bridge ผ่าน READY + ping จากนั้นตรวจว่า token ถูกเก็บใน memory store และ `apiBootstrap` ใช้ authenticated bridge
+## R118 route/runtime reliability
+
+- Partial scripts fail fast when inline execution raises a syntax or runtime error; broken bundles are not marked loaded.
+- Route activation no longer reports success when its template, page script, or controller is missing. A visible retry panel is shown instead.
+- Core Runtime loads only after authentication to reduce login contention.
+- Login callbacks are bound to the exact iframe window that created the request.
+- Page script/template timeouts are configurable for GitHub Pages latency.
+
