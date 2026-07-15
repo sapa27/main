@@ -44,16 +44,40 @@ publish('__APP_DEFERRED_TEMPLATES__',(window.__APP_ASSET_MANIFEST__&&window.__AP
   if(!isFinite(value))value=fallback;
   return Math.max(min||1000,Math.min(value,max||120000))
 }
-function showPageActivationFailure(id,error){
+function clearPageActivationFailure(id){
   id=canonicalPageId(id);
-  var host=document.getElementById(pageDomId(id))||document.getElementById("deferred-page-host-"+id)||document.querySelector(".vue3-page-host")||document.getElementById("main-container");
   var existing=document.getElementById("app-page-load-failure-"+id);
   if(existing&&existing.parentNode)existing.parentNode.removeChild(existing);
+  return!0
+}
+function isCurrentActivationPage(id){
+  try{return canonicalPageId(navFromRoute(routeState&&routeState.path||location.hash||""))===canonicalPageId(id)}catch(_currentPageErr){return!0}
+}
+function isPageOperational(id){
+  id=canonicalPageId(id);
+  var host=document.getElementById(pageDomId(id));
+  if(!host)return!1;
+  if(id==="meeting"){
+    var initialized=!!(document.documentElement&&document.documentElement.dataset&&document.documentElement.dataset.meetingPageInitialized==="1");
+    var controllerReady=__appIsFn(window.initMeetingPage)||__appIsFn(window.meetingEditCase);
+    var editInProgress=!!window.__MEETING_SEARCH_EDIT_IN_PROGRESS__;
+    var caseId=document.getElementById("meeting-caseId");
+    var selectedCase=!!(caseId&&String(caseId.value||"").trim());
+    return!!(controllerReady&&(initialized||editInProgress||selectedCase))
+  }
+  return!1
+}
+function showPageActivationFailure(id,error){
+  id=canonicalPageId(id);
+  if(isPageOperational(id)||!isCurrentActivationPage(id))return clearPageActivationFailure(id),!0;
+  var host=document.getElementById(pageDomId(id))||document.getElementById("deferred-page-host-"+id)||document.querySelector(".vue3-page-host")||document.getElementById("main-container");
+  clearPageActivationFailure(id);
   var box=document.createElement("section");
   box.id="app-page-load-failure-"+id;
   box.className="app-page-load-failure";
   box.setAttribute("role","alert");
   box.setAttribute("aria-live","assertive");
+  box.setAttribute("data-auto-dismiss-ms","10000");
   var title=document.createElement("strong");
   title.textContent="เปิดหน้าไม่สำเร็จ";
   var message=document.createElement("div");
@@ -65,12 +89,16 @@ function showPageActivationFailure(id,error){
   retry.textContent="โหลดหน้านี้อีกครั้ง";
   retry.addEventListener("click",function(){
     retry.disabled=!0;
-    box.parentNode&&box.parentNode.removeChild(box);
+    clearPageActivationFailure(id);
     Promise.resolve(runPageActivation(id)).catch(function(retryError){showPageActivationFailure(id,retryError)})
   });
   box.appendChild(title);box.appendChild(message);box.appendChild(retry);
   if(host){if(host.firstChild)host.insertBefore(box,host.firstChild);else host.appendChild(box)}
-  try{document.dispatchEvent(new CustomEvent("app:page-activation-failed",{detail:{id:id,pageId:id,error:String(error&&error.message||error||"PAGE_ACTIVATION_FAILED"),source:"vue-bridge"}}))}catch(_failureEventError){__appObserve(_failureEventError,"route.activationFailed.event")}
+  routeDelay("route.failure.autoDismiss:"+id,function(){
+    var current=document.getElementById("app-page-load-failure-"+id);
+    current===box&&clearPageActivationFailure(id)
+  },10000);
+  try{document.dispatchEvent(new CustomEvent("app:page-activation-failed",{detail:{id:id,pageId:id,error:String(error&&error.message||error||"PAGE_ACTIVATION_FAILED"),source:"vue-bridge",autoDismissMs:10000}}))}catch(_failureEventError){__appObserve(_failureEventError,"route.activationFailed.event")}
   return!1
 }
 function ensurePageTemplate(id){
@@ -150,10 +178,19 @@ function ensurePageTemplate(id){
   });
   return Promise.race([activationWork,routeTimeoutPromise(activationTimeoutMs,"page-activation:"+id)]).then(function(result){
     if(result&&result.timeout)throw new Error("เปิดหน้าช้าเกินกำหนด: "+id);
-    if(result===!1)throw new Error("ไม่พบตัวควบคุมหรือฟังก์ชันเปิดหน้า: "+id);
+    if(result===!1){
+      if(isPageOperational(id))result=!0;
+      else throw new Error("ไม่พบตัวควบคุมหรือฟังก์ชันเปิดหน้า: "+id)
+    }
+    clearPageActivationFailure(id);
     try{document.dispatchEvent(new CustomEvent("app:page-activated",{detail:{id:id,pageId:id,source:"vue-bridge",scope:phase8PageScope(id),phase8PageScope:!0}}))}catch(_activatedEvtErr){__appObserve(_activatedEvtErr,"ec")}
     return result
   }).catch(function(error){
+    if(isPageOperational(id)||!isCurrentActivationPage(id)){
+      clearPageActivationFailure(id);
+      window.AppRuntime&&window.AppRuntime.recordWarning&&window.AppRuntime.recordWarning("route.activationFailureSuppressed",error,{pageId:id,operational:isPageOperational(id),current:isCurrentActivationPage(id)});
+      return!0
+    }
     window.AppRuntime&&window.AppRuntime.recordWarning&&window.AppRuntime.recordWarning("route.moduleLoadRouteAlt",error,{pageId:id});
     showPageActivationFailure(id,error);
     return!1
