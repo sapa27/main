@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r119";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r119";
-  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r119";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r120";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r120";
+  var TRANSPORT_MODE = "github-pages-phase-c-verified-session-bridge-r120";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";
 
   var includeCache = Object.create(null);
@@ -33,6 +33,21 @@
   var bridgeLastVerifiedAt = 0;
   var bridgeVerifyRequestId = "";
   var lastAuthScope = "anonymous";
+  var transportCallSequence = 0;
+  var lastTransportSuccessSequence = 0;
+  var lastTransportErrorSequence = 0;
+  var lastTransportSuccessAt = 0;
+  var lastTransportErrorAt = 0;
+
+  function dispatchTransportStatus(type, detail) {
+    try {
+      doc.dispatchEvent(new CustomEvent(type, { detail: Object.assign({
+        transport: TRANSPORT_MODE,
+        releaseStamp: RELEASE_STAMP,
+        at: new Date().toISOString()
+      }, detail || {}) }));
+    } catch (_) {}
+  }
 
   function text(value) { return value == null ? "" : String(value); }
   function isObject(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
@@ -694,9 +709,21 @@
       return apiInFlight[key];
     }
 
+    var callSequence = ++transportCallSequence;
     var invoker = isLogin ? runLogin : (isPublicJsonpMethod(method) ? runJsonp : runBridge);
     var promise = invoker(method, payload, options).then(function(result) {
+      var completedAt = Date.now();
+      lastTransportSuccessSequence = Math.max(lastTransportSuccessSequence, callSequence);
+      lastTransportSuccessAt = completedAt;
       recordMetric({ kind: "call", method: method, transport: isObject(result) && result.transport || (isLogin ? "github-login-verified-bridge" : (isPublicJsonpMethod(method) ? "github-public-jsonp" : TRANSPORT_MODE)), error: isObject(result) && result.ok === false });
+      if (!lastTransportErrorSequence || callSequence >= lastTransportErrorSequence) {
+        dispatchTransportStatus("app:transport-recovered", {
+          method: method,
+          callSequence: callSequence,
+          resultOk: !(isObject(result) && result.ok === false),
+          recoveredAfterError: lastTransportErrorSequence > 0 && callSequence >= lastTransportErrorSequence
+        });
+      }
       if (isAuthTransition && isObject(result) && result.ok !== false) {
         invalidateCache("auth-transition-success", method);
         lastAuthScope = /^apiLogout$/i.test(method) ? "anonymous" : authScopeForPayload(result && (result.data || result) || payload);
@@ -715,9 +742,18 @@
           return stale;
         }
       }
-      try {
-        doc.dispatchEvent(new CustomEvent("app:transport-error", { detail: { method: method, code: text(error && (error.code || error.errorCode) || "TRANSPORT_ERROR"), message: text(error && error.message || error), transport: TRANSPORT_MODE } }));
-      } catch (_) {}
+      var staleTransportError = callSequence < lastTransportSuccessSequence;
+      try { error.staleTransportError = staleTransportError; } catch (_) {}
+      if (!staleTransportError) {
+        lastTransportErrorSequence = Math.max(lastTransportErrorSequence, callSequence);
+        lastTransportErrorAt = Date.now();
+        dispatchTransportStatus("app:transport-error", {
+          method: method,
+          code: text(error && (error.code || error.errorCode) || "TRANSPORT_ERROR"),
+          message: text(error && error.message || error),
+          callSequence: callSequence
+        });
+      }
       throw error;
     });
     if (!isWrite && !isAuthTransition) {
@@ -844,7 +880,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r119";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::verified-session-bridge-r120";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = true;
   root.AppTransport.__authenticatedJsonpDisabled = true;
@@ -881,7 +917,12 @@
       perRequestApiPostDisabled: true,
       clientReadCacheEntries: Object.keys(readCache).length,
       inFlight: Object.keys(apiInFlight).length,
-      metrics: Object.assign({}, metrics)
+      metrics: Object.assign({}, metrics),
+      transportCallSequence: transportCallSequence,
+      lastTransportSuccessSequence: lastTransportSuccessSequence,
+      lastTransportErrorSequence: lastTransportErrorSequence,
+      lastTransportSuccessAt: lastTransportSuccessAt ? new Date(lastTransportSuccessAt).toISOString() : "",
+      lastTransportErrorAt: lastTransportErrorAt ? new Date(lastTransportErrorAt).toISOString() : ""
     };
   };
   root.AppTransport.phase1Status = root.AppTransport.phase2Status;

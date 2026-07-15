@@ -1,12 +1,12 @@
-# R119 — Correct GAS Deployment Binding
+# R120 — Correct GAS Deployment Binding
 
 GitHub Pages must call this exact GAS Web App deployment:
 
 `https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec`
 
-R118 was bound to a different deployment ID and runtime override was disabled, causing `apiLogin` bridge failure followed by `GAS Login POST timeout`. R119 overwrites the deployment binding in `app-config.js`, `github-gas-transport.js`, and `index.html`.
+R118 was bound to a different deployment ID and runtime override was disabled, causing `apiLogin` bridge failure followed by `GAS Login POST timeout`. R120 overwrites the deployment binding in `app-config.js`, `github-gas-transport.js`, and `index.html`.
 
-# GitHub Pages + GAS Verified Bridge — R119
+# GitHub Pages + GAS Verified Bridge — R120
 
 สถาปัตยกรรม Production ของชุดนี้:
 
@@ -20,7 +20,7 @@ GitHub Pages (static frontend)
   └─ Deferred page assets: static files จาก ./partials พร้อม asset stamp
 ```
 
-## การแก้ไขสำคัญใน R119
+## การแก้ไขสำคัญใน R120
 
 - ยุบ HTML renderer ให้มีเจ้าของเดียวและไม่เรียกย้อนกลับระหว่าง `AppProductionFinal.setTrustedHtml()` กับ `safeSetInnerHTML()`
 - แก้สาเหตุ `Maximum call stack size exceeded` ที่ทำให้เนื้อหา เมนูย่อย และปุ่มหยุดทำงาน
@@ -58,7 +58,7 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 - โฟลเดอร์ `partials/`
 - `.nojekyll`
 
-อย่าอัปโหลดเฉพาะ `index.html` เพราะ R119 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
+อย่าอัปโหลดเฉพาะ `index.html` เพราะ R120 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
 
 ### Google Apps Script
 
@@ -74,14 +74,14 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 
 1. ปิดแท็บระบบเดิมทั้งหมด
 2. เปิด Incognito หรือ Hard Reload
-3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r119`:
-   - `app-config.js?v=r119`
-   - `github-gas-transport.js?v=r119`
-   - `app-index-foundation-pre-vue.js?v=r119`
-   - `app-index-foundation-after-vue.js?v=r119`
-   - `app-index-foundation-after-swal.js?v=r119`
-   - `critical-login-runtime.js?v=r119`
-   - `app-index-bootstrap.js?v=r119`
+3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r120`:
+   - `app-config.js?v=r120`
+   - `github-gas-transport.js?v=r120`
+   - `app-index-foundation-pre-vue.js?v=r120`
+   - `app-index-foundation-after-vue.js?v=r120`
+   - `app-index-foundation-after-swal.js?v=r120`
+   - `critical-login-runtime.js?v=r120`
+   - `app-index-bootstrap.js?v=r120`
 4. เปิด `diagnostic.html` แล้วตรวจ READY, nonce, ping และ `google.script.run`
 5. Login ต้องไม่ขึ้น `GAS Login POST timeout`
 
@@ -99,9 +99,9 @@ Commit ไฟล์ root ทั้งชุด รวมถึง:
 
 ### GAS Login POST timeout
 
-R119 จะใช้ verified bridge ก่อน หากยังพบ timeout ให้ตรวจว่า:
+R120 จะใช้ verified bridge ก่อน หากยังพบ timeout ให้ตรวจว่า:
 
-- GitHub โหลด `github-gas-transport.js?v=r119`
+- GitHub โหลด `github-gas-transport.js?v=r120`
 - GAS Web App เปิด `/exec` ได้
 - `Code_00_PlatformCore.gs` ถูกเขียนทับและ Deploy เป็น New version
 - Browser ไม่บล็อก third-party iframe หรือ Google Apps Script
@@ -109,7 +109,7 @@ R119 จะใช้ verified bridge ก่อน หากยังพบ timeo
 ### Login สำเร็จแต่ข้อมูลไม่แสดง
 
 เปิด `diagnostic.html` และตรวจว่า bridge ผ่าน READY + ping จากนั้นตรวจว่า token ถูกเก็บใน memory store และ `apiBootstrap` ใช้ authenticated bridge
-## R119 route/runtime reliability
+## R120 route/runtime reliability
 
 - Partial scripts fail fast when inline execution raises a syntax or runtime error; broken bundles are not marked loaded.
 - Route activation no longer reports success when its template, page script, or controller is missing. A visible retry panel is shown instead.

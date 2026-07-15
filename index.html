@@ -16,9 +16,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap"rel="stylesheet">
 
 <script>window.GAS_WEB_APP_URL="https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";window.__GITHUB_PAGES_GAS_CONFIG__={gasWebAppUrl:"https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec",logoUrl:"https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg"};</script>
-<script src="app-config.js?v=r119"></script>
-<script src="github-gas-transport.js?v=r119"></script>
-<script src="app-index-foundation-pre-vue.js?v=r119"></script>
+<script src="app-config.js?v=r120"></script>
+<script src="github-gas-transport.js?v=r120"></script>
+<script src="app-index-foundation-pre-vue.js?v=r120"></script>
 
 
 
@@ -29,25 +29,42 @@
 <script data-app-critical-lib="Vue"data-app-asset-policy="pinned-primary"src="https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"crossorigin="anonymous"referrerpolicy="no-referrer">
 
 </script>
-<script src="app-index-foundation-after-vue.js?v=r119"></script>
+<script src="app-index-foundation-after-vue.js?v=r120"></script>
 <script>
 (function(root,doc){"use strict";var Boot=root.AppBoot||null;function bootSet(name,value,meta){return Boot&&Boot.setFlag?(Boot.setFlag(name,value,meta||{owner:"Index.vue-ready"}),Boot.exposeGlobal&&Boot.exposeGlobal(name,Object.assign({owner:"Index.vue-ready",bridge:!0},meta||{})),value):(root[name]=value,value)}function bootGet(name,defaultValue){try{return Boot&&Boot.getFlag?Boot.getFlag(name,defaultValue):Object.prototype.hasOwnProperty.call(root,name)?root[name]:defaultValue}catch(_e){return defaultValue}}bootSet("__APP_VUE_READY__",bootGet("__APP_VUE_READY__",function(){if(root.Vue)return Promise.resolve(!0);var urls=["https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js","https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"];function loadAt(i){return root.Vue?Promise.resolve(!0):i>=urls.length?Promise.resolve(!1):new Promise(function(resolve){try{var src=urls[i],existing=doc.querySelector('script[data-app-critical-lib="Vue"][src="'+src+'"]');if(existing)return existing.addEventListener("load",function(){resolve(!!root.Vue)},{once:!0}),existing.addEventListener("error",function(){resolve(!1)},{once:!0}),setTimeout(function(){resolve(!!root.Vue)},2500),void 0;var el=doc.createElement("script");el.src=src,el.async=!1,el.crossOrigin="anonymous",el.referrerPolicy="no-referrer",el.setAttribute("data-app-critical-lib","Vue"),el.setAttribute("data-app-asset-policy","pinned-secondary"),el.onload=function(){resolve(!!root.Vue)},el.onerror=function(){resolve(!1)},(doc.head||doc.documentElement).appendChild(el)}catch(e){typeof __appObserve=="function"&&__appObserve(e,"ec"),resolve(!1)}}).then(function(ok){return!!ok||loadAt(i+1)})}return loadAt(0)}),{owner:"Index.vue-ready"})})(window,document);
 </script>
 <script defer data-app-asset-policy="pinned-primary"src="https://cdn.jsdelivr.net/npm/sweetalert2@11.10.8"crossorigin="anonymous"referrerpolicy="no-referrer">
 
 </script>
-<script src="app-index-foundation-after-swal.js?v=r119"></script>
+<script src="app-index-foundation-after-swal.js?v=r120"></script>
 <script>
 (function(root,doc){
   "use strict";
   var bannerId="app-transport-status-banner";
   var lastKey="";
   var lastAt=0;
+  var activeErrorId=0;
+  var recoveryProbeTimer=0;
+
   function clearBusyState(){
-    try{root.AppRuntime&&typeof root.AppRuntime.clearUiBlocks==="function"&&root.AppRuntime.clearUiBlocks("transport-error")}catch(_e){}
+    try{root.AppRuntime&&typeof root.AppRuntime.clearUiBlocks==="function"&&root.AppRuntime.clearUiBlocks("transport-status-change")}catch(_e){}
     try{Array.prototype.forEach.call(doc.querySelectorAll('[aria-busy="true"]'),function(node){node.removeAttribute("aria-busy")})}catch(_e){}
     try{Array.prototype.forEach.call(doc.querySelectorAll('.app-loading-overlay,.loading-overlay[data-transport-owned="true"]'),function(node){node.remove()})}catch(_e){}
   }
+
+  function closeStaleTransportPopup(){
+    try{
+      var popup=doc.querySelector('.swal2-container .swal2-popup');
+      if(!popup)return false;
+      var popupText=String(popup.textContent||"").replace(/\s+/g," ").trim();
+      var transportPattern=/(การเชื่อมต่อข้อมูลขัดข้อง|GAS\s+(?:Login\s+POST\s+)?timeout|GAS_(?:BRIDGE|VERIFIED)|GITHUB_(?:LOGIN|JSONP)|เชื่อมต่อ\s*GAS|verified\s+bridge|transport)/i;
+      if(!transportPattern.test(popupText))return false;
+      if(root.Swal&&typeof root.Swal.close==="function")root.Swal.close();
+      else popup.parentNode&&popup.parentNode.remove();
+      return true;
+    }catch(_e){return false}
+  }
+
   function ensureBanner(){
     var node=doc.getElementById(bannerId);
     if(node)return node;
@@ -55,10 +72,11 @@
     node.id=bannerId;
     node.setAttribute("role","alert");
     node.setAttribute("aria-live","assertive");
+    node.setAttribute("aria-hidden","true");
     node.style.cssText="position:fixed;z-index:2147483000;left:50%;top:max(12px,env(safe-area-inset-top));transform:translateX(-50%);width:min(94vw,760px);display:none;align-items:center;gap:12px;padding:12px 14px;border:1px solid #f59e0b;border-radius:14px;background:#fff7ed;color:#7c2d12;box-shadow:0 12px 34px rgba(15,23,42,.18);font:600 14px/1.45 Sarabun,Arial,sans-serif";
     node.innerHTML='<span aria-hidden="true" style="font-size:20px">⚠️</span><span data-message style="flex:1;min-width:0"></span><button type="button" data-reconnect style="border:0;border-radius:10px;padding:8px 12px;background:#0f3b68;color:#fff;font:inherit;cursor:pointer">เชื่อมต่อใหม่</button><button type="button" data-close aria-label="ปิดข้อความ" style="border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer">×</button>';
     (doc.body||doc.documentElement).appendChild(node);
-    node.querySelector('[data-close]').addEventListener("click",function(){node.style.display="none"});
+    node.querySelector('[data-close]').addEventListener("click",function(){hideTransportStatus("manual-close")});
     node.querySelector('[data-reconnect]').addEventListener("click",function(){
       var button=this;
       button.disabled=true;
@@ -68,8 +86,7 @@
         return root.AppTransport&&typeof root.AppTransport.ping==="function"?root.AppTransport.ping():false;
       }).then(function(result){
         if(result&&result.ok===false)throw new Error(result.error||result.msg||"เชื่อมต่อไม่สำเร็จ");
-        node.style.display="none";
-        root.location.reload();
+        hideTransportStatus("manual-reconnect-success");
       }).catch(function(error){
         button.disabled=false;
         button.textContent="เชื่อมต่อใหม่";
@@ -78,6 +95,38 @@
     });
     return node;
   }
+
+  function hideTransportStatus(reason){
+    activeErrorId+=1;
+    if(recoveryProbeTimer){root.clearTimeout(recoveryProbeTimer);recoveryProbeTimer=0}
+    var node=doc.getElementById(bannerId);
+    if(node){
+      node.style.display="none";
+      node.setAttribute("aria-hidden","true");
+      var button=node.querySelector('[data-reconnect]');
+      if(button){button.disabled=false;button.textContent="เชื่อมต่อใหม่"}
+      node.setAttribute("data-dismiss-reason",String(reason||"recovered"));
+    }
+    lastKey="";lastAt=0;
+    clearBusyState();
+    closeStaleTransportPopup();
+  }
+
+  function scheduleRecoveryProbe(errorId){
+    if(recoveryProbeTimer)root.clearTimeout(recoveryProbeTimer);
+    recoveryProbeTimer=root.setTimeout(function(){
+      recoveryProbeTimer=0;
+      if(errorId!==activeErrorId)return;
+      var transport=root.AppTransport;
+      if(!transport||typeof transport.ping!=="function")return;
+      Promise.resolve(typeof transport.ensureBridgeClient==="function"?transport.ensureBridgeClient():true).then(function(){return transport.ping()}).then(function(result){
+        if(errorId!==activeErrorId)return;
+        if(result&&result.ok===false)throw new Error(result.error||result.msg||"health check failed");
+        hideTransportStatus("automatic-health-probe-success");
+      }).catch(function(){/* keep the current actionable error visible */});
+    },Math.max(400,Number(root.APP_CONFIG&&root.APP_CONFIG.transportRecoveryProbeDelayMs||900)||900));
+  }
+
   doc.addEventListener("app:transport-error",function(event){
     clearBusyState();
     var detail=event&&event.detail||{};
@@ -88,7 +137,13 @@
     var node=ensureBanner();
     node.querySelector('[data-message]').textContent="การเชื่อมต่อข้อมูลขัดข้อง ("+String(detail.method||"API")+"): "+String(detail.message||detail.code||"กรุณาเชื่อมต่อใหม่");
     node.style.display="flex";
+    node.setAttribute("aria-hidden","false");
+    activeErrorId+=1;
+    scheduleRecoveryProbe(activeErrorId);
   });
+
+  doc.addEventListener("app:transport-recovered",function(){hideTransportStatus("transport-recovered")});
+  doc.addEventListener("app:auth-login-success",function(){hideTransportStatus("login-success")});
 })(window,document);
 </script>
 <meta name="theme-color"content="#001e3c">
@@ -2048,9 +2103,9 @@ border:1.5px solid rgba(197,160,40,.6);background:rgba(255,255,255,.1);padding:3
 </div></div>
 </script>
 
-<script src="critical-login-runtime.js?v=r119"></script>
+<script src="critical-login-runtime.js?v=r120"></script>
 
-<script src="app-index-bootstrap.js?v=r119"></script>
+<script src="app-index-bootstrap.js?v=r120"></script>
 
 
 
