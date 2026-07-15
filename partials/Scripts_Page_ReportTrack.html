@@ -1108,8 +1108,8 @@
               var item = bundle && (bundle.rawCase || bundle.case);
               if (!item)
                 throw new Error("ไม่พบรายการเรื่องพิจารณาที่ต้องการจัดการ");
-              var editKey = clean(item.caseId || item.id || id),
-                normalized = normalizeCase(item),
+              var normalized = normalizeCase(item),
+                editKey = clean(normalized.caseNum || id),
                 editSeed = Object.assign({}, item, normalized, {
                   __fromSearchEdit: !0,
                   __suppressEditLoading: !0,
@@ -1117,7 +1117,9 @@
                   __searchEditAt: Date.now ? Date.now() : 0,
                 });
               root.__MEETING_SEARCH_EDIT_IN_PROGRESS__ = {
+                caseNum: editKey,
                 caseId: editKey,
+                primaryLinkKey: "caseNum",
                 seed: editSeed,
                 until: (Date.now ? Date.now() : 0) + 6e3,
                 source: "searchEditCase.singlePass",
@@ -1133,7 +1135,9 @@
                 ? root.nav("meeting", {
                     preserveLoadingSwal: !0,
                     source: "searchEditCase.singlePass",
+                    caseNum: editKey,
                     caseId: editKey,
+                    primaryLinkKey: "caseNum",
                     seed: editSeed,
                   })
                 : ((location.hash = "#/meeting"), !0);
@@ -1565,6 +1569,12 @@
       return text(v)
         .replace(/[\u00A0\u200B-\u200D\uFEFF]/g, "")
         .replace(/[\s\n\r\t\-–—_()（）\[\]{}:：\/\.]+/g, "")
+        .toLowerCase();
+    }
+    function normalizeCaseSequenceKey(v) {
+      return clean(v)
+        .replace(/[\u00A0\u200B-\u200D\uFEFF]/g, "")
+        .replace(/\s+/g, "")
         .toLowerCase();
     }
     function arr(v) {
@@ -3857,12 +3867,12 @@
       });
     }
     function findCase(caseNum) {
-      caseNum = normKey(caseNum);
+      caseNum = normalizeCaseSequenceKey(caseNum);
       if (!caseNum) return null;
       var rows = searchState.rows.concat(reportState.rows);
       for (var i = 0; i < rows.length; i++) {
         var c = normalizeCase(rows[i]);
-        if (normKey(c.caseNum) === caseNum) return rows[i];
+        if (normalizeCaseSequenceKey(c.caseNum) === caseNum) return rows[i];
       }
       return null;
     }
@@ -3920,7 +3930,7 @@
       };
       return api("apiGetCanonicalCaseBundle", payload).then(function (res) {
         var bundle = normalizeBundle(res, localCaseRow);
-        if (!bundle.case || normKey(bundle.case.caseNum) !== normKey(caseNum))
+        if (!bundle.case || normalizeCaseSequenceKey(bundle.case.caseNum) !== normalizeCaseSequenceKey(caseNum))
           throw new Error("ข้อมูลที่ได้รับไม่ตรงกับลำดับเรื่อง: " + caseNum);
         return enrichBundleLetterDetails(bundle, caseNum, localCaseRow);
       });
@@ -4359,12 +4369,6 @@
       var letters = arr(bundle.letters),
         fc = bundle.case || normalizeCase(localCaseRow || {}),
         raw = bundle.rawCase || localCaseRow || {};
-      function normKey(v) {
-        return clean(v)
-          .replace(/[\u00A0\u200B-\u200D\uFEFF]/g, " ")
-          .replace(/\s+/g, "")
-          .toLowerCase();
-      }
       function rowsDeep(res) {
         var out = [],
           queue = [res],
@@ -4457,7 +4461,7 @@
         return !!(
           p.caseNum &&
           r.caseNum &&
-          normKey(p.caseNum) === normKey(r.caseNum)
+          normalizeCaseSequenceKey(p.caseNum) === normalizeCaseSequenceKey(r.caseNum)
         );
       }
       function mergeFresh(freshRows) {
