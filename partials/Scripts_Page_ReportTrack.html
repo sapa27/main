@@ -3926,14 +3926,60 @@
         ลำดับเรื่อง: caseNum,
         includeHistory: !0,
         includeLetters: !0,
-        source: "search-detail-case-sequence-strict",
+        forceFresh: !0,
+        noCache: !0,
+        bypassCache: !0,
+        cacheTtlSeconds: 0,
+        source: "search-detail-case-sequence-strict-fresh",
       };
-      return api("apiGetCanonicalCaseBundle", payload).then(function (res) {
-        var bundle = normalizeBundle(res, localCaseRow);
-        if (!bundle.case || normalizeCaseSequenceKey(bundle.case.caseNum) !== normalizeCaseSequenceKey(caseNum))
-          throw new Error("ข้อมูลที่ได้รับไม่ตรงกับลำดับเรื่อง: " + caseNum);
-        return enrichBundleLetterDetails(bundle, caseNum, localCaseRow);
-      });
+      return api("apiGetCanonicalCaseBundle", payload)
+        .then(function (res) {
+          var bundle = normalizeBundle(res, localCaseRow);
+          if (
+            !bundle.case ||
+            normalizeCaseSequenceKey(bundle.case.caseNum) !==
+              normalizeCaseSequenceKey(caseNum)
+          )
+            throw new Error("ข้อมูลที่ได้รับไม่ตรงกับลำดับเรื่อง: " + caseNum);
+          return enrichBundleLetterDetails(bundle, caseNum, localCaseRow);
+        })
+        .catch(function (err) {
+          var local = localCaseRow ? normalizeCase(localCaseRow) : null;
+          if (
+            localCaseRow &&
+            local &&
+            normalizeCaseSequenceKey(local.caseNum) ===
+              normalizeCaseSequenceKey(caseNum)
+          ) {
+            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r125", err, {
+              caseNum: caseNum,
+              primaryLinkKey: "caseNum",
+            });
+            return {
+              case: local,
+              rawCase: localCaseRow,
+              petitioners: [],
+              history: [],
+              letters: [],
+              degraded: !0,
+              relatedLoadOk: !1,
+              relatedWarnings: [
+                {
+                  section: "bundle",
+                  errorCode: String(
+                    (err && (err.errorCode || err.code)) ||
+                      "CASE_BUNDLE_LOAD_FAILED",
+                  ),
+                  message: String(
+                    (err && err.message) ||
+                      "โหลดข้อมูลประกอบไม่สำเร็จ แต่เปิดข้อมูลเรื่องหลักจากผลค้นหาแล้ว",
+                  ),
+                },
+              ],
+            };
+          }
+          throw err;
+        });
     }
     function detailRow(label, value) {
       return (

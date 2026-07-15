@@ -1585,6 +1585,11 @@
               caseNo: strictCaseNum,
               runningNo: strictCaseNum,
               ลำดับเรื่อง: strictCaseNum,
+              forceFresh: !0,
+              noCache: !0,
+              bypassCache: !0,
+              cacheTtlSeconds: 0,
+              source: "meeting-edit-case-sequence-strict-fresh",
             })
               .then(function (t) {
                 return (function (e, t) {
@@ -9132,17 +9137,19 @@
           var seed =
               (opts && opts.seed) ||
               (row && "object" == typeof row ? row : null),
-            key = text(
+            key = A(
               row && "object" == typeof row
-                ? row.caseId || row.id || row.caseNum || row.recNo
-                : row ||
-                    (seed &&
-                      (seed.caseId || seed.id || seed.caseNum || seed.recNo)),
+                ? row
+                : seed && "object" == typeof seed
+                  ? seed
+                  : { caseNum: row },
             );
           if (seed && key)
             try {
               ((root.__MEETING_SEARCH_EDIT_IN_PROGRESS__ = {
+                caseNum: key,
                 caseId: key,
+                primaryLinkKey: "caseNum",
                 seed: seed,
                 until: Date.now ? Date.now() + 9000 : 0,
                 source: "meetingEditCaseFinal",
