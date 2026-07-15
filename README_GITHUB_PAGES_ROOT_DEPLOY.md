@@ -1,119 +1,62 @@
-# R120 — Correct GAS Deployment Binding
+# GitHub Pages + Google Apps Script — R121
 
-GitHub Pages must call this exact GAS Web App deployment:
+ชุด R121 ใช้ GAS Web App deployment ต่อไปนี้เป็น backend:
 
 `https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec`
 
-R118 was bound to a different deployment ID and runtime override was disabled, causing `apiLogin` bridge failure followed by `GAS Login POST timeout`. R120 overwrites the deployment binding in `app-config.js`, `github-gas-transport.js`, and `index.html`.
+## การแก้ไขหลักใน R121
 
-# GitHub Pages + GAS Verified Bridge — R120
+1. ระบบพิมพ์มาตรฐานคืนแถวที่ pagination ซ่อนไว้ก่อนสร้างเอกสาร ทำให้พิมพ์ข้อมูลหน้า 2, 3 และหน้าถัดไปได้
+2. รายงานแบบ server pagination ดึงข้อมูลครบทุกหน้าก่อนพิมพ์ โดยเฉพาะรายงานติดตามหนังสือและสรุปงบประมาณแยกประเภท
+3. แก้ class ของตัวเลือกจำนวนแถวจากค่าที่ต่อกันผิด ให้ event `change` ทำงานและเปลี่ยนจำนวนแถว/หน้าได้
+4. เส้นทาง `ค้นหาเรื่องพิจารณา → แก้ไข → จัดการเรื่องพิจารณา` รอการเปิด route, โหลด script, initialize หน้า meeting และเปิดข้อมูลตามลำดับ
+5. Router เรียก `initMeetingPage({ force: true })` เพื่อไม่ตีความสถานะระหว่าง mount ว่าไม่มี controller
 
-สถาปัตยกรรม Production ของชุดนี้:
+## สถาปัตยกรรมการเชื่อมต่อ
 
 ```text
-GitHub Pages (static frontend)
-  ├─ Login: verified GAS bridge → google.script.run.apiGithubBridgeCall(apiLogin)
-  │          └─ fallback: form POST → GAS doPost → postMessage callback
-  ├─ Authenticated API: persistent GAS iframe → nonce + ping verification
-  │                    → google.script.run.apiGithubBridgeCall → apiRouter
-  ├─ Public contract API: JSONP แบบไม่มี token/CSRF เท่านั้น
-  └─ Deferred page assets: static files จาก ./partials พร้อม asset stamp
+GitHub Pages
+  ├─ Login และ authenticated API → verified GAS bridge
+  ├─ Public contract API → JSONP โดยไม่มี token/CSRF
+  ├─ Page scripts → ./partials/
+  └─ API Router → GAS apiRouter
 ```
 
-## การแก้ไขสำคัญใน R120
-
-- ยุบ HTML renderer ให้มีเจ้าของเดียวและไม่เรียกย้อนกลับระหว่าง `AppProductionFinal.setTrustedHtml()` กับ `safeSetInnerHTML()`
-- แก้สาเหตุ `Maximum call stack size exceeded` ที่ทำให้เนื้อหา เมนูย่อย และปุ่มหยุดทำงาน
-- Dashboard recovery cache แบ่งตาม session token hash ไม่คืนข้อมูลข้ามผู้ใช้
-- ล้าง cache รุ่นเก่า `dashboard_bundle_last_good_r93` และปฏิเสธ cache ที่ release ไม่ตรง
-- ยกเลิกการบังคับ Login ผ่าน POST iframe เป็นเส้นทางแรก
-- Login ใช้ verified bridge ชุดเดียวกับ authenticated API
-- POST Login เหลือเป็น compatibility fallback
-- Login callback ตรวจ Google origin และ request ID เป็นเงื่อนไขหลัก
-- ถ้า callback มี nonce ต้องตรงกับคำขอ
-- release stamp ต่างรุ่นไม่ทำให้ callback ถูกทิ้งจน timeout แต่บันทึกเป็น diagnostic
-- bridge ใช้ stamp ที่ backend ประกาศใน READY message ป้องกัน GitHub/GAS ต่างรุ่นชั่วคราว
-- Login/Logout/Session Resume ไม่ใช้ in-flight dedupe เพื่อไม่รวมคำขอคนละรหัสผ่านเข้าด้วยกัน
-
-## เจ้าของระบบ
-
-- Transport owner: `github-gas-transport.js`
-- API owner: `apiRouter` ใน `Code_20_Router.gs`
-- Web entry owner: `doGet`/`doPost` ใน `Code_00_PlatformCore.gs`
-- Editable frontend partials: `gas-backend/Scripts_*.html`
-- Static mirrors: `partials/Scripts_*.html`
-- GAS deployment URL กำหนดใน `app-config.js`
-
-## ไฟล์ที่ต้อง Deploy
-
-### GitHub Pages
-
-Commit ไฟล์ root ทั้งชุด รวมถึง:
+## ไฟล์ที่ต้องเขียนทับบน GitHub Pages
 
 - `index.html`
 - `app-config.js`
 - `github-gas-transport.js`
 - `critical-login-runtime.js`
-- `app-index-*.js`
+- `app-index-foundation-pre-vue.js`
+- `app-index-foundation-after-vue.js`
+- `app-index-foundation-after-swal.js`
+- `app-index-bootstrap.js`
 - โฟลเดอร์ `partials/`
 - `.nojekyll`
 
-อย่าอัปโหลดเฉพาะ `index.html` เพราะ R120 ใช้ cache stamp เดียวกันกับ JavaScript ทุกไฟล์
+ไฟล์ JavaScript local ทั้งหมดต้องโหลดด้วย `?v=r121`
 
-### Google Apps Script
+## ไฟล์ที่ต้องเขียนทับใน GAS
 
-เขียนทับไฟล์ทั้งหมดใน `gas-backend/` แล้ว Deploy เป็น Web app เวอร์ชันใหม่:
+เขียนทับไฟล์ทั้งหมดในโฟลเดอร์ `gas-backend/` แล้ว Deploy เป็น Web app เวอร์ชันใหม่
 
-- Execute as: **Me**
-- Who has access: **Anyone** หรือ **Anyone with the link** ตามนโยบายองค์กร
-- URL ต้องลงท้าย `/exec`
-
-ไฟล์สำคัญคือ `Code_00_PlatformCore.gs` เพราะมี bridge renderer, Login callback และ `doPost`
+- Execute as: Me
+- Who has access: ตามนโยบายองค์กรที่อนุญาตให้ GitHub Pages เรียกใช้งาน
+- ใช้ deployment URL `/exec` เดิม
 
 ## การตรวจหลัง Deploy
 
 1. ปิดแท็บระบบเดิมทั้งหมด
-2. เปิด Incognito หรือ Hard Reload
-3. Network ต้องแสดงไฟล์ต่อไปนี้เป็น `r120`:
-   - `app-config.js?v=r120`
-   - `github-gas-transport.js?v=r120`
-   - `app-index-foundation-pre-vue.js?v=r120`
-   - `app-index-foundation-after-vue.js?v=r120`
-   - `app-index-foundation-after-swal.js?v=r120`
-   - `critical-login-runtime.js?v=r120`
-   - `app-index-bootstrap.js?v=r120`
-4. เปิด `diagnostic.html` แล้วตรวจ READY, nonce, ping และ `google.script.run`
-5. Login ต้องไม่ขึ้น `GAS Login POST timeout`
+2. เปิด Incognito หรือกด `Ctrl+Shift+R`
+3. ตรวจ Network ให้ JavaScript local ทั้ง 7 ไฟล์เป็น `r121`
+4. ทดสอบตารางอย่างน้อย 35 รายการ: เลือก 10, 20 และ 50 แถว/หน้า
+5. ทดสอบพิมพ์ตารางที่มีมากกว่า 1 หน้า และตรวจว่ารายการสุดท้ายปรากฏในตัวอย่างพิมพ์
+6. ทดสอบ `ค้นหาเรื่องพิจารณา → แก้ไข` หลายครั้งติดต่อกัน
 
 ## Security contract
 
 - Authenticated API ห้ามใช้ JSONP
-- JSONP ใช้เฉพาะ public contract API
-- token/CSRF/password ไม่อยู่ใน URL
-- Bridge ต้องมี Google origin, request-bound nonce และ ping verification
-- Login POST callback ต้องมี request ID ที่ตรงกับคำขอ และ nonce ต้องตรงเมื่อ callback ส่ง nonce มา
-- Client read cache แบ่งตาม session token และล้างเมื่อ Login/Logout/เปลี่ยนผู้ใช้/บันทึกข้อมูล
-- ไม่อนุญาตเปลี่ยน GAS deployment ระหว่าง runtime เว้นแต่แก้ `app-config.js`
-
-## Troubleshooting
-
-### GAS Login POST timeout
-
-R120 จะใช้ verified bridge ก่อน หากยังพบ timeout ให้ตรวจว่า:
-
-- GitHub โหลด `github-gas-transport.js?v=r120`
-- GAS Web App เปิด `/exec` ได้
-- `Code_00_PlatformCore.gs` ถูกเขียนทับและ Deploy เป็น New version
-- Browser ไม่บล็อก third-party iframe หรือ Google Apps Script
-
-### Login สำเร็จแต่ข้อมูลไม่แสดง
-
-เปิด `diagnostic.html` และตรวจว่า bridge ผ่าน READY + ping จากนั้นตรวจว่า token ถูกเก็บใน memory store และ `apiBootstrap` ใช้ authenticated bridge
-## R120 route/runtime reliability
-
-- Partial scripts fail fast when inline execution raises a syntax or runtime error; broken bundles are not marked loaded.
-- Route activation no longer reports success when its template, page script, or controller is missing. A visible retry panel is shown instead.
-- Core Runtime loads only after authentication to reduce login contention.
-- Login callbacks are bound to the exact iframe window that created the request.
-- Page script/template timeouts are configurable for GitHub Pages latency.
-
+- token, CSRF และ password ห้ามอยู่ใน URL
+- Client cache แบ่งตาม session
+- Bridge ต้องผ่าน origin, nonce และ ping verification

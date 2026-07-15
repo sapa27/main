@@ -1,8 +1,8 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r120";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r120";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-15-r121";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-15-r121";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
@@ -114,9 +114,9 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-verified-session-bridge-r120",
+    transportMode: "github-pages-phase-c-verified-session-bridge-r121",
     deploymentBindingVerified: true,
-    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r120",
+    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r121",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -219,11 +219,11 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r120",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r120",
-    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r120",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r121",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r121",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r121",
     safeHtmlRendererNonRecursive: true,
-    dashboardRecoveryCacheScope: "session-token-hash-r120",
+    dashboardRecoveryCacheScope: "session-token-hash-r121",
     dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,

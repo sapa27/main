@@ -133,7 +133,7 @@ function ensurePageTemplate(id){
       if(id==="dashboard"||id==="dash")return __appIsFn(window.loadDash)?safeCall(function(){return window.loadDash({forceFresh:!1,source:"route-safe-mode-current"})}):Promise.resolve(!1);
       if(id==="search")return __appIsFn(window.searchAll)?safeCall(function(){window.closeSummary&&window.closeSummary();return window.searchAll()}):Promise.resolve(!1);
       if(id==="petitioner")return __appIsFn(window.loadPetitioners)?safeCall(function(){window.closePetSummary&&window.closePetSummary();return Promise.resolve(window.loadPetitioners(!1)).then(function(){return __appIsFn(window.renderPetitionerList)?window.renderPetitionerList():!0})}):Promise.resolve(!1);
-      if(id==="meeting")return __appIsFn(window.initMeetingPage)?safeCall(function(){return window.initMeetingPage()}):Promise.resolve(!1);
+      if(id==="meeting")return __appIsFn(window.initMeetingPage)?safeCall(function(){return window.initMeetingPage({force:!0,source:"route-activation"})}):Promise.resolve(!1);
       if(id==="committee-meeting")return window.CommitteeMeetingSystem&&__appIsFn(window.CommitteeMeetingSystem.activate)?safeCall(function(){return window.CommitteeMeetingSystem.activate({source:"route"})}):window.CommitteeMeetingSystem&&__appIsFn(window.CommitteeMeetingSystem.reload)?safeCall(function(){return window.CommitteeMeetingSystem.reload()}):Promise.resolve(!1);
       if(id==="track")return __appIsFn(window.loadTrackData)?safeCall(function(){return window.loadTrackData()}):Promise.resolve(!1);
       if(id==="report")return __appIsFn(window.renderReport)?safeCall(function(){return window.renderReport()}):Promise.resolve(!1);
