@@ -6,7 +6,7 @@
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
-    "AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c",
+    "AKfycbxCuX0RthbNMtM-ygZ8Ukid6lNqdu4I1BNbcWBNKCb0zMKv6Qkjf7GNbRzl4Cr2kPot",
     "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
