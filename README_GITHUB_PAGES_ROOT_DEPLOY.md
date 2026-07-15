@@ -1,10 +1,10 @@
-# GitHub Pages + Google Apps Script — R122
+# GitHub Pages + Google Apps Script — R123
 
-ชุด R122 ใช้ GAS Web App deployment ต่อไปนี้เป็น backend:
+ชุด R123 ใช้ GAS Web App deployment ต่อไปนี้เป็น backend:
 
 `https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec`
 
-## การแก้ไขหลักใน R122
+## การแก้ไขหลักใน R123
 
 1. ระบบพิมพ์มาตรฐานคืนแถวที่ pagination ซ่อนไว้ก่อนสร้างเอกสาร ทำให้พิมพ์ข้อมูลหน้า 2, 3 และหน้าถัดไปได้
 2. รายงานแบบ server pagination ดึงข้อมูลครบทุกหน้าก่อนพิมพ์ โดยเฉพาะรายงานติดตามหนังสือและสรุปงบประมาณแยกประเภท
@@ -35,7 +35,7 @@ GitHub Pages
 - โฟลเดอร์ `partials/`
 - `.nojekyll`
 
-ไฟล์ JavaScript local ทั้งหมดต้องโหลดด้วย `?v=r122`
+ไฟล์ JavaScript local ทั้งหมดต้องโหลดด้วย `?v=r123`
 
 ## ไฟล์ที่ต้องเขียนทับใน GAS
 
@@ -49,7 +49,7 @@ GitHub Pages
 
 1. ปิดแท็บระบบเดิมทั้งหมด
 2. เปิด Incognito หรือกด `Ctrl+Shift+R`
-3. ตรวจ Network ให้ JavaScript local ทั้ง 7 ไฟล์เป็น `r122`
+3. ตรวจ Network ให้ JavaScript local ทั้ง 7 ไฟล์เป็น `r123`
 4. ทดสอบตารางอย่างน้อย 35 รายการ: เลือก 10, 20 และ 50 แถว/หน้า
 5. ทดสอบพิมพ์ตารางที่มีมากกว่า 1 หน้า และตรวจว่ารายการสุดท้ายปรากฏในตัวอย่างพิมพ์
 6. ทดสอบ `ค้นหาเรื่องพิจารณา → แก้ไข` หลายครั้งติดต่อกัน
