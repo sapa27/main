@@ -344,13 +344,22 @@ return root.loadTrackData(trackState.filter||"all",trackState.page)
 },root.exportTrackExcel=function(){
 return exportTrackCsv()
 },root.printTrack=function(){
-var run=function(){
-var rows=trackState.rows;
+function ensureTrackRowsForPrint(){
+var local=arr(trackState.rows).slice(),total=Math.max(local.length,Number(trackState.total||0)||0);
+if(!trackState.serverPaged||local.length>=total)return Promise.resolve(local);
+var limit=Math.max(100,Math.min(5000,total||5000));
+return api("apiGetTracking",{filterType:trackState.filter||"all",page:1,limit:limit,pageSize:limit,maxRows:limit,noPage:!0,fullList:!0,serverPaged:!1,sortBy:"dueDate",sortDir:"asc",forceFresh:!1,noCache:!1,bypassCache:!1,cacheTtlSeconds:0,source:"track-print-all-pages"}).then(function(res){
+var rows=applyTrackFilterRows(rowsFrom(unwrap(res)),trackState.filter||"all");
+return rows.length?rows:local
+}).catch(function(err){
+return warn("reportTrack.printTrack.allRows",err,{total:total,loaded:local.length}),local
+})
+}
+return ensureTrackRowsForPrint().then(function(rows){
 if(!rows.length)return notify("ไม่พบข้อมูล","กรุณาโหลดข้อมูลติดตามหนังสือก่อนพิมพ์","warning");
 var html='<div class="report-shell">'+tableHtmlFromAoa(trackAoa(rows),!1)+"</div>";
 return printOfficial(html,"รายงานการติดตามหนังสือ",!0)
-};
-return trackState.rows.length?run():root.loadTrackData(trackState.filter,1).then(run)
+})
 },root.exportToExcel=function(ctx,name){
 var target=ctx&&ctx.target?ctx.target:ctx,tableId=target&&target.getAttribute&&target.getAttribute("data-export-target")||"";
 if("track-table-target"===tableId)return root.exportTrackExcel();
@@ -399,12 +408,15 @@ root.AppStore&&root.AppStore.set&&root.AppStore.set("meeting.searchEditSeed",edi
 catch(_seedStoreErr){
 __appObserve(_seedStoreErr,"reportTrack.searchEdit.seedStore")
 }
-if(root.nav)root.nav("meeting",{
+var navMeeting=root.nav?root.nav("meeting",{
 preserveLoadingSwal:!0,source:"searchEditCase.singlePass",caseId:editKey,seed:editSeed
-});
-else location.hash="#/meeting";
-var loadMeeting=root.AppAssetLoader&&__appIsFn(root.AppAssetLoader.loadPageScripts)?root.AppAssetLoader.loadPageScripts("meeting"):Promise.resolve(!0);
-return Promise.resolve(loadMeeting).then(function(){
+}):(location.hash="#/meeting",!0);
+return Promise.resolve(navMeeting).then(function(){
+return root.AppAssetLoader&&__appIsFn(root.AppAssetLoader.loadPageScripts)?root.AppAssetLoader.loadPageScripts("meeting"):!0
+}).then(function(){
+return __appIsFn(root.initMeetingPage)?root.initMeetingPage({force:!0,reload:!1,source:"searchEditCase.singlePass"}):!1
+}).then(function(initOk){
+if(!1===initOk)throw new Error("เปิดตัวควบคุมหน้าจัดการเรื่องพิจารณาไม่สำเร็จ");
 if(!__appIsFn(root.meetingEditCase))throw new Error("ไม่พบ meetingEditCase หลังโหลดหน้าจัดการเรื่องพิจารณา");
 return root.meetingEditCase(editSeed,{
 source:"searchEditCase.singlePass",silentLoading:!0,seed:editSeed,__singlePass:!0,__skipCreateNewOnActivate:!0

@@ -824,26 +824,31 @@ return data.rows=rows,tt(data)
 return doPrint()
 })
 },t.printTypeSummary=function(){
-if(!(m.importRows||[]).length&&__appIsFn(t.loadBudgetTypeSummary)&&!t.printTypeSummary.__loading)return t.printTypeSummary.__loading=!0,Promise.resolve(t.loadBudgetTypeSummary()).then(function(){
-return t.printTypeSummary.__loading=!1,t.printTypeSummary()
-}).catch(function(e){
-throw t.printTypeSummary.__loading=!1,e
-});
-var a=r("budget-type-summary-body-final"),o=r("type-summary-thead"),i=o?o.cloneNode(!0):null,u=a?a.cloneNode(!0):null;
-[i,u].forEach(function(t){
-t&&Array.prototype.forEach.call(t.querySelectorAll(".no-print"),function(t){
-t&&t.parentNode&&t.parentNode.removeChild(t)
+function ensureBudgetTypeSummaryPrintRows(){
+var local=Array.isArray(m.typeSummaryRows)&&m.typeSummaryRows.length?m.typeSummaryRows.slice():Array.isArray(m.importRows)?m.importRows.slice():[],meta=m.typeSummaryMeta||{},total=Math.max(local.length,Number(meta.totalRecords||meta.total||0)||0);
+if(!meta.serverPaged||local.length>=total)return Promise.resolve(local);
+var selectedFy=String(y("budget-type-fy-current")||y("budget-fy-filter")||M()||Y(new Date)).replace(/[^0-9]/g,""),selectedType=et(y("budget-type-filter-current")||c.typeFilterAll||"ทั้งหมด"),requestType=selectedType===et(c.typeFilterAll||"ทั้งหมด")?"":selectedType,limit=Math.max(100,Math.min(5000,total||5000));
+return yt({fy:selectedFy,fiscalYear:selectedFy,year:selectedFy,type:requestType,typeFilter:requestType,page:1,limit:limit,pageSize:limit,maxRows:limit,totalTarget:limit,noPage:!0,fullList:!0,serverPaged:!1,forceFresh:!1,noCache:!1,bypassCache:!1,cacheTtlSeconds:0,source:"budget-type-summary-print-all-pages"}).then(function(resp){
+var pack=budgetTypeSummaryRows_(resp),rows=Array.isArray(pack.rows)?pack.rows:[];
+return rows.length?rows:local
+}).catch(function(err){
+budgetWarn("budget.printTypeSummary.allRows",err,{total:total,loaded:local.length});
+return local
 })
-});
-var d='<table class="table table-bordered table-sm app-table-standard"><thead>'+(i&&n.toHtml?n.toHtml(i):"")+"</thead><tbody>"+(u&&n.toHtml?n.toHtml(u):"")+"</tbody></table>",l=document.createElement("div");
-(n.setHtml||t.safeSetInnerHTML||e.setHtml)(l,d||(n.toHtml?n.toHtml(r("b-typesummary")):""),{
-moduleName:"Budget.printTypeSummary"
-});
-return t.AppPrint&&__appIsFn(t.AppPrint.printWithProfile)?t.AppPrint.printWithProfile("budget-summary",{
-bodyHtml:n.toHtml?n.toHtml(l):"",meta:{
-title:"รายงานสรุปแยกแต่ละประเภท",classification:"ระบบบริหารงบประมาณ"
 }
-}):!!t.appSwalFire&&t.appSwalFire("พิมพ์ไม่สำเร็จ","ไม่พบ AppPrint.printWithProfile","error")
+return ensureBudgetTypeSummaryPrintRows().then(function(rows){
+var selectedType=et(y("budget-type-filter-current")||c.typeFilterAll||"ทั้งหมด");
+rows=(Array.isArray(rows)?rows:[]).filter(function(row){
+row=row||{};
+var txt=String([row.planGroup,row.plan,row.category,row.entryType,row.type,row.item,row.topic,row.label,row.name,row.description].join(" ")).replace(/[\s\u00A0\u200B-\u200D\uFEFF]/g,"");
+if(row.isPersonnelCompensation===true||txt.indexOf("แผนงานบุคลากรภาครัฐ")>-1||txt.indexOf("บุคลากรภาครัฐ")>-1||txt.indexOf("ค่าตอบแทนผู้ปฏิบัติงาน")>-1||txt.indexOf("ผู้ปฏิบัติงานให้คณะกรรมาธิการ")>-1)return!1;
+var typ=nt(row);
+return!selectedType||selectedType===(c.typeFilterAll||"ทั้งหมด")||typ===selectedType||et(row.entryType)===selectedType||et(row.category)===selectedType||et(row.type)===selectedType
+});
+if(!rows.length)return!!t.appSwalFire&&t.appSwalFire("ไม่พบข้อมูล","ไม่พบข้อมูลสรุปแยกแต่ละประเภทสำหรับพิมพ์","warning");
+var cols=ct("ทั้งหมด"===selectedType?"":selectedType).filter(function(col){return!col.noPrint}),thead="<tr>"+cols.map(function(col){return'<th class="text-center">'+p(col.label)+"</th>"}).join("")+"</tr>",tbody=rows.map(function(row,idx){return"<tr>"+cols.map(function(col){var val;if(col.html)val=col.html(row,idx);else if("_idx"===col.key)val=String(idx+1);else{var raw=st(row,col.key);val="money"===col.fmt?S(raw||0):"date"===col.fmt?D(raw||"")||"-":p(raw||"-")}return'<td class="'+(col.cls||"")+("money"===col.fmt?" text-end":"")+'">'+val+"</td>"}).join("")+"</tr>"}).join(""),body='<div class="report-shell app-standard-print-font"><table class="table table-bordered table-sm app-table-standard app-standard-print-table"><thead>'+thead+"</thead><tbody>"+tbody+"</tbody></table></div>";
+return t.AppPrint&&__appIsFn(t.AppPrint.printWithProfile)?t.AppPrint.printWithProfile("budget-summary",{bodyHtml:body,meta:{title:"รายงานสรุปแยกแต่ละประเภท",classification:"ระบบบริหารงบประมาณ"}}):!!t.appSwalFire&&t.appSwalFire("พิมพ์ไม่สำเร็จ","ไม่พบ AppPrint.printWithProfile","error")
+})
 },window.printBudgetImportRecord=function(r){
 var a=(m.importRows||[]).filter(function(t){
 return String(t&&t.id||"")===String(r||"")
