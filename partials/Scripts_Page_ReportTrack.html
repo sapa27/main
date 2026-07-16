@@ -1204,7 +1204,7 @@
                 primaryLinkKey: "caseNum",
                 seed: editSeed,
                 until: (Date.now ? Date.now() : 0) + 12000,
-                source: "searchEditCase.seedFirst.r139",
+                source: "searchEditCase.seedFirst.r140",
               };
               try {
                 root.AppStore &&
@@ -1217,7 +1217,7 @@
               var navMeeting = root.nav
                 ? root.nav("meeting", {
                     preserveLoadingSwal: !0,
-                    source: "searchEditCase.seedFirst.r139",
+                    source: "searchEditCase.seedFirst.r140",
                     caseNum: editKey,
                     recordId: recordId,
                     primaryLinkKey: "caseNum",
@@ -1246,7 +1246,7 @@
                     root.initMeetingPage({
                       force: !0,
                       reload: !1,
-                      source: "searchEditCase.seedFirst.r139",
+                      source: "searchEditCase.seedFirst.r140",
                     }),
                   );
                 })
@@ -1263,7 +1263,7 @@
                   stage = "open-editor";
                   return Promise.resolve(
                     root.meetingEditCase(editSeed, {
-                      source: "searchEditCase.seedFirst.r139",
+                      source: "searchEditCase.seedFirst.r140",
                       silentLoading: !0,
                       seed: editSeed,
                       __singlePass: !0,
@@ -1285,7 +1285,7 @@
                 editLoadingShown &&
                   (closeCaseLoading(), (editLoadingShown = !1)),
                 err && "object" == typeof err && (err.stage = stage),
-                reportTrackWarn("reportTrack.searchEdit.failed.r139", err, {
+                reportTrackWarn("reportTrack.searchEdit.failed.r140", err, {
                   caseNum: id,
                   stage: stage,
                 }),
@@ -3751,6 +3751,8 @@
       }
       function schedulePrefetch(entry) {
         try {
+          var prefetchCfg = root.APP_CONFIG || root.AppConfig || {};
+          if (prefetchCfg.searchPagePrefetchEnabled === false || prefetchCfg.caseSearchPagePrefetchEnabled === false) return void 0;
           if (!entry || !entry.serverPaged) return void 0;
           var pageNo = Math.max(1, Number(entry.page || requestedPage) || 1),
             totalPages = Math.max(1, Number(entry.totalPages || 1) || 1),
@@ -4020,12 +4022,31 @@
         ),
       };
     }
-    function strictCaseRows(rows, caseNum) {
-      var seq = normalizeCaseSequenceKey(caseNum);
-      return arr(rows).filter(function (row) {
-        var c = normalizeCase(row);
-        return !!(seq && normalizeCaseSequenceKey(c.caseNum) === seq);
-      });
+    function strictCaseRows(rows, caseNum, caseId) {
+      var seq = normalizeCaseSequenceKey(caseNum),
+        expectedCaseId = clean(caseId || "");
+      return arr(rows)
+        .filter(function (row) {
+          var c = normalizeCase(row),
+            rowSeq = normalizeCaseSequenceKey(c.caseNum),
+            rowCaseId = clean(row && (row.caseId || row.caseID || row.case_id || row.id || ""));
+          if (rowSeq) return !!(seq && rowSeq === seq);
+          return !!(seq && expectedCaseId && rowCaseId && rowCaseId === expectedCaseId);
+        })
+        .map(function (row) {
+          var c = normalizeCase(row);
+          if (seq && !normalizeCaseSequenceKey(c.caseNum)) {
+            row = Object.assign({}, row || {}, {
+              caseNum: seq,
+              caseNo: seq,
+              runningNo: seq,
+              ลำดับเรื่อง: seq,
+              __legacyCaseIdRelationFallback: !0,
+              __relationFallbackOwner: "reporttrack-caseid-only-no-petitioner-r140",
+            });
+          }
+          return row;
+        });
     }
     function fetchBundle(caseNum, options) {
       options = options || {};
@@ -4050,8 +4071,14 @@
       return api("apiGetCanonicalCaseBundle", payload)
         .then(function (res) {
           var bundle = normalizeBundle(res, localCaseRow);
-          bundle.history = strictCaseRows(bundle.history, caseNum);
-          bundle.letters = strictCaseRows(bundle.letters, caseNum);
+          var bundleCaseId = clean(
+            (bundle.case && (bundle.case.caseId || bundle.case.id)) ||
+              (bundle.rawCase && (bundle.rawCase.caseId || bundle.rawCase.id)) ||
+              (localCaseRow && (localCaseRow.caseId || localCaseRow.id)) ||
+              "",
+          );
+          bundle.history = strictCaseRows(bundle.history, caseNum, bundleCaseId);
+          bundle.letters = strictCaseRows(bundle.letters, caseNum, bundleCaseId);
           if (
             !bundle.case ||
             normalizeCaseSequenceKey(bundle.case.caseNum) !==
@@ -4070,7 +4097,7 @@
             normalizeCaseSequenceKey(local.caseNum) ===
               normalizeCaseSequenceKey(caseNum)
           ) {
-            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r139", err, {
+            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r140", err, {
               caseNum: caseNum,
               primaryLinkKey: "caseNum",
             });

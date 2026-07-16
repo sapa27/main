@@ -5781,13 +5781,31 @@
         });
       }
       function sameSequenceRow(row, caseNum) {
-        var rowSeq = A(row || {});
-        return !!(rowSeq && caseNum && rowSeq === caseNum);
+        row = row || {};
+        var rowSeq = A(row || {}),
+          expectedCaseId = txt(t.caseId || t.id || t.recordId || ""),
+          rowCaseId = txt(row.caseId || row.caseID || row.case_id || row.id || "");
+        if (rowSeq) return !!(caseNum && rowSeq === caseNum);
+        return !!(caseNum && expectedCaseId && rowCaseId && rowCaseId === expectedCaseId);
       }
       function strictRows(rows, caseNum) {
-        return (Array.isArray(rows) ? rows : []).filter(function (row) {
-          return sameSequenceRow(row, caseNum);
-        });
+        return (Array.isArray(rows) ? rows : [])
+          .filter(function (row) {
+            return sameSequenceRow(row, caseNum);
+          })
+          .map(function (row) {
+            if (row && !A(row) && caseNum) {
+              row = Object.assign({}, row, {
+                caseNum: caseNum,
+                caseNo: caseNum,
+                runningNo: caseNum,
+                ลำดับเรื่อง: caseNum,
+                __legacyCaseIdRelationFallback: !0,
+                __relationFallbackOwner: "meeting-client-caseid-only-no-petitioner-r140",
+              });
+            }
+            return row;
+          });
       }
       function callRows(route, payload) {
         var caseNum = A(payload || t);
