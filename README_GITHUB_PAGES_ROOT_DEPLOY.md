@@ -1,10 +1,10 @@
-# GitHub Pages + Google Apps Script — R126
+# GitHub Pages + Google Apps Script — R129
 
-ชุด R126 ใช้ GAS Web App deployment ต่อไปนี้เป็น backend:
+ชุด R129 ใช้ GAS Web App deployment ต่อไปนี้เป็น backend:
 
 `https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec`
 
-## การแก้ไขหลักใน R126
+## การแก้ไขหลักใน R129
 
 1. ระบบพิมพ์มาตรฐานคืนแถวที่ pagination ซ่อนไว้ก่อนสร้างเอกสาร ทำให้พิมพ์ข้อมูลหน้า 2, 3 และหน้าถัดไปได้
 2. รายงานแบบ server pagination ดึงข้อมูลครบทุกหน้าก่อนพิมพ์ โดยเฉพาะรายงานติดตามหนังสือและสรุปงบประมาณแยกประเภท
@@ -19,7 +19,8 @@
 
 ```text
 GitHub Pages
-  ├─ Login และ authenticated API → verified GAS bridge
+  ├─ Login และ authenticated API → nonce-verified POST + postMessage
+  ├─ Persistent GAS bridge → automatic verified fallback
   ├─ Public contract API → JSONP โดยไม่มี token/CSRF
   ├─ Page scripts → ./partials/
   └─ API Router → GAS apiRouter
@@ -38,7 +39,7 @@ GitHub Pages
 - โฟลเดอร์ `partials/`
 - `.nojekyll`
 
-ไฟล์ JavaScript local ทั้งหมดต้องโหลดด้วย `?v=r126`
+ไฟล์ JavaScript local ทั้งหมดต้องโหลดด้วย `?v=r129`
 
 ## ไฟล์ที่ต้องเขียนทับใน GAS
 
@@ -52,7 +53,7 @@ GitHub Pages
 
 1. ปิดแท็บระบบเดิมทั้งหมด
 2. เปิด Incognito หรือกด `Ctrl+Shift+R`
-3. ตรวจ Network ให้ JavaScript local ทั้ง 7 ไฟล์เป็น `r126`
+3. ตรวจ Network ให้ JavaScript local ทั้ง 7 ไฟล์เป็น `r129`
 4. ทดสอบตารางอย่างน้อย 35 รายการ: เลือก 10, 20 และ 50 แถว/หน้า
 5. ทดสอบพิมพ์ตารางที่มีมากกว่า 1 หน้า และตรวจว่ารายการสุดท้ายปรากฏในตัวอย่างพิมพ์
 6. ทดสอบ `ค้นหาเรื่องพิจารณา → แก้ไข` หลายครั้งติดต่อกัน
@@ -63,3 +64,28 @@ GitHub Pages
 - token, CSRF และ password ห้ามอยู่ใน URL
 - Client cache แบ่งตาม session
 - Bridge ต้องผ่าน origin, nonce และ ping verification
+
+## R129 — Authenticated data loading stability
+
+### Root cause confirmed
+
+The previous runtime allowed login to fall back from the persistent GAS iframe bridge to a form POST. After a successful POST login, however, every authenticated read/write API was still forced back through the persistent bridge. When the browser returned `403` for the redirected `script.googleusercontent.com/macros/echo?...` iframe or the READY/ping handshake timed out, the UI showed a successful login but Dashboard and all modules remained empty.
+
+### Production correction
+
+- Login uses the password POST path first; credentials stay in the POST body.
+- Authenticated API calls use a nonce-verified per-request POST + `postMessage` path as the stable route.
+- The persistent verified bridge remains an automatic fallback when available.
+- The chosen healthy transport is remembered per browser tab to avoid repeating a 20–22 second failed handshake for every API call.
+- `GAS_API_POST_RESPONSE` validates Google origin, iframe source window, request id, and nonce before resolving.
+- Public JSONP remains limited to unauthenticated contract methods; token, CSRF, and password are never placed in a JSONP URL.
+- The route-contract builder no longer re-enters the Phase 1 single-source contract while its own registry is being created, preventing `Maximum call stack size exceeded`.
+- `apiGetRouteContract`, `apiGetPhase0ContractGate`, `apiGetPhase1Contract`, and `apiGetPhase2Contract` are consistently marked public in the router metadata, matching the public-contract allowlist.
+
+### Required deployment order
+
+1. Deploy every file in `gas-backend/` as a new Web App version while preserving the existing `/exec` deployment URL.
+2. Overwrite the GitHub Pages root files and `partials/` from this package.
+3. Close old tabs and open the system in Incognito or perform a hard refresh.
+
+The backend must be deployed first because the R129 frontend requires the R129 nonce to be echoed in `GAS_API_POST_RESPONSE`.
