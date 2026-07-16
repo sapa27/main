@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r133";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r133";
-  var TRANSPORT_MODE = "github-pages-phase-c-authenticated-post-fallback-r133";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r134";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r134";
+  var TRANSPORT_MODE = "github-pages-phase-c-authenticated-post-only-bridge-optional-r134";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";
 
   var includeCache = Object.create(null);
@@ -39,7 +39,7 @@
   var lastTransportErrorSequence = 0;
   var lastTransportSuccessAt = 0;
   var lastTransportErrorAt = 0;
-  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R133";
+  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R134";
   var preferredAuthenticatedTransport = "";
   var preferredAuthenticatedTransportUntil = 0;
 
@@ -433,6 +433,9 @@
     return true;
   }
   function ensureBridge() {
+    if (config("persistentGasIframeBridgeDisabled", false) === true) {
+      return Promise.reject(makeError("GAS bridge ถูกปิดใน GitHub mode: ใช้ authenticated POST แทน", "GAS_BRIDGE_DISABLED_POST_ONLY"));
+    }
     if (bridgeReady && bridgeVerified && bridgeClientWindow && bridgeClientOrigin) {
       return Promise.resolve({ frame: bridgeFrame, sourceWindow: bridgeClientWindow, sourceOrigin: bridgeClientOrigin, generation: bridgeGeneration,
       verifiedAt: bridgeLastVerifiedAt ? new Date(bridgeLastVerifiedAt).toISOString() : "", nonce: bridgeNonce });
@@ -487,7 +490,7 @@
       var loginRequest = loginId && loginPending[loginId];
       if (!loginRequest) return;
       if (!isTrustedGoogleMessageOrigin(event && event.origin)) return;
-      if (loginRequest.sourceWindow && event && event.source !== loginRequest.sourceWindow) return;
+      if (config("postMessageCallbackSourceWindowRequired", false) === true && loginRequest.sourceWindow && event && event.source !== loginRequest.sourceWindow) return;
       var responseNonce = text(data.nonce || "");
       if (responseNonce && loginRequest.nonce && responseNonce !== loginRequest.nonce) return;
       var responseStamp = text(data.stamp || data.releaseStamp || "");
@@ -501,6 +504,7 @@
         loginResult.releaseStamp = loginResult.releaseStamp || responseStamp || RELEASE_STAMP;
         loginResult.meta = Object.assign({}, isObject(loginResult.meta) ? loginResult.meta : {}, {
           callbackNoncePresent: !!responseNonce,
+          sourceWindowRelaxedForGoogleSandbox: config("postMessageCallbackSourceWindowRequired", false) !== true,
           callbackReleaseStamp: responseStamp,
           frontendReleaseStamp: RELEASE_STAMP,
           crossReleaseCallback: !!responseStamp && responseStamp !== RELEASE_STAMP
@@ -515,7 +519,7 @@
       var apiPostRequest = apiPostId && apiPostPending[apiPostId];
       if (!apiPostRequest) return;
       if (!isTrustedGoogleMessageOrigin(event && event.origin)) return;
-      if (apiPostRequest.sourceWindow && event && event.source !== apiPostRequest.sourceWindow) return;
+      if (config("postMessageCallbackSourceWindowRequired", false) === true && apiPostRequest.sourceWindow && event && event.source !== apiPostRequest.sourceWindow) return;
       var apiPostNonce = text(data.nonce || "");
       if (!apiPostNonce || apiPostNonce !== apiPostRequest.nonce) return;
       delete apiPostPending[apiPostId];
@@ -530,6 +534,7 @@
           phaseCAuthenticatedBridge: true,
           authenticatedPostFallback: true,
           requestNonceVerified: true,
+          sourceWindowRelaxedForGoogleSandbox: config("postMessageCallbackSourceWindowRequired", false) !== true,
           frontendReleaseStamp: RELEASE_STAMP
         });
       }
@@ -1217,11 +1222,11 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::authenticated-post-fallback-r133";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::authenticated-post-only-bridge-optional-r134";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = false;
   root.AppTransport.__authenticatedJsonpDisabled = true;
-  root.AppTransport.__innerBridgeSourceCaptured = true;
+  root.AppTransport.__innerBridgeSourceCaptured = false;
   root.AppTransport.__perRequestApiPostDisabled = false;
   root.AppTransport.transportMode = TRANSPORT_MODE;
   root.AppTransport.run = function(fn, args, options) {
