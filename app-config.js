@@ -1,8 +1,8 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r129";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r129";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r130";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r130";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
@@ -11,7 +11,7 @@
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
-    "AKfycbyN4b-HY6VA3iJ6aJAE21hEQtpFitBCliOt5ELuggMTljq0e_KezZj6f2-g-M-VZLsc"
+    "9/9a/Seal_of_the_Parliament_of_Thailand.svg"
   ].join("");
 
   function asText(value) {
@@ -114,9 +114,9 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-authenticated-post-fallback-r129",
+    transportMode: "github-pages-phase-c-authenticated-post-fallback-r130",
     deploymentBindingVerified: true,
-    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r129",
+    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r130",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -162,6 +162,7 @@
     dashboardLazyHydrationDelayMs: 900,
     dashboardBudgetHydrationEnabled: true,
     dashboardBudgetHydrationDelayMs: 350,
+    dashboardFastFirstPaintSkipHeavySheets: true,
     inlinePartialsEnabled: false,
     pageScriptLoadTimeoutMs: 20000,
     pageTemplateLoadTimeoutMs: 10000,
@@ -187,6 +188,7 @@
     loginFormPost: false,
     loginBridgeFirst: false,
     loginBridgeTimeoutMs: 30000,
+    loginPostTimeoutMs: 22000,
     loginPostFallbackEnabled: true,
     loginCallbackCrossReleaseCompatible: true,
     dataApiPostBridgeEnabled: true,
@@ -219,11 +221,11 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r129",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r129",
-    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r129",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r130",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r130",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r130",
     safeHtmlRendererNonRecursive: true,
-    dashboardRecoveryCacheScope: "session-token-hash-r129",
+    dashboardRecoveryCacheScope: "session-token-hash-r130",
     dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
@@ -234,7 +236,7 @@
     authenticatedPostFallbackEnabled: true,
     authenticatedTransportPreferenceTtlMs: 900000,
     dataApiPostTimeoutMs: 60000,
-    authenticatedTransportFallbackOwner: "github-pages/github-gas-transport.js::postmessage-post-fallback-r129",
+    authenticatedTransportFallbackOwner: "github-pages/github-gas-transport.js::postmessage-post-fallback-r130",
     staticGasDirectDisabled: false,
     releaseStamp: RELEASE_STAMP,
     assetStamp: ASSET_STAMP,
