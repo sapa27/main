@@ -11298,6 +11298,76 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
         )
   );
 }
+function _dashboardDeferredFirstPaintBundleR135_(payload, sess, startedAt, cacheKey) {
+  payload = payload || {};
+  var now = new Date().toISOString(),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r135"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r135"),
+    caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
+    meta = {
+      cached: !1,
+      cacheStatus: "deferred-first-paint",
+      cacheHit: !1,
+      cacheKey: cacheKey || "",
+      durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
+      generatedAt: now,
+      source: "dashboard-cold-first-paint-no-sheet-read-r135",
+      dashboardFirstPaintDeferred: !0,
+      deferHydrationRequired: !0,
+      fastFirstPaintNoSheetRead: !0,
+      coldStartNoBlockingSheetRead: !0,
+      dashboardPostTimeoutGuard: !0,
+      rowsRead: 0,
+      includeBudget: payload.includeBudget === !0,
+      includeCases: payload.includeCases === !0,
+      hotPathMode: payload.hotPathMode || "phase1-dashboard-first-paint-summary",
+      performanceTargetMs: 1200,
+      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR135_",
+    };
+  stats.degraded = !1;
+  stats.errorCode = "";
+  stats.dashboardErrorCode = "";
+  stats.total = 0;
+  stats.pending = 0;
+  stats.completed = 0;
+  stats.statusRows = [];
+  stats.byType = [];
+  stats.byTopic = [];
+  stats.letters = { total: 0, notDue: 0, overdue: 0, received: 0, soonDue: 0 };
+  stats.meetings = { total: 0, totalMeetings: 0, meetingCount: 0, recent: 0, recentMeetings: 0, totalItems: 0, itemTotal: 0, totalCasesDiscussed: 0, subjectCount: 0, strictKpi: !0, source: "deferred-first-paint" };
+  stats.generatedAt = now;
+  stats.meta = _c30O_({}, stats.meta || {}, meta);
+  var dto = _dashboardCanonicalBundleDto_(stats, budget, caseData, meta);
+  dto.meta = _c30O_({}, dto.meta || {}, meta);
+  var data = {
+    dashboardDto: dto,
+    contractStamp: dto.contractStamp,
+    caseStats: dto.caseStats,
+    typeStats: [],
+    issueStats: [],
+    trackingStats: stats.letters,
+    meetingStats: stats.meetings,
+    charts: dto.charts || { byStatus: [], byType: [], byIssue: [], byMeetingResult: [] },
+    stats: stats,
+    summaryStats: stats,
+    budget: budget,
+    budgetStats: budget,
+    cases: caseData,
+    rows: [],
+    letters: stats.letters,
+    meetings: stats.meetings,
+    meetingSummary: stats.meetings,
+    meetingRows: [],
+    meetingNoRows: [],
+    pendingHydration: !0,
+    generatedAt: now,
+    meta: meta,
+    cached: !1,
+    cacheStatus: "deferred-first-paint",
+    cacheKey: cacheKey || "",
+  };
+  return ok_(data, "Dashboard first paint พร้อมใช้งานแบบไม่อ่านชีต");
+}
 function _apiGetDashboardBundleCore_(payload) {
   payload = payload || {};
   payload.includeBudget = payload.includeBudget === !0;
@@ -11494,6 +11564,22 @@ function _apiGetDashboardBundleCore_(payload) {
         );
         payload.__dashboardCacheReadErrorCode = cacheCode;
       }
+    if (
+      payload.phase1FirstPaint === !0 &&
+      payload.forceFresh !== !0 &&
+      String(
+        _appIsFnName_("_scriptProp_")
+          ? _scriptProp_("DASHBOARD_COLD_FIRST_PAINT_DEFERRED", "Y")
+          : "Y",
+      ).toUpperCase() !== "N"
+    ) {
+      return _dashboardDeferredFirstPaintBundleR135_(
+        payload,
+        sess,
+        bundleStartedAt,
+        cacheKey,
+      );
+    }
     var stats;
     try {
       stats = _dashboardStats_(payload);
