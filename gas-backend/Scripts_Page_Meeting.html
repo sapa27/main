@@ -1566,8 +1566,17 @@
             } catch (e) {
               __appObserve(e, "ec");
             }
-            var o = n.caseId || n.caseNum || n.recNo || u || t || "";
-            return Promise.resolve(Be(I(n, { caseId: n.caseId || o }))).then(
+            return Promise.resolve(
+              Be(
+                I(n, {
+                  caseId: n.caseId || "",
+                  caseNum: n.caseNum || n.caseNo || u || t || "",
+                  caseNo: n.caseNum || n.caseNo || u || t || "",
+                  runningNo: n.caseNum || n.caseNo || u || t || "",
+                  ลำดับเรื่อง: n.caseNum || n.caseNo || u || t || "",
+                }),
+              ),
+            ).then(
               function () {
                 return (i(), !0);
               },
@@ -2282,14 +2291,9 @@
       }
       function meetingValidateHistoryPayload_(payload) {
         payload = payload || {};
-        var hasIdentity = !!(
-          d(payload.caseId || "").trim() ||
-          d(payload.caseNum || "").trim() ||
-          d(payload.recNo || "").trim() ||
-          d(payload.title || payload.caseTitle || "").trim()
-        );
+        var hasIdentity = !!d(payload.caseNum || payload.caseNo || payload.runningNo || payload["ลำดับเรื่อง"] || "").trim();
         if (!hasIdentity)
-          return "กรุณาเลือกหรือบันทึกข้อมูลเรื่องก่อนบันทึกประวัติการประชุม";
+          return "กรุณาระบุลำดับเรื่องก่อนบันทึกประวัติการประชุม";
         if (
           "คณะอนุกรรมาธิการ" ===
             d(payload.committeeType || payload.meetingType || "").trim() &&

@@ -2659,74 +2659,43 @@ function _safeResolveCaseIdentityAliases_(payload) {
       case: strictRow,
       rows: strictRow ? [strictRow] : [],
       caseNum: strictCaseNum,
-      identityOwner: "case-sequence-strict-current",
+      identityOwner: "case-sequence-strict-current-r138",
     };
   }
-  if (_appIsFnName_("_resolveCaseIdentityAliases_"))
+  var seedId = String((payload && (payload.caseId || payload.id)) || "").trim(),
+    seedRows = [];
+  if (seedId) {
     try {
-      var resolved = _resolveCaseIdentityAliases_(payload) || {};
-      if (resolved && typeof resolved == "object") return resolved;
-    } catch (_e) {
-      _recordWarning_("ec", _e);
+      seedRows = (_listMainDataRows_(!1) || []).filter(function (row) {
+        return (
+          row &&
+          !isSoftDeletedRow_(row) &&
+          (_s_(row.caseId).trim() === seedId || _s_(row.id).trim() === seedId)
+        );
+      });
+    } catch (_strictIdErr) {
+      _recordWarning_("case.identity.strictIdOnly", _strictIdErr, { caseId: seedId });
+      seedRows = [];
     }
-  var seedCase = null;
-  try {
-    seedCase = _findCaseByIdentity_(payload);
-  } catch (_eFind) {
-    (_recordWarning_("ec", _eFind), (seedCase = null));
   }
-  var ids = [],
-    seedId = String((payload && (payload.caseId || payload.id)) || "").trim();
-  return (
-    seedId && ids.push(seedId),
-    seedCase &&
-      (_s_(seedCase.caseId).trim() && ids.push(_s_(seedCase.caseId).trim()),
-      _s_(seedCase.id).trim() && ids.push(_s_(seedCase.id).trim())),
-    {
-      ids: (ids = ids.filter(Boolean).filter(function (v, i, arr) {
-        return arr.indexOf(v) === i;
-      })),
-      case: seedCase || {
-        caseId: seedId,
-        caseNum: _s_(
-          payload.caseNum ||
-            payload.caseNo ||
-            payload.runningNo ||
-            payload.ลำดับเรื่อง ||
-            payload["เลขลำดับเรื่อง"],
-        ).trim(),
-        recNo: _s_(
-          payload.recNo ||
-            payload.receiveNo ||
-            payload.receiptNo ||
-            payload.เลขรับเรื่อง ||
-            payload.เลขรับ,
-        ).trim(),
-        title: _s_(
-          payload.title ||
-            payload.caseTitle ||
-            payload.subject ||
-            payload.เรื่อง ||
-            payload.ชื่อเรื่อง,
-        ).trim(),
-        caseTitle: _s_(
-          payload.caseTitle ||
-            payload.title ||
-            payload.subject ||
-            payload.เรื่อง ||
-            payload.ชื่อเรื่อง,
-        ).trim(),
-        petitioners: _s_(
-          payload.petitioners ||
-            payload.petitionerName ||
-            payload.petitioner ||
-            payload["ผู้เสนอญัตติ/ผู้ร้อง"] ||
-            payload.ผู้ร้อง,
-        ).trim(),
-      },
-      rows: seedCase ? [seedCase] : [],
-    }
-  );
+  if (seedRows.length > 1)
+    seedRows = _dedupeLatestRowsBy_(seedRows, function (row) {
+      return _s_(row.caseId || row.id).trim();
+    });
+  var seedCase = seedRows.length === 1 ? seedRows[0] : null,
+    ids = [];
+  seedCase && _s_(seedCase.caseId || seedCase.id).trim() && ids.push(_s_(seedCase.caseId || seedCase.id).trim());
+  return {
+    ids: ids.filter(Boolean).filter(function (v, i, arr) {
+      return arr.indexOf(v) === i;
+    }),
+    case: seedCase,
+    rows: seedCase ? [seedCase] : [],
+    caseNum: seedCase ? _caseSequenceFrom_(seedCase) : "",
+    identityOwner: seedCase
+      ? "case-id-strict-current-r138"
+      : "case-identity-empty-no-title-petitioner-fallback-r138",
+  };
 }
 function _assertCaseExistsSafe_(payloadOrCaseId, sourceName) {
   var payload =
@@ -4020,16 +3989,9 @@ function _Domain_getLetters(caseId) {
     }
     var aliases = { ids: [], case: null },
       idMap = {},
-      caseRows = [];
-    (aliases.ids || []).forEach(function (id) {
-      id = _s_(id).trim();
-      id && (idMap[id] = !0);
-    });
+      caseRows = [],
+      canonicalCaseId = "";
     if (aliases.case) caseRows.push(aliases.case);
-    var rawCaseId = _s_(
-      payload.caseId || payload.caseID || payload.case_id || "",
-    ).trim();
-    rawCaseId && (idMap[rawCaseId] = !0);
     var targetCaseNum = _caseSequenceFrom_(payload);
     if (!targetCaseNum && !letterId)
       throw new Error("กรุณาระบุลำดับเรื่องสำหรับหนังสือติดตาม");
@@ -4048,6 +4010,7 @@ function _Domain_getLetters(caseId) {
           resolvedCaseForLetters.row &&
           (resolvedCaseForLetters.row.caseId || resolvedCaseForLetters.row.id),
       ).trim();
+      canonicalCaseId = resolvedCaseId;
       resolvedCaseId && (idMap[resolvedCaseId] = !0);
     }
     function identity(row) {
@@ -4326,10 +4289,11 @@ function _Domain_getLetters(caseId) {
       if (!row || isSoftDeletedRow_(row)) return !1;
       var rowCaseNum = _caseSequenceFrom_(row),
         rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
-      if (rowCaseNum && targetCaseNum && rowCaseNum !== targetCaseNum)
-        return !1;
-      if (rowCaseId && idMap[rowCaseId]) return !0;
-      return !!targetCaseNum && !!rowCaseNum && rowCaseNum === targetCaseNum;
+      if (targetCaseNum) {
+        if (rowCaseNum) return rowCaseNum === targetCaseNum;
+        return !!canonicalCaseId && rowCaseId === canonicalCaseId;
+      }
+      return !!letterId && rowCaseId && idMap[rowCaseId];
     }
     var projectedRows = [];
     try {
@@ -4402,10 +4366,21 @@ function _Domain_getMeetingHistory(payload) {
   try {
     var caseNum = _caseSequenceFrom_(payload || {});
     if (!caseNum) throw new Error("กรุณาระบุลำดับเรื่องสำหรับประวัติการประชุม");
+    var resolvedCase = _requireUniqueCaseBySequence_({
+      caseNum: caseNum,
+      caseNo: caseNum,
+      runningNo: caseNum,
+      ลำดับเรื่อง: caseNum,
+    });
+    var canonicalCaseId = _s_(
+      resolvedCase && resolvedCase.row && (resolvedCase.row.caseId || resolvedCase.row.id),
+    ).trim();
     var rows = (_meetingHistoryProjectedRows_() || []).filter(function (row) {
-      return (
-        row && !isSoftDeletedRow_(row) && _caseSequenceFrom_(row) === caseNum
-      );
+      if (!row || isSoftDeletedRow_(row)) return !1;
+      var rowCaseNum = _caseSequenceFrom_(row),
+        rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
+      if (rowCaseNum) return rowCaseNum === caseNum;
+      return !!canonicalCaseId && rowCaseId === canonicalCaseId;
     });
     return _safeDedupeLatestRowsBy_(rows, _safeMeetingLogIdentityKey_)
       .map(function (row) {
@@ -4456,11 +4431,14 @@ function _fetchAllLettersWithCaseInfoImpl_(payload) {
       _meetingLettersRows_("MainData", !1),
       _safeCaseIdentityKey_,
     ),
-    caseMap = {};
+    caseMap = {},
+    caseSeqMap = {};
   allCases.forEach(function (row) {
     if (row && !isSoftDeletedRow_(row)) {
-      var id = _s_(row.caseId).trim();
+      var id = _s_(row.caseId).trim(),
+        seq = _caseSequenceFrom_(row);
       id && (caseMap[id] = row);
+      seq && (caseSeqMap[seq] = row);
     }
   });
   var letters = _safeDedupeLatestRowsBy_(
@@ -4472,7 +4450,10 @@ function _fetchAllLettersWithCaseInfoImpl_(payload) {
       })
       .map(function (row) {
         var normalized = _normalizeLetterRow_(row),
-          owner = caseMap[_s_(normalized.caseId).trim()] || null;
+          rowCaseNum = _caseSequenceFrom_(row) || _caseSequenceFrom_(normalized),
+          rowCaseId = _s_(normalized.caseId || row.caseId || "").trim(),
+          owner = rowCaseNum ? caseSeqMap[rowCaseNum] || null : caseMap[rowCaseId] || null;
+        if (rowCaseNum && owner && _caseSequenceFrom_(owner) !== rowCaseNum) owner = null;
         owner &&
           ((normalized.caseNum = _s_(owner.caseNum)),
           (normalized.recNo = _s_(owner.recNo)),
@@ -4761,10 +4742,9 @@ function saveMeetingLog(p) {
                 row3,
                 aliases("meetingLogs", "caseId", ["caseId"]),
               ),
+              rowCaseNumForMatch = cell2(row3, ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"]),
               sameCaseId = rowCaseId && rowCaseId === caseId,
-              sameCaseNum =
-                caseNum &&
-                cell2(row3, ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"]) === caseNum,
+              sameCaseNum = caseNum && rowCaseNumForMatch === caseNum,
               sameRecNo =
                 recNo &&
                 cell2(
@@ -4790,7 +4770,9 @@ function saveMeetingLog(p) {
                   ]),
                 ) === title,
               identityScore = sameCaseNum ? 1 : 0,
-              sameCase = sameCaseId || sameCaseNum,
+              sameCase = rowCaseNumForMatch
+                ? sameCaseNum
+                : sameCaseId,
               sameRound =
                 !round ||
                 cell2(
@@ -4899,9 +4881,7 @@ function saveMeetingLog(p) {
           ลำดับเรื่อง: caseSeed.caseNum,
         }) || {};
         var caseInfo = (resolved && resolved.case) || {},
-          realCaseId = text(
-            caseSeed.caseId || caseInfo.caseId || caseInfo.id || "",
-          ),
+          realCaseId = text(caseInfo.caseId || caseInfo.id || ""),
           caseNum = text(
             caseSeed.caseNum ||
               caseInfo.caseNum ||
@@ -4935,6 +4915,12 @@ function saveMeetingLog(p) {
           throw new Error(
             "ไม่พบเรื่องพิจารณาที่ตรงกับลำดับเรื่อง กรุณาเลือกเรื่องใหม่ก่อนบันทึกประวัติการประชุม",
           );
+        if (caseSeed.caseId && caseSeed.caseId !== realCaseId)
+          _recordWarning_("meeting.saveLog.clientCaseIdIgnored.sequenceStrict", null, {
+            clientCaseId: caseSeed.caseId,
+            canonicalCaseId: realCaseId,
+            caseNum: caseNum,
+          });
         var syntheticCaseId = !1,
           caseId = realCaseId,
           round = logVal("round", [
@@ -8511,28 +8497,14 @@ function _caseMeetingHistoryIndexCurrent_() {
           _caseMeetingHistoryTypeCurrent_(log) === "คณะอนุกรรมาธิการ"
             ? "subcommittee"
             : "committee",
-        text = _caseMeetingHistoryTextCurrent_(log);
+        text = _caseMeetingHistoryTextCurrent_(log),
+        caseNum = _caseSequenceFrom_(log),
+        caseId = _s_(log.caseId || log.case_id || "").trim();
       text &&
-        [
-          log.caseId,
-          log.id,
-          log.caseNum,
-          log.caseNo,
-          log.recNo,
-          log.receiveNo,
-          log.title,
-          log.caseTitle,
-          log.considerationTitle,
-          log.subject,
-          log.note,
-          log.summary,
-          [log.title, log.caseTitle, log.considerationTitle]
-            .filter(Boolean)
-            .join(" "),
-        ].forEach(function (k) {
+        [caseId, caseNum].forEach(function (k) {
           put(k, kind, text);
           var compactKey = _caseMeetingHistoryKeyCurrent_(k).replace(
-            /[\s ​-‍\uFEFF]/g,
+            /[\s ​-‍﻿]/g,
             "",
           );
           compactKey && put(compactKey, kind, text);
@@ -8990,21 +8962,9 @@ function _caseReportMeetingTextPhase3_(log) {
 function _caseReportCaseIdentityKeysPhase3_(row) {
   row = row || {};
   var out = [],
-    caseId = _caseReportTextPhase3_(row.caseId || row.id || ""),
+    caseId = _caseReportTextPhase3_(row.caseId || row.case_id || row.id || ""),
     caseNum = _caseReportTextPhase3_(
       row.caseNum || row.caseNo || row.runningNo || row.ลำดับเรื่อง || "",
-    ),
-    recNo = _caseReportTextPhase3_(
-      row.recNo || row.receiveNo || row.เลขรับเรื่อง || "",
-    ),
-    title = _caseReportTextPhase3_(
-      row.title ||
-        row.caseTitle ||
-        row.considerationTitle ||
-        row.subject ||
-        row.ชื่อเรื่อง ||
-        row["ชื่อเรื่องพิจารณา (ถ้ามี)"] ||
-        "",
     );
   function put(prefix, value) {
     ((value = _caseReportCompactPhase3_(value)),
@@ -9015,12 +8975,7 @@ function _caseReportCaseIdentityKeysPhase3_(row) {
       !/^MAIN-\d+$/i.test(caseId) &&
       !/^ROW-\d+$/i.test(caseId) &&
       put("id:", caseId),
-    caseNum && recNo && put("nr:", caseNum + "|" + recNo),
-    caseNum && title && put("nt:", caseNum + "|" + title),
-    recNo && title && put("rt:", recNo + "|" + title),
     caseNum && put("n:", caseNum),
-    recNo && put("r:", recNo),
-    title && _caseReportCompactPhase3_(title).length >= 8 && put("t:", title),
     _caseReportUniquePhase3_(out)
   );
 }
@@ -9031,25 +8986,12 @@ function _caseReportLogIdentityKeysPhase3_(log) {
       caseNum: _caseReportTextPhase3_(
         log.caseNum || log.caseNo || log.runningNo || log.ลำดับเรื่อง || "",
       ),
-      recNo: _caseReportTextPhase3_(
-        log.recNo || log.receiveNo || log.เลขรับเรื่อง || "",
-      ),
-      title: _caseReportTextPhase3_(
-        log.title ||
-          log.caseTitle ||
-          log.considerationTitle ||
-          log.subject ||
-          log.ชื่อเรื่อง ||
-          "",
-      ),
     },
     bk = _caseReportTextPhase3_(log.phase2BusinessKey || "");
   if (bk) {
     var parts = bk.split("|").map(_caseReportTextPhase3_);
     ((seed.caseId = seed.caseId || parts[0] || ""),
-      (seed.caseNum = seed.caseNum || parts[1] || ""),
-      (seed.recNo = seed.recNo || parts[2] || ""),
-      (seed.title = seed.title || parts[3] || ""));
+      (seed.caseNum = seed.caseNum || parts[1] || ""));
   }
   return _caseReportCaseIdentityKeysPhase3_(seed);
 }
@@ -11298,11 +11240,11 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
         )
   );
 }
-function _dashboardDeferredFirstPaintBundleR136_(payload, sess, startedAt, cacheKey) {
+function _dashboardDeferredFirstPaintBundleR138_(payload, sess, startedAt, cacheKey) {
   payload = payload || {};
   var now = new Date().toISOString(),
-    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r136"),
-    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r136"),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r138"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r138"),
     caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
     meta = {
       cached: !1,
@@ -11311,7 +11253,7 @@ function _dashboardDeferredFirstPaintBundleR136_(payload, sess, startedAt, cache
       cacheKey: cacheKey || "",
       durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
       generatedAt: now,
-      source: "dashboard-cold-first-paint-no-sheet-read-r136",
+      source: "dashboard-cold-first-paint-no-sheet-read-r138",
       dashboardFirstPaintDeferred: !0,
       deferHydrationRequired: !0,
       fastFirstPaintNoSheetRead: !0,
@@ -11322,7 +11264,7 @@ function _dashboardDeferredFirstPaintBundleR136_(payload, sess, startedAt, cache
       includeCases: payload.includeCases === !0,
       hotPathMode: payload.hotPathMode || "phase1-dashboard-first-paint-summary",
       performanceTargetMs: 1200,
-      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR136_",
+      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR138_",
     };
   stats.degraded = !1;
   stats.errorCode = "";
@@ -11573,7 +11515,7 @@ function _apiGetDashboardBundleCore_(payload) {
           : "Y",
       ).toUpperCase() !== "N"
     ) {
-      return _dashboardDeferredFirstPaintBundleR136_(
+      return _dashboardDeferredFirstPaintBundleR138_(
         payload,
         sess,
         bundleStartedAt,
