@@ -11298,11 +11298,11 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
         )
   );
 }
-function _dashboardDeferredFirstPaintBundleR135_(payload, sess, startedAt, cacheKey) {
+function _dashboardDeferredFirstPaintBundleR136_(payload, sess, startedAt, cacheKey) {
   payload = payload || {};
   var now = new Date().toISOString(),
-    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r135"),
-    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r135"),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r136"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r136"),
     caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
     meta = {
       cached: !1,
@@ -11311,7 +11311,7 @@ function _dashboardDeferredFirstPaintBundleR135_(payload, sess, startedAt, cache
       cacheKey: cacheKey || "",
       durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
       generatedAt: now,
-      source: "dashboard-cold-first-paint-no-sheet-read-r135",
+      source: "dashboard-cold-first-paint-no-sheet-read-r136",
       dashboardFirstPaintDeferred: !0,
       deferHydrationRequired: !0,
       fastFirstPaintNoSheetRead: !0,
@@ -11322,7 +11322,7 @@ function _dashboardDeferredFirstPaintBundleR135_(payload, sess, startedAt, cache
       includeCases: payload.includeCases === !0,
       hotPathMode: payload.hotPathMode || "phase1-dashboard-first-paint-summary",
       performanceTargetMs: 1200,
-      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR135_",
+      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR136_",
     };
   stats.degraded = !1;
   stats.errorCode = "";
@@ -11573,7 +11573,7 @@ function _apiGetDashboardBundleCore_(payload) {
           : "Y",
       ).toUpperCase() !== "N"
     ) {
-      return _dashboardDeferredFirstPaintBundleR135_(
+      return _dashboardDeferredFirstPaintBundleR136_(
         payload,
         sess,
         bundleStartedAt,
