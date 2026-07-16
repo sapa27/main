@@ -803,6 +803,10 @@ function _caseSequenceFrom_(row) {
       row.caseNo ||
       row.runningNo ||
       row["ลำดับเรื่อง"] ||
+      row["เลขลำดับเรื่อง"] ||
+      row["ลำดับเรื่องพิจารณา"] ||
+      row["เลขที่ลำดับเรื่อง"] ||
+      row["หมายเลขลำดับเรื่อง"] ||
       "",
   );
 }
@@ -1347,6 +1351,10 @@ function _caseDomainLettersProjectedRows_(includeDeleted) {
       "caseNo",
       "runningNo",
       "ลำดับเรื่อง",
+      "เลขลำดับเรื่อง",
+      "ลำดับเรื่องพิจารณา",
+      "เลขที่ลำดับเรื่อง",
+      "หมายเลขลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "letterDate",
@@ -1698,7 +1706,7 @@ function _caseCanonicalDto_(row) {
 function _casePlainIdentityKey_(value) {
   return _c30S_(value).replace(/^'+/, "").trim();
 }
-/* r139: title/petitioner is display-only, never a relational key. */
+/* r140: title/petitioner is display-only, never a relational key. */
 function _caseBuildSaveLookupIndex_() {
   var cacheKey =
       "case.saveLookupIndex.current." +
@@ -2603,7 +2611,7 @@ function _safeResolveCaseIdentityAliases_(payload) {
       case: strictRow,
       rows: strictRow ? [strictRow] : [],
       caseNum: strictCaseNum,
-      identityOwner: "case-sequence-strict-current-r139",
+      identityOwner: "case-sequence-strict-current-r140",
     };
   }
   var seedId = String((payload && (payload.caseId || payload.id)) || "").trim(),
@@ -2637,8 +2645,8 @@ function _safeResolveCaseIdentityAliases_(payload) {
     rows: seedCase ? [seedCase] : [],
     caseNum: seedCase ? _caseSequenceFrom_(seedCase) : "",
     identityOwner: seedCase
-      ? "case-id-strict-current-r139"
-      : "case-identity-empty-no-title-petitioner-fallback-r139",
+      ? "case-id-strict-current-r140"
+      : "case-identity-empty-no-title-petitioner-fallback-r140",
   };
 }
 function _assertCaseExistsSafe_(payloadOrCaseId, sourceName) {
@@ -2773,6 +2781,10 @@ function _trackingProjectedFields_() {
       "caseNo",
       "runningNo",
       "ลำดับเรื่อง",
+      "เลขลำดับเรื่อง",
+      "ลำดับเรื่องพิจารณา",
+      "เลขที่ลำดับเรื่อง",
+      "หมายเลขลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "agency",
@@ -2801,6 +2813,10 @@ function _trackingProjectedFields_() {
       "caseNo",
       "runningNo",
       "ลำดับเรื่อง",
+      "เลขลำดับเรื่อง",
+      "ลำดับเรื่องพิจารณา",
+      "เลขที่ลำดับเรื่อง",
+      "หมายเลขลำดับเรื่อง",
       "recNo",
       "title",
       "caseTitle",
@@ -2902,6 +2918,10 @@ function _meetingHistoryProjectedRows_() {
           "caseNo",
           "runningNo",
           "ลำดับเรื่อง",
+          "เลขลำดับเรื่อง",
+          "ลำดับเรื่องพิจารณา",
+          "เลขที่ลำดับเรื่อง",
+          "หมายเลขลำดับเรื่อง",
           "recNo",
           "receiveNo",
           "updatedAt",
@@ -2977,6 +2997,10 @@ function _meetingHistoryProjectedRows_() {
             "caseNo",
             "runningNo",
             "ลำดับเรื่อง",
+            "เลขลำดับเรื่อง",
+            "ลำดับเรื่องพิจารณา",
+            "เลขที่ลำดับเรื่อง",
+            "หมายเลขลำดับเรื่อง",
             "recNo",
             "receiveNo",
             "caseTitle",
@@ -4239,6 +4263,15 @@ function _Domain_getLetters(caseId) {
       normalized.extensions = extensions;
       normalized.extensionRows = extensions;
       normalized.extensionItems = extensions;
+      if (targetCaseNum && !_caseSequenceFrom_(normalized)) {
+        normalized.caseNum = targetCaseNum;
+        normalized.caseNo = targetCaseNum;
+        normalized.runningNo = targetCaseNum;
+        normalized["ลำดับเรื่อง"] = targetCaseNum;
+        normalized.__legacyCaseIdRelationFallback = !0;
+        normalized.__relationFallbackOwner = "letter-caseid-only-no-petitioner-r140";
+      }
+      if (canonicalCaseId && !normalized.caseId) normalized.caseId = canonicalCaseId;
       return normalized;
     }
     function letterMatchesCase(row) {
@@ -4246,7 +4279,8 @@ function _Domain_getLetters(caseId) {
       var rowCaseNum = _caseSequenceFrom_(row),
         rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
       if (targetCaseNum) {
-        return !!rowCaseNum && rowCaseNum === targetCaseNum;
+        if (rowCaseNum) return rowCaseNum === targetCaseNum;
+        return !!(canonicalCaseId && rowCaseId && rowCaseId === canonicalCaseId);
       }
       return !!letterId && rowCaseId && idMap[rowCaseId];
     }
@@ -4334,10 +4368,20 @@ function _Domain_getMeetingHistory(payload) {
       if (!row || isSoftDeletedRow_(row)) return !1;
       var rowCaseNum = _caseSequenceFrom_(row),
         rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
-      return !!rowCaseNum && rowCaseNum === caseNum;
+      if (rowCaseNum) return rowCaseNum === caseNum;
+      return !!(canonicalCaseId && rowCaseId && rowCaseId === canonicalCaseId);
     });
     return _safeDedupeLatestRowsBy_(rows, _safeMeetingLogIdentityKey_)
       .map(function (row) {
+        row = _c30O_({}, row || {});
+        if (!_caseSequenceFrom_(row)) {
+          row.caseNum = caseNum;
+          row.caseNo = caseNum;
+          row.runningNo = caseNum;
+          row["ลำดับเรื่อง"] = caseNum;
+          row.__legacyCaseIdRelationFallback = !0;
+          row.__relationFallbackOwner = "meeting-history-caseid-only-no-petitioner-r140";
+        }
         return _normalizeMeetingLogRow_(row);
       })
       .sort(function (a, b) {
@@ -4350,7 +4394,7 @@ function _Domain_getMeetingHistory(payload) {
             : 1;
       });
   } catch (e) {
-    _recordWarning_("meeting_history.case_sequence_strict", e);
+    _recordWarning_("meeting_history.case_sequence_or_caseid_strict", e);
     throw e;
   }
 }
@@ -5494,6 +5538,10 @@ function saveLetter(p) {
       "caseNo",
       "runningNo",
       "ลำดับเรื่อง",
+      "เลขลำดับเรื่อง",
+      "ลำดับเรื่องพิจารณา",
+      "เลขที่ลำดับเรื่อง",
+      "หมายเลขลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "letterDate",
@@ -7274,7 +7322,7 @@ function _caseSearchMainDataRecDateIndex_() {
             "caseNumRecNo:" + dateIndexCaseNum + "|" + dateIndexRecNo,
             text,
           );
-        /* r139: receive-date lookup intentionally excludes title/petitioner keys. */
+        /* r140: receive-date lookup intentionally excludes title/petitioner keys. */
       }
     });
   } catch (e) {
@@ -11151,11 +11199,11 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
         )
   );
 }
-function _dashboardDeferredFirstPaintBundleR139_(payload, sess, startedAt, cacheKey) {
+function _dashboardDeferredFirstPaintBundleR140_(payload, sess, startedAt, cacheKey) {
   payload = payload || {};
   var now = new Date().toISOString(),
-    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r139"),
-    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r139"),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r140"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r140"),
     caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
     meta = {
       cached: !1,
@@ -11164,7 +11212,7 @@ function _dashboardDeferredFirstPaintBundleR139_(payload, sess, startedAt, cache
       cacheKey: cacheKey || "",
       durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
       generatedAt: now,
-      source: "dashboard-cold-first-paint-no-sheet-read-r139",
+      source: "dashboard-cold-first-paint-no-sheet-read-r140",
       dashboardFirstPaintDeferred: !0,
       deferHydrationRequired: !0,
       fastFirstPaintNoSheetRead: !0,
@@ -11175,7 +11223,7 @@ function _dashboardDeferredFirstPaintBundleR139_(payload, sess, startedAt, cache
       includeCases: payload.includeCases === !0,
       hotPathMode: payload.hotPathMode || "phase1-dashboard-first-paint-summary",
       performanceTargetMs: 1200,
-      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR139_",
+      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR140_",
     };
   stats.degraded = !1;
   stats.errorCode = "";
@@ -11426,7 +11474,7 @@ function _apiGetDashboardBundleCore_(payload) {
           : "Y",
       ).toUpperCase() !== "N"
     ) {
-      return _dashboardDeferredFirstPaintBundleR139_(
+      return _dashboardDeferredFirstPaintBundleR140_(
         payload,
         sess,
         bundleStartedAt,
