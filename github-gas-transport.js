@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r136";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r136";
-  var TRANSPORT_MODE = "github-pages-phase-c-post-only-healthcheck-r136";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r137";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r137";
+  var TRANSPORT_MODE = "github-pages-phase-c-bridge-primary-post-fallback-r137";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";
 
   var includeCache = Object.create(null);
@@ -39,7 +39,7 @@
   var lastTransportErrorSequence = 0;
   var lastTransportSuccessAt = 0;
   var lastTransportErrorAt = 0;
-  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R136";
+  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R137";
   var preferredAuthenticatedTransport = "";
   var preferredAuthenticatedTransportUntil = 0;
 
@@ -434,7 +434,7 @@
   }
   function ensureBridge() {
     if (config("persistentGasIframeBridgeDisabled", false) === true) {
-      return Promise.reject(makeError("GAS bridge ถูกปิดใน GitHub mode: ใช้ authenticated POST แทน", "GAS_BRIDGE_DISABLED_POST_ONLY"));
+      return Promise.reject(makeError("GAS bridge ถูกปิดจาก config แต่ release นี้ต้องใช้ bridge เป็นเส้นทางหลัก", "GAS_BRIDGE_DISABLED_CONFIG"));
     }
     if (bridgeReady && bridgeVerified && bridgeClientWindow && bridgeClientOrigin) {
       return Promise.resolve({ frame: bridgeFrame, sourceWindow: bridgeClientWindow, sourceOrigin: bridgeClientOrigin, generation: bridgeGeneration,
@@ -1069,12 +1069,12 @@
       return runJsonp("apiGetRouteContract", {
         diagnostic: true,
         connectivityPing: true,
-        source: "github-post-only-health-check",
+        source: "github-bridge-primary-health-check",
         at: new Date().toISOString()
       }, { timeoutMs: Math.max(4000, Math.min(Number(options.timeoutMs || config("publicConfigTimeoutMs", 6000)) || 6000, 15000)) }).then(function(result) {
         return {
           ok: !(isObject(result) && result.ok === false),
-          mode: "github-post-only-public-contract-ping",
+          mode: "github-bridge-primary-public-contract-ping",
           bridgeDisabled: true,
           releaseStamp: RELEASE_STAMP,
           latencyMs: Date.now() - startedAt,
@@ -1099,7 +1099,7 @@
     if (config("persistentGasIframeBridgeDisabled", false) === true || config("dataApiIframeBridgeEnabled", false) !== true) {
       return Promise.resolve({
         ok: true,
-        mode: "github-authenticated-post-only",
+        mode: "github-authenticated-bridge-primary-post-fallback",
         bridgeDisabled: true,
         sourceWindow: null,
         sourceOrigin: "authenticated-post",
@@ -1107,7 +1107,7 @@
         verifiedAt: new Date().toISOString(),
         releaseStamp: RELEASE_STAMP,
         transportMode: TRANSPORT_MODE,
-        message: "GitHub mode ใช้ authenticated POST เป็นเส้นทางหลัก ไม่ต้องใช้ READY/ping bridge"
+        message: "GitHub mode ใช้ verified GAS bridge เป็นเส้นทางหลัก และใช้ authenticated POST เป็น fallback"
       });
     }
     return ensureBridge();
@@ -1299,7 +1299,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::post-only-healthcheck-r136";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::bridge-primary-post-fallback-r137";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = false;
   root.AppTransport.__authenticatedJsonpDisabled = true;
@@ -1329,7 +1329,7 @@
       innerBridgeSourceCaptured: !!bridgeClientWindow,
       bridgeVerified: bridgeVerified || config("persistentGasIframeBridgeDisabled", false) === true,
       bridgeDisabled: config("persistentGasIframeBridgeDisabled", false) === true,
-      postOnlyMode: config("persistentGasIframeBridgeDisabled", false) === true,
+      bridgePrimaryMode: config("persistentGasIframeBridgeDisabled", false) === true,
       bridgeLastVerifiedAt: bridgeLastVerifiedAt ? new Date(bridgeLastVerifiedAt).toISOString() : "",
       bridgeReady: bridgeReady || config("persistentGasIframeBridgeDisabled", false) === true,
       bridgeOrigin: bridgeClientOrigin || (config("persistentGasIframeBridgeDisabled", false) === true ? "authenticated-post" : ""),
@@ -1358,7 +1358,7 @@
       ready: bridgeReady || config("persistentGasIframeBridgeDisabled", false) === true,
       verified: bridgeVerified || config("persistentGasIframeBridgeDisabled", false) === true,
       bridgeDisabled: config("persistentGasIframeBridgeDisabled", false) === true,
-      postOnlyMode: config("persistentGasIframeBridgeDisabled", false) === true,
+      bridgePrimaryMode: config("persistentGasIframeBridgeDisabled", false) === true,
       innerSourceWindowCaptured: !!bridgeClientWindow,
       sourceOrigin: bridgeClientOrigin || (config("persistentGasIframeBridgeDisabled", false) === true ? "authenticated-post" : ""),
       generation: bridgeGeneration,
