@@ -1,12 +1,12 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r132";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r132";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r133";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r133";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
-    "AKfycbwZSQQer_ZLo_8txz_T-9fBe162L3fR6g5nANqef0zldgVuf_QSt-tbbRAe9Lrz3MjC",
+    "AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c",
     "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
@@ -114,9 +114,9 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-authenticated-post-fallback-r132",
+    transportMode: "github-pages-phase-c-hedged-login-authenticated-bridge-r133",
     deploymentBindingVerified: true,
-    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r132",
+    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r133",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -170,8 +170,8 @@
     pageActivationTimeoutMs: 18000,
     partialScriptFailFastEnabled: true,
     bridgeLoadGraceMs: 8000,
-    bridgeReadyTimeoutMs: 3200,
-    bridgeVerifyTimeoutMs: 1800,
+    bridgeReadyTimeoutMs: 5200,
+    bridgeVerifyTimeoutMs: 2500,
     bridgeRequestTimeoutMs: 12000,
     bridgeRetryCount: 0,
     transportRecoveryProbeDelayMs: 900,
@@ -188,11 +188,15 @@
     publicConfigTimeoutMs: 4000,
     loginFormPost: false,
     loginBridgeFirst: false,
-    loginBridgeTimeoutMs: 9000,
-    loginPostTimeoutMs: 10000,
+    loginBridgeTimeoutMs: 12000,
+    loginPostTimeoutMs: 22000,
     loginPostFallbackEnabled: true,
-    loginBridgeFallbackAfterPostTimeout: false,
+    loginBridgeFallbackAfterPostTimeout: true,
     loginTimeoutFallbackChainGuard: true,
+    loginHedgedBridgeEnabled: true,
+    loginBridgeHedgeDelayMs: 2500,
+    loginHardDeadlineMs: 24000,
+    loginDirectRouterBypassEnabled: true,
     loginCallbackCrossReleaseCompatible: true,
     dataApiPostBridgeEnabled: true,
     authenticatedDataPostFirst: true,
@@ -224,11 +228,11 @@
     clientReadRetryCount: 0,
     clientReadRetryDelayMs: 150,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r132",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r132",
-    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r132",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r133",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r133",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r133",
     safeHtmlRendererNonRecursive: true,
-    dashboardRecoveryCacheScope: "session-token-hash-r132",
+    dashboardRecoveryCacheScope: "session-token-hash-r133",
     dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
@@ -249,7 +253,7 @@
     buttonRequestTimeoutMs: 12000,
     authenticatedTransportPreferenceTtlMs: 900000,
     dataApiPostTimeoutMs: 18000,
-    authenticatedTransportFallbackOwner: "github-pages/github-gas-transport.js::postmessage-post-fallback-r132",
+    authenticatedTransportFallbackOwner: "github-pages/github-gas-transport.js::hedged-login-post-bridge-fallback-r133",
     staticGasDirectDisabled: false,
     releaseStamp: RELEASE_STAMP,
     assetStamp: ASSET_STAMP,

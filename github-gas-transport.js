@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r132";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r132";
-  var TRANSPORT_MODE = "github-pages-phase-c-authenticated-post-fallback-r132";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r133";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r133";
+  var TRANSPORT_MODE = "github-pages-phase-c-authenticated-post-fallback-r133";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";
 
   var includeCache = Object.create(null);
@@ -39,7 +39,7 @@
   var lastTransportErrorSequence = 0;
   var lastTransportSuccessAt = 0;
   var lastTransportErrorAt = 0;
-  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R132";
+  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R133";
   var preferredAuthenticatedTransport = "";
   var preferredAuthenticatedTransportUntil = 0;
 
@@ -590,7 +590,7 @@
     return new Promise(function(resolve, reject) {
       var id = requestId("apiLoginPost");
       var loginNonce = newBridgeNonce();
-      var timeoutMs = Math.max(8000, Math.min(Number(options && (options.loginTimeoutMs || options.timeoutMs || options.clientTimeoutMs) || config("loginPostTimeoutMs", 14000)) || 14000, 30000));
+      var timeoutMs = Math.max(8000, Math.min(Number(options && (options.loginTimeoutMs || options.timeoutMs || options.clientTimeoutMs) || config("loginPostTimeoutMs", 22000)) || 22000, 30000));
       var iframe = null;
       var form = null;
       function cleanup() {
@@ -737,7 +737,7 @@
     payload = isObject(payload) ? Object.assign({}, payload) : {};
     options = options || {};
     var bridgeOptions = Object.assign({}, options, {
-      timeoutMs: Math.max(15000, Math.min(Number(options.loginBridgeTimeoutMs || options.timeoutMs || config("loginBridgeTimeoutMs", 30000)) || 30000, 60000))
+      timeoutMs: Math.max(6000, Math.min(Number(options.loginBridgeTimeoutMs || config("loginBridgeTimeoutMs", 12000)) || 12000, 24000))
     });
     var postFirst = config("loginBridgeFirst", false) !== true || currentAuthenticatedTransportPreference() === "post";
 
@@ -760,7 +760,101 @@
       return result;
     }
 
+    function loginResultLooksLikeTransportFailure(result) {
+      if (!isObject(result) || result.ok !== false) return false;
+      var code = text(result.errorCode || result.code || "");
+      var msg = text(result.error || result.msg || result.message || "");
+      if (/username|password|บัญชี|กรุณากรอก|รหัสผ่าน|ผู้ใช้|ถูกระงับ/i.test(msg)) return false;
+      return /GITHUB_|BRIDGE|TRANSPORT|TIMEOUT|timeout|apiRouter|ไม่พร้อมใช้งาน|EXECUTION_FAILED|POST_FAILED|CALL_FAILED/i.test(code + " " + msg);
+    }
+
+    function runHedgedLogin() {
+      return new Promise(function(resolve, reject) {
+        var settled = false;
+        var started = 0;
+        var completed = 0;
+        var errors = [];
+        var firstTransportFailure = null;
+        var bridgeTimer = 0;
+        var hardTimer = 0;
+        var bridgeStarted = false;
+        function stopTimers() {
+          if (bridgeTimer) { root.clearTimeout(bridgeTimer); bridgeTimer = 0; }
+          if (hardTimer) { root.clearTimeout(hardTimer); hardTimer = 0; }
+        }
+        function settleResolve(result, mode, fallbackError) {
+          if (settled) return;
+          settled = true;
+          stopTimers();
+          resolve(decorate(result, mode, fallbackError || firstTransportFailure));
+        }
+        function settleReject(error) {
+          if (settled) return;
+          settled = true;
+          stopTimers();
+          reject(error || firstTransportFailure || makeError("เข้าสู่ระบบไม่สำเร็จ", "GITHUB_LOGIN_HEDGED_FAILED", "apiLogin"));
+        }
+        function rememberFailure(error) {
+          if (!firstTransportFailure) firstTransportFailure = error;
+          errors.push(error);
+        }
+        function maybeRejectWhenAllFailed() {
+          if (!settled && started > 0 && completed >= started && (bridgeStarted || config("loginBridgeFallbackEnabled", true) !== true)) {
+            settleReject(firstTransportFailure || errors[0] || makeError("เข้าสู่ระบบไม่สำเร็จ", "GITHUB_LOGIN_ALL_TRANSPORTS_FAILED", "apiLogin"));
+          }
+        }
+        function startBridge(fallbackError) {
+          if (settled || bridgeStarted || config("loginBridgeFallbackEnabled", true) !== true) return;
+          bridgeStarted = true;
+          started += 1;
+          runBridge(method, payload, bridgeOptions).then(function(result) {
+            completed += 1;
+            if (settled) return;
+            if (loginResultLooksLikeTransportFailure(result)) {
+              rememberFailure(makeError(text(result.error || result.msg || "GAS login bridge failed"), text(result.errorCode || "GITHUB_LOGIN_BRIDGE_RESULT_FAILED"), "apiLogin"));
+              maybeRejectWhenAllFailed();
+              return;
+            }
+            settleResolve(result, "bridge", fallbackError || firstTransportFailure);
+          }).catch(function(bridgeError) {
+            completed += 1;
+            rememberFailure(bridgeError);
+            maybeRejectWhenAllFailed();
+          });
+        }
+        started += 1;
+        runLoginPost(method, payload, options).then(function(result) {
+          completed += 1;
+          if (settled) return;
+          if (loginResultLooksLikeTransportFailure(result)) {
+            var resultError = makeError(text(result.error || result.msg || "GAS login POST failed"), text(result.errorCode || "GITHUB_LOGIN_POST_RESULT_FAILED"), "apiLogin");
+            rememberFailure(resultError);
+            startBridge(resultError);
+            maybeRejectWhenAllFailed();
+            return;
+          }
+          settleResolve(result, "post", null);
+        }).catch(function(postError) {
+          completed += 1;
+          rememberFailure(postError);
+          startBridge(postError);
+          maybeRejectWhenAllFailed();
+        });
+        var hedgeDelay = Math.max(800, Math.min(Number(config("loginBridgeHedgeDelayMs", 2500)) || 2500, 8000));
+        bridgeTimer = root.setTimeout(function() {
+          if (!settled) startBridge(firstTransportFailure || null);
+        }, hedgeDelay);
+        var hardDeadline = Math.max(12000, Math.min(Number(config("loginHardDeadlineMs", 24000)) || 24000, 45000));
+        hardTimer = root.setTimeout(function() {
+          settleReject(makeError("GAS Login timeout: login POST/bridge ไม่ตอบกลับภายในเวลาที่กำหนด", "GITHUB_LOGIN_HEDGED_TIMEOUT", "apiLogin"));
+        }, hardDeadline);
+      });
+    }
+
     if (postFirst) {
+      if (config("loginHedgedBridgeEnabled", true) === true) {
+        return runHedgedLogin();
+      }
       return runLoginPost(method, payload, options).then(function(result) {
         return decorate(result, "post", null);
       }).catch(function(postError) {
@@ -1123,7 +1217,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::authenticated-post-fallback-r132";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::authenticated-post-fallback-r133";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = false;
   root.AppTransport.__authenticatedJsonpDisabled = true;
