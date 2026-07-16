@@ -3,9 +3,9 @@
   if (!root || !doc) return;
 
   var FALLBACK_LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r130";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r130";
-  var TRANSPORT_MODE = "github-pages-phase-c-authenticated-post-fallback-r130";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-16-r132";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r132";
+  var TRANSPORT_MODE = "github-pages-phase-c-authenticated-post-fallback-r132";
   var DEFAULT_GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c/exec";
 
   var includeCache = Object.create(null);
@@ -39,7 +39,7 @@
   var lastTransportErrorSequence = 0;
   var lastTransportSuccessAt = 0;
   var lastTransportErrorAt = 0;
-  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R130";
+  var AUTH_TRANSPORT_STORAGE_KEY = "APP_GAS_AUTH_TRANSPORT_R132";
   var preferredAuthenticatedTransport = "";
   var preferredAuthenticatedTransportUntil = 0;
 
@@ -395,7 +395,7 @@
       bridgeVerifyRequestId = "";
       if (pending && typeof pending.reject === "function") pending.reject(makeError("GAS bridge verification timeout", "GAS_BRIDGE_VERIFY_TIMEOUT", "apiGithubBridgePing"));
       rejectBridgeReady(makeError("GAS bridge READY แต่ ping ไม่ตอบกลับ", "GAS_BRIDGE_VERIFY_TIMEOUT"));
-    }, Math.max(4000, Math.min(Number(config("bridgeVerifyTimeoutMs", 10000)) || 10000, 15000)));
+    }, Math.max(1200, Math.min(Number(config("bridgeVerifyTimeoutMs", 10000)) || 10000, 15000)));
     bridgePending[id] = {
       method: "apiGithubBridgePing",
       timer: timer,
@@ -441,7 +441,7 @@
     bridgeInFlight = new Promise(function(resolve, reject) {
       bridgeReadyResolve = resolve;
       bridgeReadyReject = reject;
-      var readyTimeoutMs = Math.max(8000, Math.min(Number(config("bridgeReadyTimeoutMs", 22000)) || 22000, 45000));
+      var readyTimeoutMs = Math.max(2500, Math.min(Number(config("bridgeReadyTimeoutMs", 22000)) || 22000, 45000));
       bridgeReadyTimer = root.setTimeout(function() {
         rejectBridgeReady(makeError("GAS bridge ไม่ผ่าน READY + ping handshake", "GAS_BRIDGE_VERIFIED_READY_TIMEOUT"));
       }, readyTimeoutMs);
@@ -590,7 +590,7 @@
     return new Promise(function(resolve, reject) {
       var id = requestId("apiLoginPost");
       var loginNonce = newBridgeNonce();
-      var timeoutMs = Math.max(12000, Math.min(Number(options && (options.loginTimeoutMs || options.timeoutMs || options.clientTimeoutMs) || config("loginPostTimeoutMs", 45000)) || 45000, 65000));
+      var timeoutMs = Math.max(8000, Math.min(Number(options && (options.loginTimeoutMs || options.timeoutMs || options.clientTimeoutMs) || config("loginPostTimeoutMs", 14000)) || 14000, 30000));
       var iframe = null;
       var form = null;
       function cleanup() {
@@ -650,7 +650,7 @@
     return new Promise(function(resolve, reject) {
       var id = requestId(method + "Post");
       var apiNonce = newBridgeNonce();
-      var timeoutMs = Math.max(12000, Math.min(Number(options.timeoutMs || options.clientTimeoutMs || config("dataApiPostTimeoutMs", config("apiTimeoutMs", 60000))) || 60000, 90000));
+      var timeoutMs = Math.max(8000, Math.min(Number(options.timeoutMs || options.clientTimeoutMs || config("dataApiPostTimeoutMs", config("apiTimeoutMs", 25000))) || 25000, 45000));
       var iframe = null;
       var form = null;
       function cleanup() {
@@ -706,6 +706,32 @@
     });
   }
 
+
+  function warmVerifiedBridgePreference(reason) {
+    if (config("warmVerifiedBridgeAfterLogin", true) !== true) return false;
+    if (bridgeInFlight || (bridgeReady && bridgeVerified)) return false;
+    try {
+      root.setTimeout(function() {
+        ensureBridge().then(function() {
+          if (bridgeReady && bridgeVerified && config("authenticatedUseReadyBridgeFirst", true) === true) {
+            setAuthenticatedTransportPreference("bridge", reason || "background-verified-bridge-ready", Math.max(60000, Number(config("authenticatedTransportPreferenceTtlMs", 900000)) || 900000));
+          }
+        }).catch(function(error) {
+          recordMetric({ kind: "bridge-warmup-failed", error: true, message: text(error && error.message || error), code: text(error && (error.code || error.errorCode) || "") });
+        });
+      }, Math.max(250, Math.min(Number(config("transportRecoveryProbeDelayMs", 900)) || 900, 3000)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function isTimeoutTransportError(error) {
+    var code = text(error && (error.code || error.errorCode) || "");
+    var msg = text(error && (error.message || error) || "");
+    return /TIMEOUT|timeout/i.test(code + " " + msg);
+  }
+
   function runLogin(method, payload, options) {
     method = text(method).trim();
     payload = isObject(payload) ? Object.assign({}, payload) : {};
@@ -727,7 +753,10 @@
           fallbackErrorMessage: text(fallbackError && fallbackError.message || fallbackError || "")
         });
       }
-      if (!isObject(result) || result.ok !== false) setAuthenticatedTransportPreference(mode, "login-success-" + mode);
+      if (!isObject(result) || result.ok !== false) {
+        setAuthenticatedTransportPreference(mode, "login-success-" + mode);
+        warmVerifiedBridgePreference("login-success-background-warmup");
+      }
       return result;
     }
 
@@ -735,6 +764,9 @@
       return runLoginPost(method, payload, options).then(function(result) {
         return decorate(result, "post", null);
       }).catch(function(postError) {
+        if (isTimeoutTransportError(postError) && config("loginBridgeFallbackAfterPostTimeout", false) !== true) {
+          throw postError;
+        }
         return runBridge(method, payload, bridgeOptions).then(function(result) {
           return decorate(result, "bridge", postError);
         });
@@ -755,7 +787,7 @@
     return ensureBridge().then(function() {
       return new Promise(function(resolve, reject) {
         var id = requestId(method);
-        var timeoutMs = Math.max(10000, Math.min(Number(options && (options.timeoutMs || options.clientTimeoutMs) || config("bridgeRequestTimeoutMs", config("apiTimeoutMs", 45000))) || 45000, 90000));
+        var timeoutMs = Math.max(6000, Math.min(Number(options && (options.timeoutMs || options.clientTimeoutMs) || config("bridgeRequestTimeoutMs", config("apiTimeoutMs", 16000))) || 16000, 30000));
         var timer = root.setTimeout(function() {
           delete bridgePending[id];
           reject(makeError("GAS verified bridge timeout: " + method, "GAS_VERIFIED_BRIDGE_TIMEOUT", method));
@@ -794,7 +826,8 @@
     options = options || {};
     var postEnabled = config("authenticatedPostFallbackEnabled", true) === true && config("dataApiPostBridgeEnabled", true) === true;
     var preference = currentAuthenticatedTransportPreference();
-    var postFirst = postEnabled && (preference === "post" || config("authenticatedDataPostFirst", false) === true);
+    var readyBridgePreferred = bridgeReady && bridgeVerified && config("authenticatedUseReadyBridgeFirst", true) === true;
+    var postFirst = !readyBridgePreferred && postEnabled && (preference === "post" || config("authenticatedDataPostFirst", false) === true);
 
     function usePost(fallbackError) {
       return runApiPost(method, payload, options).then(function(result) {
@@ -824,6 +857,9 @@
 
     if (postFirst) {
       return usePost(null).catch(function(postError) {
+        if (isTimeoutTransportError(postError) && config("authenticatedBridgeFallbackAfterPostTimeout", false) !== true) {
+          throw postError;
+        }
         return useBridge(postError);
       });
     }
@@ -1087,7 +1123,7 @@
   }
 
   root.AppTransport = root.AppTransport || {};
-  root.AppTransport.__owner = "github-pages/github-gas-transport.js::authenticated-post-fallback-r130";
+  root.AppTransport.__owner = "github-pages/github-gas-transport.js::authenticated-post-fallback-r132";
   root.AppTransport.__githubPagesGasDirect = true;
   root.AppTransport.__authenticatedReadBridgeOnly = false;
   root.AppTransport.__authenticatedJsonpDisabled = true;

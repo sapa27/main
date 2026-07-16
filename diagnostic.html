@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow,noarchive">
-<title>R130 GitHub Pages → GAS Verified Bridge Diagnostic</title>
+<title>R132 GitHub Pages → GAS Verified Bridge Diagnostic</title>
 <style>
 :root{color-scheme:light}body{font-family:Sarabun,Arial,sans-serif;margin:24px;background:#f1f5f9;color:#0f172a;line-height:1.55}.card{max-width:1040px;margin:auto;background:#fff;border:1px solid #dbe3ea;border-radius:18px;padding:22px;box-shadow:0 12px 32px rgba(15,23,42,.09)}.grid{display:grid;grid-template-columns:210px 1fr;gap:9px 14px;margin:18px 0}.label{font-weight:700}code,pre{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}code{padding:3px 7px;overflow-wrap:anywhere}pre{padding:14px;white-space:pre-wrap;min-height:320px;overflow:auto}button{padding:10px 16px;border:0;border-radius:11px;background:#0f3b68;color:#fff;cursor:pointer;font:600 15px Sarabun,Arial,sans-serif}button:disabled{opacity:.55;cursor:wait}.muted{color:#64748b}.pass{color:#166534}.fail{color:#b91c1c}@media(max-width:640px){body{margin:10px}.grid{grid-template-columns:1fr}.card{padding:16px}}
 </style>
 </head>
 <body>
 <div class="card">
-<h1>ตรวจสอบ R130: Verified Session Bridge</h1>
+<h1>ตรวจสอบ R132: Verified Session Bridge</h1>
 <p>ตรวจสอบลำดับ <code>READY → nonce validation → ping verification → google.script.run</code> และตรวจว่า authenticated API ไม่ใช้ JSONP หรือ POST iframe ต่อคำขอ</p>
 <div class="grid">
 <div class="label">GAS Web App</div><code id="gasUrl">-</code>
@@ -27,8 +27,8 @@
 <pre id="out">รอกดปุ่มตรวจสอบ...</pre>
 <p class="muted">หน้านี้ไม่แสดงชื่อผู้ใช้ รหัสผ่าน token, CSRF หรือ bridge nonce</p>
 </div>
-<script src="./app-config.js?v=r130"></script>
-<script src="./github-gas-transport.js?v=r130"></script>
+<script src="./app-config.js?v=r132"></script>
+<script src="./github-gas-transport.js?v=r132"></script>
 <script>
 (function(root,doc){
   "use strict";
@@ -55,7 +55,7 @@
       var c=config();
       var checks={
         gasUrl:/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/i.test(text(c.gasWebAppUrl)),
-        transport:c.transportMode==="github-pages-phase-c-verified-session-bridge-r130",
+        transport:c.transportMode==="github-pages-phase-c-verified-session-bridge-r132",
         nonceRequired:c.bridgeNonceRequired===true,
         pingRequired:c.bridgePingVerificationRequired===true,
         requireReady:c.requireBridgeReadyMessage===true,
@@ -63,8 +63,8 @@
         noPerRequestApiPost:c.perRequestApiPostDisabled===true,
         noAuthenticatedJsonp:c.authenticatedReadBridgeOnly===true&&c.dataApiJsonpReadEnabled===false,
         mirrorRoot:c.generatedMirrorRoot==="partials",
-        safeHtmlOwner:c.safeHtmlRendererNonRecursive===true&&c.safeHtmlRendererOwner==="CriticalLogin.canonical-safe-html-r130",
-        dashboardCacheScoped:c.dashboardRecoveryCacheScope==="session-token-hash-r130"&&c.dashboardRecoveryCacheLegacyPurge===true
+        safeHtmlOwner:c.safeHtmlRendererNonRecursive===true&&c.safeHtmlRendererOwner==="CriticalLogin.canonical-safe-html-r132",
+        dashboardCacheScoped:c.dashboardRecoveryCacheScope==="session-token-hash-r132"&&c.dashboardRecoveryCacheLegacyPurge===true
       };
       line("Configuration contract",checks,Object.keys(checks).every(function(k){return checks[k]===true}));
       if(!root.AppTransport||typeof root.AppTransport.ensureBridgeClient!=="function")throw new Error("APP_TRANSPORT_NOT_READY");

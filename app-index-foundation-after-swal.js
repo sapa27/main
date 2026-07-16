@@ -20,7 +20,7 @@ window.DEFAULT_LOGO=window.DEFAULT_LOGO||(window.APP_LOGO&&(window.APP_LOGO.acti
 (function(root){function logoSrc(){var logo=root.APP_LOGO||{};return String(root.currentLogoUrl||root.LOGO_URL||root.__SAFE_LOGO_URL__||logo.active||logo.png96||logo.svg||"")}var __parliamentLogo=logoSrc();function schedule(){try{root.patchParliamentLogo()}catch(_e){__appObserve(_e,"ec")}}function logoDelay(ms){return root.AppProductionFinal&&typeof root.AppProductionFinal.delay=="function"?root.AppProductionFinal.delay("logo.patch.retry",schedule,ms):root.setTimeout(schedule,ms)}root.AppBoot.setFlag("__APP_PARLIAMENT_LOGO__",__parliamentLogo,{owner:"Index.logo"}),root.patchParliamentLogo=root.patchParliamentLogo||function(){var src=logoSrc();if(!src)return!1;var nodes=document.querySelectorAll('[data-logo="parliament"],#login-logo-img,#side-logo-img,#mobile-topbar-logo,.print-logo-img');return Array.prototype.forEach.call(nodes,function(img){img&&img.setAttribute&&(img.getAttribute("src")!==src&&img.setAttribute("src",src),img.onerror=function(){this&&this.getAttribute("src")!==src&&this.setAttribute("src",src)})}),!0},document.readyState==="loading"?document.addEventListener("DOMContentLoaded",schedule,{once:!0}):schedule(),[250,1e3].forEach(function(ms){logoDelay(ms)})})(window);;
 window.__APP_BOOTSTRAP__=(function(root) {
   var cfg = root.APP_CONFIG || {};
-  var release = String(cfg.releaseStamp || "commission-v1.2-github-pages-gas-direct-2026-07-16-r130");
+  var release = String(cfg.releaseStamp || "commission-v1.2-github-pages-gas-direct-2026-07-16-r132");
   var assetManifest = cfg.assetManifest || {};
   return {
     ok: true,
@@ -44,7 +44,7 @@ window.__APP_BOOTSTRAP__=(function(root) {
     logoUrl: String(cfg.logoUrl || cfg.fallbackLogoUrl || ""),
     defaultRoute: "/dashboard",
     appStamp: "github-pages-static-" + release,
-    assetStamp: String(assetManifest.stamp || cfg.assetStamp || "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r130"),
+    assetStamp: String(assetManifest.stamp || cfg.assetStamp || "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-16-r132"),
     baseUrl: "",
     uiMode: "vue3",
     enabledVuePages: ["/login", "/dashboard", "/meeting", "/search", "/track", "/report", "/people", "/petitioner", "/budget", "/admin"],
