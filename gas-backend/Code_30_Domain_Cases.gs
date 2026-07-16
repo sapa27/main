@@ -1294,6 +1294,8 @@ function _caseDomainMainDataProjectedRows_(includeDeleted) {
       "caseNum",
       "caseNo",
       "runningNo",
+      "ลำดับเรื่อง",
+      "เลขลำดับเรื่อง",
       "remark",
       "caseTitle",
       "closedReason",
@@ -1696,13 +1698,7 @@ function _caseCanonicalDto_(row) {
 function _casePlainIdentityKey_(value) {
   return _c30S_(value).replace(/^'+/, "").trim();
 }
-function _caseTitlePetitionerIdentityKey_(title, petitioner) {
-  return (
-    (title = _normalizedText_(title || "")),
-    (petitioner = _normalizedText_(petitioner || "")),
-    title ? title + "|" + petitioner : ""
-  );
-}
+/* r139: title/petitioner is display-only, never a relational key. */
 function _caseBuildSaveLookupIndex_() {
   var cacheKey =
       "case.saveLookupIndex.current." +
@@ -1730,8 +1726,6 @@ function _caseBuildSaveLookupIndex_() {
   var idx = {
     byId: {},
     byCaseNum: {},
-    byRecNo: {},
-    byTitlePetitioner: {},
     rowsRead: (rows = _c30A_(rows) ? rows : []).length,
     generatedAt: new Date().toISOString(),
     source: "case-keyed-index-current",
@@ -1755,21 +1749,6 @@ function _caseBuildSaveLookupIndex_() {
             row.caseNum || row.caseNo || row.runningNo || row.ลำดับเรื่อง || "",
           ),
           row,
-        ),
-        caseIndexPut_(
-          idx.byRecNo,
-          _caseManualReceiveNoText_(
-            row.recNo || row.receiveNo || row.เลขรับเรื่อง || "",
-          ),
-          row,
-        ),
-        caseIndexPut_(
-          idx.byTitlePetitioner,
-          _caseTitlePetitionerIdentityKey_(
-            row.title || row.caseTitle || "",
-            row.petitioners || row.petitionerName || "",
-          ),
-          row,
         ));
     }),
     _appIsFnName_("_requestScopePut_") &&
@@ -1786,17 +1765,7 @@ function _caseFindExistingFromIndex_(input) {
     input.caseNum || input.caseNo || input.runningNo || input.ลำดับเรื่อง || "",
   );
   if (caseNum && idx.byCaseNum[caseNum]) return idx.byCaseNum[caseNum];
-  var recNo = _caseManualReceiveNoText_(
-    input.recNo || input.receiveNo || input.เลขรับเรื่อง || "",
-  );
-  if (recNo && idx.byRecNo[recNo]) return idx.byRecNo[recNo];
-  var titleKey = _caseTitlePetitionerIdentityKey_(
-    input.title || input.caseTitle || "",
-    input.petitioner || input.petitioners || "",
-  );
-  return titleKey && idx.byTitlePetitioner[titleKey]
-    ? idx.byTitlePetitioner[titleKey]
-    : null;
+  return null;
 }
 function _findExistingCaseRecord_(input) {
   input = input || {};
@@ -1827,13 +1796,6 @@ function _findExistingCaseRecord_(input) {
         input.ลำดับเรื่อง ||
         "",
     ),
-    targetRecNo = _caseManualReceiveNoText_(
-      input.recNo || input.receiveNo || input.เลขรับเรื่อง || "",
-    ),
-    targetTitle = _normalizedText_(input.title || input.caseTitle || ""),
-    targetPetitioner = _normalizedText_(
-      input.petitioner || input.petitioners || "",
-    ),
     matches = (_c30A_(rows) ? rows : []).filter(function (row) {
       if (
         ((row = row || {}),
@@ -1846,21 +1808,9 @@ function _findExistingCaseRecord_(input) {
                 row.ลำดับเรื่อง ||
                 "",
             ) === targetCaseNum) ||
-          (targetRecNo &&
-            _caseManualReceiveNoText_(
-              row.recNo || row.receiveNo || row.เลขรับเรื่อง || "",
-            ) === targetRecNo))
+          false)
       )
         return !0;
-      if (
-        targetTitle &&
-        _normalizedText_(row.title || row.caseTitle || "") === targetTitle
-      ) {
-        var rowPetitioner = _normalizedText_(
-          row.petitioners || row.petitionerName || "",
-        );
-        return !targetPetitioner || rowPetitioner === targetPetitioner;
-      }
       return !1;
     });
   return matches.length
@@ -2379,6 +2329,10 @@ function _normalizeLetterRow_(row) {
   return sanitizeRow_({
     letterId: _s_(row.letterId),
     caseId: _s_(row.caseId).trim(),
+    caseNum: _caseSequenceFrom_(row),
+    caseNo: _caseSequenceFrom_(row),
+    runningNo: _caseSequenceFrom_(row),
+    ลำดับเรื่อง: _caseSequenceFrom_(row),
     letterNo: _normalizeLetterNumberDisplay_(rawLetterNo),
     letterNoRaw: _c30S_(rawLetterNo),
     letterNoSchemaIssue:
@@ -2521,26 +2475,16 @@ function _normalizeIdentityTextSafe_(value) {
 }
 function _safeCaseIdentityKey_(row) {
   row = row || {};
-  var primary = _s_(row.caseId).trim();
-  return (
-    primary ||
-    [
-      _s_(row.caseNum).trim(),
-      _s_(row.recNo).trim(),
-      _normalizeIdentityTextSafe_(row.title || row.caseTitle || ""),
-      _normalizeIdentityTextSafe_(row.petitioners || row.petitionerName || ""),
-    ].join("|")
-  );
+  var seq = _caseSequenceFrom_(row);
+  var primary = _s_(row.caseId || row.id).trim();
+  return seq ? "seq:" + seq : primary ? "id:" + primary : "missing-sequence:" + _rowFreshnessScore_(row);
 }
 function _safeMeetingLogIdentityKey_(row) {
   row = row || {};
-  var caseId = _s_(row.caseId).trim(),
-    caseNum = _s_(row.caseNum || row.caseNo).trim(),
-    recNo = _s_(row.recNo || row.receiveNo).trim(),
-    title = _normalizeIdentityTextSafe_(
-      row.title || row.caseTitle || row.considerationTitle || row.subject || "",
-    ),
-    caseKey = caseId || [caseNum, recNo, title].join("|"),
+  var caseNum = _caseSequenceFrom_(row),
+    caseId = _s_(row.caseId || row.caseID || row.case_id).trim(),
+    caseKey = caseNum ? "seq:" + caseNum : caseId ? "id:" + caseId : "missing-sequence",
+    logId = _s_(row.logId || row.meetingLogId || row.id).trim(),
     round = _s_(
       row.round ||
         row.meetingRound ||
@@ -2574,7 +2518,7 @@ function _safeMeetingLogIdentityKey_(row) {
               "",
           )
         : "";
-  return [caseKey, round, date, meetingType, subcommitteeName].join("|");
+  return [caseKey, logId, round, date, meetingType, subcommitteeName].join("|");
 }
 function _safeLetterIdentityKey_(row) {
   return (
@@ -2659,7 +2603,7 @@ function _safeResolveCaseIdentityAliases_(payload) {
       case: strictRow,
       rows: strictRow ? [strictRow] : [],
       caseNum: strictCaseNum,
-      identityOwner: "case-sequence-strict-current-r138",
+      identityOwner: "case-sequence-strict-current-r139",
     };
   }
   var seedId = String((payload && (payload.caseId || payload.id)) || "").trim(),
@@ -2693,8 +2637,8 @@ function _safeResolveCaseIdentityAliases_(payload) {
     rows: seedCase ? [seedCase] : [],
     caseNum: seedCase ? _caseSequenceFrom_(seedCase) : "",
     identityOwner: seedCase
-      ? "case-id-strict-current-r138"
-      : "case-identity-empty-no-title-petitioner-fallback-r138",
+      ? "case-id-strict-current-r139"
+      : "case-identity-empty-no-title-petitioner-fallback-r139",
   };
 }
 function _assertCaseExistsSafe_(payloadOrCaseId, sourceName) {
@@ -2854,6 +2798,9 @@ function _trackingProjectedFields_() {
     cases: [
       "caseId",
       "caseNum",
+      "caseNo",
+      "runningNo",
+      "ลำดับเรื่อง",
       "recNo",
       "title",
       "caseTitle",
@@ -2953,6 +2900,8 @@ function _meetingHistoryProjectedRows_() {
           "meetingGroup",
           "caseNum",
           "caseNo",
+          "runningNo",
+          "ลำดับเรื่อง",
           "recNo",
           "receiveNo",
           "updatedAt",
@@ -3026,6 +2975,8 @@ function _meetingHistoryProjectedRows_() {
             "caseId",
             "caseNum",
             "caseNo",
+            "runningNo",
+            "ลำดับเรื่อง",
             "recNo",
             "receiveNo",
             "caseTitle",
@@ -3060,7 +3011,12 @@ function _meetingHistoryProjectedRows_() {
         }
         var meeting = byId[_s_(item.meetingId).trim()] || {},
           caseId = _s_(item.caseId).trim(),
-          caseNum = _s_(item.caseNum || item.caseNo).trim(),
+          caseNum = _caseSequenceFrom_({
+            caseNum: item.caseNum,
+            caseNo: item.caseNo,
+            runningNo: item.runningNo,
+            ลำดับเรื่อง: item.ลำดับเรื่อง,
+          }),
           recNo = _s_(item.recNo || item.receiveNo).trim(),
           title = _s_(
             item.caseTitle ||
@@ -3070,7 +3026,7 @@ function _meetingHistoryProjectedRows_() {
               item.เรื่อง ||
               item.เรื่องพิจารณา,
           ).trim();
-        if (caseId || caseNum) {
+        if (caseNum) {
           var sub = _s_(
               item.subcommitteeName ||
                 item.subcommittee ||
@@ -4290,8 +4246,7 @@ function _Domain_getLetters(caseId) {
       var rowCaseNum = _caseSequenceFrom_(row),
         rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
       if (targetCaseNum) {
-        if (rowCaseNum) return rowCaseNum === targetCaseNum;
-        return !!canonicalCaseId && rowCaseId === canonicalCaseId;
+        return !!rowCaseNum && rowCaseNum === targetCaseNum;
       }
       return !!letterId && rowCaseId && idMap[rowCaseId];
     }
@@ -4379,8 +4334,7 @@ function _Domain_getMeetingHistory(payload) {
       if (!row || isSoftDeletedRow_(row)) return !1;
       var rowCaseNum = _caseSequenceFrom_(row),
         rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
-      if (rowCaseNum) return rowCaseNum === caseNum;
-      return !!canonicalCaseId && rowCaseId === canonicalCaseId;
+      return !!rowCaseNum && rowCaseNum === caseNum;
     });
     return _safeDedupeLatestRowsBy_(rows, _safeMeetingLogIdentityKey_)
       .map(function (row) {
@@ -4732,47 +4686,16 @@ function saveMeetingLog(p) {
             );
           },
           sameBusiness2 = function (row3) {
+            var rowCaseNumForMatch = cell2(row3, ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"]),
+              sameCaseNum = caseNum && rowCaseNumForMatch === caseNum;
             if (
               cBusiness >= 0 &&
+              sameCaseNum &&
               text(row3[cBusiness]) &&
               text(row3[cBusiness]) === businessKey
             )
               return !0;
-            var rowCaseId = cell2(
-                row3,
-                aliases("meetingLogs", "caseId", ["caseId"]),
-              ),
-              rowCaseNumForMatch = cell2(row3, ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"]),
-              sameCaseId = rowCaseId && rowCaseId === caseId,
-              sameCaseNum = caseNum && rowCaseNumForMatch === caseNum,
-              sameRecNo =
-                recNo &&
-                cell2(
-                  row3,
-                  aliases("meetingLogs", "recNo", [
-                    "recNo",
-                    "receiveNo",
-                    "receiptNo",
-                    "เลขรับเรื่อง",
-                    "เลขรับ",
-                  ]),
-                ) === recNo,
-              sameTitle =
-                title &&
-                cell2(
-                  row3,
-                  aliases("meetingLogs", "title", [
-                    "title",
-                    "caseTitle",
-                    "subject",
-                    "เรื่อง",
-                    "ชื่อเรื่อง",
-                  ]),
-                ) === title,
-              identityScore = sameCaseNum ? 1 : 0,
-              sameCase = rowCaseNumForMatch
-                ? sameCaseNum
-                : sameCaseId,
+            var sameCase = sameCaseNum,
               sameRound =
                 !round ||
                 cell2(
@@ -7244,14 +7167,6 @@ function _caseSearchIdentityKeysForMainDataRecDate_(row) {
     var pair = "caseNumRecNo:" + caseNum + "|" + recNo;
     seen[pair] || ((seen[pair] = 1), keys.push(pair));
   }
-  var tp = _caseSearchTitlePetitionerDateKey_(
-    title || consideration,
-    petitioners,
-  );
-  if (tp && tp.indexOf("|") > 0 && tp.split("|")[1]) {
-    var tpKey = "titlePetitioner:" + tp;
-    seen[tpKey] || ((seen[tpKey] = 1), keys.push(tpKey));
-  }
   return keys;
 }
 function _caseSearchMainDataRecDateIndex_() {
@@ -7359,20 +7274,7 @@ function _caseSearchMainDataRecDateIndex_() {
             "caseNumRecNo:" + dateIndexCaseNum + "|" + dateIndexRecNo,
             text,
           );
-        var dateIndexTitle = _caseSearchPickField_(row, _C30K_TITLE_NAME_),
-          dateIndexConsideration = _caseSearchPickField_(
-            row,
-            _C30K_CASE_TITLE_,
-          ),
-          dateIndexPetitioners,
-          titlePetitionerKey = _caseSearchTitlePetitionerDateKey_(
-            dateIndexTitle || dateIndexConsideration,
-            _caseSearchPickField_(row, _C30K_PETITIONERS_FULL_),
-          );
-        titlePetitionerKey &&
-          titlePetitionerKey.indexOf("|") > 0 &&
-          titlePetitionerKey.split("|")[1] &&
-          addKey("titlePetitioner", titlePetitionerKey, text);
+        /* r139: receive-date lookup intentionally excludes title/petitioner keys. */
       }
     });
   } catch (e) {
@@ -7530,6 +7432,10 @@ function _caseSearchCompactProjectedFields_() {
     "respondent",
     "coAssignees",
     "caseNum",
+    "caseNo",
+    "runningNo",
+    "ลำดับเรื่อง",
+    "เลขลำดับเรื่อง",
     "remark",
     "caseTitle",
     "agencyName",
@@ -7560,6 +7466,11 @@ function _caseSearchProjectedFields_() {
   return [
     "caseId",
     "id",
+    "caseNum",
+    "caseNo",
+    "runningNo",
+    "ลำดับเรื่อง",
+    "เลขลำดับเรื่อง",
     "cat",
     "caseType",
     "subCat",
@@ -11240,11 +11151,11 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
         )
   );
 }
-function _dashboardDeferredFirstPaintBundleR138_(payload, sess, startedAt, cacheKey) {
+function _dashboardDeferredFirstPaintBundleR139_(payload, sess, startedAt, cacheKey) {
   payload = payload || {};
   var now = new Date().toISOString(),
-    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r138"),
-    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r138"),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r139"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r139"),
     caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
     meta = {
       cached: !1,
@@ -11253,7 +11164,7 @@ function _dashboardDeferredFirstPaintBundleR138_(payload, sess, startedAt, cache
       cacheKey: cacheKey || "",
       durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
       generatedAt: now,
-      source: "dashboard-cold-first-paint-no-sheet-read-r138",
+      source: "dashboard-cold-first-paint-no-sheet-read-r139",
       dashboardFirstPaintDeferred: !0,
       deferHydrationRequired: !0,
       fastFirstPaintNoSheetRead: !0,
@@ -11264,7 +11175,7 @@ function _dashboardDeferredFirstPaintBundleR138_(payload, sess, startedAt, cache
       includeCases: payload.includeCases === !0,
       hotPathMode: payload.hotPathMode || "phase1-dashboard-first-paint-summary",
       performanceTargetMs: 1200,
-      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR138_",
+      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR139_",
     };
   stats.degraded = !1;
   stats.errorCode = "";
@@ -11515,7 +11426,7 @@ function _apiGetDashboardBundleCore_(payload) {
           : "Y",
       ).toUpperCase() !== "N"
     ) {
-      return _dashboardDeferredFirstPaintBundleR138_(
+      return _dashboardDeferredFirstPaintBundleR139_(
         payload,
         sess,
         bundleStartedAt,
