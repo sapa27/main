@@ -1346,6 +1346,10 @@ function _caseDomainLettersProjectedRows_(includeDeleted) {
     [
       "letterId",
       "caseId",
+      "caseNum",
+      "caseNo",
+      "runningNo",
+      "ลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "letterDate",
@@ -2646,9 +2650,30 @@ function _safeDedupeLatestRowsBy_(rows, keyFn) {
   );
 }
 function _safeResolveCaseIdentityAliases_(payload) {
-  if (
-    ((payload = payload || {}), _appIsFnName_("_resolveCaseIdentityAliases_"))
-  )
+  payload = payload || {};
+  var strictCaseNum = _caseSequenceFrom_(payload);
+  if (strictCaseNum) {
+    var strictResolved = _requireUniqueCaseBySequence_({
+      caseNum: strictCaseNum,
+      caseNo: strictCaseNum,
+      runningNo: strictCaseNum,
+      ลำดับเรื่อง: strictCaseNum,
+    });
+    var strictRow = strictResolved && strictResolved.row ? strictResolved.row : null;
+    var strictIds = [];
+    if (strictRow) {
+      var strictCaseId = _s_(strictRow.caseId || strictRow.id).trim();
+      strictCaseId && strictIds.push(strictCaseId);
+    }
+    return {
+      ids: strictIds,
+      case: strictRow,
+      rows: strictRow ? [strictRow] : [],
+      caseNum: strictCaseNum,
+      identityOwner: "case-sequence-strict-current",
+    };
+  }
+  if (_appIsFnName_("_resolveCaseIdentityAliases_"))
     try {
       var resolved = _resolveCaseIdentityAliases_(payload) || {};
       if (resolved && typeof resolved == "object") return resolved;
@@ -4302,7 +4327,10 @@ function _Domain_getLetters(caseId) {
     }
     function letterMatchesCase(row) {
       if (!row || isSoftDeletedRow_(row)) return !1;
-      return !!targetCaseNum && _caseSequenceFrom_(row) === targetCaseNum;
+      var rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
+      if (rowCaseId && idMap[rowCaseId]) return !0;
+      var rowCaseNum = _caseSequenceFrom_(row);
+      return !!targetCaseNum && !!rowCaseNum && rowCaseNum === targetCaseNum;
     }
     var projectedRows = [];
     try {
@@ -4445,13 +4473,7 @@ function _fetchAllLettersWithCaseInfoImpl_(payload) {
       })
       .map(function (row) {
         var normalized = _normalizeLetterRow_(row),
-          owner =
-            caseMap[_s_(normalized.caseId).trim()] ||
-            _findCaseByIdentity_({
-              caseId: normalized.caseId,
-              title: normalized.subject,
-              caseTitle: normalized.issue,
-            });
+          owner = caseMap[_s_(normalized.caseId).trim()] || null;
         owner &&
           ((normalized.caseNum = _s_(owner.caseNum)),
           (normalized.recNo = _s_(owner.recNo)),
@@ -4887,11 +4909,14 @@ function saveMeetingLog(p) {
             ]),
           },
           resolved = null;
-        try {
-          resolved = _safeResolveCaseIdentityAliases_(caseSeed) || {};
-        } catch (_resolveErr) {
-          _c30W_("meeting.saveLog.phase2.resolveCase", _resolveErr, caseSeed);
-        }
+        if (!caseSeed.caseNum)
+          throw new Error("กรุณาระบุลำดับเรื่องก่อนบันทึกประวัติการประชุม");
+        resolved = _safeResolveCaseIdentityAliases_({
+          caseNum: caseSeed.caseNum,
+          caseNo: caseSeed.caseNum,
+          runningNo: caseSeed.caseNum,
+          ลำดับเรื่อง: caseSeed.caseNum,
+        }) || {};
         var caseInfo = (resolved && resolved.case) || {},
           realCaseId = text(
             caseSeed.caseId || caseInfo.caseId || caseInfo.id || "",
@@ -4926,14 +4951,12 @@ function saveMeetingLog(p) {
               caseInfo.petitioner ||
               "",
           );
-        if (!realCaseId && !caseNum && !recNo && !title)
+        if (!realCaseId || !caseNum)
           throw new Error(
-            "ไม่พบข้อมูลอ้างอิงเรื่องพิจารณา กรุณาเลือกเรื่องก่อนบันทึกประวัติการประชุม",
+            "ไม่พบเรื่องพิจารณาที่ตรงกับลำดับเรื่อง กรุณาเลือกเรื่องใหม่ก่อนบันทึกประวัติการประชุม",
           );
-        var syntheticCaseId = !realCaseId,
-          caseId =
-            realCaseId ||
-            "CASE-IDENTITY-" + hashKey([caseNum, recNo, title, petitioners]),
+        var syntheticCaseId = !1,
+          caseId = realCaseId,
           round = logVal("round", [
             "round",
             "newRound",
@@ -5376,8 +5399,19 @@ function saveLetter(p) {
   return domainWrite_("saveLetter", p, function (input) {
     input = input && typeof input === "object" ? input : {};
     var startedAt = Date.now();
-    var caseId = _s_(input.caseId).trim();
-    if (!caseId) return err_("ไม่พบ caseId");
+    var caseNum = _caseSequenceFrom_(input);
+    if (!caseNum) return err_("ไม่พบลำดับเรื่องสำหรับหนังสือติดตาม");
+    var canonicalCase = _requireUniqueCaseBySequence_({
+      caseNum: caseNum,
+      caseNo: caseNum,
+      runningNo: caseNum,
+      ลำดับเรื่อง: caseNum,
+    });
+    var caseId = _s_(
+      canonicalCase && canonicalCase.row &&
+        (canonicalCase.row.caseId || canonicalCase.row.id),
+    ).trim();
+    if (!caseId) return err_("ไม่พบ caseId ของลำดับเรื่อง: " + caseNum);
     function normalizeReply(row) {
       row = row || {};
       var date = normalizeDateOutput_(
@@ -5549,6 +5583,10 @@ function saveLetter(p) {
     var row = {
       letterId: letterId,
       caseId: caseId,
+      caseNum: caseNum,
+      caseNo: caseNum,
+      runningNo: caseNum,
+      ลำดับเรื่อง: caseNum,
       letterNo: normalizedLetterNo,
       letterDate: normalizedLetterDate,
       agency: _s_(input.agency).trim(),
