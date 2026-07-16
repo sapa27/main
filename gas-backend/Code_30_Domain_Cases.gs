@@ -30,12 +30,8 @@ var __APP_GLOBAL__ =
     "caseNum",
     "caseNo",
     "runningNo",
-    "orderNo",
-    "seq",
-    "no",
     "ลำดับเรื่อง",
-    "ลำดับ",
-    "ลำดับที่",
+    "เลขลำดับเรื่อง",
   ],
   _C30K_PENDING_REASON_ = [
     "pendingRemark",
@@ -1626,12 +1622,8 @@ function _caseCanonicalDto_(row) {
         "caseNo",
         "caseNum",
         "runningNo",
-        "orderNo",
-        "seq",
-        "no",
         "ลำดับเรื่อง",
-        "ลำดับ",
-        "ลำดับที่",
+        "เลขลำดับเรื่อง",
       ]) || "",
     ),
     recNo: _caseManualReceiveNoText_(
@@ -2700,8 +2692,8 @@ function _safeResolveCaseIdentityAliases_(payload) {
           payload.caseNum ||
             payload.caseNo ||
             payload.runningNo ||
-            payload.orderNo ||
-            payload.ลำดับเรื่อง,
+            payload.ลำดับเรื่อง ||
+            payload["เลขลำดับเรื่อง"],
         ).trim(),
         recNo: _s_(
           payload.recNo ||
@@ -9176,15 +9168,10 @@ function _caseReportMainFieldsPhase3_() {
     ]),
     caseNum: _caseReportAliasesPhase3_("cases", "caseNum", [
       "ลำดับเรื่อง",
-      "ลำดับ",
-      "ลำดับที่",
       "เลขลำดับเรื่อง",
       "caseNum",
       "caseNo",
       "runningNo",
-      "orderNo",
-      "seq",
-      "no",
     ]),
     recNo: _caseReportAliasesPhase3_("cases", "recNo", [
       "เลขรับเรื่อง",
