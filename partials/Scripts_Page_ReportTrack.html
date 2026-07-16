@@ -1204,7 +1204,7 @@
                 primaryLinkKey: "caseNum",
                 seed: editSeed,
                 until: (Date.now ? Date.now() : 0) + 12000,
-                source: "searchEditCase.seedFirst.r138",
+                source: "searchEditCase.seedFirst.r139",
               };
               try {
                 root.AppStore &&
@@ -1217,7 +1217,7 @@
               var navMeeting = root.nav
                 ? root.nav("meeting", {
                     preserveLoadingSwal: !0,
-                    source: "searchEditCase.seedFirst.r138",
+                    source: "searchEditCase.seedFirst.r139",
                     caseNum: editKey,
                     recordId: recordId,
                     primaryLinkKey: "caseNum",
@@ -1246,7 +1246,7 @@
                     root.initMeetingPage({
                       force: !0,
                       reload: !1,
-                      source: "searchEditCase.seedFirst.r138",
+                      source: "searchEditCase.seedFirst.r139",
                     }),
                   );
                 })
@@ -1263,7 +1263,7 @@
                   stage = "open-editor";
                   return Promise.resolve(
                     root.meetingEditCase(editSeed, {
-                      source: "searchEditCase.seedFirst.r138",
+                      source: "searchEditCase.seedFirst.r139",
                       silentLoading: !0,
                       seed: editSeed,
                       __singlePass: !0,
@@ -1285,7 +1285,7 @@
                 editLoadingShown &&
                   (closeCaseLoading(), (editLoadingShown = !1)),
                 err && "object" == typeof err && (err.stage = stage),
-                reportTrackWarn("reportTrack.searchEdit.failed.r138", err, {
+                reportTrackWarn("reportTrack.searchEdit.failed.r139", err, {
                   caseNum: id,
                   stage: stage,
                 }),
@@ -4020,6 +4020,13 @@
         ),
       };
     }
+    function strictCaseRows(rows, caseNum) {
+      var seq = normalizeCaseSequenceKey(caseNum);
+      return arr(rows).filter(function (row) {
+        var c = normalizeCase(row);
+        return !!(seq && normalizeCaseSequenceKey(c.caseNum) === seq);
+      });
+    }
     function fetchBundle(caseNum, options) {
       options = options || {};
       var localCaseRow = findCase(caseNum),
@@ -4043,6 +4050,8 @@
       return api("apiGetCanonicalCaseBundle", payload)
         .then(function (res) {
           var bundle = normalizeBundle(res, localCaseRow);
+          bundle.history = strictCaseRows(bundle.history, caseNum);
+          bundle.letters = strictCaseRows(bundle.letters, caseNum);
           if (
             !bundle.case ||
             normalizeCaseSequenceKey(bundle.case.caseNum) !==
@@ -4061,7 +4070,7 @@
             normalizeCaseSequenceKey(local.caseNum) ===
               normalizeCaseSequenceKey(caseNum)
           ) {
-            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r138", err, {
+            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r139", err, {
               caseNum: caseNum,
               primaryLinkKey: "caseNum",
             });
@@ -4621,7 +4630,7 @@
         );
       }
       function mergeFresh(freshRows) {
-        freshRows = arr(freshRows).filter(Boolean);
+        freshRows = arr(freshRows).filter(sameCase);
         if (!freshRows.length) return bundle;
         var byId = {},
           out = arr(bundle.letters).slice(),

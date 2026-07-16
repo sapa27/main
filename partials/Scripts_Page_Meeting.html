@@ -5662,11 +5662,7 @@
           ลำดับเรื่อง: caseNum,
           letterId: txt(o.letterId || o.id || ""),
           letterNo: txt(o.letterNo || o.bookNo || ""),
-          title: matched ? txt(matched.title || matched.caseTitle) : "",
-          caseTitle: matched ? txt(matched.caseTitle || matched.title) : "",
-          petitioners: matched
-            ? txt(matched.petitioners || matched.petitionerName)
-            : "",
+          strictLinkKey: "caseNum",
         };
       }
       function rowsFromAny(res) {
@@ -5784,8 +5780,20 @@
           __meetingListMode: "caseLetters",
         });
       }
+      function sameSequenceRow(row, caseNum) {
+        var rowSeq = A(row || {});
+        return !!(rowSeq && caseNum && rowSeq === caseNum);
+      }
+      function strictRows(rows, caseNum) {
+        return (Array.isArray(rows) ? rows : []).filter(function (row) {
+          return sameSequenceRow(row, caseNum);
+        });
+      }
       function callRows(route, payload) {
-        return s(route, freshPayload(payload)).then(rowsFromAny);
+        var caseNum = A(payload || t);
+        return s(route, freshPayload(payload)).then(function (res) {
+          return strictRows(rowsFromAny(res), caseNum);
+        });
       }
       function mergeSaved(rows) {
         rows = Array.isArray(rows) ? rows.slice() : [];
@@ -5800,9 +5808,8 @@
                 txt(r.caseId) === txt(savedRow.caseId || t.caseId))
             );
           });
-        if ((!exists && hasCaseIdentity(savedRow)) || (!exists && !rows.length))
-          rows.unshift(savedRow);
-        return rows;
+        if (!exists && sameSequenceRow(savedRow, A(t))) rows.unshift(savedRow);
+        return strictRows(rows, A(t));
       }
       function direct(payload) {
         payload = listPayload(payload || t);
@@ -5893,16 +5900,16 @@
                   ? mergeSaved(bundle.letters)
                   : [];
           if (!letters.length && savedRow) letters = mergeSaved([]);
-          Me(hist || []);
-          qe(letters || []);
+          hist = strictRows(hist || [], A(t));
+          letters = strictRows(letters || [], A(t));
+          Me(hist);
+          qe(letters);
           return !!(
             (hist || []).length ||
             (letters || []).length ||
             caseObj.caseId ||
             t.caseId ||
-            t.caseNum ||
-            t.recNo ||
-            t.title
+            t.caseNum
           );
         })
         .catch(function () {
