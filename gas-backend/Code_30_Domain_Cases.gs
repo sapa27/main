@@ -806,7 +806,6 @@ function _caseSequenceFrom_(row) {
     row.caseNum ||
       row.caseNo ||
       row.runningNo ||
-      row.orderNo ||
       row["ลำดับเรื่อง"] ||
       "",
   );
@@ -2461,14 +2460,12 @@ function _normalizeMeetingLogRow_(row) {
       row.caseNum ||
         row.caseNo ||
         row.runningNo ||
-        row.orderNo ||
         row.ลำดับเรื่อง,
     ).trim(),
     caseNo: _s_(
       row.caseNo ||
         row.caseNum ||
         row.runningNo ||
-        row.orderNo ||
         row.ลำดับเรื่อง,
     ).trim(),
     recNo: _s_(
@@ -2805,6 +2802,10 @@ function _meetingLettersProjectedFields_(name) {
         ? [
             "letterId",
             "caseId",
+            "caseNum",
+            "caseNo",
+            "runningNo",
+            "ลำดับเรื่อง",
             "letterNo",
             "bookNo",
             "agency",
@@ -2863,6 +2864,10 @@ function _trackingProjectedFields_() {
     letters: [
       "letterId",
       "caseId",
+      "caseNum",
+      "caseNo",
+      "runningNo",
+      "ลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "agency",
@@ -3104,7 +3109,7 @@ function _meetingHistoryProjectedRows_() {
               item.เรื่อง ||
               item.เรื่องพิจารณา,
           ).trim();
-        if (caseId || caseNum || recNo || title) {
+        if (caseId || caseNum) {
           var sub = _s_(
               item.subcommitteeName ||
                 item.subcommittee ||
@@ -4327,9 +4332,11 @@ function _Domain_getLetters(caseId) {
     }
     function letterMatchesCase(row) {
       if (!row || isSoftDeletedRow_(row)) return !1;
-      var rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
+      var rowCaseNum = _caseSequenceFrom_(row),
+        rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
+      if (rowCaseNum && targetCaseNum && rowCaseNum !== targetCaseNum)
+        return !1;
       if (rowCaseId && idMap[rowCaseId]) return !0;
-      var rowCaseNum = _caseSequenceFrom_(row);
       return !!targetCaseNum && !!rowCaseNum && rowCaseNum === targetCaseNum;
     }
     var projectedRows = [];
@@ -4765,16 +4772,7 @@ function saveMeetingLog(p) {
               sameCaseId = rowCaseId && rowCaseId === caseId,
               sameCaseNum =
                 caseNum &&
-                cell2(
-                  row3,
-                  aliases("meetingLogs", "caseNum", [
-                    "caseNum",
-                    "caseNo",
-                    "runningNo",
-                    "orderNo",
-                    "ลำดับเรื่อง",
-                  ]),
-                ) === caseNum,
+                cell2(row3, ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"]) === caseNum,
               sameRecNo =
                 recNo &&
                 cell2(
@@ -4799,11 +4797,8 @@ function saveMeetingLog(p) {
                     "ชื่อเรื่อง",
                   ]),
                 ) === title,
-              identityScore =
-                (sameCaseNum ? 1 : 0) +
-                (sameRecNo ? 1 : 0) +
-                (sameTitle ? 1 : 0),
-              sameCase = sameCaseId || identityScore > 0,
+              identityScore = sameCaseNum ? 1 : 0,
+              sameCase = sameCaseId || sameCaseNum,
               sameRound =
                 !round ||
                 cell2(
@@ -4867,18 +4862,12 @@ function saveMeetingLog(p) {
           );
         var caseSeed = {
             caseId: caseVal("caseId", ["caseId", "id", "case_id"]),
-            caseNum: caseVal("caseNum", [
-              "caseNum",
-              "caseNo",
-              "runningNo",
-              "orderNo",
-              "seq",
-              "no",
-              "ลำดับเรื่อง",
-              "ลำดับ",
-              "ลำดับที่",
-              "เลขลำดับ",
-            ]),
+            caseNum: text(
+              pick(
+                [casePayload, input, logPayload],
+                ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"],
+              ),
+            ),
             recNo: caseVal("recNo", [
               "recNo",
               "receiveNo",
@@ -4926,7 +4915,6 @@ function saveMeetingLog(p) {
               caseInfo.caseNum ||
               caseInfo.caseNo ||
               caseInfo.runningNo ||
-              caseInfo.orderNo ||
               "",
           ),
           recNo = text(
@@ -5143,16 +5131,7 @@ function saveMeetingLog(p) {
           out.push("");
         return (
           setCol2(aliases("meetingLogs", "caseId", ["caseId"]), rowObj.caseId),
-          setCol2(
-            aliases("meetingLogs", "caseNum", [
-              "caseNum",
-              "caseNo",
-              "runningNo",
-              "orderNo",
-              "ลำดับเรื่อง",
-            ]),
-            rowObj.caseNum,
-          ),
+          setCol2(["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"], rowObj.caseNum),
           setCol2(
             aliases("meetingLogs", "recNo", [
               "recNo",
@@ -5610,6 +5589,10 @@ function saveLetter(p) {
     var required = [
       "letterId",
       "caseId",
+      "caseNum",
+      "caseNo",
+      "runningNo",
+      "ลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "letterDate",
@@ -10677,19 +10660,36 @@ function _dashboardLetterSummary_(rows) {
   );
 }
 function _dashboardStatsDirect_(payload) {
-  var caseRows = _dashboardRequestRows_("MainData", {
-      ttl: (payload = payload || {}).cacheTtlSeconds || 60,
-      failOnError: !0,
-      allowEmpty: !0,
-    }),
-    letterRows = _dashboardRequestRows_("Letters", {
+  payload = payload || {};
+  var fastFirstPaint =
+      payload.phase1FirstPaint === !0 ||
+      /first-paint|fast-summary|summary-kpi/i.test(
+        _s_(payload.hotPathMode || payload.mode || ""),
+      ),
+    skipHeavyFirstPaint =
+      fastFirstPaint &&
+      payload.includeLetters !== !0 &&
+      payload.includeMeetingRows !== !0 &&
+      String(
+        _appIsFnName_("_scriptProp_")
+          ? _scriptProp_("DASHBOARD_FAST_FIRST_PAINT_SKIP_HEAVY", "Y")
+          : "Y",
+      ).toUpperCase() !== "N",
+    caseRows = _dashboardRequestRows_("MainData", {
       ttl: payload.cacheTtlSeconds || 60,
       failOnError: !0,
       allowEmpty: !0,
     }),
-    committeeMeetingDashboard = _dashboardCommitteeMeetingDashboard_(
-      payload || {},
-    ),
+    letterRows = skipHeavyFirstPaint
+      ? []
+      : _dashboardRequestRows_("Letters", {
+          ttl: payload.cacheTtlSeconds || 60,
+          failOnError: !0,
+          allowEmpty: !0,
+        }),
+    committeeMeetingDashboard = skipHeavyFirstPaint
+      ? { rows: [], meetingRows: [], summary: _dashboardMeetingNoTitleSummary_([]) }
+      : _dashboardCommitteeMeetingDashboard_(payload || {}),
     meetingRows = _c30A_(committeeMeetingDashboard.rows)
       ? committeeMeetingDashboard.rows
       : [],
@@ -10813,6 +10813,7 @@ function _dashboardStatsDirect_(payload) {
       meetingItems: meetingRows.length,
       caseRowsIncluded: includeCaseRowsForDashboard,
       meetingRowsIncluded: includeMeetingRowsForDashboard,
+      fastFirstPaintSkippedHeavySheets: !!skipHeavyFirstPaint,
       cacheHit: !(!requestMetrics || !requestMetrics.cacheHit),
       cacheHits: Number((requestMetrics && requestMetrics.cacheHits) || 0),
       cacheMisses: Number((requestMetrics && requestMetrics.cacheMisses) || 0),
