@@ -11,7 +11,7 @@
   ].join("");
   var DEFAULT_LOGO_URL = [
     "https://upload.wikimedia.org/wikipedia/commons/",
-    "9/9a/Seal_of_the_Parliament_of_Thailand.svg"
+    "AKfycbyN4b-HY6VA3iJ6aJAE21hEQtpFitBCliOt5ELuggMTljq0e_KezZj6f2-g-M-VZLsc"
   ].join("");
 
   function asText(value) {
