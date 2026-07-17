@@ -1,12 +1,12 @@
 (function (root) {
   "use strict";
 
-  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-17-r145";
-  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-17-r145";
+  var RELEASE_STAMP = "commission-v1.2-github-pages-gas-direct-2026-07-17-r146";
+  var ASSET_STAMP = "asset-manifest-commission-v1.2-github-pages-gas-direct-2026-07-17-r146";
   var APP_VERSION = "1.2.0-production-current";
   var DEFAULT_GAS_WEB_APP_URL = [
     "https://script.google.com/macros/s/",
-    "AKfycbyCcbOV5QraQMf6c-pxp4t6LNnautwKTueBXwhVBM8cp1ukMLjgbh2c9iPea9yeay52",
+    "AKfycbyQZcetvUPxA8OI_vWGiBV2fRT3G3Gkqpho443kX79GQMFJ3eSbL2RDSYYg7S10J4c",
     "/exec"
   ].join("");
   var DEFAULT_LOGO_URL = [
@@ -114,9 +114,9 @@
     fallbackLogoUrl: fallbackLogo,
     localAssetBase: "./partials/",
     localAssetBaseCandidates: ["./partials/", "partials/", "../partials/"],
-    transportMode: "github-pages-phase-c-bridge-primary-post-fallback-r145",
+    transportMode: "github-pages-phase-c-bridge-primary-post-fallback-r146",
     deploymentBindingVerified: true,
-    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r145",
+    deploymentBindingOwner: "app-config.js::DEFAULT_GAS_WEB_APP_URL-r146",
     hostingTarget: "github-pages-gas-direct",
     vercelStaticFrontendReady: false,
     vercelApiProxyEnabled: false,
@@ -235,11 +235,11 @@
     clientReadRetryCount: 1,
     clientReadRetryDelayMs: 350,
     clientInFlightDedupe: true,
-    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r145",
-    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r145",
-    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r145",
+    clientApiCacheOwner: "github-pages/github-gas-transport.js::session-scoped-read-cache-r146",
+    clientInFlightOwner: "github-pages/github-gas-transport.js::session-scoped-in-flight-r146",
+    safeHtmlRendererOwner: "CriticalLogin.canonical-safe-html-r146",
     safeHtmlRendererNonRecursive: true,
-    dashboardRecoveryCacheScope: "session-token-hash-r145",
+    dashboardRecoveryCacheScope: "session-token-hash-r146",
     dashboardRecoveryCacheLegacyPurge: true,
     cachePolicyOwner: "Code_20_Router._routerHotPathContractSpec_",
     legacyTransportRemoved: false,
@@ -260,7 +260,7 @@
     buttonRequestTimeoutMs: 45000,
     authenticatedTransportPreferenceTtlMs: 900000,
     dataApiPostTimeoutMs: 60000,
-    authenticatedTransportFallbackOwner: "github-pages/github-gas-transport.js::bridge-primary-post-fallback-r145",
+    authenticatedTransportFallbackOwner: "github-pages/github-gas-transport.js::bridge-primary-post-fallback-r146",
     staticGasDirectDisabled: false,
     releaseStamp: RELEASE_STAMP,
     assetStamp: ASSET_STAMP,
