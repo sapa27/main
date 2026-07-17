@@ -1204,7 +1204,7 @@
                 primaryLinkKey: "caseNum",
                 seed: editSeed,
                 until: (Date.now ? Date.now() : 0) + 12000,
-                source: "searchEditCase.seedFirst.r140",
+                source: "searchEditCase.seedFirst.r145",
               };
               try {
                 root.AppStore &&
@@ -1217,7 +1217,7 @@
               var navMeeting = root.nav
                 ? root.nav("meeting", {
                     preserveLoadingSwal: !0,
-                    source: "searchEditCase.seedFirst.r140",
+                    source: "searchEditCase.seedFirst.r145",
                     caseNum: editKey,
                     recordId: recordId,
                     primaryLinkKey: "caseNum",
@@ -1246,7 +1246,7 @@
                     root.initMeetingPage({
                       force: !0,
                       reload: !1,
-                      source: "searchEditCase.seedFirst.r140",
+                      source: "searchEditCase.seedFirst.r145",
                     }),
                   );
                 })
@@ -1263,7 +1263,7 @@
                   stage = "open-editor";
                   return Promise.resolve(
                     root.meetingEditCase(editSeed, {
-                      source: "searchEditCase.seedFirst.r140",
+                      source: "searchEditCase.seedFirst.r145",
                       silentLoading: !0,
                       seed: editSeed,
                       __singlePass: !0,
@@ -1285,7 +1285,7 @@
                 editLoadingShown &&
                   (closeCaseLoading(), (editLoadingShown = !1)),
                 err && "object" == typeof err && (err.stage = stage),
-                reportTrackWarn("reportTrack.searchEdit.failed.r140", err, {
+                reportTrackWarn("reportTrack.searchEdit.failed.r145", err, {
                   caseNum: id,
                   stage: stage,
                 }),
@@ -2253,11 +2253,20 @@
       );
     }
     function normalizeCase(row) {
-      var caseNum = pickManualNumber((row = flattenCaseRow(row)), [
+      var caseNum = ((root.AppCaseRelation || window.AppCaseRelation) && (root.AppCaseRelation || window.AppCaseRelation).sequenceFrom
+          ? (root.AppCaseRelation || window.AppCaseRelation).sequenceFrom((row = flattenCaseRow(row)) || {})
+          : "") || pickManualNumber(row, [
           "caseNum",
           "caseNo",
           "runningNo",
           "ลำดับเรื่อง",
+          "เลขลำดับเรื่อง",
+          "ลำดับเรื่องพิจารณา",
+          "เลขที่ลำดับเรื่อง",
+          "หมายเลขลำดับเรื่อง",
+          "เลขที่เรื่องพิจารณา",
+          "เลขลำดับเรื่องพิจารณา",
+          "หมายเลขเรื่องพิจารณา",
         ]),
         recNo = pickReceiveNumber(row),
         title = clean(
@@ -4023,30 +4032,18 @@
       };
     }
     function strictCaseRows(rows, caseNum, caseId) {
-      var seq = normalizeCaseSequenceKey(caseNum),
-        expectedCaseId = clean(caseId || "");
-      return arr(rows)
-        .filter(function (row) {
-          var c = normalizeCase(row),
-            rowSeq = normalizeCaseSequenceKey(c.caseNum),
-            rowCaseId = clean(row && (row.caseId || row.caseID || row.case_id || row.id || ""));
-          if (rowSeq) return !!(seq && rowSeq === seq);
-          return !!(seq && expectedCaseId && rowCaseId && rowCaseId === expectedCaseId);
-        })
-        .map(function (row) {
-          var c = normalizeCase(row);
-          if (seq && !normalizeCaseSequenceKey(c.caseNum)) {
-            row = Object.assign({}, row || {}, {
-              caseNum: seq,
-              caseNo: seq,
-              runningNo: seq,
-              ลำดับเรื่อง: seq,
-              __legacyCaseIdRelationFallback: !0,
-              __relationFallbackOwner: "reporttrack-caseid-only-no-petitioner-r140",
-            });
-          }
-          return row;
+      var relation = root.AppCaseRelation || window.AppCaseRelation,
+        context = { caseNum: clean(caseNum || ""), caseId: clean(caseId || "") };
+      if (relation && relation.filterRows)
+        return relation.filterRows(rows, context, {
+          __relationFallbackOwner: "reporttrack-shared-relation-r145",
         });
+      return arr(rows).filter(function (row) {
+        var c = normalizeCase(row),
+          rowSeq = normalizeCaseSequenceKey(c.caseNum),
+          rowCaseId = clean(row && (row.caseId || row.caseID || row.case_id || row.recordId || row.uid || ""));
+        return rowSeq ? !!(context.caseNum && rowSeq === context.caseNum) : !!(context.caseId && rowCaseId && rowCaseId === context.caseId);
+      });
     }
     function fetchBundle(caseNum, options) {
       options = options || {};
@@ -4097,32 +4094,61 @@
             normalizeCaseSequenceKey(local.caseNum) ===
               normalizeCaseSequenceKey(caseNum)
           ) {
-            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r140", err, {
+            reportTrackWarn("reportTrack.caseBundle.localExactFallback.r145", err, {
               caseNum: caseNum,
               primaryLinkKey: "caseNum",
             });
-            return {
-              case: local,
-              rawCase: localCaseRow,
-              petitioners: [],
-              history: [],
-              letters: [],
-              degraded: !0,
-              relatedLoadOk: !1,
-              relatedWarnings: [
-                {
-                  section: "bundle",
-                  errorCode: String(
-                    (err && (err.errorCode || err.code)) ||
-                      "CASE_BUNDLE_LOAD_FAILED",
-                  ),
-                  message: String(
-                    (err && err.message) ||
-                      "โหลดข้อมูลประกอบไม่สำเร็จ แต่เปิดข้อมูลเรื่องหลักจากผลค้นหาแล้ว",
-                  ),
-                },
-              ],
+            var fallbackPayload = {
+              caseNum: caseNum,
+              caseNo: caseNum,
+              runningNo: caseNum,
+              ลำดับเรื่อง: caseNum,
+              limit: 500,
+              forceFresh: !0,
+              noCache: !0,
+              bypassCache: !0,
+              cacheTtlSeconds: 0,
+              __meetingListMode: "caseLetters",
+              source: "reporttrack-bundle-fallback-direct-r145",
             };
+            var fallbackCaseId = clean(
+              (localCaseRow && (localCaseRow.caseId || localCaseRow.id)) ||
+                local.caseId ||
+                "",
+            );
+            return Promise.all([
+              api("apiGetMeetingHistory", fallbackPayload).catch(function (historyErr) {
+                reportTrackWarn("reportTrack.caseBundle.fallback.history.r145", historyErr, { caseNum: caseNum });
+                return [];
+              }),
+              api("apiGetLetters", fallbackPayload).catch(function (lettersErr) {
+                reportTrackWarn("reportTrack.caseBundle.fallback.letters.r145", lettersErr, { caseNum: caseNum });
+                return [];
+              }),
+            ]).then(function (fallbackRows) {
+              return {
+                case: local,
+                rawCase: localCaseRow,
+                petitioners: [],
+                history: strictCaseRows(rowsFromAny(fallbackRows[0]), caseNum, fallbackCaseId),
+                letters: strictCaseRows(rowsFromAny(fallbackRows[1]), caseNum, fallbackCaseId),
+                degraded: !0,
+                relatedLoadOk: !1,
+                relatedWarnings: [
+                  {
+                    section: "bundle",
+                    errorCode: String(
+                      (err && (err.errorCode || err.code)) ||
+                        "CASE_BUNDLE_LOAD_FAILED",
+                    ),
+                    message: String(
+                      (err && err.message) ||
+                        "โหลด bundle ไม่สำเร็จ จึงโหลดประวัติ/หนังสือติดตามแยกตามลำดับเรื่อง",
+                    ),
+                  },
+                ],
+              };
+            });
           }
           throw err;
         });
@@ -4603,7 +4629,14 @@
             raw.caseNum ||
             raw.caseNo ||
             raw.runningNo ||
-            raw["ลำดับเรื่อง"],
+            raw["ลำดับเรื่อง"] ||
+            raw["เลขลำดับเรื่อง"] ||
+            raw["ลำดับเรื่องพิจารณา"] ||
+            raw["เลขที่ลำดับเรื่อง"] ||
+            raw["หมายเลขลำดับเรื่อง"] ||
+            raw["เลขที่เรื่องพิจารณา"] ||
+            raw["เลขลำดับเรื่องพิจารณา"] ||
+            raw["หมายเลขเรื่องพิจารณา"],
         );
         return {
           caseNum: caseNum,
@@ -4643,18 +4676,35 @@
         row = obj(row);
         return {
           caseNum: clean(
-            pick(row, ["caseNum", "caseNo", "runningNo", "ลำดับเรื่อง"]),
+            pick(row, [
+              "caseNum",
+              "caseNo",
+              "runningNo",
+              "ลำดับเรื่อง",
+              "เลขลำดับเรื่อง",
+              "ลำดับเรื่องพิจารณา",
+              "เลขที่ลำดับเรื่อง",
+              "หมายเลขลำดับเรื่อง",
+              "เลขที่เรื่องพิจารณา",
+              "เลขลำดับเรื่องพิจารณา",
+              "หมายเลขเรื่องพิจารณา",
+            ]),
           ),
+          caseId: clean(row.caseId || row.caseID || row.case_id || ""),
         };
       }
       function sameCase(row) {
         var p = identityPayload(),
-          r = rowIdentity(row);
-        return !!(
-          p.caseNum &&
-          r.caseNum &&
-          normalizeCaseSequenceKey(p.caseNum) === normalizeCaseSequenceKey(r.caseNum)
-        );
+          r = rowIdentity(row),
+          expectedCaseId = clean(
+            (bundle.case && (bundle.case.caseId || bundle.case.id)) ||
+              (bundle.rawCase && (bundle.rawCase.caseId || bundle.rawCase.id)) ||
+              (localCaseRow && (localCaseRow.caseId || localCaseRow.id)) ||
+              "",
+          );
+        if (p.caseNum && r.caseNum)
+          return normalizeCaseSequenceKey(p.caseNum) === normalizeCaseSequenceKey(r.caseNum);
+        return !!(p.caseNum && expectedCaseId && r.caseId && r.caseId === expectedCaseId);
       }
       function mergeFresh(freshRows) {
         freshRows = arr(freshRows).filter(sameCase);

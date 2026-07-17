@@ -3277,10 +3277,12 @@
         return !1;
       }
     }
-    function A(e) {
-      e = e || {};
-      return d(e.caseNum || e.caseNo || e.runningNo || e["ลำดับเรื่อง"] || "")
-        .replace(/[\u00A0\u200B-\u200D\uFEFF]/g, "")
+    function A(value) {
+      var relation = e.AppCaseRelation || window.AppCaseRelation;
+      if (relation && relation.sequenceFrom) return relation.sequenceFrom(value || {});
+      value = value || {};
+      return d(value.caseNum || value.caseNo || value.runningNo || value["ลำดับเรื่อง"] || "")
+        .replace(/[ ​-‍﻿]/g, "")
         .replace(/\s+/g, " ")
         .trim();
     }
@@ -5660,6 +5662,7 @@
           caseNo: caseNum,
           runningNo: caseNum,
           ลำดับเรื่อง: caseNum,
+          caseId: txt(o.caseId || o.recordId || (matched && (matched.caseId || matched.id)) || ""),
           letterId: txt(o.letterId || o.id || ""),
           letterNo: txt(o.letterNo || o.bookNo || ""),
           strictLinkKey: "caseNum",
@@ -5781,31 +5784,23 @@
         });
       }
       function sameSequenceRow(row, caseNum) {
-        row = row || {};
+        var relation = e.AppCaseRelation || window.AppCaseRelation,
+          context = { caseNum: caseNum, caseId: txt(t.caseId || t.recordId || "") };
+        if (relation && relation.sameChildRow) return relation.sameChildRow(row || {}, context);
         var rowSeq = A(row || {}),
-          expectedCaseId = txt(t.caseId || t.id || t.recordId || ""),
-          rowCaseId = txt(row.caseId || row.caseID || row.case_id || row.id || "");
-        if (rowSeq) return !!(caseNum && rowSeq === caseNum);
-        return !!(caseNum && expectedCaseId && rowCaseId && rowCaseId === expectedCaseId);
+          rowCaseId = txt(row && (row.caseId || row.caseID || row.case_id || row.recordId || row.uid) || "");
+        return rowSeq ? !!(caseNum && rowSeq === caseNum) : !!(context.caseId && rowCaseId && rowCaseId === context.caseId);
       }
       function strictRows(rows, caseNum) {
-        return (Array.isArray(rows) ? rows : [])
-          .filter(function (row) {
-            return sameSequenceRow(row, caseNum);
-          })
-          .map(function (row) {
-            if (row && !A(row) && caseNum) {
-              row = Object.assign({}, row, {
-                caseNum: caseNum,
-                caseNo: caseNum,
-                runningNo: caseNum,
-                ลำดับเรื่อง: caseNum,
-                __legacyCaseIdRelationFallback: !0,
-                __relationFallbackOwner: "meeting-client-caseid-only-no-petitioner-r140",
-              });
-            }
-            return row;
+        var relation = e.AppCaseRelation || window.AppCaseRelation,
+          context = { caseNum: caseNum, caseId: txt(t.caseId || t.recordId || "") };
+        if (relation && relation.filterRows)
+          return relation.filterRows(rows, context, {
+            __relationFallbackOwner: "meeting-client-shared-relation-r145",
           });
+        return (Array.isArray(rows) ? rows : []).filter(function (row) {
+          return sameSequenceRow(row, caseNum);
+        });
       }
       function callRows(route, payload) {
         var caseNum = A(payload || t);
@@ -5883,59 +5878,57 @@
         "meeting-letter-tbody",
         '<tr><td colspan="8" class="text-center text-muted py-3">กรุณารอสักครู่ กำลังโหลดข้อมูล</td></tr>',
       );
-      return Promise.all([
-        direct(t),
-        s(
-          "apiGetCanonicalCaseBundle",
-          freshPayload({
-            caseNum: A(t),
-            caseNo: A(t),
-            runningNo: A(t),
-            ลำดับเรื่อง: A(t),
-          }),
-        )
-          .then(bundleFromAny)
-          .catch(function (err) {
-            "function" == typeof __appObserve &&
-              __appObserve(err, "meeting.bundle.reload.r91");
-            return {};
-          }),
-      ])
-        .then(function (result) {
-          var directRows = result[0] || [],
-            bundle = result[1] || {},
-            caseObj = bundle.case || {},
-            hist =
-              directRows[0] && directRows[0].length
-                ? directRows[0]
-                : Array.isArray(bundle.history)
-                  ? bundle.history
-                  : [],
-            letters =
-              directRows[1] && directRows[1].length
-                ? directRows[1]
-                : Array.isArray(bundle.letters)
-                  ? mergeSaved(bundle.letters)
-                  : [];
-          if (!letters.length && savedRow) letters = mergeSaved([]);
-          hist = strictRows(hist || [], A(t));
-          letters = strictRows(letters || [], A(t));
-          Me(hist);
-          qe(letters);
-          return !!(
-            (hist || []).length ||
-            (letters || []).length ||
-            caseObj.caseId ||
-            t.caseId ||
-            t.caseNum
-          );
+      function renderRelated(hist, letters, caseObj) {
+        hist = strictRows(hist || [], A(t));
+        letters = strictRows(mergeSaved(letters || []), A(t));
+        Me(hist);
+        qe(letters);
+        return !!(
+          (hist || []).length ||
+          (letters || []).length ||
+          (caseObj && caseObj.caseId) ||
+          t.caseId ||
+          t.caseNum
+        );
+      }
+      function renderDirectFallback() {
+        return direct(t).then(function (rows) {
+          return renderRelated(rows[0] || [], rows[1] || [], t);
+        });
+      }
+      return s(
+        "apiGetCanonicalCaseBundle",
+        freshPayload({
+          caseNum: A(t),
+          caseNo: A(t),
+          runningNo: A(t),
+          ลำดับเรื่อง: A(t),
+          includeHistory: !0,
+          includeLetters: !0,
+          limit: 500,
+        }),
+      )
+        .then(bundleFromAny)
+        .then(function (bundle) {
+          bundle = bundle || {};
+          var caseObj = bundle.case || {},
+            hist = Array.isArray(bundle.history) ? bundle.history : [],
+            letters = Array.isArray(bundle.letters) ? bundle.letters : [],
+            partial =
+              bundle.degraded === !0 ||
+              bundle.partialRelatedData === !0 ||
+              bundle.relatedLoadOk === !1;
+          if (partial) {
+            return renderDirectFallback().catch(function () {
+              return renderRelated(hist, letters, caseObj);
+            });
+          }
+          return renderRelated(hist, letters, caseObj);
         })
-        .catch(function () {
-          return direct(t).then(function (rows) {
-            Me(rows[0] || []);
-            qe(rows[1] || []);
-            return !0;
-          });
+        .catch(function (err) {
+          "function" == typeof __appObserve &&
+            __appObserve(err, "meeting.bundle-first.reload.r145");
+          return renderDirectFallback();
         });
     }
     function Xe(e) {
