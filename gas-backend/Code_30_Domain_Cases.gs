@@ -32,6 +32,12 @@ var __APP_GLOBAL__ =
     "runningNo",
     "ลำดับเรื่อง",
     "เลขลำดับเรื่อง",
+    "ลำดับเรื่องพิจารณา",
+    "เลขที่ลำดับเรื่อง",
+    "หมายเลขลำดับเรื่อง",
+    "เลขที่เรื่องพิจารณา",
+    "เลขลำดับเรื่องพิจารณา",
+    "หมายเลขเรื่องพิจารณา",
   ],
   _C30K_PENDING_REASON_ = [
     "pendingRemark",
@@ -684,6 +690,26 @@ function _domainPhysicalSectionPhase10_(n, o, p, api, h, s, w) {
     d[6],
   );
 });
+
+/* ============================================================================
+ * Code_30_Domain_Cases.gs internal owners (R145, no new files / no new APIs)
+ * --------------------------------------------------------------------------
+ * CaseDomain      : MainData search/report/canonical case bundle/save/delete
+ * MeetingDomain   : MeetingLogs + CommitteeMeetingAgendaItems history linkage
+ * TrackingDomain  : Letters tracking/follow-up linkage to case sequence
+ * DashboardDomain : Dashboard read-model bundle; budget remains BudgetDomain
+ * SharedRelation  : _caseSequenceFrom_ / _stampCaseSequenceIdentity_ /
+ *                   _caseChildRowBelongsToResolvedCase_ only
+ * ========================================================================== */
+var CASE_DOMAIN_INTERNAL_OWNER_SECTIONS_R145 = Object.freeze({
+  CaseDomain: "MainData case search/report/canonical bundle owner",
+  MeetingDomain: "MeetingLogs and agenda history relation owner",
+  TrackingDomain: "Letters and follow-up relation owner",
+  DashboardDomain: "Dashboard case bundle read owner",
+  SharedRelation: "Sequence/caseId relation helpers shared inside Code_30 only",
+  rules: Object.freeze({ noNewApi: true, noNewFiles: true, singleFileOwners: true })
+});
+
 function _domainPhysicalContractPhase10_() {
   return {
     ok: !0,
@@ -767,6 +793,7 @@ CaseDomain.PHASED2_ROW_DATE_MAPPER_DEDUP =
     d[4],
   );
 });
+/* R145: single relation owner cleanup; sequence/caseId guards remain the only child-row identity path. */
 var CASE_READ_MODEL_LOCK_ID = "case-read-model-current",
   CASE_RECEIVE_DATE_CANONICAL_KEYS_current = [
     "recDate",
@@ -774,7 +801,8 @@ var CASE_READ_MODEL_LOCK_ID = "case-read-model-current",
     "recDateText",
     "receiveDateText",
     "วันที่รับเรื่อง",
-  ];
+  ],
+  CASE_SEQUENCE_CANONICAL_KEYS_CURRENT = Object.freeze(_C30K_CASE_NUM_.slice());
 function _caseBundleHasValue_(value) {
   return value != null && String(value).trim() !== "";
 }
@@ -798,17 +826,48 @@ function _caseSequenceNormalizeStrict_(value) {
 }
 function _caseSequenceFrom_(row) {
   row = row || {};
-  return _caseSequenceNormalizeStrict_(
-    row.caseNum ||
-      row.caseNo ||
-      row.runningNo ||
-      row["ลำดับเรื่อง"] ||
-      row["เลขลำดับเรื่อง"] ||
-      row["ลำดับเรื่องพิจารณา"] ||
-      row["เลขที่ลำดับเรื่อง"] ||
-      row["หมายเลขลำดับเรื่อง"] ||
-      "",
-  );
+  for (var i = 0; i < CASE_SEQUENCE_CANONICAL_KEYS_CURRENT.length; i++) {
+    var key = CASE_SEQUENCE_CANONICAL_KEYS_CURRENT[i],
+      value = row[key],
+      normalized = value === void 0 || value === null ? "" : _caseSequenceNormalizeStrict_(value);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+function _stampCaseSequenceIdentity_(row, caseNum) {
+  row = row || {};
+  caseNum = _caseSequenceNormalizeStrict_(caseNum);
+  if (!caseNum) return row;
+  CASE_SEQUENCE_CANONICAL_KEYS_CURRENT.forEach(function (key) {
+    row[key] = caseNum;
+  });
+  row.__relationSequenceStampedBy = "Code_30_Domain_Cases:_stampCaseSequenceIdentity_:r145";
+  return row;
+}
+function _caseUniqueFieldList_(fields) {
+  var seen = {}, out = [];
+  (fields || []).forEach(function (field) {
+    field = _s_(field).trim();
+    field && !seen[field] && ((seen[field] = 1), out.push(field));
+  });
+  return out;
+}
+function _caseFieldsWithSequence_(prefix, suffix) {
+  return _caseUniqueFieldList_((prefix || []).concat(CASE_SEQUENCE_CANONICAL_KEYS_CURRENT, suffix || []));
+}
+function _caseApplySequenceIdentity_(row, caseNum, clearWhenEmpty) {
+  row = row || {};
+  caseNum = _caseSequenceNormalizeStrict_(caseNum);
+  if (!caseNum) {
+    clearWhenEmpty === !0 && CASE_SEQUENCE_CANONICAL_KEYS_CURRENT.forEach(function (key) {
+      row[key] = "";
+    });
+    return row;
+  }
+  return _stampCaseSequenceIdentity_(row, caseNum);
+}
+function _caseSequenceIdentityPayload_(caseNum, base) {
+  return _caseApplySequenceIdentity_(_c30O_({}, base || {}), caseNum, false);
 }
 function _requireUniqueCaseBySequence_(payload) {
   var caseNum = _caseSequenceFrom_(payload || {});
@@ -826,22 +885,45 @@ function _requireUniqueCaseBySequence_(payload) {
     throw new Error("พบลำดับเรื่องซ้ำในข้อมูลหลัก: " + caseNum);
   return { caseNum: caseNum, row: rows[0] };
 }
+
+function _caseResolvedRelationContext_(payload) {
+  var resolved = _requireUniqueCaseBySequence_(payload || {}),
+    caseNum = resolved.caseNum,
+    row = resolved.row || {},
+    caseId = _s_(row.caseId || row.id || row.recordId || row.uid || "").trim();
+  return { caseNum: caseNum, caseId: caseId, row: row };
+}
+function _caseChildRowBelongsToResolvedCase_(row, relation) {
+  row = row || {};
+  relation = relation || {};
+  if (_appIsFnName_("isSoftDeletedRow_") && isSoftDeletedRow_(row)) return !1;
+  var targetSeq = _caseSequenceNormalizeStrict_(relation.caseNum),
+    rowSeq = _caseSequenceFrom_(row),
+    targetCaseId = _s_(relation.caseId || "").trim(),
+    rowCaseId = _s_(row.caseId || row.caseID || row.case_id || row.recordId || row.uid || "").trim();
+  if (rowSeq) return !!(targetSeq && rowSeq === targetSeq);
+  return !!(targetCaseId && rowCaseId && rowCaseId === targetCaseId);
+}
+function _caseStampResolvedRelation_(row, relation, owner) {
+  row = _c30O_({}, row || {});
+  relation = relation || {};
+  if (relation.caseNum) _stampCaseSequenceIdentity_(row, relation.caseNum);
+  if (relation.caseId) row.caseId = relation.caseId;
+  if (!_caseSequenceFrom_(row)) {
+    row.__legacyCaseIdRelationFallback = !0;
+    row.__relationFallbackOwner = owner || "Code_30_Domain_Cases:caseId-fallback-no-petitioner-r145";
+  } else {
+    row.__relationCanonicalStamp = owner || "Code_30_Domain_Cases:case-sequence-canonical-r145";
+  }
+  return row;
+}
+
 function getCanonicalCaseBundleImpl_(payload) {
   payload = payload || {};
   var resolved = _requireUniqueCaseBySequence_(payload);
   var caseNum = resolved.caseNum;
-  var seed = _caseBundleMergeNonEmpty_(resolved.row, {
-    caseNum: caseNum,
-    caseNo: caseNum,
-    runningNo: caseNum,
-    ลำดับเรื่อง: caseNum,
-  });
-  var strictPayload = {
-    caseNum: caseNum,
-    caseNo: caseNum,
-    runningNo: caseNum,
-    ลำดับเรื่อง: caseNum,
-  };
+  var seed = _caseBundleMergeNonEmpty_(resolved.row, _stampCaseSequenceIdentity_({}, caseNum));
+  var strictPayload = _caseSequenceIdentityPayload_(caseNum);
   var history = [],
     letters = [],
     relatedWarnings = [];
@@ -1257,7 +1339,7 @@ function _caseDomainSharedRows_(sheetName, fields, opts) {
 function _caseDomainMainDataProjectedRows_(includeDeleted) {
   return _caseDomainSharedRows_(
     "MainData",
-    [
+    _caseFieldsWithSequence_([
       "caseId",
       "id",
       "cat",
@@ -1295,11 +1377,6 @@ function _caseDomainMainDataProjectedRows_(includeDeleted) {
       "coAssignee",
       "coOwners",
       "coResponsible",
-      "caseNum",
-      "caseNo",
-      "runningNo",
-      "ลำดับเรื่อง",
-      "เลขลำดับเรื่อง",
       "remark",
       "caseTitle",
       "closedReason",
@@ -1337,24 +1414,16 @@ function _caseDomainMainDataProjectedRows_(includeDeleted) {
       "isDeleted",
       "deletedAt",
       "keySummary",
-    ],
+    ]),
     { includeDeleted: includeDeleted === !0, ttl: 180 },
   );
 }
 function _caseDomainLettersProjectedRows_(includeDeleted) {
   return _caseDomainSharedRows_(
     "Letters",
-    [
+    _caseFieldsWithSequence_([
       "letterId",
       "caseId",
-      "caseNum",
-      "caseNo",
-      "runningNo",
-      "ลำดับเรื่อง",
-      "เลขลำดับเรื่อง",
-      "ลำดับเรื่องพิจารณา",
-      "เลขที่ลำดับเรื่อง",
-      "หมายเลขลำดับเรื่อง",
       "letterNo",
       "bookNo",
       "letterDate",
@@ -1375,7 +1444,7 @@ function _caseDomainLettersProjectedRows_(includeDeleted) {
       "updatedAt",
       "isDeleted",
       "deletedAt",
-    ],
+    ]),
     { includeDeleted: includeDeleted === !0, ttl: 180 },
   );
 }
@@ -1538,15 +1607,13 @@ function _caseNormalizeInputDto_(input) {
           })
         : _caseNormalizeStatusForDisplay_(rawStatus)));
   var caseNumRaw = _casePick_(input, _C30K_CASE_NUM_) || "";
-  (_caseValueLooksLikeDate_(caseNumRaw) && (caseNumRaw = ""),
-    (input.caseNum = _extractRunningNumber_(
-      caseNumRaw,
-      input.offerDate || input.recDate || input.createdAt,
-      input.fy || input.fiscalYear || input.budgetYear,
-    )),
-    (input.caseNo = input.caseNum),
-    (input.runningNo = input.caseNum),
-    (input.ลำดับเรื่อง = input.caseNum));
+  _caseValueLooksLikeDate_(caseNumRaw) && (caseNumRaw = "");
+  input.caseNum = _extractRunningNumber_(
+    caseNumRaw,
+    input.offerDate || input.recDate || input.createdAt,
+    input.fy || input.fiscalYear || input.budgetYear,
+  );
+  _caseApplySequenceIdentity_(input, input.caseNum, true);
   var recNoRaw =
     _casePick_(input, [
       "recNo",
@@ -1706,7 +1773,7 @@ function _caseCanonicalDto_(row) {
 function _casePlainIdentityKey_(value) {
   return _c30S_(value).replace(/^'+/, "").trim();
 }
-/* r140: title/petitioner is display-only, never a relational key. */
+/* r145: title/petitioner is display-only, never a relational key. */
 function _caseBuildSaveLookupIndex_() {
   var cacheKey =
       "case.saveLookupIndex.current." +
@@ -2330,17 +2397,19 @@ function _isReceivedLetterStatusCanonical_(status) {
   return _normalizeLetterStatusCanonical_(status) === "ได้รับแล้ว";
 }
 function _normalizeLetterRow_(row) {
-  var rawLetterNo = (row = row || {}).letterNo || row.bookNo || "",
+  row = row || {};
+  var rawLetterNo = row.letterNo || row.bookNo || "",
     rawBookNo = row.bookNo || row.letterNo || "",
     letterNoWasDate = _letterIsDateLikeValue_(row.letterNo || ""),
-    bookNoWasDate = _letterIsDateLikeValue_(row.bookNo || "");
+    bookNoWasDate = _letterIsDateLikeValue_(row.bookNo || ""),
+    rowCaseNum = _caseSequenceFrom_(row);
   return sanitizeRow_({
     letterId: _s_(row.letterId),
     caseId: _s_(row.caseId).trim(),
-    caseNum: _caseSequenceFrom_(row),
-    caseNo: _caseSequenceFrom_(row),
-    runningNo: _caseSequenceFrom_(row),
-    ลำดับเรื่อง: _caseSequenceFrom_(row),
+    caseNum: rowCaseNum,
+    caseNo: rowCaseNum,
+    runningNo: rowCaseNum,
+    ลำดับเรื่อง: rowCaseNum,
     letterNo: _normalizeLetterNumberDisplay_(rawLetterNo),
     letterNoRaw: _c30S_(rawLetterNo),
     letterNoSchemaIssue:
@@ -2394,6 +2463,7 @@ function _meetingHistoryTypeText_(row) {
 }
 function _normalizeMeetingLogRow_(row) {
   row = row || {};
+  var rowCaseNumCanonical = _caseSequenceFrom_(row);
   var meetingDateText = _committeeMeetingDateText_(
       _caseRowPickPhaseD2_(
         row,
@@ -2410,18 +2480,10 @@ function _normalizeMeetingLogRow_(row) {
   return sanitizeRow_({
     logId: _s_(row.logId || row.meetingLogId || row.id),
     caseId: _s_(row.caseId).trim(),
-    caseNum: _s_(
-      row.caseNum ||
-        row.caseNo ||
-        row.runningNo ||
-        row.ลำดับเรื่อง,
-    ).trim(),
-    caseNo: _s_(
-      row.caseNo ||
-        row.caseNum ||
-        row.runningNo ||
-        row.ลำดับเรื่อง,
-    ).trim(),
+    caseNum: rowCaseNumCanonical,
+    caseNo: rowCaseNumCanonical,
+    runningNo: rowCaseNumCanonical,
+    ลำดับเรื่อง: rowCaseNumCanonical,
     recNo: _s_(
       row.recNo ||
         row.receiveNo ||
@@ -2594,12 +2656,7 @@ function _safeResolveCaseIdentityAliases_(payload) {
   payload = payload || {};
   var strictCaseNum = _caseSequenceFrom_(payload);
   if (strictCaseNum) {
-    var strictResolved = _requireUniqueCaseBySequence_({
-      caseNum: strictCaseNum,
-      caseNo: strictCaseNum,
-      runningNo: strictCaseNum,
-      ลำดับเรื่อง: strictCaseNum,
-    });
+    var strictResolved = _requireUniqueCaseBySequence_(_caseSequenceIdentityPayload_(strictCaseNum));
     var strictRow = strictResolved && strictResolved.row ? strictResolved.row : null;
     var strictIds = [];
     if (strictRow) {
@@ -2611,7 +2668,7 @@ function _safeResolveCaseIdentityAliases_(payload) {
       case: strictRow,
       rows: strictRow ? [strictRow] : [],
       caseNum: strictCaseNum,
-      identityOwner: "case-sequence-strict-current-r140",
+      identityOwner: "case-sequence-strict-current-r145",
     };
   }
   var seedId = String((payload && (payload.caseId || payload.id)) || "").trim(),
@@ -2645,8 +2702,8 @@ function _safeResolveCaseIdentityAliases_(payload) {
     rows: seedCase ? [seedCase] : [],
     caseNum: seedCase ? _caseSequenceFrom_(seedCase) : "",
     identityOwner: seedCase
-      ? "case-id-strict-current-r140"
-      : "case-identity-empty-no-title-petitioner-fallback-r140",
+      ? "case-id-strict-current-r145"
+      : "case-identity-empty-no-title-petitioner-fallback-r145",
   };
 }
 function _assertCaseExistsSafe_(payloadOrCaseId, sourceName) {
@@ -2673,7 +2730,18 @@ function _meetingLettersProjectedFields_(name) {
   return (name = _s_(name).trim()) === "MainData"
     ? [
         "caseId",
+        "id",
         "caseNum",
+        "caseNo",
+        "runningNo",
+        "ลำดับเรื่อง",
+        "เลขลำดับเรื่อง",
+        "ลำดับเรื่องพิจารณา",
+        "เลขที่ลำดับเรื่อง",
+        "หมายเลขลำดับเรื่อง",
+        "เลขที่เรื่องพิจารณา",
+        "เลขลำดับเรื่องพิจารณา",
+        "หมายเลขเรื่องพิจารณา",
         "recNo",
         "title",
         "caseTitle",
@@ -2691,6 +2759,17 @@ function _meetingLettersProjectedFields_(name) {
           "logId",
           "meetingId",
           "caseId",
+          "caseNum",
+          "caseNo",
+          "runningNo",
+          "ลำดับเรื่อง",
+          "เลขลำดับเรื่อง",
+          "ลำดับเรื่องพิจารณา",
+          "เลขที่ลำดับเรื่อง",
+          "หมายเลขลำดับเรื่อง",
+          "เลขที่เรื่องพิจารณา",
+          "เลขลำดับเรื่องพิจารณา",
+          "หมายเลขเรื่องพิจารณา",
           "round",
           "date",
           "meetingDate",
@@ -2719,6 +2798,13 @@ function _meetingLettersProjectedFields_(name) {
             "caseNo",
             "runningNo",
             "ลำดับเรื่อง",
+            "เลขลำดับเรื่อง",
+            "ลำดับเรื่องพิจารณา",
+            "เลขที่ลำดับเรื่อง",
+            "หมายเลขลำดับเรื่อง",
+            "เลขที่เรื่องพิจารณา",
+            "เลขลำดับเรื่องพิจารณา",
+            "หมายเลขเรื่องพิจารณา",
             "letterNo",
             "bookNo",
             "agency",
@@ -3976,12 +4062,7 @@ function _Domain_getLetters(caseId) {
     if (!targetCaseNum && !letterId)
       throw new Error("กรุณาระบุลำดับเรื่องสำหรับหนังสือติดตาม");
     if (!letterId) {
-      var resolvedCaseForLetters = _requireUniqueCaseBySequence_({
-        caseNum: targetCaseNum,
-        caseNo: targetCaseNum,
-        runningNo: targetCaseNum,
-        ลำดับเรื่อง: targetCaseNum,
-      });
+      var resolvedCaseForLetters = _requireUniqueCaseBySequence_(_caseSequenceIdentityPayload_(targetCaseNum));
       caseRows = resolvedCaseForLetters && resolvedCaseForLetters.row
         ? [resolvedCaseForLetters.row]
         : [];
@@ -4263,25 +4344,20 @@ function _Domain_getLetters(caseId) {
       normalized.extensions = extensions;
       normalized.extensionRows = extensions;
       normalized.extensionItems = extensions;
-      if (targetCaseNum && !_caseSequenceFrom_(normalized)) {
-        normalized.caseNum = targetCaseNum;
-        normalized.caseNo = targetCaseNum;
-        normalized.runningNo = targetCaseNum;
-        normalized["ลำดับเรื่อง"] = targetCaseNum;
-        normalized.__legacyCaseIdRelationFallback = !0;
-        normalized.__relationFallbackOwner = "letter-caseid-only-no-petitioner-r140";
+      if (relation) {
+        normalized = _caseStampResolvedRelation_(
+          normalized,
+          relation,
+          "letter-case-sequence-or-caseid-resolved-r145",
+        );
       }
-      if (canonicalCaseId && !normalized.caseId) normalized.caseId = canonicalCaseId;
+      if (canonicalCaseId) normalized.caseId = canonicalCaseId;
       return normalized;
     }
     function letterMatchesCase(row) {
       if (!row || isSoftDeletedRow_(row)) return !1;
-      var rowCaseNum = _caseSequenceFrom_(row),
-        rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
-      if (targetCaseNum) {
-        if (rowCaseNum) return rowCaseNum === targetCaseNum;
-        return !!(canonicalCaseId && rowCaseId && rowCaseId === canonicalCaseId);
-      }
+      var rowCaseId = _s_(row.caseId || row.caseID || row.case_id || row.recordId || row.uid || "").trim();
+      if (relation) return _caseChildRowBelongsToResolvedCase_(row, relation);
       return !!letterId && rowCaseId && idMap[rowCaseId];
     }
     var projectedRows = [];
@@ -4353,36 +4429,20 @@ function _Domain_getLetters(caseId) {
 }
 function _Domain_getMeetingHistory(payload) {
   try {
-    var caseNum = _caseSequenceFrom_(payload || {});
-    if (!caseNum) throw new Error("กรุณาระบุลำดับเรื่องสำหรับประวัติการประชุม");
-    var resolvedCase = _requireUniqueCaseBySequence_({
-      caseNum: caseNum,
-      caseNo: caseNum,
-      runningNo: caseNum,
-      ลำดับเรื่อง: caseNum,
-    });
-    var canonicalCaseId = _s_(
-      resolvedCase && resolvedCase.row && (resolvedCase.row.caseId || resolvedCase.row.id),
-    ).trim();
-    var rows = (_meetingHistoryProjectedRows_() || []).filter(function (row) {
-      if (!row || isSoftDeletedRow_(row)) return !1;
-      var rowCaseNum = _caseSequenceFrom_(row),
-        rowCaseId = _s_(row.caseId || row.caseID || row.case_id).trim();
-      if (rowCaseNum) return rowCaseNum === caseNum;
-      return !!(canonicalCaseId && rowCaseId && rowCaseId === canonicalCaseId);
-    });
+    var relation = _caseResolvedRelationContext_(payload || {}),
+      caseNum = relation.caseNum,
+      rows = (_meetingHistoryProjectedRows_() || []).filter(function (row) {
+        return _caseChildRowBelongsToResolvedCase_(row, relation);
+      });
     return _safeDedupeLatestRowsBy_(rows, _safeMeetingLogIdentityKey_)
       .map(function (row) {
-        row = _c30O_({}, row || {});
-        if (!_caseSequenceFrom_(row)) {
-          row.caseNum = caseNum;
-          row.caseNo = caseNum;
-          row.runningNo = caseNum;
-          row["ลำดับเรื่อง"] = caseNum;
-          row.__legacyCaseIdRelationFallback = !0;
-          row.__relationFallbackOwner = "meeting-history-caseid-only-no-petitioner-r140";
-        }
-        return _normalizeMeetingLogRow_(row);
+        return _normalizeMeetingLogRow_(
+          _caseStampResolvedRelation_(
+            row,
+            relation,
+            "meeting-history-case-sequence-or-caseid-resolved-r145",
+          ),
+        );
       })
       .sort(function (a, b) {
         var av = _s_(a.dateRaw),
@@ -4394,7 +4454,7 @@ function _Domain_getMeetingHistory(payload) {
             : 1;
       });
   } catch (e) {
-    _recordWarning_("meeting_history.case_sequence_or_caseid_strict", e);
+    _recordWarning_("meeting_history.case_relation_resolved_guard", e);
     throw e;
   }
 }
@@ -4453,7 +4513,10 @@ function _fetchAllLettersWithCaseInfoImpl_(payload) {
           owner = rowCaseNum ? caseSeqMap[rowCaseNum] || null : caseMap[rowCaseId] || null;
         if (rowCaseNum && owner && _caseSequenceFrom_(owner) !== rowCaseNum) owner = null;
         owner &&
-          ((normalized.caseNum = _s_(owner.caseNum)),
+          ((normalized.caseNum = _caseSequenceFrom_(owner) || _s_(owner.caseNum)),
+          (normalized.caseNo = normalized.caseNum),
+          (normalized.runningNo = normalized.caseNum),
+          (normalized["ลำดับเรื่อง"] = normalized.caseNum),
           (normalized.recNo = _s_(owner.recNo)),
           (normalized.caseTitle = _s_(owner.caseTitle || owner.title)),
           (normalized.title = _s_(owner.title || owner.caseTitle)),
@@ -4841,12 +4904,7 @@ function saveMeetingLog(p) {
           resolved = null;
         if (!caseSeed.caseNum)
           throw new Error("กรุณาระบุลำดับเรื่องก่อนบันทึกประวัติการประชุม");
-        resolved = _safeResolveCaseIdentityAliases_({
-          caseNum: caseSeed.caseNum,
-          caseNo: caseSeed.caseNum,
-          runningNo: caseSeed.caseNum,
-          ลำดับเรื่อง: caseSeed.caseNum,
-        }) || {};
+        resolved = _safeResolveCaseIdentityAliases_(_caseSequenceIdentityPayload_(caseSeed.caseNum)) || {};
         var caseInfo = (resolved && resolved.case) || {},
           realCaseId = text(caseInfo.caseId || caseInfo.id || ""),
           caseNum = text(
@@ -5325,12 +5383,7 @@ function saveLetter(p) {
     var startedAt = Date.now();
     var caseNum = _caseSequenceFrom_(input);
     if (!caseNum) return err_("ไม่พบลำดับเรื่องสำหรับหนังสือติดตาม");
-    var canonicalCase = _requireUniqueCaseBySequence_({
-      caseNum: caseNum,
-      caseNo: caseNum,
-      runningNo: caseNum,
-      ลำดับเรื่อง: caseNum,
-    });
+    var canonicalCase = _requireUniqueCaseBySequence_(_caseSequenceIdentityPayload_(caseNum));
     var caseId = _s_(
       canonicalCase && canonicalCase.row &&
         (canonicalCase.row.caseId || canonicalCase.row.id),
@@ -5504,13 +5557,9 @@ function saveLetter(p) {
       input.letterNo || "",
       input.bookNo || "",
     );
-    var row = {
+    var row = _caseSequenceIdentityPayload_(caseNum, {
       letterId: letterId,
       caseId: caseId,
-      caseNum: caseNum,
-      caseNo: caseNum,
-      runningNo: caseNum,
-      ลำดับเรื่อง: caseNum,
       letterNo: normalizedLetterNo,
       letterDate: normalizedLetterDate,
       agency: _s_(input.agency).trim(),
@@ -5530,7 +5579,7 @@ function saveLetter(p) {
       updatedAt: now,
       isDeleted: false,
       deletedAt: "",
-    };
+    });
     var required = [
       "letterId",
       "caseId",
@@ -7165,24 +7214,7 @@ function _caseSearchMainDataObject_(row) {
               ? raw.mainData
               : {};
 }
-function _caseSearchIdentityTextKey_(value) {
-  return (value = _c30S_(value).replace(/^'+/, "").trim())
-    ? _appIsFnName_("_normalizedText_")
-      ? _normalizedText_(value)
-      : value
-          .replace(/[\u00A0\u200B-\u200D\uFEFF]/g, "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .toLowerCase()
-    : "";
-}
-function _caseSearchTitlePetitionerDateKey_(title, petitioner) {
-  return (
-    (title = _caseSearchIdentityTextKey_(title)),
-    (petitioner = _caseSearchIdentityTextKey_(petitioner)),
-    title ? title + "|" + petitioner : ""
-  );
-}
+/* R145: title/petitioner relation-key helpers removed; relation identity is sequence/caseId only. */
 function _caseSearchIdentityKeysForMainDataRecDate_(row) {
   row = row || {};
   var keys = [],
@@ -7196,10 +7228,7 @@ function _caseSearchIdentityKeysForMainDataRecDate_(row) {
   function firstValue(list) {
     return _caseSearchPickField_(row, list) || "";
   }
-  var title = firstValue(_C30K_TITLE_NAME_),
-    consideration = firstValue(_C30K_CASE_TITLE_),
-    petitioners = firstValue(_C30K_PETITIONERS_FULL_),
-    caseId = addCaseIdentityKey_(
+  var caseId = addCaseIdentityKey_(
       "caseId",
       firstValue(["caseId", "id", "uid", "rowId", "_id"]),
     ),
@@ -7250,32 +7279,6 @@ function _caseSearchMainDataRecDateIndex_() {
         "recNo",
         "receiveNo",
         "เลขรับเรื่อง",
-        "title",
-        "subject",
-        "caseSubject",
-        "caseName",
-        "name",
-        "เรื่อง",
-        "ชื่อเรื่อง",
-        "หัวข้อเรื่อง",
-        "caseTitle",
-        "considerationTitle",
-        "caseConsiderationTitle",
-        "titleConsider",
-        "considerTitle",
-        "ชื่อเรื่องพิจารณา (ถ้ามี)",
-        "ชื่อเรื่องพิจารณา",
-        "เรื่องพิจารณา",
-        "petitioners",
-        "petitioner",
-        "petitionerName",
-        "requester",
-        "complainant",
-        "proposer",
-        "motionProposer",
-        "ผู้เสนอญัตติ/ผู้ร้อง",
-        "ผู้ร้อง",
-        "ผู้เสนอญัตติ",
         "isDeleted",
       ].concat(_caseSearchReceiveDateAliasKeys_()),
       rows =
@@ -7322,7 +7325,7 @@ function _caseSearchMainDataRecDateIndex_() {
             "caseNumRecNo:" + dateIndexCaseNum + "|" + dateIndexRecNo,
             text,
           );
-        /* r140: receive-date lookup intentionally excludes title/petitioner keys. */
+        /* r145: receive-date lookup intentionally excludes title/petitioner keys. */
       }
     });
   } catch (e) {
@@ -7414,10 +7417,7 @@ function _caseSearchEnsureReceiveNo_(row) {
     respondent = String(_casePick_(out, _C30K_RESPONDENT_SPACED_) || "").trim();
   return (
     caseNum
-      ? ((out.caseNum = caseNum),
-        (out.caseNo = caseNum),
-        (out.runningNo = caseNum),
-        (out.ลำดับเรื่อง = caseNum))
+      ? _stampCaseSequenceIdentity_(out, caseNum)
       : ((out.caseNum = ""),
         (out.caseNo = ""),
         (out.runningNo = ""),
@@ -7464,250 +7464,35 @@ function _caseSearchEnsureReceiveNo_(row) {
     out
   );
 }
+function _caseSearchVisibleProjectedFieldsR145_() {
+  return _caseFieldsWithSequence_([
+    "caseId", "id",
+    "recNo", "receiveNo", "เลขรับเรื่อง", "เลขที่รับเรื่อง",
+    "recDate", "receiveDate", "recDateText", "receiveDateText", "วันที่รับเรื่อง",
+    "title", "subject", "caseSubject", "ชื่อเรื่อง", "เรื่อง",
+    "caseTitle", "considerationTitle", "caseConsiderationTitle",
+    "ชื่อเรื่องพิจารณา (ถ้ามี)", "ชื่อเรื่องพิจารณา", "เรื่องพิจารณา",
+    "petitioners", "petitionerName", "ผู้เสนอญัตติ/ผู้ร้อง", "ผู้เสนอญัตติ", "ผู้ร้อง",
+    "respondent", "agencyName", "หน่วยงาน/ผู้ถูกร้อง", "ผู้ถูกร้อง", "หน่วยงาน",
+    "status", "cat", "caseType", "subCat", "subCategory",
+    "assignees", "owner", "staffs", "opStaff", "coAssignees",
+    "pendingRemark", "pendingReason", "statusReason", "reason", "เหตุผล",
+    "closedReason", "rejectionReason", "petitionerPhone", "sentAgency",
+    "isDeleted", "deletedAt", "updatedAt"
+  ]);
+}
 function _caseSearchCompactProjectedFields_() {
-  return [
-    "caseId",
-    "cat",
-    "subCat",
-    "recNo",
-    "offerDate",
-    "recDate",
-    "title",
-    "petitioners",
-    "status",
-    "assignees",
-    "staffs",
-    "respondent",
-    "coAssignees",
-    "caseNum",
-    "caseNo",
-    "runningNo",
-    "ลำดับเรื่อง",
-    "เลขลำดับเรื่อง",
-    "remark",
-    "caseTitle",
-    "agencyName",
-    "closedReason",
-    "rejectionReason",
-    "pendingRemark",
-    "pendingReason",
-    "statusReason",
-    "reason",
-    "เหตุผล",
-    "petitionerPhone",
-    "subject",
-    "caseType",
-    "topic",
-    "subcommittee",
-    "owner",
-    "dueDate",
-    "createdAt",
-    "updatedAt",
-    "meetingStatus",
-    "isDeleted",
-    "deletedAt",
-    "keySummary",
-    "sentAgency",
-  ];
+  return _caseSearchVisibleProjectedFieldsR145_();
 }
 function _caseSearchProjectedFields_() {
-  return [
-    "caseId",
-    "id",
-    "caseNum",
-    "caseNo",
-    "runningNo",
-    "ลำดับเรื่อง",
-    "เลขลำดับเรื่อง",
-    "cat",
-    "caseType",
-    "subCat",
-    "subCategory",
-    "issue",
-    "topic",
-    "recNo",
-    "receiveNo",
-    "เลขรับเรื่อง",
-    "เลขที่รับเรื่อง",
-    "รับเรื่องเลขที่",
-    "เลขรับเรื่องพิจารณา",
-    "เลขรับที่",
-    "เลขรับคำร้อง",
-    "เลขรับหนังสือ",
-    "เลขทะเบียนรับ",
-    "ทะเบียนรับ",
-    "ทะเบียนหนังสือรับ",
-    "เลขหนังสือรับ",
-    "caseReceiveNo",
-    "caseRecNo",
-    "receiptNo",
-    "receiveNumber",
-    "registrationNo",
-    "registrationNumber",
-    "receiveRegistrationNo",
-    "receiveCode",
-    "receiveBookNo",
-    "bookReceiveNo",
-    "petitionReceiveNo",
-    "complaintReceiveNo",
-    "documentReceiveNo",
-    "รับเลขที่",
-    "รับที่",
-    "เลขรับ",
-    "offerDate",
-    "bookDate",
-    "letterDate",
-    "dateProposed",
-    "proposalDate",
-    "proposeDate",
-    "proposedDate",
-    "submittedDate",
-    "submitDate",
-    "dateSubmitted",
-    "วันที่หนังสือ",
-    "วันที่เสนอ",
-    "วันที่เสนอเรื่อง",
-    "วันเดือนปีที่เสนอ",
-    "วันที่ยื่น",
-    "วันที่ยื่นเรื่อง",
-    "recDate",
-    "receiveDate",
-    "dateReceive",
-    "receiveAt",
-    "receivedAt",
-    "receiveOn",
-    "receivedOn",
-    "recDateText",
-    "receiveDateText",
-    "วันที่รับเรื่อง",
-    "วันที่รับเรื่อง (พ.ศ.)",
-    "วันที่รับเรื่อง(พ.ศ.)",
-    "วันที่รับ",
-    "วันรับเรื่อง",
-    "รับเรื่องวันที่",
-    "วันที่ลงรับ",
-    "วันที่รับคำร้อง",
-    "วันที่",
-    "วันเดือนปี",
-    "วันที่ (พ.ศ.)",
-    "วันที่(พ.ศ.)",
-    "date",
-    "dateText",
-    "recordDate",
-    "recordedDate",
-    "title",
-    "subject",
-    "caseSubject",
-    "ชื่อเรื่อง",
-    "เรื่อง",
-    "เรื่องร้องเรียน",
-    "caseTitle",
-    "considerationTitle",
-    "caseConsiderationTitle",
-    "ชื่อเรื่องพิจารณา (ถ้ามี)",
-    "ชื่อเรื่องพิจารณา",
-    "เรื่องพิจารณา",
-    "petitioners",
-    "petitionerName",
-    "petitioner",
-    "requester",
-    "complainant",
-    "proposer",
-    "motionProposer",
-    "ผู้เสนอญัตติ/ผู้ร้อง",
-    "ผู้เสนอญัตติ",
-    "ผู้ร้อง",
-    "status",
-    "assignees",
-    "owner",
-    "responsibleCommissioners",
-    "responsibleComm",
-    "committeeOwner",
-    "responsibleCommittee",
-    "staffs",
-    "secretariatOfficer",
-    "operationOfficer",
-    "opStaff",
-    "operator",
-    "responsibleOfficer",
-    "operationStaff",
-    "staff",
-    "officer",
-    "respondent",
-    "agencyName",
-    "accusedAgency",
-    "accused",
-    "agency",
-    "coAssignees",
-    "coAssignee",
-    "coOwners",
-    "coResponsible",
-    "caseNum",
-    "caseNo",
-    "runningNo",
-    "remark",
-    "note",
-    "reason",
-    "statusReason",
-    "decisionReason",
-    "closedReason",
-    "closeReason",
-    "terminateReason",
-    "stopReason",
-    "endReason",
-    "caseCloseReason",
-    "caseEndReason",
-    "rejectionReason",
-    "rejectReason",
-    "notAcceptedReason",
-    "notReceiveReason",
-    "notAcceptReason",
-    "caseRejectReason",
-    "เหตุผล",
-    "เหตุผล (ไม่รับเรื่อง)",
-    "เหตุผลไม่รับเรื่อง",
-    "เหตุผลการไม่รับเรื่อง",
-    "เหตุผลยุติเรื่อง",
-    "เหตุผลการยุติเรื่อง",
-    "pendingRemark",
-    "pendingReason",
-    "waitReason",
-    "waitingReason",
-    "เหตุผลรอพิจารณา",
-    "เหตุผลรอการพิจารณา",
-    "หมายเหตุรอพิจารณา",
-    "หมายเหตุรอการพิจารณา",
-    "committeeHistory",
-    "committeeMeeting",
-    "committeeMeetings",
-    "meetingCommitteeHistory",
-    "คณะกรรมาธิการ",
-    "subcommitteeHistory",
-    "subcommitteeMeeting",
-    "subcommitteeMeetings",
-    "meetingSubcommitteeHistory",
-    "คณะอนุกรรมาธิการ",
-    "petitionerPhone",
-    "subcommittee",
-    "dueDate",
-    "createdAt",
-    "updatedAt",
-    "meetingStatus",
-    "isDeleted",
-    "deletedAt",
-    "keySummary",
-    "sentAgency",
-    "sendToAgency",
-    "sentToAgency",
-    "forwardedAgency",
-    "forwardAgency",
-    "forwardToAgency",
-    "sentAgencyName",
-    "หน่วยงานที่ส่ง",
-    "ส่งให้หน่วยงาน",
-    "ส่งหน่วยงาน",
-    "หน่วยงานที่เกี่ยวข้อง",
-  ];
+  return _caseUniqueFieldList_(
+    _caseSearchVisibleProjectedFieldsR145_().concat([
+      "offerDate", "bookDate", "letterDate", "dateProposed", "วันที่หนังสือ",
+      "subcommittee", "committeeHistory", "subcommitteeHistory",
+      "dueDate", "createdAt", "meetingStatus", "keySummary",
+      "sendToAgency", "sentToAgency", "ส่งให้หน่วยงาน", "หน่วยงานที่เกี่ยวข้อง"
+    ])
+  );
 }
 function _caseReadMainDataRowsForSearch_(fields, opts) {
   opts = opts || {};
@@ -7797,14 +7582,7 @@ function _caseReadMainDataRowsForSearch_(fields, opts) {
   function _caseMainDataStatusValue_(row) {
     var raw = _caseStatusObject_((row = row || {}).raw || row.__raw || {}),
       main = _caseStatusObject_(
-        row.MainData ||
-          row.mainData ||
-          row.MainData ||
-          row.mainData ||
-          raw.MainData ||
-          raw.mainData ||
-          raw.MainData ||
-          raw.mainData,
+        row.MainData || row.mainData || raw.MainData || raw.mainData,
       ),
       flat = [
         "MainData/status",
@@ -7831,9 +7609,7 @@ function _caseReadMainDataRowsForSearch_(fields, opts) {
         _casePickStatusValue_(raw, flat) ||
         _casePickStatusValue_(main, mainKeys) ||
         _casePickStatusValue_(
-          _caseStatusObject_(
-            raw.MainData || raw.mainData || raw.MainData || raw.mainData,
-          ),
+          _caseStatusObject_(raw.MainData || raw.mainData),
           mainKeys,
         );
     if (direct) return direct;
@@ -8482,9 +8258,9 @@ function _caseAttachMeetingHistoryCurrent_(rows) {
 function _caseReportMatchRows_(payload) {
   payload = payload || {};
   var projectedFields =
-      payload.compactReadModel === !0
-        ? _caseSearchCompactProjectedFields_()
-        : _caseSearchProjectedFields_(),
+      payload.fullList === !0 || payload.exportMode || payload.includeMeetingHistory === !0
+        ? _caseSearchProjectedFields_()
+        : _caseSearchCompactProjectedFields_(),
     rows = _appIsFnName_("_caseReadMainDataRowsForSearch_")
       ? _caseReadMainDataRowsForSearch_(projectedFields, payload)
       : [];
@@ -8921,7 +8697,7 @@ function _caseReportMeetingTextPhase3_(log) {
 function _caseReportCaseIdentityKeysPhase3_(row) {
   row = row || {};
   var out = [],
-    caseId = _caseReportTextPhase3_(row.caseId || row.case_id || row.id || ""),
+    caseId = _caseReportTextPhase3_(row.caseId || row.case_id || row.recordId || row.uid || ""),
     caseNum = _caseReportTextPhase3_(
       row.caseNum || row.caseNo || row.runningNo || row.ลำดับเรื่อง || "",
     );
@@ -11199,11 +10975,11 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
         )
   );
 }
-function _dashboardDeferredFirstPaintBundleR140_(payload, sess, startedAt, cacheKey) {
+function _dashboardDeferredFirstPaintBundleR141_(payload, sess, startedAt, cacheKey) {
   payload = payload || {};
   var now = new Date().toISOString(),
-    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r140"),
-    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r140"),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r145"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r145"),
     caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
     meta = {
       cached: !1,
@@ -11212,7 +10988,7 @@ function _dashboardDeferredFirstPaintBundleR140_(payload, sess, startedAt, cache
       cacheKey: cacheKey || "",
       durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
       generatedAt: now,
-      source: "dashboard-cold-first-paint-no-sheet-read-r140",
+      source: "dashboard-cold-first-paint-no-sheet-read-r145",
       dashboardFirstPaintDeferred: !0,
       deferHydrationRequired: !0,
       fastFirstPaintNoSheetRead: !0,
@@ -11223,7 +10999,7 @@ function _dashboardDeferredFirstPaintBundleR140_(payload, sess, startedAt, cache
       includeCases: payload.includeCases === !0,
       hotPathMode: payload.hotPathMode || "phase1-dashboard-first-paint-summary",
       performanceTargetMs: 1200,
-      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR140_",
+      owner: "Code_30_Domain_Cases._dashboardDeferredFirstPaintBundleR141_",
     };
   stats.degraded = !1;
   stats.errorCode = "";
@@ -11474,7 +11250,7 @@ function _apiGetDashboardBundleCore_(payload) {
           : "Y",
       ).toUpperCase() !== "N"
     ) {
-      return _dashboardDeferredFirstPaintBundleR140_(
+      return _dashboardDeferredFirstPaintBundleR141_(
         payload,
         sess,
         bundleStartedAt,
@@ -12548,6 +12324,29 @@ function _hotRouteDateKey_() {
     return new Date().toISOString().slice(0, 10);
   }
 }
+
+function _casePayloadSessionScopeR145_(payload) {
+  payload = payload || {};
+  var security = payload._securityContext || payload.__securityContext || {},
+    token = _s_(payload.token || payload._token || payload.sessionToken || payload.__sessionToken || "").trim(),
+    principal = _s_(security.userId || security.username || security.email || payload.userId || payload.username || payload.email || "anonymous").trim().toLowerCase(),
+    role = _s_(security.role || payload.role || "viewer").trim().toLowerCase(),
+    tokenFp = "";
+  try {
+    tokenFp = token && _appIsFnName_("_sessionMetaTokenFingerprint_")
+      ? _sessionMetaTokenFingerprint_(token)
+      : token
+        ? _hotRouteDigest_("session-token|" + token).substring(0, 16)
+        : "no-token";
+  } catch (_scopeErr) {
+    tokenFp = "scope-error";
+  }
+  return _hotRouteDigest_(JSON.stringify({ principal: principal, role: role, token: tokenFp })).substring(0, 32);
+}
+function _casePayloadSequenceScopeR145_(payload) {
+  return _caseSequenceFrom_(payload || {}) || "all";
+}
+
 function _caseSearchIndexScope_(payload) {
   return (
     (payload = payload || {}),
@@ -12567,6 +12366,8 @@ function _caseSearchIndexScope_(payload) {
                 "1",
             )
           : "0",
+      sessionScope: _casePayloadSessionScopeR145_(payload),
+      caseSequenceScope: _casePayloadSequenceScopeR145_(payload),
     }
   );
 }
@@ -13066,6 +12867,8 @@ function _hotRouteReadModelPayloadScope_(payload) {
       caseIndexStamp: _caseSearchIndexScope_(payload).caseStamp,
       trackingIndexDate: _hotRouteDateKey_(),
       model: HOT_ROUTE_READ_MODEL_STAMP,
+      sessionScope: _casePayloadSessionScopeR145_(payload),
+      caseSequenceScope: _casePayloadSequenceScopeR145_(payload),
     }
   );
 }
@@ -13258,14 +13061,12 @@ function _getTrackingMaterializedCore_(payload) {
       Number(payload.cacheTtlSeconds || 600) || 600,
       function (p) {
         return _caseSearchMaterializedQuery_(
-          _c30O_(
-            {
-              __route: "CaseDomain.searchCases",
-              compactReadModel: !0,
-              serverPaged: !0,
-            },
-            p || {},
-          ),
+          _c30O_(p || {}, {
+            __route: "CaseDomain.searchCases",
+            compactReadModel: !0,
+            serverPaged: !0,
+            __projectedFieldsOwner: "case-search-visible-fields-r145",
+          }),
         );
       },
     )
