@@ -1201,13 +1201,44 @@
             var n = function () {
               return s("apiDeleteLetter", {
                 letterId: t,
+                id: t,
+                caseId: T("meeting-caseId"),
+                caseNum: T("meeting-caseNum"),
+                caseNo: T("meeting-caseNum"),
+                runningNo: T("meeting-caseNum"),
+                ลำดับเรื่อง: T("meeting-caseNum"),
+                forceFresh: !0,
+                forceRefresh: !0,
+                noCache: !0,
+                bypassCache: !0,
+                cacheTtlSeconds: 0,
                 token: u("auth.token", ""),
               })
                 .then(function (e) {
                   if (e && e && !1 === e.ok)
                     throw new Error(e.msg || e.error || "ลบหนังสือไม่สำเร็จ");
-                  var t = T("meeting-caseId");
-                  return !t || Be(t);
+                  try {
+                    y.letters = (Array.isArray(y.letters) ? y.letters : []).filter(function (row) {
+                      return String((row && (row.letterId || row.id || row.recordId)) || "").trim() !== String(t || "").trim();
+                    });
+                    qe(y.letters);
+                  } catch (_localDeleteErr) {
+                    "function" == typeof __appObserve &&
+                      __appObserve(_localDeleteErr, "meeting.deleteLetter.localState.r146");
+                  }
+                  return Be({
+                    caseId: T("meeting-caseId"),
+                    caseNum: T("meeting-caseNum"),
+                    caseNo: T("meeting-caseNum"),
+                    runningNo: T("meeting-caseNum"),
+                    ลำดับเรื่อง: T("meeting-caseNum"),
+                    forceFresh: !0,
+                    forceRefresh: !0,
+                    noCache: !0,
+                    bypassCache: !0,
+                    cacheTtlSeconds: 0,
+                    __meetingAfterDeleteRefreshOwner: "meeting-delete-letter-refresh-r146"
+                  });
                 })
                 .catch(function (t) {
                   e.AppRuntime &&
@@ -5755,6 +5786,7 @@
         input.bypassCache === !0 ||
         input.cacheTtlSeconds === 0 ||
         !!input.__meetingAfterSaveRefreshOwner ||
+        !!input.__meetingAfterDeleteRefreshOwner ||
         isVercelHost();
       function freshPayload(base) {
         var out = Object.assign({ limit: 250 }, base || {});
@@ -5796,7 +5828,7 @@
           context = { caseNum: caseNum, caseId: txt(t.caseId || t.recordId || "") };
         if (relation && relation.filterRows)
           return relation.filterRows(rows, context, {
-            __relationFallbackOwner: "meeting-client-shared-relation-r145",
+            __relationFallbackOwner: "meeting-client-shared-relation-r146",
           });
         return (Array.isArray(rows) ? rows : []).filter(function (row) {
           return sameSequenceRow(row, caseNum);
@@ -5927,7 +5959,7 @@
         })
         .catch(function (err) {
           "function" == typeof __appObserve &&
-            __appObserve(err, "meeting.bundle-first.reload.r145");
+            __appObserve(err, "meeting.bundle-first.reload.r146");
           return renderDirectFallback();
         });
     }
@@ -10839,6 +10871,15 @@
                 letterId: id,
                 id: id,
                 caseId: value("meeting-caseId"),
+                caseNum: value("meeting-caseNum"),
+                caseNo: value("meeting-caseNum"),
+                runningNo: value("meeting-caseNum"),
+                ลำดับเรื่อง: value("meeting-caseNum"),
+                forceFresh: true,
+                forceRefresh: true,
+                noCache: true,
+                bypassCache: true,
+                cacheTtlSeconds: 0,
                 actionMethod: "delete",
               });
     }

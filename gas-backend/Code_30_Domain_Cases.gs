@@ -692,7 +692,7 @@ function _domainPhysicalSectionPhase10_(n, o, p, api, h, s, w) {
 });
 
 /* ============================================================================
- * Code_30_Domain_Cases.gs internal owners (R145, no new files / no new APIs)
+ * Code_30_Domain_Cases.gs internal owners (R146, no new files / no new APIs)
  * --------------------------------------------------------------------------
  * CaseDomain      : MainData search/report/canonical case bundle/save/delete
  * MeetingDomain   : MeetingLogs + CommitteeMeetingAgendaItems history linkage
@@ -701,7 +701,7 @@ function _domainPhysicalSectionPhase10_(n, o, p, api, h, s, w) {
  * SharedRelation  : _caseSequenceFrom_ / _stampCaseSequenceIdentity_ /
  *                   _caseChildRowBelongsToResolvedCase_ only
  * ========================================================================== */
-var CASE_DOMAIN_INTERNAL_OWNER_SECTIONS_R145 = Object.freeze({
+var CASE_DOMAIN_INTERNAL_OWNER_SECTIONS_R146 = Object.freeze({
   CaseDomain: "MainData case search/report/canonical bundle owner",
   MeetingDomain: "MeetingLogs and agenda history relation owner",
   TrackingDomain: "Letters and follow-up relation owner",
@@ -793,7 +793,7 @@ CaseDomain.PHASED2_ROW_DATE_MAPPER_DEDUP =
     d[4],
   );
 });
-/* R145: single relation owner cleanup; sequence/caseId guards remain the only child-row identity path. */
+/* R146: single relation owner cleanup; sequence/caseId guards remain the only child-row identity path. */
 var CASE_READ_MODEL_LOCK_ID = "case-read-model-current",
   CASE_RECEIVE_DATE_CANONICAL_KEYS_current = [
     "recDate",
@@ -841,7 +841,7 @@ function _stampCaseSequenceIdentity_(row, caseNum) {
   CASE_SEQUENCE_CANONICAL_KEYS_CURRENT.forEach(function (key) {
     row[key] = caseNum;
   });
-  row.__relationSequenceStampedBy = "Code_30_Domain_Cases:_stampCaseSequenceIdentity_:r145";
+  row.__relationSequenceStampedBy = "Code_30_Domain_Cases:_stampCaseSequenceIdentity_:r146";
   return row;
 }
 function _caseUniqueFieldList_(fields) {
@@ -900,7 +900,7 @@ function _caseChildRowBelongsToResolvedCase_(row, relation) {
   var targetSeq = _caseSequenceNormalizeStrict_(relation.caseNum),
     rowSeq = _caseSequenceFrom_(row),
     targetCaseId = _s_(relation.caseId || "").trim(),
-    rowCaseId = _s_(row.caseId || row.caseID || row.case_id || row.recordId || row.uid || "").trim();
+    rowCaseId = _s_(row.caseId || row.caseID || row.case_id || "").trim();
   if (rowSeq) return !!(targetSeq && rowSeq === targetSeq);
   return !!(targetCaseId && rowCaseId && rowCaseId === targetCaseId);
 }
@@ -911,9 +911,9 @@ function _caseStampResolvedRelation_(row, relation, owner) {
   if (relation.caseId) row.caseId = relation.caseId;
   if (!_caseSequenceFrom_(row)) {
     row.__legacyCaseIdRelationFallback = !0;
-    row.__relationFallbackOwner = owner || "Code_30_Domain_Cases:caseId-fallback-no-petitioner-r145";
+    row.__relationFallbackOwner = owner || "Code_30_Domain_Cases:caseId-fallback-no-petitioner-r146";
   } else {
-    row.__relationCanonicalStamp = owner || "Code_30_Domain_Cases:case-sequence-canonical-r145";
+    row.__relationCanonicalStamp = owner || "Code_30_Domain_Cases:case-sequence-canonical-r146";
   }
   return row;
 }
@@ -1773,7 +1773,7 @@ function _caseCanonicalDto_(row) {
 function _casePlainIdentityKey_(value) {
   return _c30S_(value).replace(/^'+/, "").trim();
 }
-/* r145: title/petitioner is display-only, never a relational key. */
+/* r146: title/petitioner is display-only, never a relational key. */
 function _caseBuildSaveLookupIndex_() {
   var cacheKey =
       "case.saveLookupIndex.current." +
@@ -2668,7 +2668,7 @@ function _safeResolveCaseIdentityAliases_(payload) {
       case: strictRow,
       rows: strictRow ? [strictRow] : [],
       caseNum: strictCaseNum,
-      identityOwner: "case-sequence-strict-current-r145",
+      identityOwner: "case-sequence-strict-current-r146",
     };
   }
   var seedId = String((payload && (payload.caseId || payload.id)) || "").trim(),
@@ -2702,8 +2702,8 @@ function _safeResolveCaseIdentityAliases_(payload) {
     rows: seedCase ? [seedCase] : [],
     caseNum: seedCase ? _caseSequenceFrom_(seedCase) : "",
     identityOwner: seedCase
-      ? "case-id-strict-current-r145"
-      : "case-identity-empty-no-title-petitioner-fallback-r145",
+      ? "case-id-strict-current-r146"
+      : "case-identity-empty-no-title-petitioner-fallback-r146",
   };
 }
 function _assertCaseExistsSafe_(payloadOrCaseId, sourceName) {
@@ -4056,7 +4056,8 @@ function _Domain_getLetters(caseId) {
     var aliases = { ids: [], case: null },
       idMap = {},
       caseRows = [],
-      canonicalCaseId = "";
+      canonicalCaseId = "",
+      relation = null;
     if (aliases.case) caseRows.push(aliases.case);
     var targetCaseNum = _caseSequenceFrom_(payload);
     if (!targetCaseNum && !letterId)
@@ -4072,6 +4073,11 @@ function _Domain_getLetters(caseId) {
           (resolvedCaseForLetters.row.caseId || resolvedCaseForLetters.row.id),
       ).trim();
       canonicalCaseId = resolvedCaseId;
+      relation = {
+        caseNum: targetCaseNum,
+        caseId: resolvedCaseId,
+        row: (resolvedCaseForLetters && resolvedCaseForLetters.row) || {},
+      };
       resolvedCaseId && (idMap[resolvedCaseId] = !0);
     }
     function identity(row) {
@@ -4348,7 +4354,7 @@ function _Domain_getLetters(caseId) {
         normalized = _caseStampResolvedRelation_(
           normalized,
           relation,
-          "letter-case-sequence-or-caseid-resolved-r145",
+          "letter-case-sequence-or-caseid-resolved-r146",
         );
       }
       if (canonicalCaseId) normalized.caseId = canonicalCaseId;
@@ -4440,7 +4446,7 @@ function _Domain_getMeetingHistory(payload) {
           _caseStampResolvedRelation_(
             row,
             relation,
-            "meeting-history-case-sequence-or-caseid-resolved-r145",
+            "meeting-history-case-sequence-or-caseid-resolved-r146",
           ),
         );
       })
@@ -5855,7 +5861,7 @@ function saveLetter(p) {
     return (
       (payload = requireDomainRequest_(payload, "staff")),
       _normalizeOkEnvelope_(
-        deleteLetter(payload.letterId || payload.id || ""),
+        deleteLetter(payload),
         "ลบหนังสือติดตามสำเร็จ",
         "ลบหนังสือติดตามไม่สำเร็จ",
       )
@@ -7214,7 +7220,7 @@ function _caseSearchMainDataObject_(row) {
               ? raw.mainData
               : {};
 }
-/* R145: title/petitioner relation-key helpers removed; relation identity is sequence/caseId only. */
+/* R146: title/petitioner relation-key helpers removed; relation identity is sequence/caseId only. */
 function _caseSearchIdentityKeysForMainDataRecDate_(row) {
   row = row || {};
   var keys = [],
@@ -7325,7 +7331,7 @@ function _caseSearchMainDataRecDateIndex_() {
             "caseNumRecNo:" + dateIndexCaseNum + "|" + dateIndexRecNo,
             text,
           );
-        /* r145: receive-date lookup intentionally excludes title/petitioner keys. */
+        /* r146: receive-date lookup intentionally excludes title/petitioner keys. */
       }
     });
   } catch (e) {
@@ -7464,7 +7470,7 @@ function _caseSearchEnsureReceiveNo_(row) {
     out
   );
 }
-function _caseSearchVisibleProjectedFieldsR145_() {
+function _caseSearchVisibleProjectedFieldsR146_() {
   return _caseFieldsWithSequence_([
     "caseId", "id",
     "recNo", "receiveNo", "เลขรับเรื่อง", "เลขที่รับเรื่อง",
@@ -7482,11 +7488,11 @@ function _caseSearchVisibleProjectedFieldsR145_() {
   ]);
 }
 function _caseSearchCompactProjectedFields_() {
-  return _caseSearchVisibleProjectedFieldsR145_();
+  return _caseSearchVisibleProjectedFieldsR146_();
 }
 function _caseSearchProjectedFields_() {
   return _caseUniqueFieldList_(
-    _caseSearchVisibleProjectedFieldsR145_().concat([
+    _caseSearchVisibleProjectedFieldsR146_().concat([
       "offerDate", "bookDate", "letterDate", "dateProposed", "วันที่หนังสือ",
       "subcommittee", "committeeHistory", "subcommitteeHistory",
       "dueDate", "createdAt", "meetingStatus", "keySummary",
@@ -10978,8 +10984,8 @@ function _dashboardBudgetFromBudgetDomainPhaseE_(payload) {
 function _dashboardDeferredFirstPaintBundleR141_(payload, sess, startedAt, cacheKey) {
   payload = payload || {};
   var now = new Date().toISOString(),
-    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r145"),
-    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r145"),
+    stats = _dashboardEmptyStatsPayload_("dashboard-cold-first-paint-deferred-r146"),
+    budget = _dashboardEmptyBudgetPayload_("dashboard-cold-first-paint-deferred-r146"),
     caseData = { rows: [], totalRecords: 0, totalPages: 1, page: 1, limit: 0 },
     meta = {
       cached: !1,
@@ -10988,7 +10994,7 @@ function _dashboardDeferredFirstPaintBundleR141_(payload, sess, startedAt, cache
       cacheKey: cacheKey || "",
       durationMs: Math.max(0, Date.now() - Number(startedAt || Date.now())),
       generatedAt: now,
-      source: "dashboard-cold-first-paint-no-sheet-read-r145",
+      source: "dashboard-cold-first-paint-no-sheet-read-r146",
       dashboardFirstPaintDeferred: !0,
       deferHydrationRequired: !0,
       fastFirstPaintNoSheetRead: !0,
@@ -12325,7 +12331,7 @@ function _hotRouteDateKey_() {
   }
 }
 
-function _casePayloadSessionScopeR145_(payload) {
+function _casePayloadSessionScopeR146_(payload) {
   payload = payload || {};
   var security = payload._securityContext || payload.__securityContext || {},
     token = _s_(payload.token || payload._token || payload.sessionToken || payload.__sessionToken || "").trim(),
@@ -12343,7 +12349,7 @@ function _casePayloadSessionScopeR145_(payload) {
   }
   return _hotRouteDigest_(JSON.stringify({ principal: principal, role: role, token: tokenFp })).substring(0, 32);
 }
-function _casePayloadSequenceScopeR145_(payload) {
+function _casePayloadSequenceScopeR146_(payload) {
   return _caseSequenceFrom_(payload || {}) || "all";
 }
 
@@ -12366,8 +12372,8 @@ function _caseSearchIndexScope_(payload) {
                 "1",
             )
           : "0",
-      sessionScope: _casePayloadSessionScopeR145_(payload),
-      caseSequenceScope: _casePayloadSequenceScopeR145_(payload),
+      sessionScope: _casePayloadSessionScopeR146_(payload),
+      caseSequenceScope: _casePayloadSequenceScopeR146_(payload),
     }
   );
 }
@@ -12867,8 +12873,8 @@ function _hotRouteReadModelPayloadScope_(payload) {
       caseIndexStamp: _caseSearchIndexScope_(payload).caseStamp,
       trackingIndexDate: _hotRouteDateKey_(),
       model: HOT_ROUTE_READ_MODEL_STAMP,
-      sessionScope: _casePayloadSessionScopeR145_(payload),
-      caseSequenceScope: _casePayloadSequenceScopeR145_(payload),
+      sessionScope: _casePayloadSessionScopeR146_(payload),
+      caseSequenceScope: _casePayloadSequenceScopeR146_(payload),
     }
   );
 }
@@ -13065,7 +13071,7 @@ function _getTrackingMaterializedCore_(payload) {
             __route: "CaseDomain.searchCases",
             compactReadModel: !0,
             serverPaged: !0,
-            __projectedFieldsOwner: "case-search-visible-fields-r145",
+            __projectedFieldsOwner: "case-search-visible-fields-r146",
           }),
         );
       },
