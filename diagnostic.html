@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport"content="width=device-width,initial-scale=1">
+<title>P3 Production Runtime Diagnostic</title>
+<meta name="robots"content="noindex,nofollow,noarchive">
+<style>
+body{
+  font-family:Sarabun,Arial,sans-serif;
+  margin:24px;
+  line-height:1.5;
+  background:#f8fafc;
+  color:#0f172a
+}
+.card{
+  background:white;
+  border:1px solid#e2e8f0;
+  border-radius:14px;
+  padding:18px;
+  max-width:1040px;
+  box-shadow:0 8px 24px rgba(15,23,42,.08)
+}
+code,pre{
+  background:#f1f5f9;
+  border-radius:8px;
+  padding:2px 6px
+}
+pre{
+  padding:12px;
+  white-space:pre-wrap;
+  overflow:auto;
+  min-height:280px
+}
+button{
+  padding:10px 16px;
+  border:0;
+  border-radius:10px;
+  background:#0f172a;
+  color:white;
+  cursor:pointer
+}
+input{
+  padding:8px 10px;
+  border:1px solid#cbd5e1;
+  border-radius:8px;
+  margin:4px;
+  min-width:210px
+}
+.ok{
+  color:#047857
+}
+.bad{
+  color:#b91c1c
+}
+.muted{
+  color:#64748b
+}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>ตรวจสอบ P3 Production Runtime: Vercel Proxy → GAS</h1>
+<p>หน้านี้ทดสอบว่า frontend เรียก GAS ผ่าน same-origin Vercel API proxy เท่านั้น โดยไม่ใช้browser JSONP,hidden GAS bridge หรือ login POST iframe</p>
+<p><strong>Proxy API:</strong><code id="apiUrl"></code></p>
+<p><strong>Login API:</strong><code id="loginUrl"></code></p>
+<p><strong>Public Config:</strong><code id="publicConfigUrl"></code></p>
+<p><strong>Transport:</strong><code id="transportMode"></code></p>
+<p><strong>Release:</strong><code id="releaseStamp"></code></p>
+<p><strong>Hosting:</strong><code id="hostingTarget"></code></p>
+<p class="muted">หน้านี้เป็น read-only health check และไม่รับชื่อผู้ใช้ รหัสผ่าน token หรือข้อมูลลับ</p>
+<p><button id="runBtn"type="button">เริ่มตรวจสอบ</button></p>
+<pre id="out">รอกดปุ่มตรวจสอบ...</pre>
+</div>
+<script src="./vercel-env.generated.js?v=commission-v1.2-github-pages-gas-direct-2026-07-14-r104">
+
+</script>
+<script src="./app-config.js?transport=production-vercel-proxy-only&v=commission-v1.2-github-pages-gas-direct-2026-07-14-r104">
+
+</script>
+<script src="./github-gas-transport.js?transport=production-vercel-proxy-only&v=commission-v1.2-github-pages-gas-direct-2026-07-14-r104">
+
+</script>
+<script>
+const $ = id => document.getElementById(id);
+const cfg =() => window.APP_CONFIG || {
+};
+const apiUrl =() => cfg().vercelApiProxyUrl || '/api/gas';
+const loginUrl =() => cfg().vercelLoginProxyUrl || '/api/login';
+const publicConfigUrl =() => cfg().vercelPublicConfigProxyUrl || '/api/public-config';
+$('apiUrl').textContent = apiUrl();
+$('loginUrl').textContent = loginUrl();
+$('publicConfigUrl').textContent = publicConfigUrl();
+$('transportMode').textContent =(window.AppTransport && window.AppTransport.transportMode) || cfg().transportMode || '(unknown)';
+$('releaseStamp').textContent = cfg().releaseStamp ||(window.AppTransport && window.AppTransport.phase2Status && window.AppTransport.phase2Status().stamp) || '(unknown)';
+$('hostingTarget').textContent = cfg().hostingTarget ||(window.__VERCEL_MIGRATION_CONFIG__ && window.__VERCEL_MIGRATION_CONFIG__.hostingTarget) || '(unknown)';
+function write(line) {
+  $('out').textContent += '\n' + line;
+}
+function redact(obj) {
+  const v = JSON.parse(JSON.stringify(obj || {
+      }));
+  const walk = o => {
+    if (!o || typeof o !== 'object')return;
+    Object.keys(o).forEach(k => {
+        if (/token|csrf|password|secret/i.test(k))o[k] = '[redacted]'; else walk(o[k]); 
+      });
+  };
+  walk(v);
+  return v;
+}
+async function fetchJson(url, options) {
+  const r = await fetch(url, Object.assign({
+        cache: 'no-store',
+        credentials: 'same-origin'
+      }, options || {
+      }));
+  const text = await r.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text): {
+    };
+  } catch (e) {
+    data = {
+      ok: false,
+      error: 'response-not-json',
+      rawPreview: text.slice(0, 300)
+    }
+  }
+  data.httpStatus = r.status;
+  return data;
+}
+async function proxyCall(method, payload) {
+  return fetchJson(apiUrl(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+          method,
+          payload: payload || {
+          },
+          diagnostic: true
+        })
+    });
+}
+async function run() {
+  $('out').textContent = 'เริ่มตรวจสอบ P3 Production Runtime...';
+  try {
+    write('1) ตรวจ Runtime/Transport owner และ release coherence');
+    const ownerHealth = window.AppTransport && window.AppTransport.runtimeOwnerStatus ? window.AppTransport.runtimeOwnerStatus(): { ok: false, errors: ['RUNTIME_OWNER_STATUS_MISSING'] };
+    write(JSON.stringify(ownerHealth, null, 2));
+    if (!ownerHealth.ok) throw new Error('APP_RUNTIME_OWNER_MISMATCH: ' + (ownerHealth.errors || []).join(','));
+    if (window.AppTransport && window.AppTransport.assertRuntimeOwner) window.AppTransport.assertRuntimeOwner('diagnostic');
+    const releaseHealth = window.AppTransport && window.AppTransport.releaseStatus ? window.AppTransport.releaseStatus(): { ok: false };
+    write(JSON.stringify(releaseHealth, null, 2));
+    if (!releaseHealth.ok) throw new Error('RELEASE_STAMP_MISMATCH');
+    const status = window.AppTransport && window.AppTransport.phase2Status ? window.AppTransport.phase2Status(): {};
+    write('2) ตรวจ cache policy ของ boot-critical JavaScript');
+    for (const asset of ['./github-gas-transport.js','./critical-login-runtime.js','./app-index-bootstrap.js']) {
+      const head = await fetch(asset + '?v=' + encodeURIComponent(cfg().releaseStamp || ''), { method: 'HEAD', cache: 'no-store', credentials: 'same-origin' });
+      const cacheControl = head.headers.get('cache-control') || '';
+      write(asset + ' HTTP ' + head.status + ' cache-control=' + cacheControl);
+      if (!head.ok) throw new Error('BOOT_ASSET_UNAVAILABLE:' + asset);
+      if (!/no-cache|max-age=0|no-store/i.test(cacheControl)) throw new Error('BOOT_ASSET_STALE_CACHE_POLICY:' + asset);
+    }
+    if (!cfg().vercelApiProxyEnabled)throw new Error('VERCEL_PROXY_NOT_ENABLED');
+    if (cfg().legacyTransportRemoved !== true)throw new Error('PHASE_N_LEGACY_TRANSPORT_NOT_REMOVED');
+    if (cfg().loginFormPost !== false)throw new Error('LOGIN_POST_IFRAME_SHOULD_BE_DISABLED');
+    if ((cfg().publicJsonpReadMethods || []).length)throw new Error('PUBLIC_JSONP_METHODS_SHOULD_BE_EMPTY');
+    if (status.legacyTransportRemoved !== true)throw new Error('APPTRANSPORT_LEGACY_TRANSPORT_NOT_REMOVED');
+    if (status.jsonpRemoved !== true || status.hiddenBridgeRemoved !== true || status.loginPostIframeRemoved !== true)throw new Error('LEGACY_TRANSPORT_FLAGS_INCOMPLETE');
+    write('3) GET /api/public-config');
+    const pc = await fetchJson(publicConfigUrl(), {
+        method: 'GET'
+      });
+    write(JSON.stringify(pc, null, 2).slice(0, 3000));
+    if (!pc || pc.ok === false)throw new Error('PUBLIC_CONFIG_PROXY_FAILED: ' +(pc &&(pc.errorCode || pc.error) || ''));
+    write('4) POST /api/gas apiGetRouteContract');
+    const contract = await proxyCall('apiGetRouteContract', {
+        diagnostic: true,
+        productionCurrent: true
+      });
+    write(JSON.stringify(contract, null, 2).slice(0, 3000));
+    if (!contract || contract.ok === false)throw new Error('API_PROXY_CONTRACT_FAILED: ' +(contract &&(contract.errorCode || contract.error) || ''));
+    write('5) AppTransport.run(apiGetPhase2Contract) ต้องวิ่งผ่าน proxy-only transport');
+    const phase2 = await window.AppTransport.run('apiGetPhase2Contract', {
+        diagnostic: true,
+        productionCurrent: true
+      });
+    write(JSON.stringify(phase2, null, 2).slice(0, 3000));
+    if (!phase2 || phase2.ok === false)throw new Error('APPTRANSPORT_PROXY_FAILED');
+    write('6) ข้าม authenticated tests: production diagnostic ไม่รับข้อมูลรับรองผู้ใช้');
+    write('\nผลลัพธ์: OK - P3 release, runtime owner และ proxy พร้อมใช้งาน');
+  } catch (e) {
+    write('\nผลลัพธ์: ERROR');
+    write(String(e && e.message || e));
+    write('\nคำแปลผล: ถ้า /api/public-config หรือ /api/gas fail ให้ตรวจ Vercel Environment Variable ชื่อ GAS_WEB_APP_URL และตรวจว่า GAS deploy ล่าสุดมี doPost/apiRouter อยู่จริง');
+  }
+}
+$('runBtn').addEventListener('click', run);
+</script>
+</body>
+</html>
