@@ -1171,9 +1171,7 @@ function V(e){
 try{
 var n=e&&(e.meta||e.data&&e.data.meta)||{
 },a=e&&(e.csrfToken||e.csrf)||n.csrfToken||n.csrf||"",r=e&&(e.token||e.sessionToken)||n.token||n.sessionToken||"";
-t.AppSecurity&&__appIsFn(t.AppSecurity.setSessionTokens)&&(r||a)&&t.AppSecurity.setSessionTokens({
-token:r||void 0,csrfToken:a||void 0
-}),a&&t.AppStore&&__appIsFn(t.AppStore.set)&&t.AppStore.set("auth.csrfToken",a),r&&t.AppStore&&__appIsFn(t.AppStore.set)&&t.AppStore.set("auth.token",r)
+t.AppSecurity&&__appIsFn(t.AppSecurity.setSessionTokens)&&(r||a)&&t.AppSecurity.setSessionTokens(r||void 0,a||void 0),a&&t.AppStore&&__appIsFn(t.AppStore.set)&&t.AppStore.set("auth.csrfToken",a),r&&t.AppStore&&__appIsFn(t.AppStore.set)&&t.AppStore.set("auth.token",r)
 }
 catch(t){
 "function"==typeof __appObserve&&__appObserve(t,"ec")

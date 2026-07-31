@@ -46,8 +46,8 @@
     "node": "24.x"
   },
   "packageManager": "npm@10.8.2",
-  "release": "commission-v1.2-gas-hosted-production-2026-07-13-r94",
-  "releaseStamp": "commission-v1.2-gas-hosted-production-2026-07-13-r94",
-  "assetStamp": "asset-manifest-commission-v1.2-gas-hosted-production-2026-07-13-r94",
+  "release": "commission-v1.2-gas-hosted-production-2026-07-13-r87",
+  "releaseStamp": "commission-v1.2-gas-hosted-production-2026-07-13-r87",
+  "assetStamp": "asset-manifest-commission-v1.2-gas-hosted-production-2026-07-13-r87",
   "commissionReleaseOwner": "package.json::release"
 }
