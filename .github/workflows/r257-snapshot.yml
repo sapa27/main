@@ -1,0 +1,19 @@
+name: r257 snapshot
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create repository snapshot
+        run: |
+          tar --exclude='.git' --exclude='.r257' --exclude='.github/workflows/r257-snapshot.yml' -czf /tmp/repository-snapshot.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r257-base-snapshot
+          path: /tmp/repository-snapshot.tar.gz
+          retention-days: 1
