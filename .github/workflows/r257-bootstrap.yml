@@ -1,16 +1,17 @@
 name: r257 atomic bootstrap
 on:
-  push:
-    branches: [agent/r257-bootstrap]
+  pull_request:
+    branches: [main]
 permissions:
   contents: write
 jobs:
   apply-r257:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.head.ref == 'agent/r257-bootstrap' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/r257-bootstrap
           fetch-depth: 0
       - name: Install zstd
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zstd
