@@ -1,5 +1,6 @@
 name: Deploy GitHub Pages
 
+# Runtime publish trigger: login/bootstrap restore 2026-08-10
 on:
   push:
     branches: [main]
