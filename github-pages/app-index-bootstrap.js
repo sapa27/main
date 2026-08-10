@@ -1,0 +1,1 @@
+// staging path; replaced atomically by verified Git blob
