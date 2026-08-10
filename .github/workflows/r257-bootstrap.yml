@@ -1,0 +1,53 @@
+name: r257 atomic bootstrap
+on:
+  push:
+    branches: [agent/r257-bootstrap]
+permissions:
+  contents: write
+jobs:
+  apply-r257:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install zstd
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zstd
+      - name: Verify base and reconstruct r257
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --sort=name \
+            --mtime='UTC 2026-08-10 00:00:00' \
+            --owner=0 --group=0 --numeric-owner \
+            --mode='u+rwX,go+rX,go-w' \
+            --exclude='.git' \
+            --exclude='.r257' \
+            --exclude='.github/workflows/r257-snapshot.yml' \
+            --exclude='.github/workflows/r257-bootstrap.yml' \
+            -cf /tmp/base.norm.tar .
+          echo 'd8cc8d717252437b9501a0a799266dec41663ded51cdba53760ea712bc31131c  /tmp/base.norm.tar' | sha256sum -c -
+          echo '47c306737dfc48e362ee087cbee53da17554ad7d1ef8869a9b0b679a0a81ce8c  .r257/r257.zstpatch' | sha256sum -c -
+          zstd -q -d --patch-from=/tmp/base.norm.tar .r257/r257.zstpatch -o /tmp/r257.norm.tar
+          echo '0ee25ecfacf821f4e751627a189eb6af1e8e8df5f396ad9bf12715f95187d55f  /tmp/r257.norm.tar' | sha256sum -c -
+      - name: Replace staging tree with canonical r257
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          tar -xf /tmp/r257.norm.tar -C .
+          python3 tools/sync_github_assets.py
+          python3 tools/sync_github_assets.py --check
+          rm -f github-pages/index.html
+          rm -rf github-pages/assets
+      - name: Commit exact r257 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Deploy r257 canonical GitHub bridge'
+          git push origin HEAD:agent/r257-bootstrap
