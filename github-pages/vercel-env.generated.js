@@ -1,0 +1,1 @@
+window.__VERCEL_MIGRATION_CONFIG__ = window.__VERCEL_MIGRATION_CONFIG__ || {};
