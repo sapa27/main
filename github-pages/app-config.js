@@ -1,7 +1,7 @@
 (function (root) {
   "use strict";
   var existing = root.APP_CONFIG || {};
-  var GAS_URL = "https://script.google.com/macros/s/AKfycbzlNpsuSV1iI0bMgGEuzRNk-5RvJekmG7YYxgKb65ayJ8MoECsMJIlAfRDXOUPAvXuY1Q/exec";
+  var GAS_URL = "https://script.google.com/macros/s/AKfycbxcQny1EstWYJei6AQWy-GS0nNzt86fA_eLfePa4-C5cKPZj_ol5XotPRVnvuvQpjwR/exec";
   var RELEASE = "commission-v1.2-gas-hosted-production-2026-07-17-r148";
   var ASSET = "asset-manifest-commission-v1.2-gas-hosted-production-2026-07-17-r148";
   var LOGO = "https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
