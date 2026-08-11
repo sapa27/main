@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbyQ9sLXf0zSs_xU8P7zdKHx3_rynzfzKc1IDi9S1fmH-TPRifnlkz1I19-o8MdLFzt6/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-gas-r260-origin-trust-2026-08-11";
 root.APP_GITHUB_CONFIG={
