@@ -1,7 +1,7 @@
 (function(w,d){
   "use strict";
   if(!w||!d)return;
-  var OWNER="github-pages/github-gas-transport.js::r259-dual-bridge-post-handshake";
+  var OWNER="github-pages/github-gas-transport.js::r260-apps-script-origin-trust";
   var MODE="github-pages-gas-router-bridge-first";
   var P=Object.create(null),PP=Object.create(null),F=Object.create(null);
   var frame=null,ready=null,source=null,nonce="",proto="",state="idle",origin="",channel="",last="";
@@ -13,7 +13,15 @@
   function gas(){var v=t(c("GAS_WEB_APP_URL",c("gasWebAppUrl",w.GAS_WEB_APP_URL||""))).trim();return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:[?#].*)?$/i.test(v)?v.replace(/[?#].*$/,""):""}
   function E(m,k){var e=new Error(t(m||"GAS transport error"));e.code=t(k||"GAS_TRANSPORT_ERROR");e.errorCode=e.code;e.transportMode=MODE;return e}
   function N(){var b=new Uint8Array(24);try{w.crypto.getRandomValues(b)}catch(_){for(var i=0;i<b.length;i++)b[i]=Math.floor(Math.random()*256)}return Array.prototype.map.call(b,function(x){return("0"+x.toString(16)).slice(-2)}).join("")}
-  function good(z){z=t(z).toLowerCase();return z==="https://script.google.com"||/^https:\/\/(?:[a-z0-9-]+\.)*script\.googleusercontent\.com$/.test(z)}
+  function good(z){
+    z=t(z).trim().toLowerCase();
+    if(!z)return false;
+    try{
+      var u=new URL(z),h=t(u.hostname).toLowerCase();
+      if(u.protocol!=="https:")return false;
+      return h==="script.google.com"||h==="script.googleusercontent.com"||h.endsWith(".script.googleusercontent.com")||h.endsWith("-script.googleusercontent.com");
+    }catch(_){return false}
+  }
   function bridgeTrusted(ev,x){var z=t(ev&&ev.origin).toLowerCase();return good(z)||(z==="null"&&x&&t(x.nonce)===nonce)}
   function postTrusted(ev,x,pr){var z=t(ev&&ev.origin).toLowerCase();return !!pr&&t(x&&x.nonce)===t(pr.nonce)&&(good(z)||z==="null")}
   function url(){var g=gas();if(!g)throw E("ยังไม่ได้กำหนด GAS Web App URL","GITHUB_GAS_URL_NOT_CONFIGURED");VER=t(c("BRIDGE_VERSION",VER))||VER;return g+"?mode=github-bridge&__githubBridgeClient=1&parentOrigin="+encodeURIComponent(w.location.origin)+"&nonce="+encodeURIComponent(nonce)+"&bridgeNonce="+encodeURIComponent(nonce)+"&bridgeVersion="+encodeURIComponent(VER)}
