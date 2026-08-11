@@ -1,8 +1,8 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbyWolkmjOMNKvoAFFlnJ4fRVCYkeMIf9GPfGSGGiWVxX2LRafd547MWOeY9r2xuEafW/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-var RELEASE="commission-github-gas-dual-bridge-2026-08-10";
+var RELEASE="commission-github-gas-r260-origin-trust-2026-08-11";
 root.APP_GITHUB_CONFIG={
   GAS_WEB_APP_URL:GAS_URL,
   BRIDGE_MODE:"github-bridge",
@@ -38,7 +38,7 @@ root.APP_CONFIG=Object.assign({},existing,{
   clientReadResponseCacheEnabled:false,
   clientInFlightDedupe:true,
   clientApiCacheOwner:"none",
-  clientInFlightOwner:"github-pages/github-gas-transport.js::dual-v2-legacy"
+  clientInFlightOwner:"github-pages/github-gas-transport.js::r260-apps-script-origin-trust"
 });
 root.GAS_WEB_APP_URL=GAS_URL;
 root.APP_DEPLOY_RELEASE=Object.assign({},root.APP_DEPLOY_RELEASE||{}, {
