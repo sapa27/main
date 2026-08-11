@@ -1,10 +1,10 @@
-/* Production compatibility bootstrap: canonical permission, safe DOM, and deferred runtime dependency map. */
+/* Production compatibility bootstrap: canonical permission, safe DOM, Thai date, and deferred runtime dependency map. */
 (function(root,doc){
   "use strict";
   if(!root) return;
   root.__VERCEL_MIGRATION_CONFIG__ = root.__VERCEL_MIGRATION_CONFIG__ || {};
 
-  var BOOT_OWNER = "github-pages/runtime-bootstrap-r262";
+  var BOOT_OWNER = "github-pages/runtime-bootstrap-r263";
   var rank = {Viewer:1,Staff:2,Admin:3};
   function text(v){ return v == null ? "" : String(v); }
   function normalizeRole(role){
@@ -47,6 +47,32 @@
   Safe.owner=Safe.owner||BOOT_OWNER+".safehtml";Safe.__bootstrapCompat=true;Safe.byId=Safe.byId||byId;Safe.escapeHtml=Safe.escapeHtml||escapeHtml;Safe.esc=Safe.esc||Safe.escapeHtml;Safe.sanitizeHtml=Safe.sanitizeHtml||sanitizeHtml;Safe.setText=Safe.setText||setText;Safe.setSanitizedHtml=Safe.setSanitizedHtml||setSanitizedHtml;Safe.setHtml=Safe.setHtml||Safe.setSanitizedHtml;Safe.setTrustedHtml=Safe.setTrustedHtml||function(target,html){return Safe.setSanitizedHtml(target,html);};Safe.setTrustedTemplate=Safe.setTrustedTemplate||Safe.setTrustedHtml;
   root.safeSetInnerHTML=root.safeSetInnerHTML||function(target,html){return Safe.setSanitizedHtml(target,html);};
 
+  /* Canonical Thai date contract from gas-backend/Index.html. */
+  var Format=root.AppFormat=root.AppFormat||{};
+  Format.text=Format.text||text;
+  Format.escapeHtml=Format.escapeHtml||escapeHtml;
+  Format.pad2=Format.pad2||function(v){var s=String(Math.abs(Number(v)||0));return s.length<2?"0"+s:s;};
+  Format.normalizeThaiYear=Format.normalizeThaiYear||function(v){var y=Number(String(v==null?"":v).replace(/[^0-9]/g,""))||0;return y?y>=3600&&y<=3700?y-1086:y>=3000&&y<=3200?y-543:y<2400?y+543:y:0;};
+  Format.safeThaiDateText=Format.safeThaiDateText||function(day,month,year){day=Number(day);month=Number(month);year=Format.normalizeThaiYear(year);return day>=1&&day<=31&&month>=1&&month<=12&&year?Format.pad2(day)+"/"+Format.pad2(month)+"/"+String(year):"";};
+  Format.formatThaiDateObject=Format.formatThaiDateObject||function(value){return value&&Object.prototype.toString.call(value)==="[object Date]"&&!isNaN(value.getTime())?Format.safeThaiDateText(value.getDate(),value.getMonth()+1,value.getFullYear()):"";};
+  Format.canonicalThaiDateText=Format.canonicalThaiDateText||function(value,options){
+    options=options||{};
+    if(value==null)return"";
+    if(Object.prototype.toString.call(value)==="[object Date]"&&!isNaN(value.getTime()))return Format.formatThaiDateObject(value);
+    if(typeof value==="number"&&isFinite(value)&&value>20000&&value<90000)return Format.formatThaiDateObject(new Date(Math.round(864e5*(value-25569))));
+    var raw=String(value==null?"":value).replace(/^'+/,"").replace(/[\u00A0\u200B-\u200D\uFEFF]/g,"").trim();
+    if(!raw)return"";
+    if(options.rejectIdentifierLike!==false&&(/^(?:CASE|MAIN|ROW)[_-]/i.test(raw)||/^\d+\s*\/\s*25\d{2}$/.test(raw)||raw==="-"||raw==="/"))return"";
+    var dmy=raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.]((?:19|20|25|30|31|36)\d{2})$/);
+    if(dmy)return Format.safeThaiDateText(dmy[1],dmy[2],dmy[3]);
+    var iso=raw.match(/^((?:19|20|25|30|31|36)\d{2})[-\/](\d{1,2})[-\/](\d{1,2})(?:[T\s].*)?$/);
+    if(iso)return Format.safeThaiDateText(iso[3],iso[2],iso[1]);
+    if(/GMT|T\d{2}:\d{2}:\d{2}/i.test(raw)){var parsed=new Date(raw);if(!isNaN(parsed.getTime()))return Format.formatThaiDateObject(parsed);}
+    if(typeof options.fallback==="function")try{var converted=String(options.fallback(raw)||"").trim(),parts=converted.match(/^(\d{1,2})\/(\d{1,2})\/((?:19|20|25|30|31|36)\d{2})$/);if(parts)return Format.safeThaiDateText(parts[1],parts[2],parts[3]);}catch(_fallbackError){try{root.console&&root.console.warn&&root.console.warn("format.canonicalThaiDateText.fallback",_fallbackError);}catch(_ignore){}}
+    return options.preserveUnknown===true?raw:"";
+  };
+  Format.__thaiDateContractOwner="Index:AppFormat.canonical-thai-date-r153";
+
   var bundles={
     appCritical:{files:["Scripts_Critical_Login_Runtime"]},
     appCore:{files:["Scripts_Core_Runtime","Runtime_01_Request_Lifecycle"]},
@@ -80,7 +106,7 @@
     ai:["Runtime_08_AI_Bridge"],
     print:["Scripts_Page_ReportTrack::print"]
   };
-  var manifest={stamp:"asset-manifest-r262-github-coherent",sourceOwner:"gas-backend/Code_03_Platform_Assets",bundles:bundles,chunks:chunks,templates:{},upfrontScripts:[]};
+  var manifest={stamp:"asset-manifest-r263-github-coherent",sourceOwner:"gas-backend/Code_03_Platform_Assets",bundles:bundles,chunks:chunks,templates:{},upfrontScripts:[]};
   root.__APP_ASSET_MANIFEST__=manifest;
 
   function lockRuntimeMap(name,value){
@@ -92,6 +118,6 @@
   lockRuntimeMap("__APP_CORE_RUNTIME_FILES__",["Scripts_Core_Runtime","Runtime_01_Request_Lifecycle"]);
   lockRuntimeMap("__APP_DEFERRED_SCRIPTS__",chunks);
   try{root.__APP_DEFERRED_TEMPLATES__=root.__APP_DEFERRED_TEMPLATES__||{};}catch(_e){}
-  root.__APP_RUNTIME_DEPENDENCY_MAP__={ok:true,owner:BOOT_OWNER,stamp:"r262",core:root.__APP_CORE_RUNTIME_FILES__.slice(),pages:Object.keys(chunks)};
-  try{if(doc&&doc.documentElement){doc.documentElement.setAttribute("data-runtime-bootstrap","r262");doc.documentElement.setAttribute("data-safe-html-bootstrap","r262");doc.documentElement.setAttribute("data-permission-matrix-stamp",permissionRaw.stamp);}}catch(_e){}
+  root.__APP_RUNTIME_DEPENDENCY_MAP__={ok:true,owner:BOOT_OWNER,stamp:"r263",core:root.__APP_CORE_RUNTIME_FILES__.slice(),pages:Object.keys(chunks)};
+  try{if(doc&&doc.documentElement){doc.documentElement.setAttribute("data-runtime-bootstrap","r263");doc.documentElement.setAttribute("data-safe-html-bootstrap","r263");doc.documentElement.setAttribute("data-thai-date-contract","r153");doc.documentElement.setAttribute("data-permission-matrix-stamp",permissionRaw.stamp);}}catch(_e){}
 })(typeof window!=="undefined"?window:globalThis,typeof document!=="undefined"?document:null);
