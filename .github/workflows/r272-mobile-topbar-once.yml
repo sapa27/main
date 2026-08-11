@@ -1,0 +1,43 @@
+name: Apply r272 Mobile Topbar Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/r272-mobile-topbar-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch mobile topbar single visual owner
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('github-pages/index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='app-mobile-topbar-single-owner-r272'
+          if marker not in s:
+              style='''\n<style id="app-mobile-topbar-single-owner-r272">\n:root{--app-mobile-topbar-bg:linear-gradient(180deg,#001e3c 0%,#0b2c59 100%);--app-mobile-topbar-text:#fff;--app-mobile-topbar-muted:rgba(255,255,255,.84);--app-mobile-topbar-border:#c5a028;--app-mobile-menu-btn-bg:rgba(255,255,255,.10);--app-mobile-menu-btn-border:rgba(255,255,255,.28);--app-mobile-menu-btn-text:#fff}\nhtml body .mobile-topbar,html body.app-ui-standardized .mobile-topbar{background:var(--app-mobile-topbar-bg)!important;color:var(--app-mobile-topbar-text)!important;border-bottom:3px solid var(--app-mobile-topbar-border)!important;box-shadow:0 8px 22px rgba(0,0,0,.18)!important}\nhtml body .mobile-topbar .mobile-topbar-title,html body .mobile-topbar .mobile-topbar-subtitle,html body .mobile-topbar i,html body .mobile-topbar .fas,html body .mobile-topbar .far,html body .mobile-topbar .fa{color:var(--app-mobile-topbar-text)!important;text-shadow:none!important}\nhtml body .mobile-topbar .mobile-topbar-subtitle{color:var(--app-mobile-topbar-muted)!important}\nhtml body .mobile-topbar .mobile-menu-btn,html body .mobile-topbar button,html body #mobile-menu-btn{background:var(--app-mobile-menu-btn-bg)!important;border-color:var(--app-mobile-menu-btn-border)!important;color:var(--app-mobile-menu-btn-text)!important}\n</style>\n<script>try{document.documentElement.setAttribute("data-mobile-topbar-owner","r272-blue-single-owner")}catch(_e){}</script>\n'''
+              s=s.replace('</head>',style+'</head>',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          grep -q 'app-mobile-topbar-single-owner-r272' github-pages/index.html
+          grep -q 'data-mobile-topbar-owner","r272-blue-single-owner' github-pages/index.html
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add github-pages/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix: unify mobile topbar blue visual owner r272"
+          git push origin HEAD:main
