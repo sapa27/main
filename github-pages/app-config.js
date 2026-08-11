@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbyoN38R0TiTkSe-VtfzhBJZ9v6o7dOeAN_7tMlGcxxbN2x-JDlW5BHEVXuTJm9FAA1K/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbyWolkmjOMNKvoAFFlnJ4fRVCYkeMIf9GPfGSGGiWVxX2LRafd547MWOeY9r2xuEafW/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-gas-dual-bridge-2026-08-10";
 root.APP_GITHUB_CONFIG={
