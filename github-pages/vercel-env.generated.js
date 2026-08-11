@@ -1,200 +1,97 @@
-/* Compatibility bootstrap loaded before app-config/transport/runtime. */
-window.__VERCEL_MIGRATION_CONFIG__ = window.__VERCEL_MIGRATION_CONFIG__ || {};
-(function(root){
-  "use strict";
-  if(!root || root.AppPermissionMatrix) return;
-
-  var raw = {
-    stamp: "permission-matrix-p0-2026-07-30-r212",
-    owner: "Code_02_Platform_Permissions.APP_PERMISSION_MATRIX",
-    defaultRole: "Viewer",
-    roles: {
-      Viewer: { pages: ["dashboard","search"], deniedApiGroups: ["admin-users","admin-budget","budget","personnel","petitioners"], allowWrites: false },
-      Staff: { pages: ["dashboard","meeting","committee-meeting","search","track","report","people","petitioner","budget"], deniedApiGroups: ["admin-users","admin-budget"], allowWrites: true },
-      Admin: { pages: ["*"], deniedApiGroups: [], allowWrites: true }
-    },
-    pageAliases: {
-      dash: "dashboard",
-      personnel: "people",
-      committee: "committee-meeting",
-      committeemeeting: "committee-meeting",
-      committee_meeting: "committee-meeting",
-      tracking: "track"
-    },
-    apiGroupMinimumRole: {
-      budget: "Staff",
-      personnel: "Staff",
-      petitioners: "Staff",
-      "admin-users": "Admin",
-      "admin-budget": "Admin",
-      "admin-diagnostics": "Admin",
-      "admin-release": "Admin",
-      "admin-go-live": "Admin",
-      "admin-maintenance-final": "Admin"
-    },
-    deferredAssetMinimumRole: {
-      Scripts_Page_Dashboard: "Viewer",
-      Runtime_01_Request_Lifecycle: "Viewer",
-      Runtime_02_Date_Time: "Viewer",
-      Runtime_03_Table_UI: "Viewer",
-      Runtime_04_Thailand_Location: "Staff",
-      Runtime_05_Status_Aging: "Viewer",
-      Runtime_08_AI_Bridge: "Viewer",
-      Runtime_09_QA_Regression: "Admin",
-      "Scripts_Page_ReportTrack::search": "Viewer",
-      "Scripts_Page_ReportTrack::reporttrack-common": "Viewer",
-      "Scripts_Page_ReportTrack::print": "Viewer",
-      Scripts_Page_Meeting: "Staff",
-      "Scripts_Page_Meeting::meeting-common": "Staff",
-      "Scripts_Page_Meeting::meeting": "Staff",
-      "Scripts_Page_Meeting::committee": "Staff",
-      "Scripts_Page_ReportTrack::track": "Staff",
-      "Scripts_Page_ReportTrack::report": "Staff",
-      Scripts_Page_Petitioner: "Staff",
-      Scripts_Page_People: "Staff",
-      Scripts_Page_Budget: "Staff",
-      Scripts_Page_Admin: "Admin"
-    },
-    bundleMinimumRole: {
-      appCritical: "Viewer",
-      appCore: "Viewer",
-      runtimeDateTable: "Viewer",
-      runtimeThailandLocation: "Staff",
-      runtimeStatusAging: "Viewer",
-      runtimeAiBridge: "Viewer",
-      runtimeQaRegression: "Admin",
-      pageDashboard: "Viewer",
-      pageMeeting: "Staff",
-      pageCommitteeMeeting: "Staff",
-      pageTrackReport: "Staff",
-      pagePetitioner: "Staff",
-      pagePeople: "Staff",
-      pageBudget: "Staff",
-      pageAdmin: "Admin",
-      pageAiPrint: "Viewer"
-    }
-  };
-
-  function deepFreeze(value){
-    if(!value || typeof value !== "object" || Object.isFrozen(value)) return value;
-    Object.keys(value).forEach(function(key){ deepFreeze(value[key]); });
-    return Object.freeze(value);
-  }
-
-  raw = deepFreeze(raw);
-  var aliases = raw.pageAliases || {};
-  var roles = raw.roles || {};
-
-  function normalizeRole(role){
-    var value = String(role == null ? "" : role).trim();
-    var key = value.toLowerCase();
-    var map = {
-      admin:"Admin", administrator:"Admin", owner:"Admin", superadmin:"Admin", "super-admin":"Admin",
-      "ผู้ดูแล":"Admin", "ผู้ดูแลระบบ":"Admin", "แอดมิน":"Admin",
-      staff:"Staff", officer:"Staff", user:"Staff", editor:"Staff", operator:"Staff",
-      "เจ้าหน้าที่":"Staff", "เจ้าหน้าที่ฝ่ายเลขานุการ":"Staff", "เจ้าหน้าที่ฝ่ายปฏิบัติการ":"Staff", "เลขานุการ":"Staff",
-      viewer:"Viewer", view:"Viewer", readonly:"Viewer", "read-only":"Viewer", guest:"Viewer",
-      "ผู้ดู":"Viewer", "ผู้อ่าน":"Viewer", "อ่านอย่างเดียว":"Viewer"
-    };
-    if(map[key]) return map[key];
-    if(/admin/i.test(value) || /ผู้ดูแล|แอดมิน/.test(value)) return "Admin";
-    if(/staff|officer|editor|operator|เจ้าหน้าที่|เลขานุการ|ปฏิบัติการ/i.test(value)) return "Staff";
-    return "Viewer";
-  }
-
-  function normalizePage(page){
-    var key = String(page == null ? "" : page).trim().toLowerCase().replace(/^#?\/?/, "");
-    return aliases[key] || key || "dashboard";
-  }
-
-  function canPage(role,page){
-    role = normalizeRole(role);
-    page = normalizePage(page);
-    var policy = roles[role] || roles.Viewer || {pages:["dashboard","search"]};
-    var pages = Array.isArray(policy.pages) ? policy.pages : [];
-    return pages.indexOf("*") >= 0 || pages.indexOf(page) >= 0;
-  }
-
-  function allowedPages(role){
-    role = normalizeRole(role);
-    var policy = roles[role] || roles.Viewer || {pages:[]};
-    return Array.isArray(policy.pages) ? policy.pages.slice() : [];
-  }
-
-  root.__APP_PERMISSION_MATRIX__ = raw;
-  root.AppPermissionMatrix = Object.freeze({
-    stamp: String(raw.stamp || "permission-matrix-r212"),
-    owner: "Index.AppPermissionMatrix.readOnly",
-    raw: raw,
-    normalizeRole: normalizeRole,
-    normalizePage: normalizePage,
-    canPage: canPage,
-    allowedPages: allowedPages
-  });
-  try {
-    document.documentElement.setAttribute("data-permission-matrix-stamp", root.AppPermissionMatrix.stamp);
-  } catch(_e) {}
-})(typeof window !== "undefined" ? window : globalThis);
-
-/* P0 bootstrap contract: Core Runtime requires a complete AppSafeHtml facade. */
+/* Production compatibility bootstrap: canonical permission, safe DOM, and deferred runtime dependency map. */
 (function(root,doc){
   "use strict";
-  if(!root || !doc) return;
-  var Safe = root.AppSafeHtml = root.AppSafeHtml || {};
-  var OWNER = "Index.AppSafeHtml.bootstrap-compat-r261";
+  if(!root) return;
+  root.__VERCEL_MIGRATION_CONFIG__ = root.__VERCEL_MIGRATION_CONFIG__ || {};
 
-  function text(value){ return value == null ? "" : String(value); }
-  function byId(target){
-    return target && target.nodeType ? target : (target ? doc.getElementById(text(target)) : null);
+  var BOOT_OWNER = "github-pages/runtime-bootstrap-r262";
+  var rank = {Viewer:1,Staff:2,Admin:3};
+  function text(v){ return v == null ? "" : String(v); }
+  function normalizeRole(role){
+    var raw=text(role).trim(), key=raw.toLowerCase();
+    if(/^(admin|administrator|owner|superadmin|super-admin)$/.test(key)||/ผู้ดูแล|แอดมิน/.test(raw)) return "Admin";
+    if(/^(staff|officer|user|editor|operator)$/.test(key)||/เจ้าหน้าที่|เลขานุการ|ปฏิบัติการ/.test(raw)) return "Staff";
+    return "Viewer";
   }
-  function escapeHtml(value){
-    return text(value).replace(/[&<>"']/g,function(ch){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch] || ch;
-    });
-  }
-  function sanitizeHtml(html){
-    return text(html)
-      .replace(/<\s*(script|iframe|object|embed|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,"")
-      .replace(/<\s*(script|iframe|object|embed|base)\b[^>]*\/?\s*>/gi,"")
-      .replace(/\s(?:on[a-z0-9_:-]+|srcdoc)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,"")
-      .replace(/((?:href|src|xlink:href|formaction)\s*=\s*['"])\s*(?:javascript|vbscript|data\s*:\s*text\/html)[\s\S]*?(['"])/gi,"$1#$2");
-  }
-  function setText(target,value){
-    var el = byId(target);
-    if(el) el.textContent = text(value);
-    return el;
-  }
-  function setSanitizedHtml(target,html){
-    var el = byId(target);
-    if(!el) return null;
-    var tpl = doc.createElement("template");
-    tpl.innerHTML = sanitizeHtml(html);
-    var fragment = (tpl.content || tpl).cloneNode(true);
-    if(typeof el.replaceChildren === "function") el.replaceChildren(fragment);
-    else {
-      while(el.firstChild) el.removeChild(el.firstChild);
-      el.appendChild(fragment);
-    }
-    return el;
-  }
-  function setTrustedHtml(target,html,options){
-    return setSanitizedHtml(target,html,options);
-  }
-
-  Safe.owner = Safe.owner || OWNER;
-  Safe.__bootstrapCompat = true;
-  Safe.byId = Safe.byId || byId;
-  Safe.escapeHtml = Safe.escapeHtml || escapeHtml;
-  Safe.sanitizeHtml = Safe.sanitizeHtml || sanitizeHtml;
-  Safe.setText = Safe.setText || setText;
-  Safe.setSanitizedHtml = Safe.setSanitizedHtml || setSanitizedHtml;
-  Safe.setHtml = Safe.setHtml || Safe.setSanitizedHtml;
-  Safe.setTrustedHtml = Safe.setTrustedHtml || setTrustedHtml;
-
-  root.safeSetInnerHTML = root.safeSetInnerHTML || function(target,html,options){
-    return Safe.setSanitizedHtml(target,html,options || {moduleName:OWNER});
+  var pageAliases={dash:"dashboard",personnel:"people",committee:"committee-meeting",committeemeeting:"committee-meeting",committee_meeting:"committee-meeting",tracking:"track"};
+  function normalizePage(page){ var k=text(page).trim().toLowerCase().replace(/^#?\/?/,""); return pageAliases[k]||k||"dashboard"; }
+  var roles={
+    Viewer:{pages:["dashboard","search"],allowWrites:false},
+    Staff:{pages:["dashboard","meeting","committee-meeting","search","track","report","people","petitioner","budget"],allowWrites:true},
+    Admin:{pages:["*"],allowWrites:true}
   };
-  try {
-    doc.documentElement.setAttribute("data-safe-html-bootstrap","r261");
-  } catch(_e) {}
-})(typeof window !== "undefined" ? window : globalThis, document);
+  var deferredAssetMinimumRole={
+    Scripts_Page_Dashboard:"Viewer",Runtime_01_Request_Lifecycle:"Viewer",Runtime_02_Date_Time:"Viewer",Runtime_03_Table_UI:"Viewer",
+    Runtime_04_Thailand_Location:"Staff",Runtime_05_Status_Aging:"Viewer",Runtime_08_AI_Bridge:"Viewer",Runtime_09_QA_Regression:"Admin",
+    "Scripts_Page_ReportTrack::search":"Viewer","Scripts_Page_ReportTrack::reporttrack-common":"Viewer","Scripts_Page_ReportTrack::print":"Viewer",
+    Scripts_Page_Meeting:"Staff","Scripts_Page_Meeting::meeting-common":"Staff","Scripts_Page_Meeting::meeting":"Staff","Scripts_Page_Meeting::committee":"Staff",
+    "Scripts_Page_ReportTrack::track":"Staff","Scripts_Page_ReportTrack::report":"Staff",Scripts_Page_Petitioner:"Staff",Scripts_Page_People:"Staff",Scripts_Page_Budget:"Staff",Scripts_Page_Admin:"Admin"
+  };
+  var bundleMinimumRole={appCritical:"Viewer",appCore:"Viewer",runtimeDateTable:"Viewer",runtimeThailandLocation:"Staff",runtimeStatusAging:"Viewer",runtimeAiBridge:"Viewer",runtimeQaRegression:"Admin",pageDashboard:"Viewer",pageMeeting:"Staff",pageCommitteeMeeting:"Staff",pageTrackReport:"Staff",pagePetitioner:"Staff",pagePeople:"Staff",pageBudget:"Staff",pageAdmin:"Admin",pageAiPrint:"Viewer"};
+  function canPage(role,page){ role=normalizeRole(role); page=normalizePage(page); var p=roles[role]||roles.Viewer, pages=p.pages||[]; return pages.indexOf("*")>=0||pages.indexOf(page)>=0; }
+  function allowedPages(role){ var p=roles[normalizeRole(role)]||roles.Viewer; return (p.pages||[]).slice(); }
+  var permissionRaw={stamp:"permission-matrix-p0-2026-07-30-r212",owner:"Code_02_Platform_Permissions.APP_PERMISSION_MATRIX",defaultRole:"Viewer",roles:roles,pageAliases:pageAliases,deferredAssetMinimumRole:deferredAssetMinimumRole,bundleMinimumRole:bundleMinimumRole};
+  root.__APP_PERMISSION_MATRIX__=permissionRaw;
+  root.AppPermissionMatrix=Object.freeze({stamp:permissionRaw.stamp,owner:BOOT_OWNER+".permission",raw:permissionRaw,normalizeRole:normalizeRole,normalizePage:normalizePage,canPage:canPage,allowedPages:allowedPages,rank:function(role){return rank[normalizeRole(role)]||1;}});
+
+  var Safe=root.AppSafeHtml=root.AppSafeHtml||{};
+  function byId(target){return target&&target.nodeType?target:(doc&&target?doc.getElementById(text(target)):null);}
+  function escapeHtml(v){return text(v).replace(/[&<>"']/g,function(ch){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]||ch;});}
+  function sanitizeHtml(html){return text(html)
+    .replace(/<\s*(script|iframe|object|embed|base)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi,"")
+    .replace(/<\s*(script|iframe|object|embed|base)\b[^>]*\/?\s*>/gi,"")
+    .replace(/\s(?:on[a-z0-9_:-]+|srcdoc)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,"")
+    .replace(/((?:href|src|xlink:href|formaction)\s*=\s*['"])\s*(?:javascript|vbscript|data\s*:\s*text\/html)[\s\S]*?(['"])/gi,"$1#$2");}
+  function setText(target,value){var el=byId(target);if(el)el.textContent=text(value);return el;}
+  function setSanitizedHtml(target,html){var el=byId(target);if(!el)return null;var tpl=doc.createElement("template");tpl.innerHTML=sanitizeHtml(html);var frag=(tpl.content||tpl).cloneNode(true);if(typeof el.replaceChildren==="function")el.replaceChildren(frag);else{while(el.firstChild)el.removeChild(el.firstChild);el.appendChild(frag);}return el;}
+  Safe.owner=Safe.owner||BOOT_OWNER+".safehtml";Safe.__bootstrapCompat=true;Safe.byId=Safe.byId||byId;Safe.escapeHtml=Safe.escapeHtml||escapeHtml;Safe.esc=Safe.esc||Safe.escapeHtml;Safe.sanitizeHtml=Safe.sanitizeHtml||sanitizeHtml;Safe.setText=Safe.setText||setText;Safe.setSanitizedHtml=Safe.setSanitizedHtml||setSanitizedHtml;Safe.setHtml=Safe.setHtml||Safe.setSanitizedHtml;Safe.setTrustedHtml=Safe.setTrustedHtml||function(target,html){return Safe.setSanitizedHtml(target,html);};Safe.setTrustedTemplate=Safe.setTrustedTemplate||Safe.setTrustedHtml;
+  root.safeSetInnerHTML=root.safeSetInnerHTML||function(target,html){return Safe.setSanitizedHtml(target,html);};
+
+  var bundles={
+    appCritical:{files:["Scripts_Critical_Login_Runtime"]},
+    appCore:{files:["Scripts_Core_Runtime","Runtime_01_Request_Lifecycle"]},
+    runtimeDateTable:{files:["Runtime_02_Date_Time","Runtime_03_Table_UI"]},
+    runtimeThailandLocation:{minRole:"staff",files:["Runtime_04_Thailand_Location"]},
+    runtimeStatusAging:{files:["Runtime_05_Status_Aging"]},
+    runtimeAiBridge:{files:["Runtime_08_AI_Bridge"]},
+    runtimeQaRegression:{minRole:"admin",files:["Runtime_09_QA_Regression"]},
+    pageDashboard:{files:["Scripts_Page_Dashboard"]},
+    pageMeeting:{minRole:"staff",files:["Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::meeting"]},
+    pageCommitteeMeeting:{minRole:"staff",files:["Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::committee"]},
+    pageTrackReport:{minRole:"staff",files:["Scripts_Page_ReportTrack::reporttrack-common"]},
+    pagePetitioner:{minRole:"staff",files:["Scripts_Page_Petitioner"]},
+    pagePeople:{minRole:"staff",files:["Scripts_Page_People"]},
+    pageBudget:{minRole:"staff",files:["Scripts_Page_Budget"]},
+    pageAdmin:{minRole:"admin",files:["Scripts_Page_Admin"]},
+    pageAiPrint:{files:["Scripts_Page_ReportTrack::print"]}
+  };
+  var chunks={
+    dashboard:["Scripts_Page_Dashboard"],
+    search:["Runtime_02_Date_Time","Runtime_03_Table_UI","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common"],
+    petitioner:["Runtime_02_Date_Time","Runtime_03_Table_UI","Runtime_04_Thailand_Location","Scripts_Page_Petitioner"],
+    meeting:["Runtime_02_Date_Time","Runtime_03_Table_UI","Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::meeting"],
+    "committee-meeting":["Runtime_02_Date_Time","Runtime_03_Table_UI","Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::committee"],
+    track:["Runtime_02_Date_Time","Runtime_03_Table_UI","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common"],
+    report:["Runtime_02_Date_Time","Runtime_03_Table_UI","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common"],
+    people:["Runtime_02_Date_Time","Runtime_03_Table_UI","Scripts_Page_People"],
+    personnel:["Runtime_02_Date_Time","Runtime_03_Table_UI","Scripts_Page_People"],
+    budget:["Runtime_02_Date_Time","Runtime_03_Table_UI","Runtime_04_Thailand_Location","Runtime_05_Status_Aging","Scripts_Page_Budget"],
+    admin:["Runtime_02_Date_Time","Runtime_03_Table_UI","Scripts_Page_Admin"],
+    ai:["Runtime_08_AI_Bridge"],
+    print:["Scripts_Page_ReportTrack::print"]
+  };
+  var manifest={stamp:"asset-manifest-r262-github-coherent",sourceOwner:"gas-backend/Code_03_Platform_Assets",bundles:bundles,chunks:chunks,templates:{},upfrontScripts:[]};
+  root.__APP_ASSET_MANIFEST__=manifest;
+
+  function lockRuntimeMap(name,value){
+    try{Object.defineProperty(root,name,{configurable:false,enumerable:false,get:function(){return value;},set:function(next){
+      if(name==="__APP_CORE_RUNTIME_FILES__"&&Array.isArray(next)&&next.indexOf("Runtime_01_Request_Lifecycle")>=0)value=next.slice();
+      if(name==="__APP_DEFERRED_SCRIPTS__"&&next&&next.dashboard&&next.search&&next.meeting&&next.budget)value=next;
+    }});}catch(_e){root[name]=value;}
+  }
+  lockRuntimeMap("__APP_CORE_RUNTIME_FILES__",["Scripts_Core_Runtime","Runtime_01_Request_Lifecycle"]);
+  lockRuntimeMap("__APP_DEFERRED_SCRIPTS__",chunks);
+  try{root.__APP_DEFERRED_TEMPLATES__=root.__APP_DEFERRED_TEMPLATES__||{};}catch(_e){}
+  root.__APP_RUNTIME_DEPENDENCY_MAP__={ok:true,owner:BOOT_OWNER,stamp:"r262",core:root.__APP_CORE_RUNTIME_FILES__.slice(),pages:Object.keys(chunks)};
+  try{if(doc&&doc.documentElement){doc.documentElement.setAttribute("data-runtime-bootstrap","r262");doc.documentElement.setAttribute("data-safe-html-bootstrap","r262");doc.documentElement.setAttribute("data-permission-matrix-stamp",permissionRaw.stamp);}}catch(_e){}
+})(typeof window!=="undefined"?window:globalThis,typeof document!=="undefined"?document:null);
