@@ -1,0 +1,60 @@
+name: Apply r270 Overlay Once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/r270-overlay-once.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  apply-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assemble canonical r270 overlay
+        shell: bash
+        env:
+          APP_CONFIG_B64: KGZ1bmN0aW9uKHJvb3QpeyJ1c2Ugc3RyaWN0IjsKdmFyIGV4aXN0aW5nPXJvb3QuQVBQX0NPTkZJR3x8e307CnZhciBHQVNfVVJMPSJodHRwczovL3NjcmlwdC5nb29nbGUuY29tL21hY3Jvcy9zL0FLZnljYnh1MkszdWtxUmVJQzh3Q2FsTzdQM05ScnlTTzNKVVZEb0UzZDRQMG9FemtuSGVob3MxdTdzQ1BlZVlrYXNoUnpnVi9leGVjIjsKdmFyIExPR089Imh0dHBzOi8vdXBsb2FkLndpa2ltZWRpYS5vcmcvd2lraXBlZGlhL2NvbW1vbnMvOS85YS9TZWFsX29mX3RoZV9QYXJsaWFtZW50X29mX1RoYWlsYW5kLnN2ZyI7CnZhciBSRUxFQVNFPSJjb21taXNzaW9uLWdpdGh1Yi1nYXMtcjI3MC11aS1wYXJpdHktcGVyZm9ybWFuY2UtMjAyNi0wOC0xMSI7CnJvb3QuQVBQX0dJVEhVQl9DT05GSUc9e0dBU19XRUJfQVBQX1VSTDpHQVNfVVJMLFNUQVRJQ19MT0dPX1VSTDpMT0dPLEJSSURHRV9NT0RFOiJnaXRodWItYnJpZGdlIixCUklER0VfVElNRU9VVF9NUzoxMjAwMCxSRVFVRVNUX1RJTUVPVVRfTVM6OTAwMDAsQVBJX1RSQU5TUE9SVF9NT0RFOiJicmlkZ2UtZmlyc3QiLEFVVEhfVFJBTlNQT1JUX01PREU6ImJyaWRnZS1maXJzdCIsQVVUSF9QT1NUX0ZBTExCQUNLX1RJTUVPVVRfTVM6MTUwMDAsQVBJX1BPU1RfRkFMTEJBQ0tfVElNRU9VVF9NUzoyMDAwMCxCUklER0VfVkVSU0lPTjoiZ2l0aHViLXBhZ2VzLWJyaWRnZS12MiIsTE9DQUxfQVNTRVRfTU9ERTpmYWxzZSxMT0NBTF9BU1NFVF9WRVJTSU9OOiJyMjcwIn07CnJvb3QuQVBQX0NPTkZJRz1PYmplY3QuYXNzaWduKHt9LGV4aXN0aW5nLHthcHBUaXRsZToi4Lij4Liw4Lia4Lia4Lia4Lij4Li04Lir4Liy4Lij4LiI4Lix4LiU4LiB4Liy4Lij4LmA4Lij4Li34LmI4Lit4LiH4Lie4Li04LiI4Liy4Lij4LiT4LiyIix2ZXJzaW9uOiIxLjIuMC1yMjcwIixyZWxlYXNlU3RhbXA6UkVMRUFTRSxob3N0aW5nVGFyZ2V0OiJnaXRodWItcGFnZXMiLHRyYW5zcG9ydE1vZGU6ImdpdGh1Yi1wYWdlcy1nYXMtcm91dGVyLWJyaWRnZS1maXJzdCIsZ2FzV2ViQXBwVXJsOkdBU19VUkwsZ2FzV2ViQXBwVXJsU2VydmVyRW52UmVxdWlyZWQ6ZmFsc2UsZ2FzQmFja2VuZFVpRGlzYWJsZWQ6ZmFsc2Usc3RhdGljR2FzRGlyZWN0RGlzYWJsZWQ6ZmFsc2UsbG9nb1VybDpMT0dPLGZhbGxiYWNrTG9nb1VybDpMT0dPLGJyaWRnZVRpbWVvdXRNczoxMjAwMCxyZXF1ZXN0VGltZW91dE1zOjkwMDAwLGNsaWVudFJlYWRSZXNwb25zZUNhY2hlRW5hYmxlZDpmYWxzZSxjbGllbnRJbkZsaWdodERlZHVwZTp0cnVlLGNsaWVudEFwaUNhY2hlT3duZXI6Im5vbmUiLGNsaWVudEluRmxpZ2h0T3duZXI6ImdpdGh1Yi1wYWdlcy9naXRodWItZ2FzLXRyYW5zcG9ydC5qczo6cjI2MC1hcHBzLXNjcmlwdC1vcmlnaW4tdHJ1c3QifSk7CnJvb3QuR0FTX1dFQl9BUFBfVVJMPUdBU19VUkw7cm9vdC5BUFBfRkFMTEJBQ0tfTE9HT19VUkw9TE9HTztyb290LkRFRkFVTFRfTE9HTz1yb290LkRFRkFVTFRfTE9HT3x8TE9HTztyb290LkxPR09fVVJMPXJvb3QuTE9HT19VUkx8fExPR087Cn0pKHR5cGVvZiB3aW5kb3chPT0idW5kZWZpbmVkIj93aW5kb3c6Z2xvYmFsVGhpcyk7Cg==
+        run: |
+          set -euo pipefail
+          cat .r270-overlay/part* | base64 -d | xz -d > github-pages/index.html
+          printf '%s' "$APP_CONFIG_B64" | base64 -d > github-pages/app-config.js
+          test "$(sha256sum github-pages/index.html | awk '{print $1}')" = "c2af63cc7896ebd226c51b5322955bee4b4940a1e1780ba2704808ff12361de7"
+          test "$(sha256sum github-pages/app-config.js | awk '{print $1}')" = "344aea7792a890aad4502d7fa4686aee07af50823b3fa5a827bdeab598309350"
+          grep -q './github-gas-transport.js?v=r270' github-pages/index.html
+          ! grep -Eq 'vercel-env.generated.js|app-index-foundation-pre-vue.js|app-index-foundation-after-vue.js|app-index-foundation-after-swal.js|critical-login-runtime.js|app-index-bootstrap.js' github-pages/index.html
+          rm -rf .r270-overlay
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: apply canonical r270 GitHub UI parity overlay"
+          git push origin HEAD:main
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./github-pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
