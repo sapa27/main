@@ -3,7 +3,7 @@
   "use strict";
   if(!root) return;
   root.__VERCEL_MIGRATION_CONFIG__=root.__VERCEL_MIGRATION_CONFIG__||{};
-  var OWNER="github-pages/runtime-bootstrap-r264";
+  var OWNER="github-pages/runtime-bootstrap-r265";
   function text(v){return v==null?"":String(v)}
   function fn(v){return typeof v==="function"}
 
@@ -58,16 +58,87 @@
   /* Canonical asset/deferred map — keep bundle names so GAS can return one coherent bundle. */
   var bundles={appCritical:{files:["Scripts_Critical_Login_Runtime"]},appCore:{files:["Scripts_Core_Runtime","Runtime_01_Request_Lifecycle"]},runtimeDateTable:{files:["Runtime_02_Date_Time","Runtime_03_Table_UI"]},runtimeThailandLocation:{minRole:"staff",files:["Runtime_04_Thailand_Location"]},runtimeStatusAging:{files:["Runtime_05_Status_Aging"]},runtimeAiBridge:{files:["Runtime_08_AI_Bridge"]},runtimeQaRegression:{minRole:"admin",files:["Runtime_09_QA_Regression"]},pageDashboard:{files:["Scripts_Page_Dashboard"]},pageMeeting:{minRole:"staff",files:["Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::meeting"]},pageCommitteeMeeting:{minRole:"staff",files:["Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::committee"]},pageTrackReport:{minRole:"staff",files:["Scripts_Page_ReportTrack::reporttrack-common"]},pagePetitioner:{minRole:"staff",files:["Scripts_Page_Petitioner"]},pagePeople:{minRole:"staff",files:["Scripts_Page_People"]},pageBudget:{minRole:"staff",files:["Scripts_Page_Budget"]},pageAdmin:{minRole:"admin",files:["Scripts_Page_Admin"]},pageAiPrint:{files:["Scripts_Page_ReportTrack::print"]}};
   var chunks={dashboard:["Scripts_Page_Dashboard"],search:["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common"],petitioner:["bundle:runtimeDateTable","Runtime_04_Thailand_Location","Scripts_Page_Petitioner"],meeting:["bundle:runtimeDateTable","Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::meeting"],"committee-meeting":["bundle:runtimeDateTable","Scripts_Page_Meeting::meeting-common","Scripts_Page_Meeting::committee"],track:["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common"],report:["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common"],people:["bundle:runtimeDateTable","Scripts_Page_People"],personnel:["bundle:runtimeDateTable","Scripts_Page_People"],budget:["bundle:runtimeDateTable","Runtime_04_Thailand_Location","Runtime_05_Status_Aging","Scripts_Page_Budget"],admin:["bundle:runtimeDateTable","Scripts_Page_Admin"],ai:["Runtime_08_AI_Bridge"],print:["Scripts_Page_ReportTrack::print"]};
-  root.__APP_ASSET_MANIFEST__={stamp:"asset-manifest-r264-github-coherent",sourceOwner:"gas-backend/Code_03_Platform_Assets",bundles:bundles,chunks:chunks,templates:{},upfrontScripts:[],externalGroups:["bootstrap","xlsx"]};
+  root.__APP_ASSET_MANIFEST__={stamp:"asset-manifest-r265-github-coherent",sourceOwner:"gas-backend/Code_03_Platform_Assets",bundles:bundles,chunks:chunks,templates:{},upfrontScripts:[],externalGroups:["bootstrap","xlsx"]};
   function lock(name,value,accept){try{Object.defineProperty(root,name,{configurable:false,enumerable:false,get:function(){return value},set:function(next){if(!accept||accept(next))value=next}})}catch(_e){root[name]=value}}
   lock("__APP_CORE_RUNTIME_FILES__",["Scripts_Core_Runtime","Runtime_01_Request_Lifecycle"],function(next){return Array.isArray(next)&&next.indexOf("Scripts_Core_Runtime")>=0&&next.indexOf("Runtime_01_Request_Lifecycle")>=0});
   lock("__APP_DEFERRED_SCRIPTS__",chunks,function(next){return!!(next&&next.dashboard&&next.search&&next.meeting&&next["committee-meeting"]&&next.budget)});
   try{root.__APP_DEFERRED_TEMPLATES__=root.__APP_DEFERRED_TEMPLATES__||{}}catch(_e){}
 
-  /* Recovery delegates are fallback-only; no Save/Delete retry is ever performed. */
+  /* Single UI owners for Dashboard refresh and committee agenda. Save/Delete remain page-owned and exactly-once. */
   function currentPage(){try{return normalizePage(root.AppStore&&fn(root.AppStore.get)?root.AppStore.get("ui.currentPage",""):"")}catch(_e){return""}}
-  function dashboardRefreshFallback(ev){var target=ev&&ev.target&&ev.target.closest?ev.target.closest("#dash-refresh-btn"):null;if(!target||currentPage()!=="dashboard")return;var dash=root.AppDashboard||{},canonicalBound=!!(dash.__r3RefreshBound||dash.__r3RefreshBoundEpoch);if(canonicalBound)return;try{ev.preventDefault();var task=root.AppLifecycle&&fn(root.AppLifecycle.refresh)?root.AppLifecycle.refresh("dashboard",{source:"r264-refresh-fallback",forceFresh:true,noCache:true}):dash&&fn(dash.refresh)?dash.refresh({source:"r264-refresh-fallback",forceFresh:true}):root.loadDash&&fn(root.loadDash)?root.loadDash({source:"r264-refresh-fallback",forceFresh:true}):null;task&&fn(task.catch)&&task.catch(function(err){root.AppRuntime&&fn(root.AppRuntime.recordWarning)&&root.AppRuntime.recordWarning("r264.dashboard.refresh",err)})}catch(_e){}}
-  function agendaFallback(ev){var btn=ev&&ev.target&&ev.target.closest?ev.target.closest('.accordion-button[data-bs-target^="#committee-agenda-"],[aria-controls^="committee-agenda-"]'):null;if(!btn||currentPage()!=="committee-meeting")return;if(root.CommitteeMeetingAgendaUpfrontOwner&&fn(root.CommitteeMeetingAgendaUpfrontOwner.toggle))return;var selector=text(btn.getAttribute("data-bs-target")||("#"+text(btn.getAttribute("aria-controls"))));if(selector.indexOf("#committee-agenda-")!==0)return;var panel=doc.querySelector(selector);if(!panel)return;try{ev.preventDefault();var scope=panel.closest("#committee-agenda-accordion")||doc;Array.prototype.forEach.call(scope.querySelectorAll('.accordion-collapse[id^="committee-agenda-"]'),function(p){var open=p===panel?!p.classList.contains("show"):false;p.classList.toggle("show",open);p.style.display=open?"block":"none";var b=scope.querySelector('[data-bs-target="#'+p.id+'"],[aria-controls="'+p.id+'"]');if(b){b.classList.toggle("collapsed",!open);b.setAttribute("aria-expanded",open?"true":"false")}})}catch(_e){}}
-  if(doc){doc.addEventListener("click",dashboardRefreshFallback,true);doc.addEventListener("click",agendaFallback,false);try{doc.documentElement.setAttribute("data-runtime-bootstrap","r264");doc.documentElement.setAttribute("data-safe-html-bootstrap","r264");doc.documentElement.setAttribute("data-thai-date-contract","r153");doc.documentElement.setAttribute("data-auth-facade","r264");doc.documentElement.setAttribute("data-permission-matrix-stamp",permissionRaw.stamp)}catch(_e){}}
-  root.__APP_RUNTIME_DEPENDENCY_MAP__={ok:true,owner:OWNER,stamp:"r264",core:root.__APP_CORE_RUNTIME_FILES__.slice(),pages:Object.keys(chunks),authFacade:true,externalAssets:true};
+  var dashboardRefreshInFlight=false;
+  function setDashBusy(button,on){
+    if(!button)return;
+    try{
+      button.disabled=!!on;
+      button.setAttribute("aria-busy",on?"true":"false");
+      if(on){button.dataset.r265Label=button.innerHTML;button.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>กำลังรีเฟรช';}
+      else if(button.dataset.r265Label){button.innerHTML=button.dataset.r265Label;delete button.dataset.r265Label;}
+    }catch(_e){}
+  }
+  function dashboardRefreshOwner(ev){
+    var button=ev&&ev.target&&ev.target.closest?ev.target.closest("#dash-refresh-btn"):null;
+    if(!button||currentPage()!=="dashboard")return;
+    try{ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation&&ev.stopImmediatePropagation()}catch(_e){}
+    if(dashboardRefreshInFlight)return;
+    dashboardRefreshInFlight=true;setDashBusy(button,true);
+    try{
+      var dash=root.AppDashboard||{},task=null;
+      if(fn(dash.refresh))task=dash.refresh({source:"r265-dashboard-refresh",forceFresh:true,noCache:true});
+      else if(root.AppLifecycle&&fn(root.AppLifecycle.refresh))task=root.AppLifecycle.refresh("dashboard",{source:"r265-dashboard-refresh",forceFresh:true,noCache:true});
+      else if(fn(root.loadDash))task=root.loadDash({source:"r265-dashboard-refresh",forceFresh:true,noCache:true});
+      Promise.resolve(task).catch(function(err){
+        if(root.AppRuntime&&fn(root.AppRuntime.handleError))root.AppRuntime.handleError(err,"รีเฟรช Dashboard ไม่สำเร็จ");
+      }).finally(function(){dashboardRefreshInFlight=false;setDashBusy(button,false)});
+    }catch(err){
+      dashboardRefreshInFlight=false;setDashBusy(button,false);
+      if(root.AppRuntime&&fn(root.AppRuntime.handleError))root.AppRuntime.handleError(err,"รีเฟรช Dashboard ไม่สำเร็จ");
+    }
+  }
+  function showDashboardRouteLoading(){
+    if(currentPage()!=="dashboard")return;
+    var page=doc&&doc.getElementById("p-dash");if(!page)return;
+    try{
+      page.setAttribute("aria-busy","true");
+      var note=doc.getElementById("dash-r265-route-loading");
+      if(!note){
+        note=doc.createElement("div");note.id="dash-r265-route-loading";note.className="alert alert-light border d-flex align-items-center gap-2 py-2 px-3 mb-3";
+        note.setAttribute("role","status");note.setAttribute("aria-live","polite");
+        note.innerHTML='<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>กำลังโหลดข้อมูล Dashboard…</span>';
+        page.insertBefore(note,page.firstChild||null);
+      }
+    }catch(_e){}
+  }
+  function clearDashboardRouteLoading(){
+    var note=doc&&doc.getElementById("dash-r265-route-loading"),page=doc&&doc.getElementById("p-dash");
+    try{note&&note.parentNode&&note.parentNode.removeChild(note);page&&page.removeAttribute("aria-busy")}catch(_e){}
+  }
+  function agendaOwner(ev){
+    var btn=ev&&ev.target&&ev.target.closest?ev.target.closest('#committee-agenda-accordion .accordion-button[data-bs-target^="#committee-agenda-"],#committee-agenda-accordion [aria-controls^="committee-agenda-"]'):null;
+    if(!btn||currentPage()!=="committee-meeting")return;
+    var selector=text(btn.getAttribute("data-bs-target")||("#"+text(btn.getAttribute("aria-controls"))));
+    if(selector.indexOf("#committee-agenda-")!==0)return;
+    var panel=doc.querySelector(selector);if(!panel)return;
+    try{ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation&&ev.stopImmediatePropagation()}catch(_e){}
+    try{
+      var scope=panel.closest("#committee-agenda-accordion")||doc,wasOpen=panel.classList.contains("show");
+      Array.prototype.forEach.call(scope.querySelectorAll('.accordion-collapse[id^="committee-agenda-"]'),function(p){
+        var open=p===panel?!wasOpen:false;
+        p.classList.toggle("show",open);p.classList.toggle("collapse",true);p.style.display=open?"block":"none";
+        var b=scope.querySelector('[data-bs-target="#'+p.id+'"],[aria-controls="'+p.id+'"]');
+        if(b){b.classList.toggle("collapsed",!open);b.setAttribute("aria-expanded",open?"true":"false");}
+      });
+      try{doc.dispatchEvent(new CustomEvent("committee:agenda-toggle",{detail:{id:panel.id,open:!wasOpen,source:"r265-single-owner"}}))}catch(_evt){}
+    }catch(err){
+      if(root.AppRuntime&&fn(root.AppRuntime.recordWarning))root.AppRuntime.recordWarning("r265.committee.agenda",err);
+    }
+  }
+  if(doc){
+    doc.addEventListener("click",dashboardRefreshOwner,true);
+    doc.addEventListener("click",agendaOwner,true);
+    doc.addEventListener("app:page-changing",function(ev){var to=normalizePage(ev&&ev.detail&&ev.detail.to||"");if(to==="dashboard")setTimeout(showDashboardRouteLoading,0)},false);
+    doc.addEventListener("app:page-activated",function(ev){var id=normalizePage(ev&&ev.detail&&(ev.detail.id||ev.detail.pageId)||"");if(id==="dashboard")clearDashboardRouteLoading()},false);
+    try{doc.documentElement.setAttribute("data-runtime-bootstrap","r265");doc.documentElement.setAttribute("data-safe-html-bootstrap","r265");doc.documentElement.setAttribute("data-thai-date-contract","r153");doc.documentElement.setAttribute("data-auth-facade","r265");doc.documentElement.setAttribute("data-dashboard-ui-owner","r265");doc.documentElement.setAttribute("data-committee-agenda-owner","r265");doc.documentElement.setAttribute("data-permission-matrix-stamp",permissionRaw.stamp)}catch(_e){}
+  }
+  root.__APP_RUNTIME_DEPENDENCY_MAP__={ok:true,owner:OWNER,stamp:"r265",core:root.__APP_CORE_RUNTIME_FILES__.slice(),pages:Object.keys(chunks),authFacade:true,externalAssets:true};
 })(typeof window!=="undefined"?window:globalThis,typeof document!=="undefined"?document:null);
