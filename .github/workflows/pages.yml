@@ -28,6 +28,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stamp frontend release r280
+        shell: bash
+        run: |
+          sed -E -i 's#app-config\.js\?v=r[0-9]+#app-config.js?v=r280#g' github-pages/index.html
+          sed -E -i 's#github-gas-transport\.js\?v=r[0-9]+#github-gas-transport.js?v=r280#g' github-pages/index.html
+          grep -q 'app-config.js?v=r280' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r280' github-pages/index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
