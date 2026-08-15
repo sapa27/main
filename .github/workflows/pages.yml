@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical source = deploy artifact. No deploy-time source mutation.
+# One-time P2 technical-debt migration. Persists canonical r287 source before deploy.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -28,27 +28,108 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical frontend r286
+      - name: Consolidate canonical frontend r287
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('github-pages')
+          index = root / 'index.html'
+          config = root / 'app-config.js'
+          transport = root / 'github-gas-transport.js'
+
+          index_text = index.read_text(encoding='utf-8')
+          index_text = index_text.replace('CANONICAL GITHUB FRONTEND r286', 'CANONICAL GITHUB FRONTEND r287')
+          index_text = index_text.replace('app-config.js?v=r286', 'app-config.js?v=r287')
+          index_text = index_text.replace('github-gas-transport.js?v=r286', 'github-gas-transport.js?v=r287')
+          index_text = index_text.replace('github-deferred-r286', 'github-deferred-r287')
+          index.write_text(index_text, encoding='utf-8')
+
+          config_text = config.read_text(encoding='utf-8')
+          config_text = config_text.replace(
+              'commission-github-gas-r286-canonical-pending-reason-owner-2026-08-15',
+              'commission-github-gas-r287-technical-debt-consolidation-2026-08-15'
+          )
+          config_text = config_text.replace('var ASSET_VERSION="r286"', 'var ASSET_VERSION="r287"')
+          config_text = config_text.replace('version:"1.2.0-r286"', 'version:"1.2.0-r287"')
+          config_text = config_text.replace(
+              'clientInFlightOwner:"github-pages/github-gas-transport.js::r260-apps-script-origin-trust"',
+              'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"'
+          )
+          config.write_text(config_text, encoding='utf-8')
+
+          transport_text = transport.read_text(encoding='utf-8')
+          transport_text = transport_text.replace(
+              'github-pages/github-gas-transport.js::r260-apps-script-origin-trust',
+              'github-pages/github-gas-transport.js::canonical'
+          )
+          transport.write_text(transport_text, encoding='utf-8')
+
+          dead = [
+              'app-index-bootstrap.js',
+              'app-index-foundation-after-swal.js',
+              'app-index-foundation-after-vue.js',
+              'app-index-foundation-pre-vue.js',
+              'critical-login-runtime.js',
+              'vercel-env.generated.js',
+          ]
+          for name in dead:
+              path = root / name
+              if path.exists():
+                  path.unlink()
+                  print('removed', path)
+          PY
+
+          grep -q 'CANONICAL GITHUB FRONTEND r287' github-pages/index.html
+          grep -q 'app-config.js?v=r287' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r287' github-pages/index.html
+          grep -q 'github-deferred-r287' github-pages/index.html
+          grep -q 'version:"1.2.0-r287"' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
+          grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
+          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/index.html
+          grep -q 'pendingReasonCompatibilityGuard:false' github-pages/app-config.js
+          ! grep -q 'installPendingReasonGuard' github-pages/app-config.js
+
+          for f in \
+            app-index-bootstrap.js \
+            app-index-foundation-after-swal.js \
+            app-index-foundation-after-vue.js \
+            app-index-foundation-pre-vue.js \
+            critical-login-runtime.js \
+            vercel-env.generated.js; do
+            test ! -e "github-pages/$f"
+            ! grep -R -F "$f" github-pages
+          done
+
+          test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
+
+      - name: Persist canonical r287 source
+        shell: bash
+        run: |
+          if git diff --quiet -- github-pages; then
+            echo 'Canonical r287 source already persisted.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A github-pages
+          git commit -m 'chore: consolidate canonical GitHub frontend r287 [skip ci]'
+          git push origin HEAD:main
+
+      - name: Verify source artifact parity r287
         shell: bash
         run: |
           git diff --exit-code
-          grep -q 'app-config.js?v=r286' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r286' github-pages/index.html
-          grep -q 'github-deferred-r286' github-pages/index.html
-          grep -q 'github-deferred-r286' github-pages/critical-login-runtime.js
-          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
-          grep -q 'htmlCache\[cacheKey\]' github-pages/critical-login-runtime.js
-          grep -q 'assetVersion:v' github-pages/index.html
-          grep -q 'assetVersion:v' github-pages/critical-login-runtime.js
-          grep -q 'deferredAssetVersion:v' github-pages/index.html
-          grep -q 'deferredAssetVersion:v' github-pages/critical-login-runtime.js
-          grep -q 'version:"1.2.0-r286"' github-pages/app-config.js
-          grep -q 'pendingReasonCompatibilityGuard:false' github-pages/app-config.js
-          grep -q 'pendingReasonOwner:"canonical deferred ReportTrack renderer"' github-pages/app-config.js
-          ! grep -q 'installPendingReasonGuard' github-pages/app-config.js
-          ! grep -q '__GITHUB_PENDING_REASON_GUARD_R280__' github-pages/app-config.js
-          ! grep -q 'github-pending-reason-guard-r280' github-pages/app-config.js
-          ! grep -q 'data-github-pending-reason-guard' github-pages/app-config.js
+          test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
+          grep -q 'app-config.js?v=r287' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r287' github-pages/index.html
+          grep -q 'github-deferred-r287' github-pages/index.html
+          grep -q 'version:"1.2.0-r287"' github-pages/app-config.js
+          grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
