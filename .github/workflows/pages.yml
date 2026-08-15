@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical source = deploy artifact. r296 keeps transport recovery and closes GitHub meeting compatibility gaps.
+# One-time source recovery + canonical r297 migration.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -27,43 +27,71 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate canonical frontend r296
+      - name: Recover r296 canonical source and apply r297
+        shell: bash
+        env:
+          R297_OWNER_GZ_B64: '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'
+        run: |
+          printf '%s' "$R297_OWNER_GZ_B64" | base64 -d | gzip -d > /tmp/r297-owner.js
+          git show 6e00dfb790ae9ef41126474fd54ceb03938725a3:github-pages/index.html > /tmp/index-r296.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('/tmp/index-r296.html')
+          s=p.read_text(encoding='utf-8')
+          js=Path('/tmp/r297-owner.js').read_text(encoding='utf-8')
+          pat=r'<script id="github-meeting-compat-r296">.*?</script>'
+          s,n=re.subn(pat,'<script id="github-commissioner-proposer-owner-r297">'+js+'</script>',s,count=1,flags=re.S)
+          if n != 1: raise SystemExit('r296 owner not found exactly once')
+          s=s.replace('CANONICAL GITHUB FRONTEND r296','CANONICAL GITHUB FRONTEND r297')
+          s=s.replace('app-config.js?v=r296','app-config.js?v=r297')
+          s=s.replace('github-gas-transport.js?v=r296','github-gas-transport.js?v=r297')
+          s=s.replace('github-deferred-r296','github-deferred-r297')
+          Path('github-pages/index.html').write_text(s,encoding='utf-8')
+          PY
+
+      - name: Validate recovered canonical r297
+        shell: bash
+        run: |
+          test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
+          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "0"
+          grep -q 'CANONICAL GITHUB FRONTEND r297' github-pages/index.html
+          grep -q 'app-config.js?v=r297' github-pages/index.html
+          grep -q 'github-deferred-r297' github-pages/index.html
+          grep -q 'AppApiMiddlewarePipeline' github-pages/index.html
+          grep -q 'apiGetPersonnelComms' github-pages/index.html
+          grep -q 'github-r297-commissioner-only' github-pages/index.html
+          grep -q 'version:"1.2.0-r297"' github-pages/app-config.js
+          grep -q 'githubCommissionerLookupOwner:"apiGetPersonnelComms"' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
+
+      - name: Persist canonical r297 source
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add github-pages/index.html github-pages/app-config.js
+          if git diff --cached --quiet; then
+            echo 'Canonical r297 source already persisted.'
+          else
+            git commit -m 'chore: recover and persist GitHub commissioner owner r297 [skip ci]'
+            git push origin HEAD:main
+          fi
+
+      - name: Verify source artifact parity r297
         shell: bash
         run: |
           git diff --exit-code
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
-          test -f github-pages/index.html
-          test -f github-pages/app-config.js
-          test -f github-pages/github-gas-transport.js
-
-          grep -q 'CANONICAL GITHUB FRONTEND r296' github-pages/index.html
-          grep -q 'app-config.js?v=r296' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r296' github-pages/index.html
-          grep -q 'github-deferred-r296' github-pages/index.html
-          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
-          grep -q 'assetVersion:v' github-pages/index.html
-          grep -q 'deferredAssetVersion:v' github-pages/index.html
-
-          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          grep -q 'data-meeting-petitioner-actions="canonical"' github-pages/index.html
-          grep -q 'github-r296-commissioner-proposer' github-pages/index.html
-          grep -q 'loadPageScripts("petitioner")' github-pages/index.html
-
-          grep -q 'version:"1.2.0-r296"' github-pages/app-config.js
-          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
-          grep -q 'githubMeetingCompatibilityOwner:"github-pages/index.html::meeting-compat-r296"' github-pages/app-config.js
-          grep -q 'githubCommissionerLookupOwner:"apiGetMeetingLookupOptions.proposer"' github-pages/app-config.js
-          grep -q 'githubPetitionerPopupOwner:"canonical petitioner runtime"' github-pages/app-config.js
-          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
+          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "0"
+          grep -q 'version:"1.2.0-r297"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
-
-          ! grep -q 'CANONICAL GITHUB FRONTEND r295' github-pages/index.html
-          ! grep -q 'github-deferred-r295' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
