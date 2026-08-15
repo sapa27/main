@@ -1,17 +1,16 @@
 name: Deploy GitHub Pages
 
-# One-time source recovery + canonical r297 migration.
+# Canonical source = deploy artifact. r297 enforces commissioner-only proposer lookup on the bridge-recovery backend.
 on:
   push:
     branches: [main]
     paths:
       - 'github-pages/**'
       - '.github/workflows/pages.yml'
-      - '.github/r297-owner.js'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,80 +27,48 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Recover r296 canonical source and apply r297
-        shell: bash
-        run: |
-          git show 6e00dfb790ae9ef41126474fd54ceb03938725a3:github-pages/index.html > /tmp/index-r296.html
-          python3 - <<'PY'
-          from pathlib import Path
-          s=Path('/tmp/index-r296.html').read_text(encoding='utf-8')
-          js=Path('.github/r297-owner.js').read_text(encoding='utf-8').strip()
-          start_marker='<script id="github-meeting-compat-r296">'
-          start=s.find(start_marker)
-          if start < 0:
-              raise SystemExit('r296 owner start not found')
-          end=s.find('</script>', start)
-          if end < 0:
-              raise SystemExit('r296 owner end not found')
-          end += len('</script>')
-          replacement='<script id="github-commissioner-proposer-owner-r297">'+js+'</script>'
-          s=s[:start]+replacement+s[end:]
-          s=s.replace('CANONICAL GITHUB FRONTEND r296','CANONICAL GITHUB FRONTEND r297')
-          s=s.replace('app-config.js?v=r296','app-config.js?v=r297')
-          s=s.replace('github-gas-transport.js?v=r296','github-gas-transport.js?v=r297')
-          s=s.replace('github-deferred-r296','github-deferred-r297')
-          Path('github-pages/index.html').write_text(s,encoding='utf-8')
-          PY
-
-      - name: Validate recovered canonical r297
-        shell: bash
-        run: |
-          test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
-          test -f github-pages/index.html
-          test -f github-pages/app-config.js
-          test -f github-pages/github-gas-transport.js
-          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "0"
-          grep -q 'CANONICAL GITHUB FRONTEND r297' github-pages/index.html
-          grep -q 'app-config.js?v=r297' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r297' github-pages/index.html
-          grep -q 'github-deferred-r297' github-pages/index.html
-          grep -q 'AppApiMiddlewarePipeline' github-pages/index.html
-          grep -q 'apiGetPersonnelComms' github-pages/index.html
-          grep -q 'github-r297-commissioner-only' github-pages/index.html
-          grep -q 'var STORE_KEY = "meeting.lookup." + CATEGORY' github-pages/index.html
-          grep -q 'input.readOnly = true' github-pages/index.html
-          grep -q 'x.petitioners = \[\]' github-pages/index.html
-          grep -q 'version:"1.2.0-r297"' github-pages/app-config.js
-          grep -q 'githubCommissionerLookupOwner:"apiGetPersonnelComms"' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-
-      - name: Persist canonical r297 source
-        shell: bash
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add github-pages/index.html github-pages/app-config.js
-          if git diff --cached --quiet; then
-            echo 'Canonical r297 source already persisted.'
-          else
-            git commit -m 'chore: recover and persist GitHub commissioner owner r297 [skip ci]'
-            git push origin HEAD:main
-          fi
-
-      - name: Verify source artifact parity r297
+      - name: Validate canonical frontend r297
         shell: bash
         run: |
           git diff --exit-code
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
+          test -f github-pages/index.html
+          test -f github-pages/app-config.js
+          test -f github-pages/github-gas-transport.js
+
+          grep -q 'CANONICAL GITHUB FRONTEND r297' github-pages/index.html
+          grep -q 'app-config.js?v=r297' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r297' github-pages/index.html
+          grep -q 'github-deferred-r297' github-pages/index.html
+          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/index.html
+
+          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "0"
+          grep -q 'data-meeting-petitioner-actions="canonical"' github-pages/index.html
+          grep -q 'AppApiMiddlewarePipeline' github-pages/index.html
+          grep -q 'apiGetPersonnelComms' github-pages/index.html
+          grep -q 'github-r297-commissioner-only' github-pages/index.html
+          grep -q 'x.petitioners = \[\]' github-pages/index.html
+          grep -q 'input.readOnly = true' github-pages/index.html
+          grep -q 'var STORE_KEY = "meeting.lookup." + CATEGORY' github-pages/index.html
+
           grep -q 'version:"1.2.0-r297"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
+          grep -q 'githubMeetingCompatibilityOwner:"github-pages/index.html::commissioner-proposer-owner-r297"' github-pages/app-config.js
+          grep -q 'githubCommissionerLookupOwner:"apiGetPersonnelComms"' github-pages/app-config.js
+          grep -q 'githubCommissionerCacheOwner:"meeting.lookup.กรรมาธิการเสนอญัตติ::r297"' github-pages/app-config.js
+          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
+
+          ! grep -q 'CANONICAL GITHUB FRONTEND r296' github-pages/index.html
+          ! grep -q 'github-deferred-r296' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
