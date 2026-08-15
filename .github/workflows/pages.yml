@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# One-time canonical source migration: r296 closes GitHub meeting compatibility gaps.
+# Canonical source = deploy artifact. r296 keeps transport recovery and closes GitHub meeting compatibility gaps.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,68 +28,51 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Canonicalize frontend r296
-        shell: bash
-        env:
-          R296_SHIM: |
-            <script id="github-meeting-compat-r296">(function(w,d){"use strict";if(w.__GMC296)return;w.__GMC296=1;var C="กรรมาธิการเสนอญัตติ";function t(v){return String(v==null?"":v).trim()}function c(){var e=d.getElementById("meeting-cat");return!!e&&t(e.value)===C}function rows(r,q,l){var x=r&&r.data&&typeof r.data==="object"?r.data:r||{},a=Array.isArray(x.proposer)&&x.proposer.length?x.proposer:(Array.isArray(x.assignees)?x.assignees:[]);return{ok:true,data:{rows:a,items:a,records:a,key:"petitioners",type:"meeting",q:t(q),scope:C,limit:+l||80,cursor:"",nextCursor:"",totalRecords:a.length,contractStamp:"github-r296-commissioner-proposer"}}}function need(m,p){return m==="apiSearchLookup"&&p&&t(p.type||"meeting")==="meeting"&&t(p.key)==="petitioners"&&t(p.scope||p.category)===C}function patch(o,n){if(!o||typeof o[n]!=="function"||o[n].__gmc296)return 0;var f=o[n];o[n]=function(m,p){if(need(m,p)){p=p&&typeof p==="object"?Object.assign({},p):{};var a={category:C,query:t(p.q||p.query),limit:+p.limit||80,source:"github-r296-commissioner-proposer"},z=[].slice.call(arguments,2);return Promise.resolve(f.apply(this,["apiGetMeetingLookupOptions",a].concat(z))).then(function(r){return rows(r,a.query,a.limit)})}return f.apply(this,arguments)};o[n].__gmc296=1;return 1}function P(){try{patch(w.AppPageKit,"apiRunner")}catch(e){}try{patch(w.AppApi,"call")}catch(e){}}function B(){var b=d.getElementById("meeting-add-petitioner-btn");if(b){b.disabled=c();b.setAttribute("aria-disabled",b.disabled?"true":"false");b.title=b.disabled?"ประเภทกรรมาธิการเสนอญัตติให้เลือกจากฐานข้อมูลกรรมาธิการเท่านั้น":"เพิ่มข้อมูลผู้ร้องเรียน"}}function load(){if(w.AppPetitionerOwner&&typeof w.AppPetitionerOwner.open==="function")return Promise.resolve(function(){return w.AppPetitionerOwner.open({source:"github-r296"})});if(typeof w.openPetModal==="function")return Promise.resolve(function(){return w.openPetModal({source:"github-r296"})});var L=w.AppAssetLoader&&typeof w.AppAssetLoader.loadPageScripts==="function"?function(){return w.AppAssetLoader.loadPageScripts("petitioner")}:w.AppCritical&&typeof w.AppCritical.loadPageScripts==="function"?function(){return w.AppCritical.loadPageScripts("petitioner")}:null;if(!L)return Promise.reject(Error("ไม่พบตัวโหลด popup ข้อมูลผู้ร้องเรียน"));return Promise.resolve(L()).then(function(){if(w.AppPetitionerOwner&&typeof w.AppPetitionerOwner.open==="function")return function(){return w.AppPetitionerOwner.open({source:"github-r296"})};if(typeof w.openPetModal==="function")return function(){return w.openPetModal({source:"github-r296"})};throw Error("โหลด popup ข้อมูลผู้ร้องเรียนไม่สำเร็จ")})}d.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("#meeting-add-petitioner-btn"):null;if(!b)return;e.preventDefault();e.stopPropagation();e.stopImmediatePropagation&&e.stopImmediatePropagation();if(c()){B();return}b.disabled=true;b.setAttribute("aria-busy","true");load().then(function(f){return f()}).catch(function(x){try{w.AppRuntime&&typeof w.AppRuntime.handleError==="function"?w.AppRuntime.handleError(x,"เปิด popup เพิ่มผู้ร้องเรียนไม่สำเร็จ"):w.appSwalFire&&w.appSwalFire("ผิดพลาด",t(x&&x.message||x),"error")}catch(_){} }).finally(function(){b.removeAttribute("aria-busy");B()})},true);d.addEventListener("change",function(e){if(e.target&&e.target.id==="meeting-cat"){P();B()}},true);["DOMContentLoaded","app:main-ui-ready","app:page-activated","app:page:meeting:shown","app:route:meeting","app:page-scripts-loaded","app:core-runtime-ready"].forEach(function(n){try{d.addEventListener(n,function(){P();B()},false)}catch(e){}});[0,100,300,800,1600,3000].forEach(function(ms){setTimeout(function(){P();B()},ms)});})(window,document);</script>
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import os
-          p=Path("github-pages/index.html")
-          s=p.read_text(encoding="utf-8")
-          s=s.replace("CANONICAL GITHUB FRONTEND r295","CANONICAL GITHUB FRONTEND r296")
-          s=s.replace("app-config.js?v=r295","app-config.js?v=r296")
-          s=s.replace("github-gas-transport.js?v=r295","github-gas-transport.js?v=r296")
-          s=s.replace("github-deferred-r295","github-deferred-r296")
-          shim=os.environ["R296_SHIM"].strip()
-          if 'id="github-meeting-compat-r296"' not in s:
-              s=s.replace("</body>",shim+"\n</body>",1)
-          p.write_text(s,encoding="utf-8")
-          PY
-          grep -q 'CANONICAL GITHUB FRONTEND r296' github-pages/index.html
-          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          grep -q 'github-r296-commissioner-proposer' github-pages/index.html
-          grep -q 'version:"1.2.0-r296"' github-pages/app-config.js
-
-      - name: Persist canonical r296 source
-        shell: bash
-        run: |
-          if git diff --quiet -- github-pages/index.html; then
-            echo 'Canonical r296 index already persisted.'
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add github-pages/index.html
-            git commit -m 'chore: sync GitHub meeting compatibility source r296 [skip ci]'
-            git push origin HEAD:main
-          fi
-
-      - name: Verify source artifact parity r296
+      - name: Validate canonical frontend r296
         shell: bash
         run: |
           git diff --exit-code
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
+          test -f github-pages/index.html
+          test -f github-pages/app-config.js
+          test -f github-pages/github-gas-transport.js
+
           grep -q 'CANONICAL GITHUB FRONTEND r296' github-pages/index.html
           grep -q 'app-config.js?v=r296' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r296' github-pages/index.html
           grep -q 'github-deferred-r296' github-pages/index.html
+          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/index.html
+
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          grep -q 'data-meeting-petitioner-actions="canonical"' github-pages/index.html
           grep -q 'github-r296-commissioner-proposer' github-pages/index.html
           grep -q 'loadPageScripts("petitioner")' github-pages/index.html
+
           grep -q 'version:"1.2.0-r296"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
           grep -q 'githubMeetingCompatibilityOwner:"github-pages/index.html::meeting-compat-r296"' github-pages/app-config.js
+          grep -q 'githubCommissionerLookupOwner:"apiGetMeetingLookupOptions.proposer"' github-pages/app-config.js
+          grep -q 'githubPetitionerPopupOwner:"canonical petitioner runtime"' github-pages/app-config.js
+          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
           grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
+
+          ! grep -q 'CANONICAL GITHUB FRONTEND r295' github-pages/index.html
+          ! grep -q 'github-deferred-r295' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./github-pages
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
