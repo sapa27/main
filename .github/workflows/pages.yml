@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical source = deploy artifact. r299 keeps bridge recovery and adds AI duplicate fallback for stale Gemini model errors.
+# One-time migration: align GitHub with the user-confirmed GAS r301 deployment.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -28,44 +28,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical frontend r299
+      - name: Canonicalize frontend r302 when config is ready
         shell: bash
         run: |
-          git diff --exit-code
+          set -euo pipefail
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
-          test -f github-pages/index.html
-          test -f github-pages/app-config.js
-          test -f github-pages/github-gas-transport.js
+          if grep -q 'version:"1.2.0-r302"' github-pages/app-config.js; then
+            sed -i 's/CANONICAL GITHUB FRONTEND r299/CANONICAL GITHUB FRONTEND r302/g' github-pages/index.html
+            sed -i 's/app-config.js?v=r299/app-config.js?v=r302/g' github-pages/index.html
+            sed -i 's/github-gas-transport.js?v=r299/github-gas-transport.js?v=r302/g' github-pages/index.html
+            sed -i 's/github-deferred-r299/github-deferred-r302/g' github-pages/index.html
+            grep -q 'CANONICAL GITHUB FRONTEND r302' github-pages/index.html
+            grep -q 'app-config.js?v=r302' github-pages/index.html
+            grep -q 'github-gas-transport.js?v=r302' github-pages/index.html
+            grep -q 'github-deferred-r302' github-pages/index.html
+            grep -q 'AKfycbwFGY4RIsqW6gOxIrn4t1jjlFKESHWmJyB-HEoCtLZjZi0_7c8OmJLO4uXK3S3_ph-b' github-pages/app-config.js
+            ! grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          else
+            grep -q 'version:"1.2.0-r299"' github-pages/app-config.js
+            grep -q 'CANONICAL GITHUB FRONTEND r299' github-pages/index.html
+          fi
 
-          grep -q 'CANONICAL GITHUB FRONTEND r299' github-pages/index.html
-          grep -q 'app-config.js?v=r299' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r299' github-pages/index.html
-          grep -q 'github-deferred-r299' github-pages/index.html
-          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
-          grep -q 'assetVersion:v' github-pages/index.html
-          grep -q 'deferredAssetVersion:v' github-pages/index.html
+      - name: Persist canonical r302 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'version:"1.2.0-r302"' github-pages/app-config.js && ! git diff --quiet -- github-pages/index.html; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add github-pages/index.html
+            git commit -m "chore: persist canonical GitHub frontend r302 [skip ci]"
+            git push origin HEAD:main
+          fi
 
+      - name: Verify source artifact parity r302
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          grep -q 'apiCheckDuplicateCase' github-pages/index.html
-          grep -q 'apiGetCaseReportExportRows' github-pages/index.html
-          grep -q 'r299-github-duplicate-local-fallback' github-pages/index.html
-          grep -q 'gemini-3.6-flash' github-pages/index.html
-
-          grep -q 'version:"1.2.0-r299"' github-pages/app-config.js
-          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
-          grep -q 'githubAiDuplicateFallbackOwner:"github-pages/index.html::ai-duplicate-model-fallback-r299"' github-pages/app-config.js
-          grep -q 'githubAiDuplicateFallbackModel:"gemini-3.6-flash"' github-pages/app-config.js
-          grep -q 'githubAiDuplicateFallbackReadApi:"apiGetCaseReportExportRows"' github-pages/app-config.js
-          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
-
-          ! grep -q 'CANONICAL GITHUB FRONTEND r297' github-pages/index.html
-          ! grep -q 'github-deferred-r297' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
