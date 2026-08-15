@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbzRmR1bk31Bk_4wVqCpm4RtJ2SpN6DjYBMSQhtJivxqFHimWhJG1Sp4B2juOPoXNXQR/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-gas-r303-transport-recovery-after-r302-2026-08-15";
 var ASSET_VERSION="r303";
