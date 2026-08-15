@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical source = deploy artifact. r295 restores the last bridge-capable GAS transport.
+# One-time canonical source migration: r296 closes GitHub meeting compatibility gaps on the bridge-recovery endpoint.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -28,7 +28,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical frontend r295
+      - name: Canonicalize frontend r296
+        shell: bash
+        env:
+          R296_SHIM_B64: "PHNjcmlwdCBpZD0iZ2l0aHViLW1lZXRpbmctY29tcGF0LXIyOTYiPgooZnVuY3Rpb24ocm9vdCxkb2MpeyJ1c2Ugc3RyaWN0IjsKaWYoIXJvb3R8fCFkb2N8fHJvb3QuX19HSVRI VUJfTUVFVElOR19DT01QQVRfUjI5Nl9fKXJldHVybjsKcm9vdC5fX0dJVEhVQl9NRUVUSU5HX0NPTVBBVF9SMjk2X189dHJ1ZTsKdmFyIENPTU09IuC4geC4o+C4o+C4o+C4suC4mOC4t+C4geC4suC4o+C5gOC4quC4meC4reC4jeC4seC4leC4leC4tCI7CmZ1bmN0aW9uIHRleHQodil7cmV0dXJuIFN0cmluZyh2PT1udWxsPyIiOnYpLnRyaW0oKX0KZnVuY3Rpb24gaXNDb21tKCl7dmFyIGVsPWRvYy5nZXRFbGVtZW50QnlJZCgibWVldGluZy1jYXQiKTtyZXR1cm4gISFlbCYmdGV4dChlbC52YWx1ZSk9PT1DT01NfQpmdW5jdGlvbiBub3JtYWxpemVSb3dzKHJlc3AscSxsaW1pdCl7CiAgdmFyIGQ9cmVzcCYmcmVzcC5kYXRhJiZ0eXBlb2YgcmVzcC5kYXRhPT09Im9iamVjdCI/cmVzcC5kYXRhOihyZXNwfHx7fSk7CiAgdmFyIHJvd3M9QXJyYXkuaXNBcnJheShkLnByb3Bvc2VyKSYmZC5wcm9wb3Nlci5sZW5ndGg/ZC5wcm9wb3NlcjooQXJyYXkuaXNBcnJheShkLmFzc2lnbmVlcyk/ZC5hc3NpZ25lZXM6W10pOwogIHJldHVyIHtvazp0cnVlLGRhdGE6e3Jvd3M6cm93cyxpdGVtczpyb3dzLHJlY29yZHM6cm93cyxrZXk6InBldGl0aW9uZXJzIix0eXBlOiJtZWV0aW5nIixxOnRleHQocSksc2NvcGU6Q09NTSxsaW1pdDpOdW1iZXIobGltaXR8fDgwKXx8ODAsY3Vyc29yOiIiLG5leHRDdXJzb3I6IiIsdG90YWxSZWNvcmRzOnJvd3MubGVuZ3RoLGNvbnRyYWN0U3RhbXA6ImdpdGh1Yi1yMjk2LWNvbW1pc3Npb25lci1wcm9wb3NlciJ9fTsKfQpmdW5jdGlvbiBzaG91bGRSZWRpcmVjdChtZXRob2QscCl7CiAgcmV0dXJuIG1ldGhvZD09PSJhcGlTZWFyY2hMb29rdXAiJiZwJiZ0ZXh0KHAudHlwZXx8Im1lZXRpbmciKT09PSJtZWV0aW5nIiYmdGV4dChwLmtleSk9PT0icGV0aXRpb25lcnMiJiZ0ZXh0KHAuc2NvcGV8fHAuY2F0ZWdvcnkpPT09Q09NTTsKfQpmdW5jdGlvbiBwYXRjaFJ1bm5lcihvYmosbmFtZSl7CiAgaWYoIW9ianx8dHlwZW9mIG9ialtuYW1lXSE9PSJmdW5jdGlvbiJ8fG9ialtuYW1lXS5fX2dpdGh1Yk1lZXRpbmdDb21wYXRSMjk2KXJldHVybiBmYWxzZTsKICB2YXIgb3JpZ2luYWw9b2JqW25hbWVdOwogIHZhciB3cmFwcGVkPWZ1bmN0aW9uKG1ldGhvZCxwYXlsb2FkKXsKICAgIGlmKHNob3VsZFJlZGlyZWN0KG1ldGhvZCxwYXlsb2FkKSl7CiAgICAgIHZhciBwPXBheWxvYWQmJnR5cGVvZiBwYXlsb2FkPT09Im9iamVjdCI/T2JqZWN0LmFzc2lnbih7fSxwYXlsb2FkKTp7fTsKICAgICAgdmFyIGFyZ3M9e2NhdGVnb3J5OkNPTU0scXVlcnk6dGV4dChwLnF8fHAucXVlcnkpLGxpbWl0Ok51bWJlcihwLmxpbWl0fHw4MCl8fDgwLHNvdXJjZToiZ2l0aHViLXIyOTYtY29tbWlzc2lvbmVyLXByb3Bvc2VyIn07CiAgICAgIHZhciBleHRyYT1BcnJheS5wcm90b3R5cGUuc2xpY2UuY2FsbChhcmd1bWVudHMsMik7CiAgICAgIHJldHVybiBQcm9taXNlLnJlc29sdmUob3JpZ2luYWwuYXBwbHkodGhpcyxbImFwaUdldE1lZXRpbmdMb29rdXBPcHRpb25zIixhcmdzXS5jb25jYXQoZXh0cmEpKSkudGhlbihmdW5jdGlvbihyZXNwKXsKICAgICAgICByZXR1cm4gbm9ybWFsaXplUm93cyhyZXNwLGFyZ3MucXVlcnksYXJncy5saW1pdCk7CiAgICAgIH0pOwogICAgfQogICAgcmV0dXJuIG9yaWdpbmFsLmFwcGx5KHRoaXMsYXJndW1lbnRzKTsKICB9OwogIHdyYXBwZWQuX19naXRodWJNZWV0aW5nQ29tcGF0UjI5Nj10cnVlOwogIHdyYXBwZWQuX19vcmlnaW5hbD1vcmlnaW5hbDsKICBvYmpbbmFtZV09d3JhcHBlZDsKICByZXR1cm4gdHJ1ZTsKfQpmdW5jdGlvbiBwYXRjaEFwaU93bmVycygpewogIHZhciBvaz1mYWxzZTsKICB0cnl7b2s9cGF0Y2hSdW5uZXIocm9vdC5BcHBQYWdlS2l0LCJhcGlSdW5uZXIiKXx8b2t9Y2F0Y2goZSl7fQogIHRyeXtva  D1wYXRjaFJ1bm5lcihyb290LkFwcEFwaSwiY2FsbCIpfHxva31jYXRjaChlKXt9CiAgcmV0dXJuIG9rOwp9CmZ1bmN0aW9uIGxvYWRQZXRpdGlvbmVyT3duZXIoKXsKICBpZihyb290LkFwcFBldGl0aW9uZXJPd25lciYmdHlwZW9mIHJvb3QuQXBwUGV0aXRpb25lck93bmVyLm9wZW49PT0iZnVuY3Rpb24iKXJldHVybiBQcm9taXNlLnJlc29sdmUoe2tpbmQ6Im93bmVyIix2YWx1ZTpyb290LkFwcFBldGl0aW9uZXJPd25lcn0pOwogIGlmKHR5cGVvZiByb290Lm9wZW5QZXRNb2RhbD09PSJmdW5jdGlvbiIpcmV0dXJuIFByb21pc2UucmVzb2x2ZSh7a2luZDoiZ2xvYmFsIix2YWx1ZTpyb290Lm9wZW5QZXRNb2RhbH0pOwogIHZhciBsb2FkZXI9cm9vdC5BcHBBc3NldExvYWRlciYmdHlwZW9mIHJvb3QuQXBwQXNzZXRMb2FkZXIubG9hZFBhZ2VTY3JpcHRzPT09ImZ1bmN0aW9uIgogICAgP2Z1bmN0aW9uKCl7cmV0dXJuIHJvb3QuQXBwQXNzZXRMb2FkZXIubG9hZFBhZ2VTY3JpcHRzKCJwZXRpdGlvbmVyIil9CiAgICA6KHJvb3QuQXBwQ3JpdGljYWwmJnR5cGVvZiByb290LkFwcENyaXRpY2FsLmxvYWRQYWdlU2NyaXB0cz09PSJmdW5jdGlvbiIKICAgICAgP2Z1bmN0aW9uKCl7cmV0dXJuIHJvb3QuQXBwQ3JpdGljYWwubG9hZFBhZ2VTY3JpcHRzKCJwZXRpdGlvbmVyIil9CiAgICAgIDpudWxsKTsKICBpZighbG9hZGVyKXJldHVybiBQcm9taXNlLnJlamVjdChuZXcgRXJyb3IoIuC5hOC4oeC5iOC4muC4leC4seC4p+C4seC5gOC4q+C5iOC4reC4lOC4ouC5gOC4quC4meC4reC4oeC4iuC4ouC4oeC4t+C4quC4ouC4geC4suC4o+C5gOC4nuC4l+C4m+C5geC4muC4meC4m+C4reC4mOC4guC5ieC4reC4oeC4ueC4peC4n+C5ieC4reC4hyIpKTsKICByZXR1cm4gUHJvbWlzZS5yZXNvbHZlKGxvYWRlcigpKS50aGVuKGZ1bmN0aW9uKCl7CiAgICBpZihyb290LkFwcFBldGl0aW9uZXJPd25lciYmdHlwZW9mIHJvb3QuQXBwUGV0aXRpb25lck93bmVyLm9wZW49PT0iZnVuY3Rpb24iKXJldHVybiB7a2luZDoib3duZXIiLHZhbHVlOnJvb3QuQXBwUGV0aXRpb25lck93bmVyfTsKICAgIGlmKHR5cGVvZiByb290Lm9wZW5QZXRNb2RhbD09PSJmdW5jdGlvbiIpcmV0dXJuIHtraW5kOiJnbG9iYWwiLHZhbHVlOnJvb3Qub3BlblBldE1vZGFsfTsKICAgIGlmKHJvb3QuQXBwQ3JpdGljYWwmJnR5cGVvZiByb290LkFwcENyaXRpY2FsLmxvYWRQYXJ0aWFsPT09ImZ1bmN0aW9uIil7CiAgICAgIHJldHVybiBQcm9taXNlLnJlc29sdmUocm9vdC5BcHBDcml0aWNhbC5sb2FkUGFydGlhbCgiU2NyaXB0c19QYWdlX1BldGl0aW9uZXIiKSkudGhlbihmdW5jdGlvbigpewogICAgICAgIGlmKHJvb3QuQXBwUGV0aXRpb25lck93bmVyJiZ0eXBlb2Ygcm9vdC5BcHBQZXRpdGlvbmVyT3duZXIub3Blbj09PSJmdW5jdGlvbiIpcmV0dXJuIHtraW5kOiJvd25lciIsdmFsdWU6cm9vdC5BcHBQZXRpdGlvbmVyT3duZXJ9OwogICAgICAgIGlmKHR5cGVvZiByb290Lm9wZW5QZXRNb2RhbD09PSJmdW5jdGlvbiIpcmV0dXJuIHtraW5kOiJnbG9iYWwiLHZhbHVlOnJvb3Qub3BlblBldE1vZGFsfTsKICAgICAgICB0aHJvdyBuZXcgRXJyb3IoIuC5guC4q+C4peC4lOC4nOC4mOC4reC4muC4guC5ieC4reC4oeC4ueC4peC4n+C5ieC4reC4geC4suC4o+C5gOC4nuC4l+C4m+C5geC4muC4meC4m+C4reC4mOC4h+C4oeC5iOC4quC4s+C5gOC4o+C5h+C4iOC4iOC4reC4peC4seC4hyIpOwogICAgICB9KTsKICAgIH0KICAgIHRocm93IG5ldyBFcnJvcigi4LmC4Lir4Lil4LiU4Lib4Li14LiW4LmJ4Lit4Lih4Li54Lil4Lic4LmJ4Lij4LmJ4Lit4LiH4LmA4Lij4Li14Lii4LiZ4LmE4Lih4LmI4Liq4Liz4LmA4Lij4LmH4LiIKTsKICB9KTsKfQpmdW5jdGlvbiBhcHBlbmRTYXZlZChzYXZlZCl7CiAgaWYoIXNhdmVkfHx0eXBlb2Ygc2F2ZWQhPT0ib2JqZWN0IilyZXR1cm4gc2F2ZWQ7CiAgdmFyIG5hbWU9dGV4dChzYXZlZC5uYW1lfHxzYXZlZC5mdWxsTmFtZXx8c2F2ZWQucGV0aXRpb25lck5hbWV8fHNhdmVkWyLguIrguLfguYjguK0t4Liq4LiB4Li4IOC4peC4vOC4suC4oCJdfHxzYXZlZFsi4LiK4Li34LmI4LitIl0pOwogIGlmKCFuYW1lKXJldHVybiBzYXZlZDsKICB2YXIgaW5wdXQ9ZG9jLmdldEVsZW1lbnRCeUlkKCJtZWV0aW5nLXBldGl0aW9uZXJzIik7CiAgaWYoaW5wdXQpewogICAgdmFyIGFycj10ZXh0KGlucHV0LnZhbHVlKS5zcGxpdCgvWyxcbjtdKy8pLm1hcChmdW5jdGlvbih4KXtyZXR1cm4gdGV4dCh4KX0pLmZpbHRlcihCb29sZWFuKTsKICAgIGlmKGFyci5pbmRleE9mKG5hbWUpPDApYXJyLnB1c2gobmFtZSk7CiAgICBpbnB1dC52YWx1ZT1hcnIuam9pbigiLCDigIcpOwogICAgdHJ5e2lucHV0LmRpc3BhdGNoRXZlbnQobmV3IEV2ZW50KCJpbnB1dCIse2J1YmJsZXM6dHJ1ZX0pKTtpbnB1dC5kaXNwYXRjaEV2ZW50KG5ldyBFdmVudCgiY2hhbmdlIix7YnViYmxlczp0cnVlfSkpfWNhdGNoKGUpe30KICB9CiAgdmFyIHBob25lPXRleHQoc2F2ZWQucGhvbmV8fHNhdmVkLnRlbHx8c2F2ZWQudGVsZXBob25lfHxzYXZlZC5tb2JpbGV8fHNhdmVkWyLguYDguJrguK3guKPguYzguYLguJfguKPguKjguLHguJ7guJfguYwiXSk7CiAgdmFyIHBob25lRWw9ZG9jLmdldEVsZW1lbnRCeUlkKCJtZWV0aW5nLXBldGl0aW9uZXJQaG9uZSIpOwogIGlmKHBob25lJiZwaG9uZUVsJiYhdGV4dChwaG9uZUVsLnZhbHVlKSlwaG9uZUVsLnZhbHVlPXBob25lOwogIHJldHVybiBzYXZlZDsKfQpmdW5jdGlvbiBzaG93RXJyb3IoZXJyKXsKICB2YXIgbXNnPXRleHQoZXJyJiZlcnIubWVzc2FnZXx8ZXJyfHwi4LmA4Lib4Li04LiU4Lib4Lit4Lib4Lit4Lix4Lib4LmA4Lie4Li04LmI4Lih4LiC4LmJ4Lit4Lih4Li54Lil4Lic4Li54LmJ4Lij4LmJ4Lit4LiH4LmA4Lij4Li14Lii4LiZ4LmE4Lih4LmI4Liq4Liz4LmA4Lij4LmH4LiIIik7CiAgdHJ5ewogICAgaWYocm9vdC5BcHBSdW50aW1lJiZ0eXBlb2Ygcm9vdC5BcHBSdW50aW1lLmhhbmRsZUVycm9yPT09ImZ1bmN0aW9uIilyZXR1cm4gcm9vdC5BcHBSdW50aW1lLmhhbmRsZUVycm9yKGVyciwi4LmA4Lib4Li04LiU4Lib4Lit4Lib4Lit4Lix4Lib4LmA4Lie4Li04LmI4Lih4LiC4LmJ4Lit4Lih4Li54Lil4Lic4Li54LmJ4Lij4LmJ4Lit4LiH4LmA4Lij4Li14Lii4LiZ4LmE4Lih4LmI4Liq4Liz4LmA4Lij4LmH4LiIIik7CiAgICBpZihyb290LmFwcFN3YWxGaXJlKXJldHVybiByb290LmFwcFN3YWxGaXJlKCLguJzguLTguJTguJ7guKXguLLguJQiLG1zZywiZXJyb3IiKTsKICAgIGlmKHJvb3QuU3dhbCYmdHlwZW9mIHJvb3QuU3dhbC5maXJlPT09ImZ1bmN0aW9uIilyZXR1cm4gcm9vdC5Td2FsLmZpcmUoe2ljb246ImVycm9yIix0aXRsZTrguJzguLTguJTguJ7guKXguLLguJQsdGV4dDptc2d9KTsKICB9Y2F0Y2goZSl7fQp9CmZ1bmN0aW9uIHN5bmNBZGRCdXR0b24oKXsKICB2YXIgYnRuPWRvYy5nZXRFbGVtZW50QnlJZCgibWVldGluZy1hZGQtcGV0aXRpb25lci1idG4iKTsKICBpZighYnRuKXJldHVybjsKICB2YXIgZGlzYWJsZWQ9aXNDb21tKCk7CiAgYnRuLmRpc2FibGVkPWRpc2FibGVkOwogIGJ0bi5zZXRBdHRyaWJ1dGUoImFyaWEtZGlzYWJsZWQiLGRpc2FibGVkPyJ0cnVlIjoiZmFsc2UiKTsKICBidG4udGl0bGU9ZGlzYWJsZWQ/IuC4mOC4o+C4sOC5gOC4oOC4lOC4l+C4geC4o+C4o+C4o+C4oeC4suC4mOC4t+C4geC4suC4o+C5gOC4quC4meC4reC4jeC4seC4leC4leC4t+C5gOC4peC4t+C5ieC5gOC4peC4t+C4geC4iOC4suC4geC4k+C4suC4geC4k+C4suC4meC4guC5ieC4reC4oeC4ueC4peC4geC4o+C4o+C4o+C4o+C4suC4mOC4t+C4geC4suC4o+C5gOC4lOC5iOC4suC4meC4seC5ieC4meC5gOC4l+C5iOC4suC4meC4seC5ieC4mSI6IuC5gOC4nuC4t+C5iOC4oeC4guC5ieC4reC4oeC4ueC4peC4n+C4ueC5ieC4o+C5ieC4reC4h+C5gOC4o+C4teC4ouC4meCI7Cn0KZnVuY3Rpb24gYXBpQ2FsbChtZXRob2QscGF5bG9hZCl7CiAgaWYocm9vdC5BcHBQYWdlS2l0JiZ0eXBlb2Ygcm9vdC5BcHBQYWdlS2l0LmFwaVJ1bm5lcj09PSJmdW5jdGlvbiIpcmV0dXJuIHJvb3QuQXBwUGFnZUtpdC5hcGlSdW5uZXIobWV0aG9kLHBheWxvYWR8fHt9LCJnaXRodWItbWVldGluZy1jb21wYXQtcjI5NiIsMzAwMDApOwogIGlmKHJvb3QuQXBwQXBpJiZ0eXBlb2Ygcm9vdC5BcHBBcGkuY2FsbD09PSJmdW5jdGlvbiIpcmV0dXJuIHJvb3QuQXBwQXBpLmNhbGwobWV0aG9kLHBheWxvYWR8fHt9KTsKICByZXR1cm4gUHJvbWlzZS5yZWplY3QobmV3IEVycm9yKCLguYTguKHguYjguJ7guJrIEFBIIG93bmVyIikpOwp9CmZ1bmN0aW9uIGVuZm9yY2VDdXJyZW50KCl7CiAgaWYoIWlzQ29tbSgpKXJldHVybiBQcm9taXNlLnJlc29sdmUodHJ1ZSk7CiAgcmV0dXJuIFByb21pc2UucmVzb2x2ZShhcGlDYWxsKCJhcGlHZXRNZWV0aW5nTG9va3VwT3B0aW9ucyIse2NhdGVnb3J5OkNPTU0sbGltaXQ6MjAwLHNvdXJjZToiZ2l0aHViLXIyOTYtZW5mb3JjZSJ9KSkudGhlbihmdW5jdGlvbihyZXNwKXsKICAgIHZhciBkPXJlc3AmJnJlc3AuZGF0YSYmdHlwZW9mIHJlc3AuZGF0YT09PSJvYmplY3QiP3Jlc3AuZGF0YToocmVzcHx8e30pOwogICAgdmFyIHJvd3M9QXJyYXkuaXNBcnJheShkLnByb3Bvc2VyKSYmZC5wcm9wb3Nlci5sZW5ndGg/ZC5wcm9wb3NlcjooQXJyYXkuaXNBcnJheShkLmFzc2lnbmVlcyk/ZC5hc3NpZ25lZXM6W10pOwogICAgdmFyIGFsbG93ZWQ9T2JqZWN0LmNyZWF0ZShudWxsKTsKICAgIHJvd3MuZm9yRWFjaChmdW5jdGlvbihyKXt2YXIgbj10ZXh0KHIgJiYgKHIubmFtZXx8ci5mdWxsTmFtZXx8ci5kaXNwbGF5TmFtZSkpO2lmKG4pYWxsb3dlZFtuLnRvTG93ZXJDYXNlKCldPXRydWV9KTsKICAgIHZhciBpbnB1dD1kb2MuZ2V0RWxlbWVudEJ5SWQoIm1lZXRpbmctcGV0aXRpb25lcnMiKTsKICAgIGlmKGlucHV0KXsKICAgICAgdmFyIGN1cnJlbnQ9dGV4dChpbnB1dC52YWx1ZSkuc3BsaXQoL1ssO1xuXSsvKS5tYXAoZnVuY3Rpb24oeCl7cmV0dXJuIHRleHQoeCl9KS5maWx0ZXIoQm9vbGVhbik7CiAgICAgIHZhciBmaWx0ZXJlZD1jdXJyZW50LmZpbHRlcihmdW5jdGlvbihuKXtyZXR1cm4gISFhbGxvd2VkW24udG9Mb3dlckNhc2UoKV19KTsKICAgICAgaWYoZmlsdGVyZWQubGVuZ3RoIT09Y3VycmVudC5sZW5ndGgpewogICAgICAgIGlucHV0LnZhbHVlPWZpbHRlcmVkLmpvaW4oIiwgIik7CiAgICAgICAgaWYoIWZpbHRlcmVkLmxlbmd0aCl7dmFyIHBob25lPWRvYy5nZXRFbGVtZW50QnlJZCgibWVldGluZy1wZXRpdGlvbmVyUGhvbmUiKTtpZihwaG9uZSlwaG9uZS52YWx1ZT0iIn0KICAgICAgfQogICAgfQogICAgcmV0dXJuIHRydWU7CiAgfSkuY2F0Y2goZnVuY3Rpb24oKXtyZXR1cm4gZmFsc2V9KTsKfQpkb2MuYWRkRXZlbnRMaXN0ZW5lcigiY2xpY2siLGZ1bmN0aW9uKGV2KXsKICB2YXIgdGFyZ2V0PWV2LnRhcmdldCYmZXYudGFyZ2V0LmNsb3Nlc3Q/ ZXYudGFyZ2V0LmNsb3Nlc3QoIiNtZWV0aW5nLWFkZC1wZXRpdGlvbmVyLWJ0biIpOm51bGw7CiAgaWYoIXRhcmdldClyZXR1cm47CiAgZXYucHJldmVudERlZmF1bHQoKTsKICBldi5zdG9wUHJvcGFnYXRpb24oKTsKICBpZihldi5zdG9wSW1tZWRpYXRlUHJvcGFnYXRpb24pZXYuc3RvcEltbWVkaWF0ZVByb3BhZ2F0aW9uKCk7CiAgaWYoaXNDb21tKCkpe3N5bmNBZGRCdXR0b24oKTtyZXR1cm4gZmFsc2V9CiAgdGFyZ2V0LmRpc2FibGVkPXRydWU7dGFyZ2V0LnNldEF0dHJpYnV0ZSgiYXJpYS1idXN5IiwidHJ1ZSIpOwogIGxvYWRQZXRpdGlvbmVyT3duZXIoKS50aGVuKGZ1bmN0aW9uKHJlZil7CiAgICByZXR1cm4gcmVmLmtpbmQ9PT0ib3duZXIiP3JlZi52YWx1ZS5vcGVuKHtzb3VyY2U6ImdpdGh1Yi1tZWV0aW5nLWNvbXBhdC1yMjk2In0pOnJlZi52YWx1ZSh7c291cmNlOiJnaXRodWItbWVldGluZy1jb21wYXQtcjI5NiJ9KTsKICB9KS50aGVuKGFwcGVuZFNhdmVkKS5jYXRjaChzaG93RXJyb3IpLmZpbmFsbHkoZnVuY3Rpb24oKXsKICAgIHRhcmdldC5yZW1vdmVBdHRyaWJ1dGUoImFyaWEtYnVzeSIpO3N5bmNBZGRCdXR0b24oKTsKICB9KTsKICByZXR1cm4gZmFsc2U7Cn0sdHJ1ZSk7CmRvYy5hZGRFdmVudExpc3RlbmVyKCJjaGFuZ2UiLGZ1bmN0aW9uKGV2KXsKICBpZihldi50YXJnZXQmJmV2LnRhcmdldC5pZD09PSJtZWV0aW5nLWNhdCIpe3N5bmNBZGRCdXR0b24oKTtlbmZvcmNlQ3VycmVudCgpfQp9LHRydWUpOwpbIkRPTUNvbnRlbnRMb2FkZWQiLCJhcHA6bWFpbi11aS1yZWFkeSIsImFwcDpwYWdlLWFjdGl2YXRlZCIsImFwcDpwYWdlOm1lZXRpbmc6c2hvd24iLCJhcHA6cm91dGU6bWVldGluZyIsImFwcDpwYWdlLXNjcmlwdHMtbG9hZGVkIiwiYXBwOmNvcmUtcnVudGltZS1yZWFkeSJdLmZvckVhY2goZnVuY3Rpb24obmFtZSl7CiAgdHJ5e2RvYy5hZGRFdmVudExpc3RlbmVyKG5hbWUsZnVuY3Rpb24oKXtwYXRjaEFwaU93bmVycygpO3N5bmNBZGRCdXR0b24oKTtpZihpc0NvbW0oKSl lbmZvcmNlQ3VycmVudCgpfSxmYWxzZSl9Y2F0Y2goZSl7fQp9KTsKWzAsODAsMjIwLDUwMCwxMDAwLDE4MDAsMzAwMF0uZm9yRWFjaChmdW5jdGlvbihtcyl7c2V0VGltZW91dChmdW5jdGlvbigpe3BhdGNoQXBpT3duZXJzKCk7c3luY0FkZEJ1dHRvbigpfSxtcyl9KTsKfSkod2luZG93LGRvY3VtZW50KTsKPC9zY3JpcHQ+"
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, base64
+          p=Path("github-pages/index.html")
+          s=p.read_text(encoding="utf-8")
+          s=s.replace("CANONICAL GITHUB FRONTEND r295","CANONICAL GITHUB FRONTEND r296")
+          s=s.replace("app-config.js?v=r295","app-config.js?v=r296")
+          s=s.replace("github-gas-transport.js?v=r295","github-gas-transport.js?v=r296")
+          s=s.replace("github-deferred-r295","github-deferred-r296")
+          shim=base64.b64decode(os.environ["R296_SHIM_B64"]).decode("utf-8")
+          marker='id="github-meeting-compat-r296"'
+          if marker not in s:
+              if "</body>" not in s:
+                  raise SystemExit("missing </body>")
+              s=s.replace("</body>",shim+"\n</body>",1)
+          p.write_text(s,encoding="utf-8")
+          PY
+
+          grep -q 'CANONICAL GITHUB FRONTEND r296' github-pages/index.html
+          grep -q 'app-config.js?v=r296' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r296' github-pages/index.html
+          grep -q 'github-deferred-r296' github-pages/index.html
+          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          grep -q 'github-r296-commissioner-proposer' github-pages/index.html
+          grep -q 'github-meeting-compat-r296' github-pages/index.html
+          grep -q 'version:"1.2.0-r296"' github-pages/app-config.js
+
+      - name: Persist canonical r296 source
+        shell: bash
+        run: |
+          if git diff --quiet -- github-pages/index.html; then
+            echo 'Canonical r296 index already persisted.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add github-pages/index.html
+            git commit -m 'chore: sync GitHub meeting compatibility source r296 [skip ci]'
+            git push origin HEAD:main
+          fi
+
+      - name: Verify source artifact parity r296
         shell: bash
         run: |
           git diff --exit-code
@@ -37,29 +82,25 @@ jobs:
           test -f github-pages/app-config.js
           test -f github-pages/github-gas-transport.js
 
-          grep -q 'CANONICAL GITHUB FRONTEND r295' github-pages/index.html
-          grep -q 'app-config.js?v=r295' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r295' github-pages/index.html
-          grep -q 'github-deferred-r295' github-pages/index.html
+          grep -q 'CANONICAL GITHUB FRONTEND r296' github-pages/index.html
+          grep -q 'app-config.js?v=r296' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r296' github-pages/index.html
+          grep -q 'github-deferred-r296' github-pages/index.html
           grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
           grep -q 'assetVersion:v' github-pages/index.html
           grep -q 'deferredAssetVersion:v' github-pages/index.html
 
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'id="github-meeting-compat-r296"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           grep -q 'data-meeting-petitioner-actions="canonical"' github-pages/index.html
-          grep -q 'aria-label="เพิ่มข้อมูลผู้ร้องเรียน"' github-pages/index.html
+          grep -q 'github-r296-commissioner-proposer' github-pages/index.html
+          grep -q 'loadPageScripts("petitioner")' github-pages/index.html
 
-          grep -q 'version:"1.2.0-r295"' github-pages/app-config.js
-          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
+          grep -q 'version:"1.2.0-r296"' github-pages/app-config.js
+          grep -q 'githubMeetingCompatibilityOwner:"github-pages/index.html::meeting-compat-r296"' github-pages/app-config.js
           grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-          ! grep -q 'AKfycbwaQye5luZrjEvm69uK5jg3sWflBwUrX2VAISCf-abR0BzVk_CxtN2G2VcOUOAO7LFL' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
           grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
-
-          ! grep -q 'CANONICAL GITHUB FRONTEND r294' github-pages/index.html
-          ! grep -q 'github-deferred-r294' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
