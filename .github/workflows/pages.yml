@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# One-time source migration for r286. Final workflow returns to validation-only.
+# Canonical source = deploy artifact. No deploy-time source mutation.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,35 +28,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Canonicalize frontend r286
+      - name: Validate canonical frontend r286
         shell: bash
         run: |
-          sed -E -i 's#app-config\.js\?v=r[0-9]+#app-config.js?v=r286#g' github-pages/index.html
-          sed -E -i 's#github-gas-transport\.js\?v=r[0-9]+#github-gas-transport.js?v=r286#g' github-pages/index.html
-          sed -i 's/github-deferred-r285/github-deferred-r286/g' github-pages/index.html github-pages/critical-login-runtime.js
-          sed -E -i 's#<!-- GENERATED FROM GAS CANONICAL INDEX r270 — GitHub host shell must not be edited independently\. -->#<!-- CANONICAL GITHUB FRONTEND r286 — lineage from GAS canonical shell; source equals deploy artifact. -->#' github-pages/index.html
-          grep -q 'app-config.js?v=r286' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r286' github-pages/index.html
-          grep -q 'github-deferred-r286' github-pages/index.html
-          grep -q 'github-deferred-r286' github-pages/critical-login-runtime.js
-
-      - name: Persist r286 canonical source
-        shell: bash
-        run: |
-          if git diff --quiet -- github-pages/index.html github-pages/critical-login-runtime.js; then
-            echo 'Canonical r286 source already persisted.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add github-pages/index.html github-pages/critical-login-runtime.js
-          git commit -m 'chore: canonicalize GitHub frontend r286 [skip ci]'
-          git push origin HEAD:main
-
-      - name: Verify r286 source/artifact parity
-        shell: bash
-        run: |
-          test -z "$(git diff -- github-pages/index.html github-pages/critical-login-runtime.js)"
+          git diff --exit-code
           grep -q 'app-config.js?v=r286' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r286' github-pages/index.html
           grep -q 'github-deferred-r286' github-pages/index.html
@@ -64,7 +39,16 @@ jobs:
           grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
           grep -q 'htmlCache\[cacheKey\]' github-pages/critical-login-runtime.js
           grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/critical-login-runtime.js
           grep -q 'deferredAssetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/critical-login-runtime.js
+          grep -q 'version:"1.2.0-r286"' github-pages/app-config.js
+          grep -q 'pendingReasonCompatibilityGuard:false' github-pages/app-config.js
+          grep -q 'pendingReasonOwner:"canonical deferred ReportTrack renderer"' github-pages/app-config.js
+          ! grep -q 'installPendingReasonGuard' github-pages/app-config.js
+          ! grep -q '__GITHUB_PENDING_REASON_GUARD_R280__' github-pages/app-config.js
+          ! grep -q 'github-pending-reason-guard-r280' github-pages/app-config.js
+          ! grep -q 'data-github-pending-reason-guard' github-pages/app-config.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
