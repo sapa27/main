@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical GitHub source parity closure 2026-08-15
+# Canonical source = deploy artifact. No deploy-time source mutation.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,82 +28,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Canonicalize GitHub source r285
+      - name: Validate canonical frontend r285
         shell: bash
         run: |
-          sed -E -i 's#app-config\.js\?v=r[0-9]+#app-config.js?v=r285#g' github-pages/index.html
-          sed -E -i 's#github-gas-transport\.js\?v=r[0-9]+#github-gas-transport.js?v=r285#g' github-pages/index.html
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          targets = [
-              Path('github-pages/index.html'),
-              Path('github-pages/critical-login-runtime.js'),
-          ]
-
-          new_fetch = '''function deferredAssetVersion(){var c=root2.APP_CONFIG||{},g=root2.APP_GITHUB_CONFIG||{},d=root2.APP_DEPLOY_RELEASE||{},v=txt(c.deferredAssetVersion||g.DEFERRED_ASSET_VERSION||d.deferredAssetVersion||"").trim();return v||"unversioned"}function deferredAssetForceFresh(){var c=root2.APP_CONFIG||{},g=root2.APP_GITHUB_CONFIG||{};return c.deferredAssetForceFresh===!0||g.DEFERRED_ASSET_FORCE_FRESH===!0}function fetchPartialHtml(n){if(!(n=txt(n).trim()))return Promise.reject(new Error("ไม่ได้ระบุชื่อ partial"));var v=deferredAssetVersion(),cacheKey=v+"::"+n;if(Object.prototype.hasOwnProperty.call(htmlCache,cacheKey))return Promise.resolve(htmlCache[cacheKey]);var fetchKey=cacheKey+"::fetch",forceFresh=deferredAssetForceFresh();return inflight[fetchKey]||(inflight[fetchKey]=root2.AppApi.call("getDeferredInclude",{name:n,assetVersion:v,deferredAssetVersion:v,forceFresh:forceFresh,noCache:forceFresh,bypassCache:forceFresh,cacheTtlSeconds:forceFresh?0:void 0,source:"github-deferred-r285"}).then(function(r){var h=txt(r&&r.html||r&&r.data&&r.data.html||r||"");return htmlCache[cacheKey]=h,delete inflight[fetchKey],h},function(err){throw delete inflight[fetchKey],err}))}function prefetchPartial(n)'''
-          new_load = '''function loadPartial(n,o){if(o=o||{},!(n=txt(n).trim()))return Promise.reject(new Error("ไม่ได้ระบุชื่อ partial"));var t=o.mountTarget?id(o.mountTarget):null,v=deferredAssetVersion(),k=v+"::"+n+(t?"::mount":"");return!t&&loaded[k]?Promise.resolve(!0):fetchPartialHtml(n).then(function(h){return execHtml(h,t||null),loaded[k]=!0,!0})}function safePartial(n,o)'''
-
-          for path in targets:
-              if not path.exists():
-                  raise SystemExit('missing deferred asset owner: ' + str(path))
-              text = path.read_text(encoding='utf-8')
-              if 'github-deferred-r285' not in text or 'htmlCache[cacheKey]' not in text:
-                  text, fetch_count = re.subn(
-                      r'function fetchPartialHtml\(n\)\{.*?\}function prefetchPartial\(n\)',
-                      lambda _m: new_fetch,
-                      text,
-                      count=1,
-                      flags=re.S,
-                  )
-                  text, load_count = re.subn(
-                      r'function loadPartial\(n,o\)\{.*?\}function safePartial\(n,o\)',
-                      lambda _m: new_load,
-                      text,
-                      count=1,
-                      flags=re.S,
-                  )
-                  if fetch_count != 1 or load_count != 1:
-                      raise SystemExit(
-                          'deferred asset canonicalization mismatch for %s: fetch=%s load=%s'
-                          % (path, fetch_count, load_count)
-                      )
-              if 'htmlCache[cacheKey]' not in text or 'github-deferred-r285' not in text:
-                  raise SystemExit('deferred asset validation failed for ' + str(path))
-              path.write_text(text, encoding='utf-8')
-              print('canonical', path)
-          PY
+          git diff --exit-code
           grep -q 'app-config.js?v=r285' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r285' github-pages/index.html
           grep -q 'github-deferred-r285' github-pages/index.html
           grep -q 'github-deferred-r285' github-pages/critical-login-runtime.js
           grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
           grep -q 'htmlCache\[cacheKey\]' github-pages/critical-login-runtime.js
-
-      - name: Persist canonical source
-        shell: bash
-        run: |
-          if git diff --quiet -- github-pages/index.html github-pages/critical-login-runtime.js; then
-            echo 'Canonical source already persisted.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add github-pages/index.html github-pages/critical-login-runtime.js
-          git commit -m 'chore: canonicalize GitHub runtime source r285 [skip ci]'
-          git push origin HEAD:main
-
-      - name: Verify source/artifact parity
-        shell: bash
-        run: |
-          test -z "$(git diff -- github-pages/index.html github-pages/critical-login-runtime.js)"
-          grep -q 'app-config.js?v=r285' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r285' github-pages/index.html
-          grep -q 'github-deferred-r285' github-pages/index.html
-          grep -q 'github-deferred-r285' github-pages/critical-login-runtime.js
-          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
-          grep -q 'htmlCache\[cacheKey\]' github-pages/critical-login-runtime.js
+          grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/critical-login-runtime.js
+          grep -q 'deferredAssetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/critical-login-runtime.js
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
