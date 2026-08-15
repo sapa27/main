@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# One-time canonical source migration: r299 adds GitHub duplicate-check compatibility fallback.
+# Canonical source = deploy artifact. r299 keeps bridge recovery and adds AI duplicate fallback for stale Gemini model errors.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,57 +28,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Canonicalize frontend r299
-        shell: bash
-        env:
-          R299_GUARD_B64: "KGZ1bmN0aW9uICh3LCBkKSB7CiAgInVzZSBzdHJpY3QiOwogIGlmICh3Ll9fR0lUSFVCX0FJX0RVUExJQ0FURV9GQUxMQkFDS19SMjk5X18pIHJldHVybjsKICB3Ll9fR0lUSFVCX0FJX0RVUExJQ0FURV9GQUxMQkFDS19SMjk5X18gPSB0cnVlOwoKICB2YXIgT1dORVIgPSAiZ2l0aHViLXBhZ2VzL2luZGV4Lmh0bWw6OmFpLWR1cGxpY2F0ZS1tb2RlbC1mYWxsYmFjay1yMjk5IjsKICB2YXIgVEFSR0VUID0gImFwaUNoZWNrRHVwbGljYXRlQ2FzZSI7CiAgdmFyIExJU1RfQVBJID0gImFwaUdldENhc2VSZXBvcnRFeHBvcnRSb3dzIjsKICB2YXIgVEFSR0VUX01PREVMID0gImdlbWluaS0zLjYtZmxhc2giOwoKICBmdW5jdGlvbiB0ZXh0KHYpIHsgcmV0dXJuIFN0cmluZyh2ID09IG51bGwgPyAiIiA6IHYpLnRyaW0oKTsgfQogIGZ1bmN0aW9uIGlzRm4odikgeyByZXR1cm4gdHlwZW9mIHYgPT09ICJmdW5jdGlvbiI7IH0KICBmdW5jdGlvbiBub3JtKHYpIHsgcmV0dXJuIHRleHQodikudG9Mb3dlckNhc2UoKS5yZXBsYWNlKC9ccysvZywgIiAiKS50cmltKCk7IH0KICBmdW5jdGlvbiB0b2tlbnModikgewogICAgdmFyIHNlZW4gPSBPYmplY3QuY3JlYXRlKG51bGwpOwogICAgcmV0dXJuIG5vcm0odikuc3BsaXQoL1teMC05YS16QS1a4LiBLeC5mV0rLykuZmlsdGVyKGZ1bmN0aW9uICh4KSB7CiAgICAgIGlmICgheCB8fCBzZWVuW3hdKSByZXR1cm4gZmFsc2U7CiAgICAgIHNlZW5beF0gPSB0cnVlOwogICAgICByZXR1cm4gdHJ1ZTsKICAgIH0pOwogIH0KICBmdW5jdGlvbiByb3dUaXRsZShyb3cpIHsKICAgIHJvdyA9IHJvdyB8fCB7fTsKICAgIHJldHVybiB0ZXh0KHJvdy50aXRsZSB8fCByb3cuY2FzZVRpdGxlIHx8IHJvdy5zdWJqZWN0IHx8IHJvdy5jb25zaWRlcmF0aW9uVGl0bGUgfHwgcm93WyLguIrguLfguYjguK3guYDguKPguLfguYjguK3guIciXSB8fCByb3dbIuC4iuC4t+C5iOC4reC5gOC4o+C4t+C5iOC4reC4h+C4nuC4tOC4iOC4suC4o+C4k+C4siAo4LiW4LmJ4Liy4Lih4Li1KSJdIHx8ICIiKTsKICB9CiAgZnVuY3Rpb24gcm93c0Zyb20odmFsdWUpIHsKICAgIHZhciB4ID0gdmFsdWU7CiAgICBmb3IgKHZhciBpID0gMDsgaSA8IDg7IGkgKz0gMSkgewogICAgICBpZiAoQXJyYXkuaXNBcnJheSh4KSkgcmV0dXJuIHg7CiAgICAgIGlmICgheCB8fCB0eXBlb2YgeCAhPT0gIm9iamVjdCIpIHJldHVybiBbXTsKICAgICAgaWYgKEFycmF5LmlzQXJyYXkoeC5yb3dzKSkgcmV0dXJuIHgucm93czsKICAgICAgaWYgKEFycmF5LmlzQXJyYXkoeC5pdGVtcykpIHJldHVybiB4Lml0ZW1zOwogICAgICBpZiAoQXJyYXkuaXNBcnJheSh4LnJlY29yZHMpKSByZXR1cm4geC5yZWNvcmRzOwogICAgICBpZiAoQXJyYXkuaXNBcnJheSh4LnZhbHVlcykpIHJldHVybiB4LnZhbHVlczsKICAgICAgaWYgKEFycmF5LmlzQXJyYXkoeC5kYXRhKSkgcmV0dXJuIHguZGF0YTsKICAgICAgeCA9IHguZGF0YSB8fCB4LnJlc3VsdCB8fCB4LnBheWxvYWQ7CiAgICB9CiAgICByZXR1cm4gW107CiAgfQogIGZ1bmN0aW9uIGxvY2FsQ2hlY2sobmV3VGl0bGUsIHJvd3MpIHsKICAgIHZhciBhbGxUaXRsZXMgPSByb3dzLm1hcChyb3dUaXRsZSkuZmlsdGVyKEJvb2xlYW4pOwogICAgdmFyIHRhcmdldCA9IG5vcm0obmV3VGl0bGUpLCB0YXJnZXRUb2tlbnMgPSB0b2tlbnMobmV3VGl0bGUpLCBiZXN0ID0geyB0aXRsZTogIiIsIHNjb3JlOiAwIH07CiAgICBhbGxUaXRsZXMuZm9yRWFjaChmdW5jdGlvbiAodGl0bGUpIHsKICAgICAgdmFyIG4gPSBub3JtKHRpdGxlKSwgc2NvcmUgPSAwOwogICAgICBpZiAobiAmJiBuID09PSB0YXJnZXQpIHNjb3JlID0gMTsKICAgICAgZWxzZSBpZiAobiAmJiAobi5pbmRleE9mKHRhcmdldCkgIT09IC0xIHx8IHRhcmdldC5pbmRleE9mKG4pICE9PSAtMSkpIHNjb3JlID0gMC45OwogICAgICBlbHNlIHsKICAgICAgICB2YXIgb3RoZXIgPSB0b2tlbnModGl0bGUpLCBoaXQgPSAwOwogICAgICAgIHRhcmdldFRva2Vucy5mb3JFYWNoKGZ1bmN0aW9uICh0KSB7IGlmIChvdGhlci5pbmRleE9mKHQpICE9PSAtMSkgaGl0ICs9IDE7IH0pOwogICAgICAgIHNjb3JlID0gdGFyZ2V0VG9rZW5zLmxlbmd0aCA/IGhpdCAvIHRhcmdldFRva2Vucy5sZW5ndGggOiAwOwogICAgICB9CiAgICAgIGlmIChzY29yZSA+IGJlc3Quc2NvcmUpIGJlc3QgPSB7IHRpdGxlOiB0aXRsZSwgc2NvcmU6IHNjb3JlIH07CiAgICB9KTsKICAgIHJldHVybiB7CiAgICAgIGlzRHVwbGljYXRlOiBiZXN0LnNjb3JlID49IDAuNzUsCiAgICAgIHJlYXNvbjogYmVzdC5zY29yZSA+PSAwLjc1ID8gIuC4nuC4muC4iuC4t+C5iOC4reC5gOC4o+C4t+C5iOC4reC4h+C5gOC4lOC4tOC4oeC4q+C4o+C4t+C4reC4guC5ieC4reC4hOC4p+C4suC4oeC5g+C4geC4peC5ieC5gOC4hOC4teC4ouC4h+C5g+C4meC4o+C4sOC4muC4muC4iOC4suC4geC4geC4suC4o+C4leC4o+C4p+C4iOC5geC4muC4miBsb2NhbCBydWxlLWJhc2VkIHJlc3VsdCIgOiAi4LmE4Lih4LmI4Lie4Lia4LiK4Li34LmI4Lit4LmA4Lij4Li34LmI4Lit4LiH4LiL4LmJ4Liz4LiI4Liy4LiB4LiB4Liy4Lij4LiV4Lij4Lin4LiI4LmB4Lia4LiaIGxvY2FsIHJ1bGUtYmFzZWQgcmVzdWx0IiwKICAgICAgbWF0Y2hlZFRpdGxlOiBiZXN0LnNjb3JlID49IDAuNzUgPyBiZXN0LnRpdGxlIDogIiIsCiAgICAgIHNlbWFudGljRHVwZXM6IFtdLAogICAgICBjaGVja2VkVGl0bGU6IHRleHQobmV3VGl0bGUpLAogICAgICBzYW1wbGVTaXplOiBhbGxUaXRsZXMubGVuZ3RoLAogICAgICB1c2VkTG9jYWxSZXN1bHQ6IHRydWUsCiAgICAgIHNpbWlsYXJpdHk6IE51bWJlcihiZXN0LnNjb3JlLnRvRml4ZWQoMikpLAogICAgICBzb3VyY2U6ICJnaXRodWItbG9jYWwtcnVsZS1yZXN1bHQtcjI5OSIsCiAgICAgIGFpVW5hdmFpbGFibGU6IHRydWUsCiAgICAgIGFpV2FybmluZzogIkdpdEh1YiByZWNvdmVyeSBiYWNrZW5kIOC4ouC4seC4h+C5g+C4iuC5iSBHZW1pbmkgbW9kZWwgY29uZmlnIOC4o+C4uOC5iOC4meC5gOC4geC5iOC4siDguIjguLbguIfguJXguKPguKfguIjguJTguYnguKfguKLguIHguI7guKDguLLguKLguYPguJnguKPguLDguJrguJrguYHguJfguJkiLAogICAgICBtb2RlbDogVEFSR0VUX01PREVMLAogICAgICBzdGFtcDogInIyOTktZ2l0aHViLWR1cGxpY2F0ZS1sb2NhbC1mYWxsYmFjayIKICAgIH07CiAgfQogIGZ1bmN0aW9uIHN0YWxlTW9kZWxFcnJvcihlcnIpIHsKICAgIHZhciBtc2cgPSB0ZXh0KGVyciAmJiAoZXJyLm1lc3NhZ2UgfHwgZXJyLmVycm9yIHx8IGVyci5tc2cgfHwgZXJyLmNvZGUpIHx8IGVycikudG9Mb3dlckNhc2UoKTsKICAgIHJldHVybiAv4LmE4Lih4LmI4Lie4Lia4LmC4Lih4LmA4LiU4LilIGdlbWluaXxnZW1pbmlbXyAtXT9tb2RlbHxnZW1pbmktMlwuMC1mbGFzaHxtb2RlbC4qNDA0fDQwNC4qbW9kZWwvLnRlc3QobXNnKTsKICB9CiAgZnVuY3Rpb24gbWFrZUNvbnRleHQoYmFzZSwgbWV0aG9kLCBwYXlsb2FkKSB7CiAgICByZXR1cm4gewogICAgICBtZXRob2Q6IG1ldGhvZCwKICAgICAgcGF5bG9hZDogcGF5bG9hZCB8fCB7fSwKICAgICAgb3B0aW9uc0FyZzogYmFzZSAmJiBiYXNlLm9wdGlvbnNBcmcsCiAgICAgIHRpbWVvdXRBcmc6IGJhc2UgJiYgYmFzZS50aW1lb3V0QXJnLAogICAgICB0cmFuc3BvcnRPcHRpb25zOiB7fSwKICAgICAgZmluYWxQYXlsb2FkOiBudWxsLAogICAgICByYXdSZXNwb25zZTogbnVsbCwKICAgICAgZW52ZWxvcGU6IG51bGwKICAgIH07CiAgfQogIGZ1bmN0aW9uIGZhbGxiYWNrKG9yaWdpbmFsUnVuLCBwaXBlbGluZSwgY3R4LCBvcmlnaW5hbEVycikgewogICAgdmFyIHRpdGxlID0gdGV4dChjdHggJiYgY3R4LnBheWxvYWQgJiYgY3R4LnBheWxvYWQudGl0bGUpOwogICAgaWYgKCF0aXRsZSkgdGhyb3cgb3JpZ2luYWxFcnI7CiAgICB2YXIgcGF5bG9hZCA9IHsKICAgICAgbWF4Um93czogNTAwMCwKICAgICAgbGltaXQ6IDUwMDAsCiAgICAgIHBhZ2U6IDEsCiAgICAgIGZ1bGxMaXN0OiB0cnVlLAogICAgICBub1BhZ2U6IHRydWUsCiAgICAgIGZvcmNlRnJlc2g6IHRydWUsCiAgICAgIG5vQ2FjaGU6IHRydWUsCiAgICAgIGJ5cGFzc0NhY2hlOiB0cnVlLAogICAgICBjYWNoZVR0bFNlY29uZHM6IDAsCiAgICAgIHNvdXJjZTogImdpdGh1Yi1yMjk5LWR1cGxpY2F0ZS1tb2RlbC1mYWxsYmFjayIKICAgIH07CiAgICByZXR1cm4gUHJvbWlzZS5yZXNvbHZlKG9yaWdpbmFsUnVuLmNhbGwocGlwZWxpbmUsIG1ha2VDb250ZXh0KGN0eCwgTElTVF9BUEksIHBheWxvYWQpKSkudGhlbihmdW5jdGlvbiAodmFsdWUpIHsKICAgICAgdmFyIHJvd3MgPSByb3dzRnJvbSh2YWx1ZSk7CiAgICAgIHZhciByZXN1bHQgPSBsb2NhbENoZWNrKHRpdGxlLCByb3dzKTsKICAgICAgdHJ5IHsKICAgICAgICB3LkFwcFJ1bnRpbWUgJiYgaXNGbih3LkFwcFJ1bnRpbWUucmVjb3JkV2FybmluZykgJiYgdy5BcHBSdW50aW1lLnJlY29yZFdhcm5pbmcoImdpdGh1Yi5yMjk5LmR1cGxpY2F0ZU1vZGVsRmFsbGJhY2siLCBvcmlnaW5hbEVyciwgeyBvd25lcjogT1dORVIsIHJvd3M6IHJvd3MubGVuZ3RoLCBtb2RlbDogVEFSR0VUX01PREVMIH0pOwogICAgICB9IGNhdGNoIChfKSB7fQogICAgICByZXR1cm4gcmVzdWx0OwogICAgfSwgZnVuY3Rpb24gKCkgewogICAgICB0aHJvdyBvcmlnaW5hbEVycjsKICAgIH0pOwogIH0KICBmdW5jdGlvbiBwYXRjaFBpcGVsaW5lKCkgewogICAgdmFyIHBpcGVsaW5lID0gdy5BcHBBcGlNaWRkbGV3YXJlUGlwZWxpbmU7CiAgICBpZiAoIXBpcGVsaW5lIHx8ICFpc0ZuKHBpcGVsaW5lLnJ1bikgfHwgcGlwZWxpbmUucnVuLl9fYWlkZjI5OSkgcmV0dXJuIGZhbHNlOwogICAgdmFyIG9yaWdpbmFsUnVuID0gcGlwZWxpbmUucnVuOwogICAgZnVuY3Rpb24gcnVuKGN0eCkgewogICAgICB2YXIgc2VsZiA9IHRoaXMgfHwgcGlwZWxpbmU7CiAgICAgIGlmIChjdHggJiYgdGV4dChjdHgubWV0aG9kKSA9PT0gVEFSR0VUKSB7CiAgICAgICAgcmV0dXJuIFByb21pc2UucmVzb2x2ZShvcmlnaW5hbFJ1bi5jYWxsKHNlbGYsIGN0eCkpLmNhdGNoKGZ1bmN0aW9uIChlcnIpIHsKICAgICAgICAgIGlmICghc3RhbGVNb2RlbEVycm9yKGVycikpIHRocm93IGVycjsKICAgICAgICAgIHJldHVybiBmYWxsYmFjayhvcmlnaW5hbFJ1biwgc2VsZiwgY3R4LCBlcnIpOwogICAgICAgIH0pOwogICAgICB9CiAgICAgIHJldHVybiBvcmlnaW5hbFJ1bi5jYWxsKHNlbGYsIGN0eCk7CiAgICB9CiAgICBydW4uX19haWRmMjk5ID0gdHJ1ZTsKICAgIHJ1bi5fX293bmVyID0gT1dORVI7CiAgICBydW4uX19wcmV2aW91cyA9IG9yaWdpbmFsUnVuOwogICAgcGlwZWxpbmUucnVuID0gcnVuOwogICAgcmV0dXJuIHRydWU7CiAgfQoKICBbIkRPTUNvbnRlbnRMb2FkZWQiLCAiYXBwOm1haW4tdWktcmVhZHkiLCAiYXBwOmNvcmUtcnVudGltZS1yZWFkeSIsICJhcHA6cGFnZS1zY3JpcHRzLWxvYWRlZCJdLmZvckVhY2goZnVuY3Rpb24gKG5hbWUpIHsKICAgIHRyeSB7IGQuYWRkRXZlbnRMaXN0ZW5lcihuYW1lLCBwYXRjaFBpcGVsaW5lLCBmYWxzZSk7IH0gY2F0Y2ggKF8pIHt9CiAgfSk7CiAgWzAsIDEwMCwgMzAwLCA4MDAsIDE2MDAsIDMwMDBdLmZvckVhY2goZnVuY3Rpb24gKG1zKSB7IHNldFRpbWVvdXQocGF0Y2hQaXBlbGluZSwgbXMpOyB9KTsKCiAgdy5BcHBHaXRIdWJBaUR1cGxpY2F0ZUZhbGxiYWNrUjI5OSA9IHsKICAgIG93bmVyOiBPV05FUiwKICAgIHRhcmdldDogVEFSR0VULAogICAgbGlzdEFwaTogTElTVF9BUEksCiAgICBtb2RlbDogVEFSR0VUX01PREVMLAogICAgc3RhdHVzOiBmdW5jdGlvbiAoKSB7CiAgICAgIHJldHVybiB7IG9rOiB0cnVlLCBvd25lcjogT1dORVIsIHRhcmdldDogVEFSR0VULCBsaXN0QXBpOiBMSVNUX0FQSSwgbW9kZWw6IFRBUkdFVF9NT0RFTCwgcGlwZWxpbmVQYXRjaGVkOiAhISh3LkFwcEFwaU1pZGRsZXdhcmVQaXBlbGluZSAmJiB3LkFwcEFwaU1pZGRsZXdhcmVQaXBlbGluZS5ydW4gJiYgdy5BcHBBcGlNaWRkbGV3YXJlUGlwZWxpbmUucnVuLl9fYWlkZjI5OSkgfTsKICAgIH0KICB9Owp9KSh3aW5kb3csIGRvY3VtZW50KTsK"
-        run: |
-          python - <<'PY2'
-          from pathlib import Path
-          import os, base64
-          p=Path('github-pages/index.html')
-          s=p.read_text(encoding='utf-8')
-          s=s.replace('CANONICAL GITHUB FRONTEND r297','CANONICAL GITHUB FRONTEND r299')
-          s=s.replace('app-config.js?v=r297','app-config.js?v=r299')
-          s=s.replace('github-gas-transport.js?v=r297','github-gas-transport.js?v=r299')
-          s=s.replace('github-deferred-r297','github-deferred-r299')
-          guard_id='github-ai-duplicate-model-fallback-r299'
-          if guard_id not in s:
-              guard=base64.b64decode(os.environ['R299_GUARD_B64']).decode('utf-8')
-              marker='</body>'
-              if marker not in s: raise SystemExit('missing </body>')
-              s=s.replace(marker, '\n<script id="'+guard_id+'">'+guard+'</script>\n'+marker, 1)
-          p.write_text(s,encoding='utf-8')
-          PY2
-
-          grep -q 'CANONICAL GITHUB FRONTEND r299' github-pages/index.html
-          grep -q 'app-config.js?v=r299' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r299' github-pages/index.html
-          grep -q 'github-deferred-r299' github-pages/index.html
-          test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          grep -q 'apiCheckDuplicateCase' github-pages/index.html
-          grep -q 'apiGetCaseReportExportRows' github-pages/index.html
-          grep -q 'gemini-3.6-flash' github-pages/index.html
-          grep -q 'version:"1.2.0-r299"' github-pages/app-config.js
-          grep -q 'githubAiDuplicateFallbackOwner:"github-pages/index.html::ai-duplicate-model-fallback-r299"' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-
-      - name: Persist canonical r299 source
-        shell: bash
-        run: |
-          if git diff --quiet -- github-pages/index.html; then
-            echo 'Canonical r299 index already persisted.'
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add github-pages/index.html
-            git commit -m 'chore: sync GitHub AI duplicate fallback r299 [skip ci]'
-            git push origin HEAD:main
-          fi
-
-      - name: Verify source artifact parity r299
+      - name: Validate canonical frontend r299
         shell: bash
         run: |
           git diff --exit-code
@@ -86,16 +36,36 @@ jobs:
           test -f github-pages/index.html
           test -f github-pages/app-config.js
           test -f github-pages/github-gas-transport.js
+
           grep -q 'CANONICAL GITHUB FRONTEND r299' github-pages/index.html
           grep -q 'app-config.js?v=r299' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r299' github-pages/index.html
           grep -q 'github-deferred-r299' github-pages/index.html
-          test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/index.html
+
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          grep -q 'apiCheckDuplicateCase' github-pages/index.html
+          grep -q 'apiGetCaseReportExportRows' github-pages/index.html
+          grep -q 'r299-github-duplicate-local-fallback' github-pages/index.html
+          grep -q 'gemini-3.6-flash' github-pages/index.html
+
           grep -q 'version:"1.2.0-r299"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
+          grep -q 'githubAiDuplicateFallbackOwner:"github-pages/index.html::ai-duplicate-model-fallback-r299"' github-pages/app-config.js
+          grep -q 'githubAiDuplicateFallbackModel:"gemini-3.6-flash"' github-pages/app-config.js
+          grep -q 'githubAiDuplicateFallbackReadApi:"apiGetCaseReportExportRows"' github-pages/app-config.js
           grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
+
+          ! grep -q 'CANONICAL GITHUB FRONTEND r297' github-pages/index.html
+          ! grep -q 'github-deferred-r297' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
