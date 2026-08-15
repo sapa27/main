@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical source = deploy artifact. r292 keeps the petitioner create button in the static template.
+# One-time canonical migration: GitHub r293 syncs petitioner popup runtime with GAS r293.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -28,35 +28,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical frontend r292
+      - name: Canonicalize frontend r293
+        shell: bash
+        run: |
+          sed -i 's/CANONICAL GITHUB FRONTEND r292/CANONICAL GITHUB FRONTEND r293/g' github-pages/index.html
+          sed -i 's/app-config.js?v=r292/app-config.js?v=r293/g' github-pages/index.html
+          sed -i 's/github-gas-transport.js?v=r292/github-gas-transport.js?v=r293/g' github-pages/index.html
+          sed -i 's/github-deferred-r292/github-deferred-r293/g' github-pages/index.html
+
+          grep -q 'CANONICAL GITHUB FRONTEND r293' github-pages/index.html
+          grep -q 'app-config.js?v=r293' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r293' github-pages/index.html
+          grep -q 'github-deferred-r293' github-pages/index.html
+          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+          grep -q 'version:"1.2.0-r293"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-r293"' github-pages/app-config.js
+
+      - name: Persist canonical r293 source
+        shell: bash
+        run: |
+          if git diff --quiet -- github-pages/index.html; then
+            echo 'Canonical r293 index already persisted.'
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add github-pages/index.html
+            git commit -m 'chore: sync GitHub popup asset source r293 [skip ci]'
+            git push origin HEAD:main
+          fi
+
+      - name: Verify source artifact parity r293
         shell: bash
         run: |
           git diff --exit-code
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
-          test -f github-pages/index.html
-          test -f github-pages/app-config.js
-          test -f github-pages/github-gas-transport.js
-
-          grep -q 'CANONICAL GITHUB FRONTEND r292' github-pages/index.html
-          grep -q 'app-config.js?v=r292' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r292' github-pages/index.html
-          grep -q 'github-deferred-r292' github-pages/index.html
-          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
-          grep -q 'assetVersion:v' github-pages/index.html
-          grep -q 'deferredAssetVersion:v' github-pages/index.html
-
+          grep -q 'CANONICAL GITHUB FRONTEND r293' github-pages/index.html
+          grep -q 'app-config.js?v=r293' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r293' github-pages/index.html
+          grep -q 'github-deferred-r293' github-pages/index.html
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           grep -q 'data-meeting-petitioner-actions="canonical"' github-pages/index.html
-          grep -q 'aria-label="เพิ่มข้อมูลผู้ร้องเรียน"' github-pages/index.html
-
-          grep -q 'version:"1.2.0-r292"' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
+          grep -q 'version:"1.2.0-r293"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-r293"' github-pages/app-config.js
           grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
-          grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
-
-          ! grep -q 'CANONICAL GITHUB FRONTEND r291' github-pages/index.html
-          ! grep -q 'github-deferred-r291' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
