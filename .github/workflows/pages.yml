@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# One-time canonical source migration: r294 aligns GitHub with the current GAS deployment.
+# Canonical source = deploy artifact. r294 aligns GitHub with the current GAS deployment.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,37 +28,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Canonicalize frontend r294
-        shell: bash
-        run: |
-          sed -i 's/CANONICAL GITHUB FRONTEND r293/CANONICAL GITHUB FRONTEND r294/g' github-pages/index.html
-          sed -i 's/app-config.js?v=r293/app-config.js?v=r294/g' github-pages/index.html
-          sed -i 's/github-gas-transport.js?v=r293/github-gas-transport.js?v=r294/g' github-pages/index.html
-          sed -i 's/github-deferred-r293/github-deferred-r294/g' github-pages/index.html
-
-          grep -q 'CANONICAL GITHUB FRONTEND r294' github-pages/index.html
-          grep -q 'app-config.js?v=r294' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r294' github-pages/index.html
-          grep -q 'github-deferred-r294' github-pages/index.html
-          grep -q 'version:"1.2.0-r294"' github-pages/app-config.js
-          grep -q 'backendFeatureBaseline:"gas-current-canonical"' github-pages/app-config.js
-          grep -q 'AKfycbwaQye5luZrjEvm69uK5jg3sWflBwUrX2VAISCf-abR0BzVk_CxtN2G2VcOUOAO7LFL' github-pages/app-config.js
-          ! grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-
-      - name: Persist canonical r294 source
-        shell: bash
-        run: |
-          if git diff --quiet -- github-pages/index.html; then
-            echo 'Canonical r294 index already persisted.'
-          else
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add github-pages/index.html
-            git commit -m 'chore: sync GitHub canonical GAS source r294 [skip ci]'
-            git push origin HEAD:main
-          fi
-
-      - name: Verify source artifact parity r294
+      - name: Validate canonical frontend r294
         shell: bash
         run: |
           git diff --exit-code
@@ -77,12 +47,19 @@ jobs:
 
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           grep -q 'data-meeting-petitioner-actions="canonical"' github-pages/index.html
+          grep -q 'aria-label="เพิ่มข้อมูลผู้ร้องเรียน"' github-pages/index.html
 
           grep -q 'version:"1.2.0-r294"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-current-canonical"' github-pages/app-config.js
           grep -q 'AKfycbwaQye5luZrjEvm69uK5jg3sWflBwUrX2VAISCf-abR0BzVk_CxtN2G2VcOUOAO7LFL' github-pages/app-config.js
           ! grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
           grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
+
+          ! grep -q 'CANONICAL GITHUB FRONTEND r293' github-pages/index.html
+          ! grep -q 'github-deferred-r293' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
