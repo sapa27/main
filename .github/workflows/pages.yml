@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# One-time migration: r306 aligns source + live Pages with the latest GAS deployment.
+# Canonical source = deploy artifact. r306 aligns GitHub Pages with the latest GAS deployment.
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -28,63 +28,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Canonicalize frontend r306 when config is ready
+      - name: Validate canonical frontend r306
         shell: bash
         run: |
           set -euo pipefail
-          if grep -q 'version:"1.2.0-r306"' github-pages/app-config.js; then
-            python3 - <<'PY'
-          from pathlib import Path
-          p = Path('github-pages/index.html')
-          s = p.read_text(encoding='utf-8')
-          for a,b in [
-              ('CANONICAL GITHUB FRONTEND r303','CANONICAL GITHUB FRONTEND r306'),
-              ('app-config.js?v=r303','app-config.js?v=r306'),
-              ('github-gas-transport.js?v=r303','github-gas-transport.js?v=r306'),
-              ('github-deferred-r303','github-deferred-r306')
-          ]:
-              s = s.replace(a,b)
-          p.write_text(s,encoding='utf-8')
-          PY
-          fi
-
-      - name: Persist canonical r306 source
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! git diff --quiet -- github-pages/index.html; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add github-pages/index.html
-            git commit -m "chore: persist latest GAS alignment r306 [skip ci]"
-            git push
-          fi
-
-      - name: Verify source artifact parity r306
-        shell: bash
-        run: |
-          set -euo pipefail
+          git diff --exit-code
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
           test -f github-pages/index.html
           test -f github-pages/app-config.js
           test -f github-pages/github-gas-transport.js
-          if grep -q 'version:"1.2.0-r306"' github-pages/app-config.js; then
-            grep -q 'CANONICAL GITHUB FRONTEND r306' github-pages/index.html
-            grep -q 'app-config.js?v=r306' github-pages/index.html
-            grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
-            grep -q 'github-deferred-r306' github-pages/index.html
-            grep -q 'AKfycbzRmR1bk31Bk_4wVqCpm4RtJ2SpN6DjYBMSQhtJivxqFHimWhJG1Sp4B2juOPoXNXQR' github-pages/app-config.js
-            ! grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-            grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
-            grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-          else
-            echo 'r306 app-config not ready; stop before deploy'
-            exit 1
-          fi
+
+          grep -q 'CANONICAL GITHUB FRONTEND r306' github-pages/index.html
+          grep -q 'app-config.js?v=r306' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
+          grep -q 'github-deferred-r306' github-pages/index.html
+          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
+          grep -q 'assetVersion:v' github-pages/index.html
+          grep -q 'deferredAssetVersion:v' github-pages/index.html
+
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
+
+          grep -q 'version:"1.2.0-r306"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"gas-latest-user-deployment-2026-08-15"' github-pages/app-config.js
+          grep -q 'githubPdfRuntimeBaseline:"latest-gas-deferred-runtime"' github-pages/app-config.js
+          grep -q 'githubPdfTransferMode:"server-deferred-runtime-current"' github-pages/app-config.js
+          grep -q 'AKfycbzRmR1bk31Bk_4wVqCpm4RtJ2SpN6DjYBMSQhtJivxqFHimWhJG1Sp4B2juOPoXNXQR' github-pages/app-config.js
+          ! grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
           grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
+
+          ! grep -q 'CANONICAL GITHUB FRONTEND r303' github-pages/index.html
+          ! grep -q 'github-deferred-r303' github-pages/index.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
