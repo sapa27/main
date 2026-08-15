@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Runtime publish trigger: login/bootstrap restore 2026-08-10
+# Canonical GitHub source parity closure 2026-08-15
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -28,17 +28,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Stamp frontend release r285
+      - name: Canonicalize GitHub source r285
         shell: bash
         run: |
           sed -E -i 's#app-config\.js\?v=r[0-9]+#app-config.js?v=r285#g' github-pages/index.html
           sed -E -i 's#github-gas-transport\.js\?v=r[0-9]+#github-gas-transport.js?v=r285#g' github-pages/index.html
-          grep -q 'app-config.js?v=r285' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r285' github-pages/index.html
-
-      - name: Enforce version-aware deferred assets r285
-        shell: bash
-        run: |
           python - <<'PY'
           from pathlib import Path
           import re
@@ -55,30 +49,57 @@ jobs:
               if not path.exists():
                   raise SystemExit('missing deferred asset owner: ' + str(path))
               text = path.read_text(encoding='utf-8')
-              text, fetch_count = re.subn(
-                  r'function fetchPartialHtml\(n\)\{.*?\}function prefetchPartial\(n\)',
-                  lambda _m: new_fetch,
-                  text,
-                  count=1,
-                  flags=re.S,
-              )
-              text, load_count = re.subn(
-                  r'function loadPartial\(n,o\)\{.*?\}function safePartial\(n,o\)',
-                  lambda _m: new_load,
-                  text,
-                  count=1,
-                  flags=re.S,
-              )
-              if fetch_count != 1 or load_count != 1:
-                  raise SystemExit(
-                      'deferred asset patch mismatch for %s: fetch=%s load=%s'
-                      % (path, fetch_count, load_count)
+              if 'github-deferred-r285' not in text or 'htmlCache[cacheKey]' not in text:
+                  text, fetch_count = re.subn(
+                      r'function fetchPartialHtml\(n\)\{.*?\}function prefetchPartial\(n\)',
+                      lambda _m: new_fetch,
+                      text,
+                      count=1,
+                      flags=re.S,
                   )
+                  text, load_count = re.subn(
+                      r'function loadPartial\(n,o\)\{.*?\}function safePartial\(n,o\)',
+                      lambda _m: new_load,
+                      text,
+                      count=1,
+                      flags=re.S,
+                  )
+                  if fetch_count != 1 or load_count != 1:
+                      raise SystemExit(
+                          'deferred asset canonicalization mismatch for %s: fetch=%s load=%s'
+                          % (path, fetch_count, load_count)
+                      )
               if 'htmlCache[cacheKey]' not in text or 'github-deferred-r285' not in text:
                   raise SystemExit('deferred asset validation failed for ' + str(path))
               path.write_text(text, encoding='utf-8')
-              print('patched', path)
+              print('canonical', path)
           PY
+          grep -q 'app-config.js?v=r285' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r285' github-pages/index.html
+          grep -q 'github-deferred-r285' github-pages/index.html
+          grep -q 'github-deferred-r285' github-pages/critical-login-runtime.js
+          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
+          grep -q 'htmlCache\[cacheKey\]' github-pages/critical-login-runtime.js
+
+      - name: Persist canonical source
+        shell: bash
+        run: |
+          if git diff --quiet -- github-pages/index.html github-pages/critical-login-runtime.js; then
+            echo 'Canonical source already persisted.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add github-pages/index.html github-pages/critical-login-runtime.js
+          git commit -m 'chore: canonicalize GitHub runtime source r285 [skip ci]'
+          git push origin HEAD:main
+
+      - name: Verify source/artifact parity
+        shell: bash
+        run: |
+          test -z "$(git diff -- github-pages/index.html github-pages/critical-login-runtime.js)"
+          grep -q 'app-config.js?v=r285' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r285' github-pages/index.html
           grep -q 'github-deferred-r285' github-pages/index.html
           grep -q 'github-deferred-r285' github-pages/critical-login-runtime.js
           grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
