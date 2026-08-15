@@ -1,7 +1,7 @@
 (function(w,d){
   "use strict";
   if(!w||!d)return;
-  var OWNER="github-pages/github-gas-transport.js::r260-apps-script-origin-trust";
+  var OWNER="github-pages/github-gas-transport.js::canonical";
   var MODE="github-pages-gas-router-bridge-first";
   var P=Object.create(null),PP=Object.create(null),F=Object.create(null);
   var frame=null,ready=null,source=null,nonce="",proto="",state="idle",origin="",channel="",last="";
