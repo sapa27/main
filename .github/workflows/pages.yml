@@ -68,9 +68,18 @@ jobs:
           grep -q 'GAS_BRIDGE_PORT_ACK' github-pages/github-gas-transport.js
           grep -q 'bridgePort.postMessage' github-pages/github-gas-transport.js
           grep -q 'v2-message-port' github-pages/github-gas-transport.js
-          ! grep -q 'frame.contentWindow.postMessage' github-pages/github-gas-transport.js
-          ! grep -q 'GAS_POST_RESULT_REQUEST' github-pages/github-gas-transport.js
-          ! grep -q 'GAS_IFRAME_TRANSPORT_PING_READY' github-pages/github-gas-transport.js
+          if grep -q 'frame\.contentWindow\.postMessage' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: direct GitHub -> GAS iframe window.postMessage found' >&2
+            exit 1
+          fi
+          if grep -q 'GAS_POST_RESULT_REQUEST' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: POST result request/ack handshake found' >&2
+            exit 1
+          fi
+          if grep -q 'GAS_IFRAME_TRANSPORT_PING_READY' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: legacy iframe READY ping found' >&2
+            exit 1
+          fi
 
           node --check github-pages/app-config.js
           node --check github-pages/github-gas-transport.js
