@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbzRmR1bk31Bk_4wVqCpm4RtJ2SpN6DjYBMSQhtJivxqFHimWhJG1Sp4B2juOPoXNXQR/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbwFGY4RIsqW6gOxIrn4t1jjlFKESHWmJyB-HEoCtLZjZi0_7c8OmJLO4uXK3S3_ph-b/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-gas-r306-latest-gas-alignment-2026-08-15";
 var ASSET_VERSION="r306";
