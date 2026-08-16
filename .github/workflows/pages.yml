@@ -1,8 +1,7 @@
 name: Deploy GitHub Pages
 
-# Canonical frontend shell stays at r306; transport contract is r309/mc2.
-# Google Apps Script HTML Service must initiate MessageChannel. GitHub must not
-# send window.postMessage directly into the googleusercontent sandbox.
+# Canonical frontend shell remains unchanged. Primary transport is bridge-less:
+# POST request body -> GAS -> short-lived Script Cache -> capability JSONP result.
 on:
   push:
     branches: [main]
@@ -30,7 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical frontend r309 MessageChannel transport
+      - name: Validate canonical frontend bridge-less RPC transport
         shell: bash
         run: |
           set -euo pipefail
@@ -40,45 +39,42 @@ jobs:
           test -f github-pages/app-config.js
           test -f github-pages/github-gas-transport.js
 
-          # Preserve the validated r306 shell/UI exactly.
+          # Preserve the validated shell/UI exactly.
           grep -q 'CANONICAL GITHUB FRONTEND r306' github-pages/index.html
           grep -q 'app-config.js?v=r306' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
           grep -q 'github-deferred-r306' github-pages/index.html
-          grep -q 'htmlCache\[cacheKey\]' github-pages/index.html
-          grep -q 'assetVersion:v' github-pages/index.html
-          grep -q 'deferredAssetVersion:v' github-pages/index.html
           test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
 
-          # Single coherent GAS endpoint + mc2 contract.
-          grep -q 'version:"1.2.0-r309"' github-pages/app-config.js
-          grep -q 'BRIDGE_VERSION="github-pages-bridge-v2-mc2"' github-pages/app-config.js
-          grep -q 'backendFeatureBaseline:"gas-messagechannel-mc2-ai-chunk"' github-pages/app-config.js
+          # Single GAS endpoint + single RPC contract.
+          grep -q 'version:"1.2.0-rpc-current-1"' github-pages/app-config.js
+          grep -q 'RPC_VERSION="github-pages-rpc-v1"' github-pages/app-config.js
+          grep -q 'TRANSPORT_MODE="github-pages-gas-router-rpc"' github-pages/app-config.js
           grep -q 'githubPdfTransferMode:"chunked-start-chunk-final"' github-pages/app-config.js
           grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
-          grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
-          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
+          grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical-rpc"' github-pages/app-config.js
+          grep -q 'bridgeRequired:false' github-pages/app-config.js
 
-          # Warden-safe primary transport: transferred MessagePort only.
-          grep -q 'github-pages/github-gas-transport.js::canonical' github-pages/github-gas-transport.js
-          grep -q 'event.ports' github-pages/github-gas-transport.js
-          grep -q 'GAS_BRIDGE_PORT_ACK' github-pages/github-gas-transport.js
-          grep -q 'bridgePort.postMessage' github-pages/github-gas-transport.js
-          grep -q 'v2-message-port' github-pages/github-gas-transport.js
-          if grep -q 'frame\.contentWindow\.postMessage' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: direct GitHub -> GAS iframe window.postMessage found' >&2
-            exit 1
+          # Warden-independent transport: no cross-window bridge protocol.
+          grep -q 'github-pages/github-gas-transport.js::canonical-rpc' github-pages/github-gas-transport.js
+          grep -q 'mode: "github-rpc"' github-pages/github-gas-transport.js
+          grep -q 'github-rpc-health' github-pages/github-gas-transport.js
+          grep -q 'github-rpc-result' github-pages/github-gas-transport.js
+          grep -q 'capability-JSONP' github-pages/github-gas-transport.js
+          grep -q 'bridgeRequired: false' github-pages/github-gas-transport.js
+          if grep -q 'MessageChannel' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: MessageChannel primary transport returned' >&2; exit 1
+          fi
+          if grep -q 'GAS_BRIDGE_PORT_ACK' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: bridge port handshake returned' >&2; exit 1
           fi
           if grep -q 'GAS_POST_RESULT_REQUEST' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: POST result request/ack handshake found' >&2
-            exit 1
+            echo 'FORBIDDEN: iframe POST result handshake returned' >&2; exit 1
           fi
-          if grep -q 'GAS_IFRAME_TRANSPORT_PING_READY' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: legacy iframe READY ping found' >&2
-            exit 1
+          if grep -q 'addEventListener("message"' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: window message RPC listener returned' >&2; exit 1
           fi
 
           node --check github-pages/app-config.js
