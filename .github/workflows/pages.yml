@@ -1,6 +1,6 @@
 name: Deploy GitHub Pages
 
-# Canonical source = deploy artifact. r306 frontend shell uses the proven bridge-capable GAS recovery deployment until the latest GAS deployment passes live Bridge/POST verification.
+# Canonical source = deploy artifact. r306 frontend shell is paired with the current canonical GAS deployment via r308 endpoint/runtime parity.
 on:
   push:
     branches: [main]
@@ -28,7 +28,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate canonical frontend r306 recovery transport
+      - name: Validate canonical frontend r308 current GAS parity
         shell: bash
         run: |
           set -euo pipefail
@@ -38,6 +38,7 @@ jobs:
           test -f github-pages/app-config.js
           test -f github-pages/github-gas-transport.js
 
+          # Preserve the validated r306 frontend shell; only backend endpoint/runtime ownership changes here.
           grep -q 'CANONICAL GITHUB FRONTEND r306' github-pages/index.html
           grep -q 'app-config.js?v=r306' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
@@ -50,12 +51,14 @@ jobs:
           test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
           test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
 
-          grep -q 'version:"1.2.0-r303"' github-pages/app-config.js
-          grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
-          grep -q 'githubPdfRuntimeBaseline:"requires-r301-on-recovery-deployment"' github-pages/app-config.js
-          grep -q 'githubPdfTransferMode:"blocked-until-recovery-backend-r301"' github-pages/app-config.js
-          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-          ! grep -q 'AKfycbzRmR1bk31Bk_4wVqCpm4RtJ2SpN6DjYBMSQhtJivxqFHimWhJG1Sp4B2juOPoXNXQR' github-pages/app-config.js
+          # Current GAS is the single backend/runtime owner. Do not allow recovery endpoint drift.
+          grep -q 'version:"1.2.0-r308"' github-pages/app-config.js
+          grep -q 'backendFeatureBaseline:"current-gas-parity"' github-pages/app-config.js
+          grep -q 'AKfycbwVk2UZDi8lfTfcOGhQtPVfqu5pZ2PnL1EYH7pVvzcuOi2E6LymSDFpsD17djUmBjrG' github-pages/app-config.js
+          ! grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          ! grep -q 'backendFeatureBaseline:"gas-bridge-recovery"' github-pages/app-config.js
+          ! grep -q 'requires-r301-on-recovery-deployment' github-pages/app-config.js
+          ! grep -q 'blocked-until-recovery-backend-r301' github-pages/app-config.js
           grep -q 'DEFERRED_ASSET_VERSION:ASSET_VERSION' github-pages/app-config.js
           grep -q 'DEFERRED_ASSET_FORCE_FRESH:true' github-pages/app-config.js
           grep -q 'clientInFlightOwner:"github-pages/github-gas-transport.js::canonical"' github-pages/app-config.js
