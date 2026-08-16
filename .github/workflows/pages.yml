@@ -43,11 +43,11 @@ jobs:
           grep -q 'app-config.js?v=r306' github-pages/index.html
           grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
 
-          grep -q 'version:"1.2.0-rpc-required"' github-pages/app-config.js
+          grep -q 'version:"1.2.0-rpc-required-new-deployment"' github-pages/app-config.js
           grep -q 'RPC_VERSION="github-pages-rpc-v1"' github-pages/app-config.js
           grep -q 'TRANSPORT_MODE="github-pages-gas-router-rpc-required"' github-pages/app-config.js
           grep -q 'RPC_LEGACY_FALLBACK:false' github-pages/app-config.js
-          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
+          grep -q 'AKfycbwxeD_GuN5xhPExpm-0AESpNk3PLFUXMt_0rJiKisDUYMKqFzBigSmfX0klpZuUmlg-' github-pages/app-config.js
           grep -q 'githubPdfTransferMode:"chunked-start-chunk-final"' github-pages/app-config.js
 
           grep -q 'github-pages/github-gas-transport.js::canonical-rpc-required' github-pages/github-gas-transport.js
