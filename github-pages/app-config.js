@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbwxeD_GuN5xhPExpm-0AESpNk3PLFUXMt_0rJiKisDUYMKqFzBigSmfX0klpZuUmlg-/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbyJLevL2sE1vr44Ie2t65X1u5v1FLDESNNLpeGsH49jqpedxgHH6hwcLONq7snJJY6t/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-gas-rpc-required-new-deployment-2026-08-16";
 var ASSET_VERSION="rpc-required-new-deployment-20260816";
