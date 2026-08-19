@@ -51,7 +51,7 @@ jobs:
           grep -q 'RPC_HEALTH_TIMEOUT_MS:20000' github-pages/app-config.js
           grep -q 'RPC_RESULT_JSONP_TIMEOUT_MS:20000' github-pages/app-config.js
           grep -q 'RPC_HEALTH_RETRIES:1' github-pages/app-config.js
-          grep -q 'AKfycbyJLevL2sE1vr44Ie2t65X1u5v1FLDESNNLpeGsH49jqpedxgHH6hwcLONq7snJJY6t' github-pages/app-config.js
+          grep -q 'AKfycbzURC6h2tp4DN8JIFA-dDEjRuXMABJuLZLDpFAr0eFivwbZmkHMLEA9UlbAsMXjMvNg' github-pages/app-config.js
           grep -q 'githubPdfTransferMode:"chunked-start-chunk-final"' github-pages/app-config.js
           grep -q 'ASSET_VERSION="p1b-r314-20260819"' github-pages/app-config.js
           grep -q 'dashboardPersistentSnapshotOwner:"Code_05_Repository_Cache_Performance.PersistentDashboardSWR::p1b-r314"' github-pages/app-config.js
