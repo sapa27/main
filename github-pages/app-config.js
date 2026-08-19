@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbyuna2fOkCj87D4jaYvN8aG8Hg4pOl-asBPgPP7O76mHU4FHjR6xMMzSZodAX5A01vW/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-gas-transport-current-2026-08-16";
 var ASSET_VERSION="transport-current-20260816";
