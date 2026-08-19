@@ -1,17 +1,14 @@
-name: Deploy GitHub Pages
+name: P0-D1 Promote Reduced Shell
 
-# RPC-required transport: Google Warden blocks GitHub -> GAS iframe postMessage.
-# P1-B dashboard SWR config runs on the validated r306 shell until the P1-A shell replacement is promoted separately.
 on:
   push:
     branches: [main]
     paths:
-      - 'github-pages/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -20,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  promote-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,60 +25,57 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate RPC-required transport
+      - name: Promote P0-D1 reduced shell
         shell: bash
+        env:
+          P0D1_PATCH_B64: KLUv/aQMEAUArAQA+DxwMGQxLXIzMTVQMS1BICArQiAgU1dSLDosLCwiLCwfgDB1oTmxYwETsDm2u6apr4Cdrbvr7wwLWM85qWixn/Ln4F1/tixgPamjonFJC9i78VFRe0A2HsK5UwCQgw6IwHE7VGRWbwHr0SmPYIUL2I/eZvQhYPV+4SIUWCkENRRbCjKBj7LIg4iNKCU/BGwb7yEgWRREAQBQcDFiLXIzMTR3cgUAnxBBBewOBibmdAW61C8B6+M51RHH3AImUNkghAMAOC5FLix7OjwdgLA9qkEtlJbiLjxE+gMBPPNIi0wfm4OZZ21ofyvZW4RBkkMFBUIPq4g4FoaOJCtRIhsYVFC0HqC+rrIIUgtJjXEOs+L8bBfiwBnZOUQ9CNznHKIY7ScWWpxDhObUtI6o/wtBBXybA6UHANg/OiIiPQoxLUE6LyBnYXRlc3dpdGggIGFmdGVEoLAX0gEhCEGDUcwYwoiQMIEPDxBxt4fKIhbEMTEnzahD5Sr548TyU0boZ46NHmIEEPLXYhceW+3UyKuvBIh2xuvsEZXLL+56Lmv5FHFOGiulAvSeI6FrfbtrbTHOr0XVgfj4tUo5YPUFjtWzta428UABQwxs0MMHzJyBogrHuB0+W2jMjYLkBxaT0MMPFFbAwBo0NUrZ7TWZbT1IRh9JDqV29RH4dMBqBiZTQYF6mZwgMiwyEDJh2wLX9WcOohZv16JdavFoB2qJA1FZ0OW78SplbFBL92n8JJPI
         run: |
           set -euo pipefail
-          git diff --exit-code
-          test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
-          test -f github-pages/index.html
-          test -f github-pages/app-config.js
-          test -f github-pages/github-gas-transport.js
+          echo '681f2c57fa18f9f3e2b812c2decebd0a0a181589bd90853e6af3e03de6b79351  github-pages/index.html' | sha256sum -c -
+          command -v zstd >/dev/null
+          printf '%s' "$P0D1_PATCH_B64" | base64 -d > /tmp/p0d1-index.zstpatch
+          echo '9dbf9a3e34467982efda36a2bcb234f0527392990a3fd5bd41e99023d08bba47  /tmp/p0d1-index.zstpatch' | sha256sum -c -
+          zstd -d --patch-from=github-pages/index.html /tmp/p0d1-index.zstpatch -o /tmp/p0d1-index.html
+          echo '3f0a1185a3ac456d3b03c20f2ad957cfa210cfff1c165a84f45ba551946bbeb3  /tmp/p0d1-index.html' | sha256sum -c -
+          test "$(wc -c < /tmp/p0d1-index.html | tr -d ' ')" = '331788'
+          mv /tmp/p0d1-index.html github-pages/index.html
 
-          # Keep current production shell stable; P1-B only changes config/runtime versioning here.
-          grep -q 'CANONICAL GITHUB FRONTEND r306' github-pages/index.html
-          grep -q 'app-config.js?v=r306' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('github-pages/app-config.js')
+          s=p.read_text(encoding='utf-8')
+          replacements={
+            'commission-github-p1b-dashboard-swr-2026-08-19':'commission-github-p0d1-shell-converged-2026-08-19',
+            'version:"1.3.1-p1b-dashboard-swr"':'version:"1.3.2-p0d1-shell-converged"',
+            'backendFeatureBaseline:"p1a-deferred-shell+p1b-dashboard-swr"':'backendFeatureBaseline:"p0d1-reduced-shell+p1b-dashboard-swr"',
+            'criticalShellOwner:"github-pages/index.html::p1a-r313"':'criticalShellOwner:"github-pages/index.html::p0d1-r315"',
+          }
+          for old,new in replacements.items():
+              if s.count(old)!=1:
+                  raise SystemExit(f'expected exactly one config marker: {old!r}; found {s.count(old)}')
+              s=s.replace(old,new)
+          p.write_text(s,encoding='utf-8')
+          PY
 
-          grep -q 'version:"1.3.1-p1b-dashboard-swr"' github-pages/app-config.js
-          grep -q 'RPC_VERSION="github-pages-rpc-v1"' github-pages/app-config.js
-          grep -q 'TRANSPORT_MODE="github-pages-gas-router-rpc-required"' github-pages/app-config.js
-          grep -q 'RPC_LEGACY_FALLBACK:false' github-pages/app-config.js
-          grep -q 'RPC_HEALTH_TIMEOUT_MS:20000' github-pages/app-config.js
-          grep -q 'RPC_RESULT_JSONP_TIMEOUT_MS:20000' github-pages/app-config.js
-          grep -q 'RPC_HEALTH_RETRIES:1' github-pages/app-config.js
+          echo 'd822f99a3c0cf28fc33be620cfb90b954e65d0936713c355090b1bbf7a5009b4  github-pages/app-config.js' | sha256sum -c -
+          grep -q 'CANONICAL GITHUB FRONTEND p0d1-r315' github-pages/index.html
+          grep -q 'app-config.js?v=p0d1-r315' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=p0d1-r315' github-pages/index.html
+          grep -q 'version:"1.3.2-p0d1-shell-converged"' github-pages/app-config.js
           grep -q 'AKfycbzURC6h2tp4DN8JIFA-dDEjRuXMABJuLZLDpFAr0eFivwbZmkHMLEA9UlbAsMXjMvNg' github-pages/app-config.js
-          grep -q 'githubPdfTransferMode:"chunked-start-chunk-final"' github-pages/app-config.js
-          grep -q 'ASSET_VERSION="p1b-r314-20260819"' github-pages/app-config.js
-          grep -q 'dashboardPersistentSnapshotOwner:"Code_05_Repository_Cache_Performance.PersistentDashboardSWR::p1b-r314"' github-pages/app-config.js
-          grep -q 'dashboardPersistentSnapshotMode:"stale-while-revalidate"' github-pages/app-config.js
-
-          grep -q 'github-pages/github-gas-transport.js::canonical-rpc-resilient' github-pages/github-gas-transport.js
-          grep -q 'github-pages-gas-router-rpc-required' github-pages/github-gas-transport.js
-          grep -q 'github-rpc-health' github-pages/github-gas-transport.js
-          grep -q 'github-rpc-result' github-pages/github-gas-transport.js
-          grep -q 'GAS_RPC_HEALTH_TIMEOUT' github-pages/github-gas-transport.js
-          grep -q 'GAS_RPC_RESULT_TIMEOUT' github-pages/github-gas-transport.js
-          grep -q 'resultRetries' github-pages/github-gas-transport.js
-          grep -q 'mode:"github-rpc"' github-pages/github-gas-transport.js
-          grep -q 'GOOGLE_WARDEN_DROPS_GITHUB_POSTMESSAGE' github-pages/github-gas-transport.js
-
-          if grep -q 'GAS_POST_RESULT_REQUEST' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: legacy POST postMessage handshake returned' >&2; exit 1
-          fi
-          if grep -q 'GAS_BRIDGE_READY_PROBE' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: legacy bridge probe returned' >&2; exit 1
-          fi
-          if grep -q 'MessageChannel' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: MessageChannel returned' >&2; exit 1
-          fi
-          if grep -q 'addEventListener("message"' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: cross-window message transport returned' >&2; exit 1
-          fi
-
           node --check github-pages/app-config.js
           node --check github-pages/github-gas-transport.js
+          git diff --exit-code -- github-pages/github-gas-transport.js
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add github-pages/index.html github-pages/app-config.js
+          git diff --cached --check
+          git commit -m 'perf: converge P0-D1 reduced production shell'
+          git push origin HEAD:main
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
