@@ -1,6 +1,6 @@
 (function(root){"use strict";
 var existing=root.APP_CONFIG||{};
-var GAS_URL="https://script.google.com/macros/s/AKfycbyJLevL2sE1vr44Ie2t65X1u5v1FLDESNNLpeGsH49jqpedxgHH6hwcLONq7snJJY6t/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbyuna2fOkCj87D4jaYvN8aG8Hg4pOl-asBPgPP7O76mHU4FHjR6xMMzSZodAX5A01vW/exec";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
 var RELEASE="commission-github-case-edit-single-pass-r315-2026-08-19";
 var ASSET_VERSION="r315-case-edit-20260819";
