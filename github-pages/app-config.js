@@ -1,5 +1,5 @@
 (function(root){"use strict";
-var GAS_URL="https://script.google.com/macros/s/AKfycby2IGw0O4o7U57jmu7jNVlMRZTUzGP7bvR90jFvf1V6bfo10ucM3zLql0FK4nd6Xi5k/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbyVL6RE77q5FTow4Y6TfLjlicQh68Rh9Ata1GKzV5vZXVnpQhK-sBBQfKo3860gAHvO/exec";
 var RELEASE="commission-v1.2-p2a-ci-regression-suite-2026-08-20-r330";
 var ASSET_VERSION="asset-manifest-r330-ci-regression-suite";
 var RPC_VERSION="github-pages-rpc-r330";
