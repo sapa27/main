@@ -25,89 +25,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  promote:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Converge public frontend to R330
-        shell: bash
-        env:
-          GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycby2IGw0O4o7U57jmu7jNVlMRZTUzGP7bvR90jFvf1V6bfo10ucM3zLql0FK4nd6Xi5k/exec
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, pathlib, re
-
-          target = 'r330'
-          target_up = target.upper()
-          release = 'commission-v1.2-p2a-ci-regression-suite-2026-08-20-r330'
-          asset = 'asset-manifest-r330-ci-regression-suite'
-          rpc = 'github-pages-rpc-r330'
-          gas_url = os.environ['GAS_WEB_APP_URL']
-
-          def promote_text(text):
-              m = re.search(r'CANONICAL GITHUB FRONTEND (r\d+)', text, flags=re.I)
-              old = m.group(1).lower() if m else None
-              if old and old != target:
-                  text = text.replace(old, target).replace(old.upper(), target_up)
-              text = re.sub(r'commission-v1\.2-[A-Za-z0-9-]+-2026-08-20-r330', release, text)
-              text = re.sub(r'asset-manifest-r330-[A-Za-z0-9-]+', asset, text)
-              text = text.replace('contract-guard-consolidation-r330', 'ci-regression-suite-r330')
-              text = text.replace('V1.2 P1-F Contract Guard Consolidation r330', 'V1.2 P2-A CI Regression Suite r330')
-              text = text.replace('P1-F Contract Guard Consolidation', 'P2-A CI Regression Suite')
-              text = text.replace('contract-guard-consolidation', 'ci-regression-suite')
-              return text
-
-          idx = pathlib.Path('github-pages/index.html')
-          s = promote_text(idx.read_text())
-          idx.write_text(s)
-
-          cfg = pathlib.Path('github-pages/app-config.js')
-          s = cfg.read_text()
-          s = re.sub(r'var GAS_URL="https://script\.google\.com/macros/s/[^"]+/exec";', f'var GAS_URL="{gas_url}";', s, count=1)
-          s = re.sub(r'var RELEASE="[^"]+";', f'var RELEASE="{release}";', s, count=1)
-          s = re.sub(r'var ASSET_VERSION="[^"]+";', f'var ASSET_VERSION="{asset}";', s, count=1)
-          s = re.sub(r'var RPC_VERSION="[^"]+";', f'var RPC_VERSION="{rpc}";', s, count=1)
-          s = re.sub(r'version:"1\.2\.0-r\d+"', 'version:"1.2.0-r330"', s)
-          cfg.write_text(s)
-
-          tr = pathlib.Path('github-pages/github-gas-transport.js')
-          s = tr.read_text()
-          s = re.sub(r'rpc-r\d+', 'rpc-r330', s)
-          s = re.sub(r'github-pages-rpc-r\d+', rpc, s)
-          tr.write_text(s)
-          PY
-
-          if ! git diff --quiet -- github-pages/index.html github-pages/app-config.js github-pages/github-gas-transport.js; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -- github-pages/index.html github-pages/app-config.js github-pages/github-gas-transport.js
-            git commit -m 'deploy: converge GitHub Pages to R330'
-            git push origin HEAD:main
-          fi
-
   regression:
-    needs: promote
-    if: always() && (needs.promote.result == 'success' || needs.promote.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout pull request
-        if: github.event_name == 'pull_request'
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Checkout current main after convergence
-        if: github.event_name != 'pull_request'
-        uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Run R330 automated regression suite
         shell: bash
@@ -131,10 +53,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout current main
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
