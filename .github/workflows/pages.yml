@@ -1,7 +1,5 @@
 name: Deploy GitHub Pages
 
-# Transport-current convergence: RPC primary, legacy bridge/post migration fallback.
-# The r306 shell/UI stays bitwise stable; current transport source is validated separately.
 on:
   push:
     branches: [main]
@@ -29,51 +27,57 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate transport-current convergence
+      - name: Validate production runtime R329 P1-F
         shell: bash
         run: |
           set -euo pipefail
-          git diff --exit-code
           test "$(find github-pages -maxdepth 1 -type f | wc -l | tr -d ' ')" = "3"
           test -f github-pages/index.html
           test -f github-pages/app-config.js
           test -f github-pages/github-gas-transport.js
 
-          # Preserve validated r306 UI/DOM shell exactly.
-          grep -q 'CANONICAL GITHUB FRONTEND r306' github-pages/index.html
-          grep -q 'app-config.js?v=r306' github-pages/index.html
-          grep -q 'github-gas-transport.js?v=r306' github-pages/index.html
-          grep -q 'github-deferred-r306' github-pages/index.html
-          test "$(grep -o 'id="meeting-add-petitioner-btn"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-commissioner-proposer-owner-r297"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-          test "$(grep -o 'id="github-ai-duplicate-model-fallback-r299"' github-pages/index.html | wc -l | tr -d ' ')" = "1"
-
-          # Current config: one GAS endpoint, RPC primary, legacy deployment fallback.
-          grep -q 'version:"1.2.0-transport-current"' github-pages/app-config.js
-          grep -q 'RPC_VERSION="github-pages-rpc-v1"' github-pages/app-config.js
-          grep -q 'TRANSPORT_MODE="github-pages-gas-router-rpc-primary"' github-pages/app-config.js
-          grep -q 'RPC_LEGACY_FALLBACK:true' github-pages/app-config.js
-          grep -q 'BRIDGE_VERSION:"github-pages-bridge-v2"' github-pages/app-config.js
-          grep -q 'AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV' github-pages/app-config.js
-          grep -q 'githubPdfTransferMode:"chunked-start-chunk-final"' github-pages/app-config.js
-
-          # Single transport owner with negotiated RPC primary.
-          grep -q 'github-pages/github-gas-transport.js::canonical-hybrid' github-pages/github-gas-transport.js
-          grep -q 'function remote(fn,a,opt){return rpcHealth(false)' github-pages/github-gas-transport.js
-          grep -q 'function legacyRemote' github-pages/github-gas-transport.js
-          grep -q 'github-rpc-health' github-pages/github-gas-transport.js
-          grep -q 'github-rpc-result' github-pages/github-gas-transport.js
-          grep -q 'params.append("mode","github-rpc")' github-pages/github-gas-transport.js
-          grep -q 'A.runLoginPost=function(fn,a,opt){return remote(fn,a,opt)}' github-pages/github-gas-transport.js
-          grep -q 'RHS==="ready"?"retired-by-rpc"' github-pages/github-gas-transport.js
-          if grep -q 'MessageChannel' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: MessageChannel transport returned' >&2
+          grep -q 'commission-v1.2-p1f-contract-guard-consolidation-2026-08-20-r329' github-pages/index.html
+          grep -q 'asset-manifest-r329-contract-guard-consolidation' github-pages/index.html
+          grep -q 'current-quality-gate-r329' github-pages/index.html
+          grep -q 'app-config.js?v=r329' github-pages/index.html
+          grep -q 'github-gas-transport.js?v=r329' github-pages/index.html
+          grep -q 'github-pages-rpc-r329' github-pages/app-config.js
+          grep -q 'github-pages-gas-router-rpc-only' github-pages/app-config.js
+          grep -q 'DEFERRED_ASSET_FORCE_FRESH:false' github-pages/app-config.js
+          if grep -Eq 'Scripts_Page_ReportTrack::(search|track|report)|"Scripts_Page_Meeting":"Staff"' github-pages/index.html; then
+            echo 'FORBIDDEN: retired deferred permission alias returned' >&2
             exit 1
           fi
-          if grep -q 'setTimeout(function(){A.warmAuthBridge' github-pages/github-gas-transport.js; then
-            echo 'FORBIDDEN: eager legacy bridge warm-up returned' >&2
+          grep -q 'sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==' github-pages/index.html
+          ! grep -q 'sha512-r329gCh' github-pages/index.html
+          if grep -Eq 'typeof[[:space:]]+(root\.)?__appObserve[[:space:]]*(==|===)|"function"[[:space:]]*(==|===)[[:space:]]*typeof[[:space:]]+(root\.)?__appObserve' github-pages/index.html; then
+            echo 'FORBIDDEN: redundant __appObserve function guard returned' >&2
             exit 1
           fi
+
+          grep -q 'w.AppTransport.run=run' github-pages/github-gas-transport.js
+          grep -q 'w.AppTransport.invalidateClientApiCache=' github-pages/github-gas-transport.js
+          if grep -Eq 'iframe|createElement\("form"\)|MessageChannel|legacyRemote|runGasDirectBridge|runVercelProxy|runJsonpApi|runLoginPost|ensureBridgeClient|warmAuthBridge|resetBridge|RPC_POST_SIGNAL_GRACE' github-pages/github-gas-transport.js; then
+            echo 'FORBIDDEN: retired transport compatibility surface returned' >&2
+            exit 1
+          fi
+
+          python - <<'PY'
+          import pathlib,re,sys
+          files=list(pathlib.Path('github-pages').glob('*'))+[pathlib.Path('.github/workflows/pages.yml')]
+          stale=[]
+          for p in files:
+              if not p.is_file():
+                  continue
+              s=p.read_text(errors='ignore')
+              s=re.sub(r'(?i)(?:sha256|sha384|sha512)-[A-Za-z0-9+/=]+','<HASH>',s)
+              for token in re.findall(r'(?i)r\d{2,3}',s):
+                  if token.lower()!='r329':
+                      stale.append((str(p),token))
+          if stale:
+              print('stale revisions:',stale,file=sys.stderr)
+              sys.exit(1)
+          PY
 
           node --check github-pages/app-config.js
           node --check github-pages/github-gas-transport.js
