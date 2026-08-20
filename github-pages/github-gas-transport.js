@@ -1,7 +1,7 @@
 (function(w,d){
 "use strict";
 if(!w||!d)return;
-var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},OWNER="github-pages/github-gas-transport.js::rpc-r329",MODE="github-pages-gas-router-rpc-only",RPC_VER=String(CFG.RPC_VERSION||APP.rpcVersion||"github-pages-rpc-r329"),F=Object.create(null),RH=null,RHS="unknown",RC=0;
+var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},OWNER="github-pages/github-gas-transport.js::rpc-r330",MODE="github-pages-gas-router-rpc-only",RPC_VER=String(CFG.RPC_VERSION||APP.rpcVersion||"github-pages-rpc-r330"),F=Object.create(null),RH=null,RHS="unknown",RC=0;
 function t(v){return v==null?"":String(v)}
 function c(k,f){var v=CFG[k];if(v==null||v==="")v=APP[k];return v==null||v===""?f:v}
 function gas(){var v=t(CFG.GAS_WEB_APP_URL||APP.gasWebAppUrl||w.GAS_WEB_APP_URL||"").trim();return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:[?#].*)?$/i.test(v)?v.replace(/[?#].*$/,""):""}
