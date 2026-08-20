@@ -1,5 +1,5 @@
 (function(root){"use strict";
-var GAS_URL="https://script.google.com/macros/s/AKfycbxu2K3ukqReIC8wCalO7P3NRrySO3JUVDoE3d4P0oEzknHehos1u7sCPeeYkashRzgV/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycby2IGw0O4o7U57jmu7jNVlMRZTUzGP7bvR90jFvf1V6bfo10ucM3zLql0FK4nd6Xi5k/exec";
 var RELEASE="commission-v1.2-p1f-contract-guard-consolidation-2026-08-20-r329";
 var ASSET_VERSION="asset-manifest-r329-contract-guard-consolidation";
 var RPC_VERSION="github-pages-rpc-r329";
