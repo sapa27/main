@@ -25,8 +25,9 @@ const workflow=file('.github/workflows/pages.yml');
 
 ok('R330 application release converges across public Pages files',()=>{
   for(const [name,text] of [['index',index],['config',config],['transport',transport],['workflow',workflow]])assert.ok(text.toLowerCase().includes(REV),`missing ${REV} in ${name}`);
-  assert.ok(index.includes(`app-config.js?v=${REV}`));
-  assert.ok(index.includes(`github-gas-transport.js?v=${REV}`));
+  assert.ok(index.includes('CANONICAL GITHUB FRONTEND r330'));
+  assert.ok(index.includes('sri-required-r330'));
+  assert.ok(index.includes('host-pinned-integrity-exempt-r330'));
   assert.ok(config.includes(RELEASE));assert.ok(config.includes(ASSET));assert.ok(config.includes(QUALITY));assert.ok(config.includes(RPC));
   assert.ok(transport.includes('github-gas-transport.js::rpc-r330'));
 });
