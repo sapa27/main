@@ -117,6 +117,8 @@ ok('RPC reliability performance and cache rules',()=>{
   assert.ok(transport.includes('function prewarm(){health(false)'));
   assert.ok(transport.includes('if(RH&&!force)return RH'));
   assert.ok(transport.includes('if(F[key])return F[key]'));
+  assert.ok(transport.includes('function isReadMethod(fn)'));
+  assert.ok(transport.includes('read=isReadMethod(fn)'));
   assert.ok(transport.includes('if(write)TTL=Object.create(null)'));
   assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
   assert.ok(transport.includes('getLastRpcTrace'));
@@ -149,6 +151,13 @@ ok('repository remains minimal and deployment-safe',()=>{
   assert.ok(workflow.includes('cancel-in-progress: true'));
   assert.ok(workflow.includes('permissions:'));
   assert.ok(workflow.includes('id-token: write'));
+});
+
+ok('retired frontend code stays removed',()=>{
+  for(const token of ['waitForMainShellReadyCrit','mainShellReadyCrit','hasAuthenticatedSessionCrit'])assert.ok(!index.includes(token),`dead frontend token: ${token}`);
+  assert.ok(!index.includes('missingJourneyRefs=[],deferredTemplates=[],i,j,id,source'));
+  assert.ok(!index.includes('var hasOwn = Object.prototype.hasOwnProperty'));
+  assert.ok(!index.includes('function navFromRoute(path){var inverse;'));
 });
 
 console.log(`# ${passed} regression groups passed (frontend-only R330 mode)`);
