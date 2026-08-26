@@ -897,6 +897,17 @@ html body .mobile-topbar .mobile-topbar-subtitle{color:var(--app-mobile-topbar-m
 html body .mobile-topbar .mobile-menu-btn,html body .mobile-topbar button,html body #mobile-menu-btn{background:var(--app-mobile-menu-btn-bg)!important;border-color:var(--app-mobile-menu-btn-border)!important;color:var(--app-mobile-menu-btn-text)!important}
 </style>
 <script>try{document.documentElement.setAttribute("data-mobile-topbar-owner","r330-blue-single-owner")}catch(_e){}</script>
+
+<style id="app-route-loading-state-current">
+#main{position:relative;min-height:240px}
+.app-page-loading-state{position:absolute;inset:0;z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:clamp(40px,10vh,96px) 16px;background:rgba(244,247,249,.96);backdrop-filter:blur(2px)}
+.app-page-loading-state[hidden]{display:none!important}
+.app-page-loading-card{width:min(440px,100%);padding:24px;text-align:center;background:#fff;border:1px solid var(--app-border,#dbe3ea);border-radius:16px;box-shadow:0 12px 32px rgba(6,31,61,.12);color:var(--app-text,#1f2937)}
+.app-page-loading-spinner{width:40px;height:40px;margin:0 auto 14px;border:4px solid #dbe7f3;border-top-color:var(--app-primary,#061f3d);border-radius:50%;animation:app-route-loading-spin .8s linear infinite}
+.app-page-loading-title{font-weight:700;font-size:1.05rem}.app-page-loading-detail{margin-top:4px;color:var(--app-muted,#64748b);font-size:.92rem}
+@keyframes app-route-loading-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.app-page-loading-spinner{animation-duration:1.6s}}
+</style>
 </head>
 <body class="vue3-preserve-body">
 <script>window.__APP_BOOTSTRAP__={"ok":true,"authenticated":false,"page":"login","requestedPage":"login","session":null,"user":null,"source":"github-pages-generated-r330","hostMode":"github-pages","appStamp":"commission-v1.2-p2a-ci-regression-suite-2026-08-20-r330","assetStamp":"asset-manifest-r330-ci-regression-suite","sourceFingerprint":"ci-regression-suite-r330","contractStamp":"current-quality-gate-r330","buildName":"V1.2 P2-A CI Regression Suite r330","defaultRoute":"/dashboard","sessionRestoreSupported":true,"permissionMatrix":{"stamp":"permission-matrix-p0-2026-07-30-r330","owner":"Code_02_Platform_Permissions.APP_PERMISSION_MATRIX","defaultRole":"Viewer","roles":{"Viewer":{"pages":["dashboard","search"],"deniedApiGroups":["admin-users","admin-budget","budget","personnel","petitioners"],"allowWrites":false},"Staff":{"pages":["dashboard","meeting","committee-meeting","search","track","report","people","petitioner","budget"],"deniedApiGroups":["admin-users","admin-budget"],"allowWrites":true},"Admin":{"pages":["*"],"deniedApiGroups":[],"allowWrites":true}},"pageAliases":{"dash":"dashboard","personnel":"people","committee":"committee-meeting","committeemeeting":"committee-meeting","committee_meeting":"committee-meeting","tracking":"track"},"apiGroupMinimumRole":{"budget":"Staff","personnel":"Staff","petitioners":"Staff","admin-users":"Admin","admin-budget":"Admin","admin-diagnostics":"Admin","admin-release":"Admin","admin-go-live":"Admin","admin-maintenance-final":"Admin"},"deferredAssetMinimumRole":{"Scripts_Page_Dashboard":"Viewer","Runtime_01_Request_Lifecycle":"Viewer","Runtime_02_Date_Time":"Viewer","Runtime_03_Table_UI":"Viewer","Runtime_04_Thailand_Location":"Staff","Runtime_05_Status_Aging":"Viewer","Runtime_08_AI_Bridge":"Viewer","Scripts_Page_ReportTrack::reporttrack-common":"Viewer","Scripts_Page_ReportTrack::print":"Viewer","Scripts_Page_Meeting::meeting-common":"Staff","Scripts_Page_Meeting::meeting":"Staff","Scripts_Page_Meeting::committee":"Staff","Scripts_Page_Petitioner":"Staff","Scripts_Page_People":"Staff","Scripts_Page_Budget":"Staff","Scripts_Page_Admin":"Admin"},"bundleMinimumRole":{"appCritical":"Viewer","appCore":"Viewer","runtimeDateTable":"Viewer","runtimeThailandLocation":"Staff","runtimeStatusAging":"Viewer","runtimeAiBridge":"Viewer","pageDashboard":"Viewer","pageMeeting":"Staff","pageCommitteeMeeting":"Staff","pageTrackReport":"Staff","pagePetitioner":"Staff","pagePeople":"Staff","pageBudget":"Staff","pageAdmin":"Admin","pageAiPrint":"Viewer"}},"permissionMatrixStamp":"permission-matrix-p0-2026-07-30-r330"};
@@ -1037,12 +1048,17 @@ border:1.5px solid rgba(197,160,40,.6);background:rgba(255,255,255,.1);padding:3
 <div aria-hidden="true"class="mobile-topbar-spacer"></div>
 </div>
 <main id="main"class="content"role="main"tabindex="-1"aria-label="พื้นที่ทำงานหลัก"style="display:block;">
+<div id="app-page-loading-state" class="app-page-loading-state" role="status" aria-live="polite" aria-atomic="true" hidden><div class="app-page-loading-card"><div class="app-page-loading-spinner" aria-hidden="true"></div><div class="app-page-loading-title">กำลังโหลดข้อมูล</div><div class="app-page-loading-detail">กรุณารอสักครู่</div></div></div>
 <router-view></router-view>
 </main>
 </div>
 </div>
 <div id="app-toast-stack"class="app-toast-stack"></div>
 </div>
+</script>
+
+<script id="app-route-loading-controller-current">
+(function(w,d){"use strict";if(w.__APP_ROUTE_LOADING_CONTROLLER_CURRENT__)return;w.__APP_ROUTE_LOADING_CONTROLLER_CURRENT__="r331";var timer=0;function el(){return d.getElementById("app-page-loading-state")}function set(active){var n=el();if(!n)return false;if(active){n.hidden=false;n.removeAttribute("hidden");n.setAttribute("aria-busy","true");clearTimeout(timer);timer=setTimeout(function(){set(false)},120000)}else{clearTimeout(timer);n.hidden=true;n.setAttribute("hidden","");n.setAttribute("aria-busy","false")}return true}d.addEventListener("app:page-changing",function(){set(true)},true);d.addEventListener("app:page-activated",function(){w.requestAnimationFrame?requestAnimationFrame(function(){set(false)}):set(false)},true);d.addEventListener("app:page-activation-failed",function(){set(false)},true);w.AppPageLoading={show:function(){return set(true)},hide:function(){return set(false)}}})(window,document);
 </script>
 
 <script id="app-sidebar-keyboard-navigation-current">
