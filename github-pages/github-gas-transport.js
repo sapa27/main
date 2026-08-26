@@ -1,7 +1,8 @@
 (function(w,d){
 "use strict";
 if(!w||!d)return;
-var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},OWNER="github-pages/github-gas-transport.js::rpc-r330",MODE="github-pages-gas-router-rpc-only",RPC_VER=String(CFG.RPC_VERSION||APP.rpcVersion||"github-pages-rpc-r330"),F=Object.create(null),RH=null,RHS="unknown",RC=0,TTL=Object.create(null),LAST_TRACE=null;
+// build: github-pages-frontend-r330 (frontend release tag, independent of RPC_VER below)
+var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},OWNER="github-pages/github-gas-transport.js::rpc-v1",MODE="github-pages-gas-router-rpc-only",RPC_VER=String(CFG.RPC_VERSION||APP.rpcVersion||"github-pages-rpc-v1"),F=Object.create(null),RH=null,RHS="unknown",RC=0,TTL=Object.create(null),LAST_TRACE=null;
 var READ_METHODS={apiGetDashboardBundle:1,apiSearchCasesLite:1,apiGetCommitteeMeetingSystem:1,apiGetTracking:1,apiBudgetGetSummary:1};
 function t(v){return v==null?"":String(v)}
 function c(k,f){var v=CFG[k];if(v==null||v==="")v=APP[k];return v==null||v===""?f:v}
