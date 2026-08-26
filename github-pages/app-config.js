@@ -1,5 +1,5 @@
 (function(root){"use strict";
-var GAS_URL="https://script.google.com/macros/s/AKfycbyVL6RE77q5FTow4Y6TfLjlicQh68Rh9Ata1GKzV5vZXVnpQhK-sBBQfKo3860gAHvO/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbxMeYZ_rQTgdNaN0EXuFqAY6PGRMq310_EQBGFsIolFd5kfxFaxrz6NJ2NIKY0rvZE6/exec";
 var RELEASE="commission-v1.2-p2b-perf-transport-tuning-2026-08-24-r330";
 var ASSET_VERSION="asset-manifest-r330-perf-transport-tuning";
 var QUALITY_GATE="current-quality-gate-r330";
