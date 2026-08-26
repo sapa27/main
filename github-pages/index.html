@@ -1267,7 +1267,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <h1 class="app-page-heading fw-bold mb-4 text-primary"><i class="fas fa-search me-2"aria-hidden="true"></i>ค้นหาเรื่องพิจารณา</h1>
 <div class="input-group mb-4 shadow-sm">
 <input class="form-control"data-action="searchAllInput"id="s-input"aria-label="ค้นหาเรื่องพิจารณา"placeholder="พิมพ์คำค้นหา เช่น ชื่อเรื่อง, ลำดับเรื่อง, ผู้เสนอญัตติ/ผู้ร้อง..."data-app-term-placeholder="searchPlaceholder"type="text"/>
-<button class="btn btn-primary"data-action="searchAll"><i class="fas fa-search"></i>ค้นหา</button>
+<button type="button" class="btn btn-primary"data-action="searchAll"><i class="fas fa-search"></i>ค้นหา</button>
 </div>
 <div class="app-table-scroll table-custom">
 <table data-page-size="20"data-app-pager="off"class="table table-hover align-middle mb-0 small app-table-standard no-app-pager app-mobile-priority-table app-mobile-search-table">
@@ -1295,10 +1295,10 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="d-none"id="summary-view">
 <div class="no-print mb-3">
 <button class="btn btn-secondary"data-report-action="closeSummary"type="button"><i class="fas fa-xmark me-1"></i>ปิด</button>
-<button class="btn btn-primary float-end"data-action="printPage"><i class="fas fa-print me-1"></i>พิมพ์ข้อมูล</button>
+<button type="button" class="btn btn-primary float-end"data-action="printPage"><i class="fas fa-print me-1"></i>พิมพ์ข้อมูล</button>
 </div>
 <div class="text-center print-header-show mb-4">
-<img data-logo="parliament"decoding="async"id="summary-logo-img"loading="lazy"src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg"style="width: 64px; height:64px; object-fit:contain; margin-bottom: 10px;"/>
+<img alt="ตรารัฐสภา" data-logo="parliament"decoding="async"id="summary-logo-img"loading="lazy"src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg"style="width: 64px; height:64px; object-fit:contain; margin-bottom: 10px;"/>
 <h5 class="fw-bold">รายละเอียดเรื่องพิจารณา</h5>
 </div>
 <div id="pdf-content"></div>
@@ -1322,14 +1322,14 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <h1 class="app-page-heading fw-bold mb-4">ระบบติดตามหนังสือ</h1>
 <div class="no-print mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
 <div class="btn-group shadow-sm overflow-auto"role="group">
-<button class="btn btn-outline-primary active app-btn-nowrap"data-action="filterTrack"data-filter-track="all"id="btn-track-all">หนังสือทั้งหมด</button>
-<button class="btn btn-outline-info app-btn-nowrap"data-action="filterTrack"data-filter-track="notdue"id="btn-track-notdue">ไม่ครบกำหนด</button>
-<button class="btn btn-outline-danger app-btn-nowrap"data-action="filterTrack"data-filter-track="overdue"id="btn-track-overdue">ครบ/เลยกำหนด</button>
-<button class="btn btn-outline-success app-btn-nowrap"data-action="filterTrack"data-filter-track="received"id="btn-track-received">ตอบรับแล้ว</button>
+<button type="button" class="btn btn-outline-primary active app-btn-nowrap"data-action="filterTrack"data-filter-track="all"id="btn-track-all">หนังสือทั้งหมด</button>
+<button type="button" class="btn btn-outline-info app-btn-nowrap"data-action="filterTrack"data-filter-track="notdue"id="btn-track-notdue">ไม่ครบกำหนด</button>
+<button type="button" class="btn btn-outline-danger app-btn-nowrap"data-action="filterTrack"data-filter-track="overdue"id="btn-track-overdue">ครบ/เลยกำหนด</button>
+<button type="button" class="btn btn-outline-success app-btn-nowrap"data-action="filterTrack"data-filter-track="received"id="btn-track-received">ตอบรับแล้ว</button>
 </div>
 <div class="d-flex gap-2">
-<button class="btn btn-success shadow-sm app-btn-nowrap"data-action="exportToExcel"data-export-name="ข้อมูลติดตามหนังสือ"data-export-target="track-table-target"><i class="fas fa-file-excel me-1"></i>Excel</button>
-<button class="btn btn-secondary shadow-sm app-btn-nowrap"data-action="printTrack"><i class="fas fa-print me-2"></i>พิมพ์</button>
+<button type="button" class="btn btn-success shadow-sm app-btn-nowrap"data-action="exportToExcel"data-export-name="ข้อมูลติดตามหนังสือ"data-export-target="track-table-target"><i class="fas fa-file-excel me-1"></i>Excel</button>
+<button type="button" class="btn btn-secondary shadow-sm app-btn-nowrap"data-action="printTrack"><i class="fas fa-print me-2"></i>พิมพ์</button>
 </div>
 </div>
 <div class="print-header-show text-center mb-4"id="track-print-header"style="display:none;">
@@ -1367,9 +1367,9 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <option value="status">แยกตามสถานะ</option>
 </select>
 <select class="form-select form-select-sm d-none app-select-auto"id="report-group-value"aria-label="เลือกกลุ่มข้อมูล"></select>
-<button class="btn btn-info btn-sm text-nowrap"data-action="loadReportData"><i class="fas fa-download me-1"></i>โหลดข้อมูล</button>
-<button class="btn btn-primary btn-sm text-nowrap"data-action="printReportPdf"data-print-style="landscape"data-print-target="report"><i class="fas fa-list-check me-1"></i>เลือกข้อมูล</button>
-<button class="btn btn-success btn-sm text-nowrap"data-action="exportToExcel"data-export-name="รายงานเรื่องพิจารณา"data-export-target="report-table-target"><i class="fas fa-file-excel me-1"></i>Excel</button>
+<button type="button" class="btn btn-info btn-sm text-nowrap"data-action="loadReportData"><i class="fas fa-download me-1"></i>โหลดข้อมูล</button>
+<button type="button" class="btn btn-primary btn-sm text-nowrap"data-action="printReportPdf"data-print-style="landscape"data-print-target="report"><i class="fas fa-list-check me-1"></i>เลือกข้อมูล</button>
+<button type="button" class="btn btn-success btn-sm text-nowrap"data-action="exportToExcel"data-export-name="รายงานเรื่องพิจารณา"data-export-target="report-table-target"><i class="fas fa-file-excel me-1"></i>Excel</button>
 </div>
 </div>
 <div class="alert alert-secondary small no-print"id="report-load-help">กดปุ่ม<strong>โหลดข้อมูล</strong>เพื่อแสดงรายการ</div>
@@ -1487,7 +1487,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="ai-status-banner ai-status-done d-none"id="case-ai-status-done">
 <div class="d-flex align-items-center justify-content-between">
 <span><i class="fas fa-circle-check me-2"></i>สกัดข้อมูลสำเร็จ</span>
-<button class="btn btn-sm btn-link p-0 text-muted"data-action="resetCaseAiResult">ล้าง</button>
+<button type="button" class="btn btn-sm btn-link p-0 text-muted"data-action="resetCaseAiResult">ล้าง</button>
 </div>
 </div>
 <div class="ai-status-banner ai-status-error d-none"id="case-ai-status-error"><i class="fas fa-triangle-exclamation me-2"></i>AI อ่านไม่สำเร็จ</div>
@@ -1499,8 +1499,8 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="col-12"><label class="small fw-bold text-muted mb-1">สรุปเรื่อง</label><input class="form-control form-control-sm"id="case-ai-result-summary"type="text"/></div>
 </div>
 <div class="mt-2 text-end">
-<button class="btn btn-sm btn-outline-secondary me-2"data-action="resetCaseAiResult"><i class="fas fa-rotate-left me-1"></i>ล้าง</button>
-<button class="btn btn-sm btn-primary fw-bold"data-action="applyCaseAiResult"><i class="fas fa-arrow-right-to-bracket me-1"></i>ใช้ข้อมูลนี้</button>
+<button type="button" class="btn btn-sm btn-outline-secondary me-2"data-action="resetCaseAiResult"><i class="fas fa-rotate-left me-1"></i>ล้าง</button>
+<button type="button" class="btn btn-sm btn-primary fw-bold"data-action="applyCaseAiResult"><i class="fas fa-arrow-right-to-bracket me-1"></i>ใช้ข้อมูลนี้</button>
 </div>
 </div>
 </div>
@@ -1718,7 +1718,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="ai-status-banner ai-status-done d-none"id="ai-status-done">
 <div class="d-flex align-items-center justify-content-between">
 <span><i class="fas fa-circle-check me-2"></i>สกัดข้อมูลสำเร็จ—ตรวจสอบก่อนนำไปใช้งาน</span>
-<button class="btn btn-sm btn-link p-0 text-muted"data-action="resetAiResult">ล้าง</button>
+<button type="button" class="btn btn-sm btn-link p-0 text-muted"data-action="resetAiResult">ล้าง</button>
 </div>
 </div>
 <div class="ai-status-banner ai-status-error d-none"id="ai-status-error">
@@ -1740,10 +1740,10 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </div>
 </div>
 <div class="mt-2 text-end">
-<button class="btn btn-sm btn-outline-secondary me-2"data-action="resetAiResult">
+<button type="button" class="btn btn-sm btn-outline-secondary me-2"data-action="resetAiResult">
 <i class="fas fa-rotate-left me-1"></i>ล้าง
 </button>
-<button class="btn btn-sm btn-primary fw-bold"data-action="copyAiResultToLetterForm">
+<button type="button" class="btn btn-sm btn-primary fw-bold"data-action="copyAiResultToLetterForm">
 <i class="fas fa-arrow-right-to-bracket me-1"></i>ใช้ข้อมูลนี้ในฟอร์มหนังสือ
 </button>
 </div>
@@ -1934,28 +1934,28 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="col-md-8">
 <div class="input-group">
 <input class="form-control"id="personnel-search-input"aria-label="ค้นหาประวัติบุคลากร"placeholder="ค้นหาประวัติจากชื่อ-สกุล..."type="text"/>
-<button class="btn btn-info text-white"data-action="searchPersonnelHistory"><i class="fas fa-search"></i>ค้นหาประวัติ</button>
+<button type="button" class="btn btn-info text-white"data-action="searchPersonnelHistory"><i class="fas fa-search"></i>ค้นหาประวัติ</button>
 </div>
 </div>
 <div class="col-md-4 text-end">
-<button class="btn btn-secondary w-100"data-action="printPersonnelReportMenu"><i class="fas fa-print me-1"></i>พิมพ์รายงานบุคลากร</button>
+<button type="button" class="btn btn-secondary w-100"data-action="printPersonnelReportMenu"><i class="fas fa-print me-1"></i>พิมพ์รายงานบุคลากร</button>
 </div>
 </div>
 </div>
 <div class="app-table-scroll no-print mb-4 border-bottom">
 <ul class="nav nav-tabs border-bottom-0 flex-nowrap"id="psTab"role="tablist">
 <li class="nav-item text-nowrap">
-<button class="nav-link active"data-action="showPsTab"data-ps-tab="comm">คณะกรรมาธิการ</button></li>
+<button type="button" class="nav-link active"data-action="showPsTab"data-ps-tab="comm">คณะกรรมาธิการ</button></li>
 <li class="nav-item text-nowrap">
-<button class="nav-link"data-action="showPsTab"data-ps-tab="staff">ที่ปรึกษา/บุคลากร</button></li>
+<button type="button" class="nav-link"data-action="showPsTab"data-ps-tab="staff">ที่ปรึกษา/บุคลากร</button></li>
 <li class="nav-item text-nowrap">
-<button class="nav-link"data-action="showPsTab"data-ps-tab="op">เจ้าหน้าที่ปฏิบัติการ</button></li>
+<button type="button" class="nav-link"data-action="showPsTab"data-ps-tab="op">เจ้าหน้าที่ปฏิบัติการ</button></li>
 <li class="nav-item text-nowrap">
-<button class="nav-link"data-action="showPsTab"data-ps-tab="subcommittee">คณะอนุกรรมาธิการ</button></li>
+<button type="button" class="nav-link"data-action="showPsTab"data-ps-tab="subcommittee">คณะอนุกรรมาธิการ</button></li>
 <li class="nav-item text-nowrap">
-<button class="nav-link"data-action="showPsTab"data-ps-tab="salary">สรุปการจ่ายเงินเดือน</button></li>
+<button type="button" class="nav-link"data-action="showPsTab"data-ps-tab="salary">สรุปการจ่ายเงินเดือน</button></li>
 <li class="nav-item text-nowrap">
-<button class="nav-link"data-action="showPsTab"data-ps-tab="ai"id="ps-ai-tab-btn">
+<button type="button" class="nav-link"data-action="showPsTab"data-ps-tab="ai"id="ps-ai-tab-btn">
 <i class="fas fa-robot me-1 text-purple app-accent-purple"></i>AI วิเคราะห์ภาระงาน</button></li>
 </ul>
 </div>
@@ -1970,7 +1970,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </select>
 </div>
 <div class="col-md-8 text-md-end">
-<button class="btn btn-success shadow-sm"data-action="openPsCommModal"><i class="fas fa-plus"></i>เพิ่มกรรมาธิการ</button>
+<button type="button" class="btn btn-success shadow-sm"data-action="openPsCommModal"><i class="fas fa-plus"></i>เพิ่มกรรมาธิการ</button>
 </div>
 </div>
 <div class="app-table-scroll table-custom">
@@ -2027,7 +2027,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </select>
 </div>
 <div class="col-md-2 text-md-end">
-<button class="btn btn-success shadow-sm w-100"data-action="openPsStaffModal"><i class="fas fa-plus"></i>เพิ่มบุคลากร</button>
+<button type="button" class="btn btn-success shadow-sm w-100"data-action="openPsStaffModal"><i class="fas fa-plus"></i>เพิ่มบุคลากร</button>
 </div>
 </div>
 <div class="app-table-scroll table-custom">
@@ -2062,7 +2062,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </select>
 </div>
 <div class="col-md-8 text-md-end">
-<button class="btn btn-success shadow-sm"data-action="openPsOpModal"><i class="fas fa-plus"></i>เพิ่มเจ้าหน้าที่ปฏิบัติการ</button>
+<button type="button" class="btn btn-success shadow-sm"data-action="openPsOpModal"><i class="fas fa-plus"></i>เพิ่มเจ้าหน้าที่ปฏิบัติการ</button>
 </div>
 </div>
 <div class="app-table-scroll table-custom">
@@ -2100,7 +2100,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </select>
 </div>
 <div class="col-md-4 text-md-end">
-<button class="btn btn-success shadow-sm w-100"data-action="openPsSubcommitteeModal"><i class="fas fa-plus"></i>เพิ่มคณะอนุกรรมาธิการ</button>
+<button type="button" class="btn btn-success shadow-sm w-100"data-action="openPsSubcommitteeModal"><i class="fas fa-plus"></i>เพิ่มคณะอนุกรรมาธิการ</button>
 </div>
 </div>
 <div class="app-table-scroll table-custom">
@@ -2140,7 +2140,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <option value="2576">2576</option></select>
 </div>
 <div class="col-md-3 text-md-end">
-<button class="btn btn-outline-secondary btn-sm w-100"data-action="printSalaryReportOnly"><i class="fas fa-print me-1"></i>พิมพ์เฉพาะเงินเดือน</button>
+<button type="button" class="btn btn-outline-secondary btn-sm w-100"data-action="printSalaryReportOnly"><i class="fas fa-print me-1"></i>พิมพ์เฉพาะเงินเดือน</button>
 </div>
 </div>
 <div class="row g-3 mb-4">
@@ -2206,10 +2206,10 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </div>
 </div>
 <div class="col-md-4 col-12 d-flex gap-2">
-<button class="btn btn-primary fw-bold flex-grow-1"data-action="startPersonnelAnalysis"id="btn-ps-ai-analyze">
+<button type="button" class="btn btn-primary fw-bold flex-grow-1"data-action="startPersonnelAnalysis"id="btn-ps-ai-analyze">
 <i class="fas fa-magnifying-glass-chart me-1"></i>วิเคราะห์
 </button>
-<button class="btn btn-outline-secondary"data-action="clearPersonnelAnalysis"title="ล้างผล">
+<button type="button" class="btn btn-outline-secondary"data-action="clearPersonnelAnalysis"title="ล้างผล">
 <i class="fas fa-rotate-left"></i>
 </button>
 </div>
@@ -2226,10 +2226,10 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <span class="fw-bold text-navy"id="ps-ai-result-name"></span>
 </div>
 <div class="d-flex gap-2 no-print">
-<button class="btn btn-sm btn-outline-success"data-action="printWorkloadReport">
+<button type="button" class="btn btn-sm btn-outline-success"data-action="printWorkloadReport">
 <i class="fas fa-print me-1"></i>พิมพ์รายงาน
 </button>
-<button class="btn btn-sm btn-outline-secondary"data-action="clearPersonnelAnalysis">
+<button type="button" class="btn btn-sm btn-outline-secondary"data-action="clearPersonnelAnalysis">
 <i class="fas fa-rotate-left me-1"></i>ล้าง
 </button>
 </div>
@@ -2274,10 +2274,10 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </div>
 <div class="d-none bg-white p-2 p-md-4"id="ps-print-view">
 <div class="no-print d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-<button class="btn btn-secondary"data-action="closePrintView"><i class="fas fa-arrow-left me-1"></i>ย้อนกลับ</button>
+<button type="button" class="btn btn-secondary"data-action="closePrintView"><i class="fas fa-arrow-left me-1"></i>ย้อนกลับ</button>
 <div>
-<button class="btn btn-success me-2"data-action="exportToExcel"data-export-name="รายงานบุคลากร"data-export-target="printTable"><i class="fas fa-file-excel me-1"></i>ส่งออก Excel</button>
-<button class="btn btn-primary"data-action="printPage"><i class="fas fa-print me-1"></i>สั่งพิมพ์/PDF</button>
+<button type="button" class="btn btn-success me-2"data-action="exportToExcel"data-export-name="รายงานบุคลากร"data-export-target="printTable"><i class="fas fa-file-excel me-1"></i>ส่งออก Excel</button>
+<button type="button" class="btn btn-primary"data-action="printPage"><i class="fas fa-print me-1"></i>สั่งพิมพ์/PDF</button>
 </div>
 </div>
 <div id="ps-print-content"></div>
@@ -2294,11 +2294,11 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="col-md-8">
 <div class="input-group">
 <input class="form-control"data-input="renderPetitionerList"id="pet-search-input"placeholder="ค้นหาชื่อ, เบอร์โทร, ตำบล, อำเภอ หรือจังหวัด..."type="text"/>
-<button class="btn btn-info text-white"data-action="renderPetitionerList"><i class="fas fa-search"></i>ค้นหา</button>
+<button type="button" class="btn btn-info text-white"data-action="renderPetitionerList"><i class="fas fa-search"></i>ค้นหา</button>
 </div>
 </div>
 <div class="col-md-4 text-end">
-<button class="btn btn-success w-100"data-action="openPetModal"><i class="fas fa-plus"></i>เพิ่มผู้ร้องเรียน</button>
+<button type="button" class="btn btn-success w-100"data-action="openPetModal"><i class="fas fa-plus"></i>เพิ่มผู้ร้องเรียน</button>
 </div>
 </div>
 </div>
@@ -2325,8 +2325,8 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </div>
 <div class="d-none"id="pet-summary-view">
 <div class="no-print mb-3">
-<button class="btn btn-secondary"data-action="closePetSummary"><i class="fas fa-arrow-left me-1"></i>ย้อนกลับ</button>
-<button class="btn btn-primary float-end"data-action="printPage"><i class="fas fa-print me-1"></i>พิมพ์ข้อมูล</button>
+<button type="button" class="btn btn-secondary"data-action="closePetSummary"><i class="fas fa-arrow-left me-1"></i>ย้อนกลับ</button>
+<button type="button" class="btn btn-primary float-end"data-action="printPage"><i class="fas fa-print me-1"></i>พิมพ์ข้อมูล</button>
 </div>
 <div id="pet-summary-content"></div>
 <div class="mt-4"id="pet-cases-content"></div>
@@ -2349,12 +2349,12 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </div>
 <ul class="nav nav-tabs mb-4"id="budgetTab">
 <li class="nav-item">
-<button class="nav-link active fw-bold"role="tab"aria-selected="true"aria-controls="b-summary"data-action="showBudgetTab"data-budget-tab="summary"id="budget-tab-summary-btn">รายงานสรุปค่าใช้จ่าย</button>
+<button type="button" class="nav-link active fw-bold"role="tab"aria-selected="true"aria-controls="b-summary"data-action="showBudgetTab"data-budget-tab="summary"id="budget-tab-summary-btn">รายงานสรุปค่าใช้จ่าย</button>
 </li>
 <li class="nav-item">
-<button class="nav-link fw-bold"role="tab"aria-selected="false"aria-controls="b-entry"data-action="showBudgetTab"data-budget-tab="entry"id="budget-tab-entry-btn">การนำเข้าข้อมูล</button></li>
+<button type="button" class="nav-link fw-bold"role="tab"aria-selected="false"aria-controls="b-entry"data-action="showBudgetTab"data-budget-tab="entry"id="budget-tab-entry-btn">การนำเข้าข้อมูล</button></li>
 <li class="nav-item">
-<button class="nav-link fw-bold"role="tab"aria-selected="false"aria-controls="b-typesummary"data-action="showBudgetTab"data-budget-tab="typesummary"id="budget-tab-typesummary-btn">สรุปแยกแต่ละประเภท</button>
+<button type="button" class="nav-link fw-bold"role="tab"aria-selected="false"aria-controls="b-typesummary"data-action="showBudgetTab"data-budget-tab="typesummary"id="budget-tab-typesummary-btn">สรุปแยกแต่ละประเภท</button>
 </li>
 </ul>
 <div class="b-tab"id="b-summary">
@@ -2362,11 +2362,11 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="d-flex justify-content-between mb-3 no-print">
 <h5 class="fw-bold">รายงานสรุปค่าใช้จ่ายงบประมาณ</h5>
 <div class="ms-auto d-flex gap-2 flex-wrap">
-<button class="btn btn-outline-success btn-sm"aria-label="ส่งออกรายงานงบประมาณเป็น Excel"data-action="exportBudgetReportExcel"id="btn-budget-report-excel"><i class="fas fa-file-excel me-1"aria-hidden="true"></i>ส่งออก Excel</button>
-<button class="btn btn-sm btn-primary"data-action="generateAIExecutiveSummary"id="btn-ai-executive-summary"aria-label="ให้ AI วิเคราะห์และสร้างรายงานสรุปงบประมาณ"title="ให้ Gemini AI วิเคราะห์และสร้างรายงานสรุปงบประมาณ 3 ย่อหน้า">
+<button type="button" class="btn btn-outline-success btn-sm"aria-label="ส่งออกรายงานงบประมาณเป็น Excel"data-action="exportBudgetReportExcel"id="btn-budget-report-excel"><i class="fas fa-file-excel me-1"aria-hidden="true"></i>ส่งออก Excel</button>
+<button type="button" class="btn btn-sm btn-primary"data-action="generateAIExecutiveSummary"id="btn-ai-executive-summary"aria-label="ให้ AI วิเคราะห์และสร้างรายงานสรุปงบประมาณ"title="ให้ Gemini AI วิเคราะห์และสร้างรายงานสรุปงบประมาณ 3 ย่อหน้า">
 <i class="fas fa-robot me-1"></i>สร้างรายงานสรุปด้วย AI
 </button>
-<button class="btn btn-outline-primary btn-sm"aria-label="พิมพ์รายงานสรุปงบประมาณ"data-action="printBudgetSummary"><i class="fas fa-print me-1"aria-hidden="true"></i>พิมพ์รายงาน</button>
+<button type="button" class="btn btn-outline-primary btn-sm"aria-label="พิมพ์รายงานสรุปงบประมาณ"data-action="printBudgetSummary"><i class="fas fa-print me-1"aria-hidden="true"></i>พิมพ์รายงาน</button>
 </div>
 </div>
 <div class="card border-0 bg-light mb-3 no-print app-card"id="budget-ai-risk-card">
@@ -2376,7 +2376,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="fw-bold text-primary"><i class="fas fa-triangle-exclamation me-2"></i>AI Budget Risk Dashboard</div>
 <div class="small text-muted">วิเคราะห์ความเสี่ยงงบประมาณและรายการผิดปกติจากข้อมูลปีงบประมาณที่เลือก</div>
 </div>
-<button class="btn btn-outline-primary btn-sm"data-action="loadBudgetRiskDashboard"id="btn-budget-ai-risk">โหลดความเสี่ยง AI</button>
+<button type="button" class="btn btn-outline-primary btn-sm"data-action="loadBudgetRiskDashboard"id="btn-budget-ai-risk">โหลดความเสี่ยง AI</button>
 </div>
 <div class="small text-muted mt-2 d-none"role="status"aria-live="polite"id="budget-ai-risk-loading"><i class="fas fa-spinner fa-spin me-1"></i>กำลังวิเคราะห์ข้อมูล...</div>
 <div class="small mt-2 d-none"role="region"aria-label="สรุปความเสี่ยงจาก AI"id="budget-ai-risk-summary"></div>
@@ -2492,10 +2492,10 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 </select>
 </div>
 <div class="col-md-5 d-flex gap-2">
-<button class="btn btn-primary w-50 fw-bold"data-action="loadBudgetTypeSummary">
+<button type="button" class="btn btn-primary w-50 fw-bold"data-action="loadBudgetTypeSummary">
 <i class="fas fa-search me-1"></i>โหลดข้อมูล
 </button>
-<button class="btn btn-success w-50 fw-bold"data-action="printTypeSummary">
+<button type="button" class="btn btn-success w-50 fw-bold"data-action="printTypeSummary">
 <i class="fas fa-print me-1"></i>พิมพ์รายงาน
 </button>
 </div>
@@ -2528,13 +2528,13 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <h1 class="app-page-heading fw-bold mb-4">การจัดการระบบ (สำหรับผู้ดูแลระบบ)</h1>
 <div class="app-table-scroll no-print mb-4 border-bottom">
 <ul class="nav nav-tabs border-bottom-0 flex-nowrap"id="adminTab"role="tablist">
-<li class="nav-item text-nowrap"><button class="nav-link active"role="tab"aria-selected="true"aria-controls="adm-user"data-action="showAdminTab"data-admin-tab="user">จัดการผู้ใช้งาน</button></li>
-<li class="nav-item text-nowrap"><button class="nav-link"role="tab"aria-selected="false"aria-controls="adm-subcommittee"data-action="showAdminTab"data-admin-tab="subcommittee">คณะอนุกรรมาธิการ</button></li>
-<li class="nav-item text-nowrap"><button class="nav-link"role="tab"aria-selected="false"aria-controls="adm-budgetsettings"data-action="showAdminTab"data-admin-tab="budgetsettings">ตั้งค่าวงเงินงบประมาณ</button></li>
+<li class="nav-item text-nowrap"><button type="button" class="nav-link active"role="tab"aria-selected="true"aria-controls="adm-user"data-action="showAdminTab"data-admin-tab="user">จัดการผู้ใช้งาน</button></li>
+<li class="nav-item text-nowrap"><button type="button" class="nav-link"role="tab"aria-selected="false"aria-controls="adm-subcommittee"data-action="showAdminTab"data-admin-tab="subcommittee">คณะอนุกรรมาธิการ</button></li>
+<li class="nav-item text-nowrap"><button type="button" class="nav-link"role="tab"aria-selected="false"aria-controls="adm-budgetsettings"data-action="showAdminTab"data-admin-tab="budgetsettings">ตั้งค่าวงเงินงบประมาณ</button></li>
 </ul>
 </div>
 <div class="adm-tab"id="adm-user">
-<button class="btn btn-success mb-3 shadow-sm"aria-label="เพิ่มผู้ใช้งาน"data-action="addUserPopup"><i class="fas fa-plus"aria-hidden="true"></i>เพิ่มผู้ใช้งาน</button>
+<button type="button" class="btn btn-success mb-3 shadow-sm"aria-label="เพิ่มผู้ใช้งาน"data-action="addUserPopup"><i class="fas fa-plus"aria-hidden="true"></i>เพิ่มผู้ใช้งาน</button>
 <div class="app-table-scroll table-custom">
 <table data-page-size="20"class="table table-hover mb-0">
 <thead class="table-light">
@@ -2554,7 +2554,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="card mt-3"id="adm-salary-settings">
 <div class="card-header d-flex justify-content-between align-items-center">
 <strong><i class="fas fa-coins me-2"></i>ตั้งค่าวงเงินและอัตราเงินเดือน</strong>
-<button class="btn btn-sm btn-primary"aria-label="บันทึกการตั้งค่าเงินเดือน"data-action="saveAdminSalarySettings"><i class="fas fa-save me-1"aria-hidden="true"></i>บันทึก</button>
+<button type="button" class="btn btn-sm btn-primary"aria-label="บันทึกการตั้งค่าเงินเดือน"data-action="saveAdminSalarySettings"><i class="fas fa-save me-1"aria-hidden="true"></i>บันทึก</button>
 </div>
 <div class="card-body">
 <div class="row g-2 align-items-center mb-2">
@@ -2605,7 +2605,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="card mt-3">
 <div class="card-header d-flex justify-content-between align-items-center">
 <strong><i class="fas fa-money-check-alt me-2"></i>ตั้งค่าวงเงินงบประมาณรายปี</strong>
-<button class="btn btn-sm btn-primary"data-action="openAdminBudgetSettings"><i class="fas fa-plus me-1"></i>จัดการแผนงบประมาณ</button>
+<button type="button" class="btn btn-sm btn-primary"data-action="openAdminBudgetSettings"><i class="fas fa-plus me-1"></i>จัดการแผนงบประมาณ</button>
 </div>
 <div class="card-body text-center">
 <div class="small text-muted py-3">คลิกปุ่ม<b>จัดการแผนงบประมาณ</b>ด้านบน เพื่อเปิดหน้าต่าง(Modal)
@@ -2616,7 +2616,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="adm-tab d-none"id="adm-subcommittee"><div class="card mt-3">
 <div class="card-header d-flex justify-content-between align-items-center">
 <strong><i class="fas fa-sitemap me-2"></i>คณะอนุกรรมาธิการ</strong>
-<button class="btn btn-sm btn-primary"data-action="openSubcommitteePrompt"><i class="fas fa-plus me-1"></i>เพิ่ม</button>
+<button type="button" class="btn btn-sm btn-primary"data-action="openSubcommitteePrompt"><i class="fas fa-plus me-1"></i>เพิ่ม</button>
 </div>
 <div class="card-body">
 <div class="app-table-scroll">
