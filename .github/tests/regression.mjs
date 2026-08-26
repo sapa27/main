@@ -62,4 +62,93 @@ ok('workflow gates regression before deployment',()=>{
 
 ok('public repository does not contain GAS backend source',()=>{assert.ok(!fs.existsSync(path.join(ROOT,'gas-backend')))})
 
+
+ok('artifact performance budgets',()=>{
+  assert.ok(Buffer.byteLength(index,'utf8')<=540000,'index.html exceeds 540 KB budget');
+  assert.ok(Buffer.byteLength(transport,'utf8')<=12000,'transport exceeds 12 KB budget');
+  assert.ok(Buffer.byteLength(config,'utf8')<=3000,'config exceeds 3 KB budget');
+  const blocks=htmlScripts(index);
+  assert.ok(blocks.length<=50,'too many executable inline script blocks');
+  assert.ok(Math.max(...blocks.map(x=>Buffer.byteLength(x,'utf8')))<=100000,'single inline script exceeds 100 KB');
+});
+
+ok('browser security primitives are constrained',()=>{
+  for(const [label,text] of [['index',index],['transport',transport],['config',config]]){
+    assert.ok(!/\beval\s*\(/.test(text),label+' contains eval');
+    assert.ok(!/new\s+Function\b/.test(text),label+' contains new Function');
+    assert.ok(!/document\.write\b/.test(text),label+' contains document.write');
+  }
+  assert.ok(index.includes('app-shared-utility-sanitizer-owner-current'));
+  assert.ok(index.includes('sanitizeSwalOptions'));
+  assert.ok(index.includes('data-app-asset-policy="sri-required-r330"'));
+  const remoteTags=[...index.matchAll(/<(script|link)\b([^>]*(?:src|href)="https?:\/\/[^"]+"[^>]*)>/gi)]
+    .filter(m=>m[1].toLowerCase()==='script'||/rel="stylesheet"/i.test(m[2]));
+  for(const m of remoteTags)assert.ok(/\bintegrity="/i.test(m[2])||/data-app-integrity-exempt="true"/i.test(m[2]),'remote executable asset lacks integrity policy');
+});
+
+ok('accessibility and no-blank loading contract',()=>{
+  assert.equal((index.match(/<button\b(?![^>]*\btype\s*=)/gi)||[]).length,0,'button without explicit type');
+  assert.equal((index.match(/<img\b(?![^>]*\balt\s*=)/gi)||[]).length,0,'image without alt');
+  assert.ok(index.includes('id="main"'));
+  assert.ok(index.includes('id="app-live-region"'));
+  assert.ok(index.includes('id="app-page-loading-state"'));
+  assert.ok(index.includes('role="status"'));
+  assert.ok(index.includes('กำลังโหลดข้อมูล'));
+  assert.ok(index.includes('กรุณารอสักครู่'));
+  assert.ok(index.includes('app:page-changing'));
+  assert.ok(index.includes('app:page-activated'));
+  assert.ok(index.includes('app:page-activation-failed'));
+});
+
+ok('canonical page and role surfaces remain complete',()=>{
+  for(const id of ['dashboard','search','petitioner','meeting','committee-meeting','track','report','people','budget','admin']){
+    assert.ok(index.includes('tpl-page-'+id),'missing page template: '+id);
+  }
+  assert.ok(index.includes('AppPermissionMatrix'));
+  assert.ok(index.includes('data-role-menu="admin"'));
+  assert.ok(index.includes('data-role-menu="admin,staff"'));
+  assert.ok(index.includes('data-role-menu="all"'));
+});
+
+ok('RPC reliability performance and cache rules',()=>{
+  assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
+  assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
+  assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:15000'));
+  assert.ok(transport.includes('function prewarm(){health(false)'));
+  assert.ok(transport.includes('if(RH&&!force)return RH'));
+  assert.ok(transport.includes('if(F[key])return F[key]'));
+  assert.ok(transport.includes('if(write)TTL=Object.create(null)'));
+  assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
+  assert.ok(transport.includes('getLastRpcTrace'));
+});
+
+ok('RPC capability and origin boundary',()=>{
+  assert.ok(transport.includes('parentOrigin'));
+  assert.ok(transport.includes('rpcToken'));
+  assert.ok(transport.includes('rpcVersion'));
+  assert.ok(transport.includes('credentials:"omit"'));
+  assert.ok(transport.includes('referrerPolicy:"no-referrer"'));
+  assert.ok(transport.includes('cache:"no-store"'));
+  assert.ok(!/localStorage\s*\.\s*setItem\s*\([^,]*(?:password|csrf|token)/i.test(index));
+});
+
+ok('data identity and operational feedback markers',()=>{
+  assert.ok(index.includes('ลำดับเรื่อง'));
+  assert.ok(index.includes('เปิดหน้าไม่สำเร็จ'));
+  assert.ok(index.includes('โหลดหน้านี้อีกครั้ง'));
+  assert.ok(index.includes('data-auto-dismiss-ms'));
+  assert.ok(index.includes('app-production-measurement-gate-current'));
+  assert.ok(index.includes('recordMetric'));
+  assert.ok(index.includes('recordWarning'));
+});
+
+ok('repository remains minimal and deployment-safe',()=>{
+  const publicFiles=fs.readdirSync(path.join(ROOT,'github-pages')).sort();
+  assert.deepEqual(publicFiles,['app-config.js','github-gas-transport.js','index.html']);
+  assert.ok(workflow.includes('concurrency:'));
+  assert.ok(workflow.includes('cancel-in-progress: true'));
+  assert.ok(workflow.includes('permissions:'));
+  assert.ok(workflow.includes('id-token: write'));
+});
+
 console.log(`# ${passed} regression groups passed (frontend-only R330 mode)`);
