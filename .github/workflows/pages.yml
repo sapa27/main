@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           node <<'NODE'
-          const fs = require('node:fs');
+          const fs = await import('node:fs');
           const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
           const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
           const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
