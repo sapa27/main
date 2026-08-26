@@ -160,4 +160,14 @@ ok('retired frontend code stays removed',()=>{
   assert.ok(!index.includes('function navFromRoute(path){var inverse;'));
 });
 
+ok('AI chat uses the canonical permission-bound search API',()=>{
+  assert.ok(index.includes('id="app-ai-chat-panel"'));
+  assert.ok(index.includes('id="app-ai-chat-input"'));
+  assert.ok(index.includes('AppAiChatSearch'));
+  assert.ok(index.includes('apiSearchCasesLite'));
+  assert.ok(index.includes('ตอบจากข้อมูลที่ค้นพบตามสิทธิ์ของคุณ'));
+  assert.ok(!index.includes('AIza'));
+  assert.ok(!index.includes('api.openai.com'));
+});
+
 console.log(`# ${passed} regression groups passed (frontend-only R330 mode)`);
