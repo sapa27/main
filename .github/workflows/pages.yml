@@ -41,6 +41,33 @@ jobs:
             node .github/tests/regression.mjs --frontend-only
           fi
 
+      - name: Validate live GAS RPC health contract
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
+          const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
+          const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
+          if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
+          const callback = '__ghRpcCb_cihealth123';
+          const url = new URL(gas);
+          url.searchParams.set('mode','github-rpc-health');
+          url.searchParams.set('parentOrigin','https://sapa27.github.io');
+          url.searchParams.set('rpcVersion',rpc);
+          url.searchParams.set('callback',callback);
+          url.searchParams.set('_ts',Date.now().toString(36));
+          const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
+          if (!response.ok) throw new Error('GAS health HTTP '+response.status);
+          const text = await response.text();
+          const prefix = '/**/'+callback+'(';
+          if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS health JSONP');
+          const payload = JSON.parse(text.slice(prefix.length,-2));
+          if (payload.ok !== true || payload.allowedOrigin !== true) throw new Error('GAS origin health denied');
+          if (payload.transportVersion !== rpc) throw new Error('GAS RPC version mismatch');
+          console.log('GAS RPC health ok:',payload.transportVersion);
+          NODE
+
   deploy:
     needs: regression
     if: github.event_name != 'pull_request'
