@@ -171,6 +171,20 @@ ok('deferred meeting compatibility remains available',()=>{
   assert.ok(index.includes('w.__APP_MEETING_DEFERRED_COMPAT_CURRENT__="r330"'));
 });
 
+ok('session resume is persisted from normalized login responses',()=>{
+  assert.ok(index.includes('id="app-session-resume-persist-current"'));
+  assert.ok(index.includes('__sessionResumePersistCurrent'));
+  assert.ok(index.includes('resume.save(data)'));
+  assert.ok(index.includes('/^api(?:Login|SessionResume)$/i'));
+});
+
+ok('tracking filters dispatch without reloading deferred page assets',()=>{
+  assert.ok(index.includes('id="app-track-filter-fast-dispatch-current"'));
+  assert.ok(index.includes('pages.dispatchAction("filterTrack",target,ev'));
+  assert.ok(index.includes('track-filter-fast-dispatch-r330'));
+  assert.ok(index.includes('ev.stopImmediatePropagation()'));
+});
+
 ok('AI chat uses the canonical permission-bound search API',()=>{
   assert.ok(index.includes('id="app-ai-chat-panel"'));
   assert.ok(index.includes('id="app-ai-chat-input"'));
