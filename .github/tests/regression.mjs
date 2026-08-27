@@ -98,6 +98,8 @@ ok('accessibility and no-blank loading contract',()=>{
   assert.ok(index.includes('app:page-changing'));
   assert.ok(index.includes('app:page-activated'));
   assert.ok(index.includes('app:page-activation-failed'));
+  assert.ok(index.includes('function waitShell(id,start)'));
+  assert.ok(index.includes('host.getClientRects().length'));
 });
 
 ok('canonical page and role surfaces remain complete',()=>{
