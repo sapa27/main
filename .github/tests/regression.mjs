@@ -180,6 +180,13 @@ ok('session resume is persisted from normalized login responses',()=>{
   assert.ok(index.includes('/^api(?:Login|SessionResume)$/i'));
 });
 
+ok('session resume survives background dashboard boot errors',()=>{
+  assert.ok(index.includes('id="app-session-resume-boot-isolation-current"'));
+  assert.ok(index.includes('__sessionResumeBootIsolationCurrent'));
+  assert.ok(index.includes('session.resume.bootMainUi.background'));
+  assert.ok(index.includes('w.__APP_SESSION_RESUME_IN_FLIGHT__'));
+});
+
 ok('tracking filters dispatch without reloading deferred page assets',()=>{
   assert.ok(index.includes('id="app-track-filter-fast-dispatch-current"'));
   assert.ok(index.includes('pages.dispatchAction("filterTrack",target,ev'));
