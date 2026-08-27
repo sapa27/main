@@ -41,7 +41,9 @@ ok('single application revision with RPC protocol separated',()=>{
 });
 
 ok('GAS endpoint is canonical /exec URL',()=>{
-  const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]))
+  const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
+  assert.ok(index.includes('./app-config.js?v=r330-gas53'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r330-gas53'))
 });
 
 ok('SRI integrity preserved',()=>{
