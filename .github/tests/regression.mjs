@@ -115,12 +115,15 @@ ok('canonical page and role surfaces remain complete',()=>{
 ok('RPC reliability performance and cache rules',()=>{
   assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
   assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
+  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000'));
   assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:15000'));
   assert.ok(transport.includes('function prewarm(){health(false)'));
   assert.ok(transport.includes('if(RH&&!force)return RH'));
   assert.ok(transport.includes('if(F[key])return F[key]'));
   assert.ok(transport.includes('function isReadMethod(fn)'));
   assert.ok(transport.includes('read=isReadMethod(fn)'));
+  assert.ok(transport.includes('w[cb]=function(){}'));
+  assert.ok(transport.includes('},30000)'));
   assert.ok(transport.includes('if(write)TTL=Object.create(null)'));
   assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
   assert.ok(transport.includes('getLastRpcTrace'));
