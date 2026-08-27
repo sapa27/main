@@ -165,6 +165,12 @@ ok('retired frontend code stays removed',()=>{
   assert.ok(!index.includes('function navFromRoute(path){var inverse;'));
 });
 
+ok('deferred meeting compatibility remains available',()=>{
+  assert.ok(index.includes('id="app-meeting-deferred-compat-current"'));
+  assert.ok(index.includes('w.__Scripts_Page_Meeting_setVal=function'));
+  assert.ok(index.includes('w.__APP_MEETING_DEFERRED_COMPAT_CURRENT__="r330"'));
+});
+
 ok('AI chat uses the canonical permission-bound search API',()=>{
   assert.ok(index.includes('id="app-ai-chat-panel"'));
   assert.ok(index.includes('id="app-ai-chat-input"'));
