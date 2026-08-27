@@ -192,6 +192,10 @@ ok('AI chat uses the canonical permission-bound search API',()=>{
   assert.ok(index.includes('id="app-ai-chat-input"'));
   assert.ok(index.includes('AppAiChatSearch'));
   assert.ok(index.includes('apiSearchCasesLite'));
+  assert.ok(index.includes('normalizeQuery'));
+  assert.ok(index.includes('ai-chat-natural-language-search-r330'));
+  assert.ok(index.includes('limit:80,pageSize:80'));
+  assert.ok(index.includes('รอพิจารณา'));
   assert.ok(index.includes('ตอบจากข้อมูลที่ค้นพบตามสิทธิ์ของคุณ'));
   assert.ok(!index.includes('AIza'));
   assert.ok(!index.includes('api.openai.com'));
