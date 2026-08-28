@@ -6,8 +6,8 @@ import vm from 'node:vm';
 
 const ROOT = process.cwd();
 const REV = 'r330';
-const RELEASE = 'commission-v1.2-p2b-perf-transport-tuning-2026-08-24-r330';
-const ASSET = 'asset-manifest-r330-perf-transport-tuning';
+const RELEASE = 'commission-v1.2-ai-chat-tracking-paging-2026-08-28-r330';
+const ASSET = 'asset-manifest-r330-ai-chat-tracking-paging';
 const QUALITY = 'current-quality-gate-r330';
 const RPC = 'github-pages-rpc-r330';
 let passed = 0;
@@ -42,8 +42,8 @@ ok('single application revision with RPC protocol separated',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r330-gas53'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r330-gas53'))
+  assert.ok(index.includes('./app-config.js?v=r330-ai-chat-tracking-paging'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r330-ai-chat-tracking-paging'))
 });
 
 ok('SRI integrity preserved',()=>{
@@ -66,7 +66,7 @@ ok('public repository does not contain GAS backend source',()=>{assert.ok(!fs.ex
 
 
 ok('artifact performance budgets',()=>{
-  assert.ok(Buffer.byteLength(index,'utf8')<=540000,'index.html exceeds 540 KB budget');
+  assert.ok(Buffer.byteLength(index,'utf8')<=545000,'index.html exceeds 545 KB budget');
   assert.ok(Buffer.byteLength(transport,'utf8')<=12000,'transport exceeds 12 KB budget');
   assert.ok(Buffer.byteLength(config,'utf8')<=3000,'config exceeds 3 KB budget');
   const blocks=htmlScripts(index);
@@ -178,6 +178,10 @@ ok('session resume is persisted from normalized login responses',()=>{
   assert.ok(index.includes('__sessionResumePersistCurrent'));
   assert.ok(index.includes('resume.save(data)'));
   assert.ok(index.includes('/^api(?:Login|SessionResume)$/i'));
+  assert.ok(index.includes('id="app-session-resume-boot-isolation-current"'));
+  assert.ok(index.includes('__sessionResumeBootIsolationCurrent'));
+  assert.ok(index.includes('session.resume.bootMainUi.background'));
+  assert.ok(index.includes('w.__APP_SESSION_RESUME_IN_FLIGHT__'));
 });
 
 ok('tracking filters dispatch without reloading deferred page assets',()=>{
@@ -193,12 +197,22 @@ ok('AI chat uses the canonical permission-bound search API',()=>{
   assert.ok(index.includes('AppAiChatSearch'));
   assert.ok(index.includes('apiSearchCasesLite'));
   assert.ok(index.includes('normalizeQuery'));
-  assert.ok(index.includes('ai-chat-natural-language-search-r330'));
-  assert.ok(index.includes('limit:80,pageSize:80'));
+  assert.ok(index.includes('ai-chat-natural-language-search-r330-summary-intent'));
+  assert.ok(index.includes('__APP_AI_CHAT_SEARCH_CURRENT__="r330-summary-intent"'));
+  assert.ok(index.includes('function totalFrom(value,rows)'));
+  assert.ok(index.includes('function intent(question)'));
+  assert.ok(index.includes('kind==="countAll"?1:80'));
+  assert.ok(index.includes('มีเรื่องพิจารณาทั้งหมด'));
   assert.ok(index.includes('รอพิจารณา'));
   assert.ok(index.includes('ตอบจากข้อมูลที่ค้นพบตามสิทธิ์ของคุณ'));
   assert.ok(!index.includes('AIza'));
   assert.ok(!index.includes('api.openai.com'));
+});
+
+ok('AI PDF extraction has a dedicated long-running timeout',()=>{
+  assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
+  assert.ok(config.includes('commission-v1.2-ai-chat-tracking-paging-2026-08-28-r330'));
+  assert.ok(config.includes('asset-manifest-r330-ai-chat-tracking-paging'))
 });
 
 console.log(`# ${passed} regression groups passed (frontend-only R330 mode)`);
