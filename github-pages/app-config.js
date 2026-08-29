@@ -1,7 +1,7 @@
 (function(root){"use strict";
 var GAS_URL="https://script.google.com/macros/s/AKfycbzPGoqp2zsH_9kYrcJhtcI0I4GeBjHR1Xv2ptDu507j_fvAbJBoVTWSHF-0SI0e0rLV/exec";
-var RELEASE="commission-v1.2-ai-chat-tracking-paging-2026-08-28-r330";
-var ASSET_VERSION="asset-manifest-r330-ai-chat-tracking-paging";
+var RELEASE="commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330";
+var ASSET_VERSION="asset-manifest-r330-login-dashboard-tracking-v59";
 var QUALITY_GATE="current-quality-gate-r330";
 var RPC_VERSION="github-pages-rpc-r330";
 var TRANSPORT_MODE="github-pages-gas-router-rpc-only";

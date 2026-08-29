@@ -6,8 +6,8 @@ import vm from 'node:vm';
 
 const ROOT = process.cwd();
 const REV = 'r330';
-const RELEASE = 'commission-v1.2-ai-chat-tracking-paging-2026-08-28-r330';
-const ASSET = 'asset-manifest-r330-ai-chat-tracking-paging';
+const RELEASE = 'commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330';
+const ASSET = 'asset-manifest-r330-login-dashboard-tracking-v59';
 const QUALITY = 'current-quality-gate-r330';
 const RPC = 'github-pages-rpc-r330';
 let passed = 0;
@@ -42,8 +42,8 @@ ok('single application revision with RPC protocol separated',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r330-ai-chat-tracking-paging'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r330-ai-chat-tracking-paging'))
+  assert.ok(index.includes('./app-config.js?v=r330-login-dashboard-tracking-v59'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r330-login-dashboard-tracking-v59'))
 });
 
 ok('SRI integrity preserved',()=>{
@@ -191,6 +191,15 @@ ok('tracking filters dispatch without reloading deferred page assets',()=>{
   assert.ok(index.includes('ev.stopImmediatePropagation()'));
 });
 
+ok('login starts the Dashboard data controller automatically',()=>{
+  assert.ok(index.includes('id="app-login-dashboard-autostart-current"'));
+  assert.ok(index.includes('__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__="r330-v59"'));
+  assert.ok(index.includes('AppRouteAssetPrefetchCurrent.prepare("/dashboard")'));
+  assert.ok(index.includes('AppVue3Bridge.activatePage("dashboard")'));
+  assert.ok(index.includes('app:auth-login-success'));
+  assert.ok(index.includes('app:core-runtime-ready'));
+});
+
 ok('AI chat uses the canonical permission-bound search API',()=>{
   assert.ok(index.includes('id="app-ai-chat-panel"'));
   assert.ok(index.includes('id="app-ai-chat-input"'));
@@ -211,8 +220,8 @@ ok('AI chat uses the canonical permission-bound search API',()=>{
 
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
-  assert.ok(config.includes('commission-v1.2-ai-chat-tracking-paging-2026-08-28-r330'));
-  assert.ok(config.includes('asset-manifest-r330-ai-chat-tracking-paging'))
+  assert.ok(config.includes('commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330'));
+  assert.ok(config.includes('asset-manifest-r330-login-dashboard-tracking-v59'))
 });
 
 console.log(`# ${passed} regression groups passed (frontend-only R330 mode)`);
