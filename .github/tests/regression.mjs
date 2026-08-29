@@ -59,7 +59,8 @@ ok('RPC transport is fetch-only',()=>{
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
 
 ok('workflow gates regression before deployment',()=>{
-  assert.ok(workflow.includes('needs: regression'));assert.ok(workflow.includes('actions/checkout@v4'));assert.ok(workflow.includes('actions/configure-pages@v5'));assert.ok(workflow.includes('actions/upload-pages-artifact@v3'));assert.ok(workflow.includes('actions/deploy-pages@v4'));assert.ok(workflow.includes('workflow_dispatch:'));assert.ok(workflow.includes('Run R330 automated regression suite'))
+  assert.ok(workflow.includes('needs: regression'));assert.ok(workflow.includes('actions/checkout@v4'));assert.ok(workflow.includes('actions/configure-pages@v5'));assert.ok(workflow.includes('actions/upload-pages-artifact@v3'));assert.ok(workflow.includes('actions/deploy-pages@v4'));assert.ok(workflow.includes('workflow_dispatch:'));assert.ok(workflow.includes('Run R330 automated regression suite'));
+  assert.ok(workflow.includes('async function fetchHealth()'));assert.ok(workflow.includes('attempt <= 3'));assert.ok(workflow.includes('AbortSignal.timeout(45000)'))
 });
 
 ok('public repository does not contain GAS backend source',()=>{assert.ok(!fs.existsSync(path.join(ROOT,'gas-backend')))})
