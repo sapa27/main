@@ -81,6 +81,66 @@ jobs:
           console.log('GAS RPC health ok:',payload.transportVersion);
           NODE
 
+      - name: Validate live GAS apiRouter round trip
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = await import('node:fs');
+          const { randomUUID } = await import('node:crypto');
+          const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
+          const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
+          const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
+          if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
+          const rpcId = 'req_ci_' + randomUUID().replaceAll('-','');
+          const rpcToken = 'tok_ci_' + randomUUID().replaceAll('-','');
+          const callback = '__ghRpcCb_ciroundtrip1234';
+          const body = new URLSearchParams({
+            mode: 'github-rpc',
+            parentOrigin: 'https://sapa27.github.io',
+            rpcVersion: rpc,
+            rpcId,
+            rpcToken,
+            rpcFunction: 'apiRouter',
+            rpcPayload: JSON.stringify({method:'apiSessionCheck',payload:{}}),
+            traceId: 'trace_ci_' + randomUUID().replaceAll('-',''),
+            clientStartedAt: new Date().toISOString()
+          });
+          const post = await fetch(gas, {
+            method: 'POST',
+            redirect: 'follow',
+            body,
+            signal: AbortSignal.timeout(45000)
+          });
+          if (!post.ok) throw new Error('GAS apiRouter POST HTTP '+post.status);
+          const deadline = Date.now() + 45000;
+          let payload = null;
+          while (Date.now() < deadline) {
+            const url = new URL(gas);
+            for (const [key,value] of Object.entries({
+              mode: 'github-rpc-result',
+              parentOrigin: 'https://sapa27.github.io',
+              rpcVersion: rpc,
+              rpcId,
+              rpcToken,
+              callback,
+              _ts: Date.now().toString(36)
+            })) url.searchParams.set(key,value);
+            const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
+            if (!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
+            const text = await response.text();
+            const prefix = '/**/'+callback+'(';
+            if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
+            payload = JSON.parse(text.slice(prefix.length,-2));
+            if (payload.pending !== true) break;
+            await new Promise(resolve=>setTimeout(resolve,750));
+          }
+          if (!payload || payload.pending === true) throw new Error('GAS apiRouter round trip timeout');
+          if (payload.transportOk !== true || !payload.result || payload.result.ok !== true) {
+            throw new Error('GAS apiRouter round trip failed: '+JSON.stringify(payload && payload.error || payload));
+          }
+          console.log('GAS apiRouter round trip ok');
+          NODE
+
   deploy:
     needs: regression
     if: github.event_name != 'pull_request'
