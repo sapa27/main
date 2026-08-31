@@ -193,6 +193,22 @@ ok('session resume is persisted from normalized login responses',()=>{
   assert.ok(index.includes('w.__APP_SESSION_RESUME_IN_FLIGHT__'));
 });
 
+ok('session resume survives login-route reloads unless logout is explicit',()=>{
+  assert.ok(index.includes('/(?:\\?|&)_logout=/.test(location.search||"")||root2.__APP_LOGGED_OUT_LOCK__||criticalReadyHasActiveSession()'));
+  assert.ok(index.includes('(/(?:\\?|&)_logout=/.test(location.search||"")||root2.__APP_LOGGED_OUT_LOCK__)&&(clearResume(),clearFields()'));
+  assert.ok(index.includes('var explicitLogout=/(?:\\?|&)_logout=/.test(location.search||"")||appBootGet("__APP_LOGGED_OUT_LOCK__",!1)===!0;if(!explicitLogout&&'));
+  assert.ok(index.includes('if(explicitLogout)try{window.AppSessionResume'));
+  assert.ok(!index.includes('location.hash==="#/login"||/(?:\\?|&)_(?:logout|login)=/'));
+  assert.ok(!index.includes('var explicitLogin=location.hash==="#/login"'));
+  assert.ok(!index.includes('if(explicitLogin)try{window.AppSessionResume'));
+});
+
+ok('expired GAS sessions recover to login without a data-error modal',()=>{
+  assert.ok(index.includes('function ae(v){return/SESSION_EXPIRED|AUTH_REQUIRED|UNAUTHORIZED|เซสชันหมดอายุ|ยังไม่ได้เข้าสู่ระบบ/i'));
+  assert.ok(index.includes('root.__APP_FORCE_LOGIN_VIEW__("session-expired-r330")'));
+  assert.ok(index.includes('Promise.resolve({isDismissed:!0})'));
+});
+
 ok('tracking filters dispatch without reloading deferred page assets',()=>{
   assert.ok(index.includes('id="app-track-filter-fast-dispatch-current"'));
   assert.ok(index.includes('pages.dispatchAction("filterTrack",target,ev'));
