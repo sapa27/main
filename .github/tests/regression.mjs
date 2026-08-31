@@ -126,7 +126,7 @@ ok('RPC reliability performance and cache rules',()=>{
   assert.ok(transport.includes('function isReadMethod(fn)'));
   assert.ok(transport.includes('read=isReadMethod(fn)'));
   assert.ok(transport.includes('w[cb]=function(){}'));
-  assert.ok(transport.includes('},30000)'));
+  assert.ok(transport.includes('},600000)'));
   assert.ok(transport.includes('if(write)TTL=Object.create(null)'));
   assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
   assert.ok(transport.includes('getLastRpcTrace'));
@@ -221,6 +221,9 @@ ok('AI chat uses the canonical permission-bound search API',()=>{
 
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
+  assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
+  assert.ok(transport.includes('aiDocument=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
+  assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
   assert.ok(config.includes('commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330'));
   assert.ok(config.includes('asset-manifest-r330-login-dashboard-tracking-v59'))
 });
