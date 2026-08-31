@@ -1,5 +1,5 @@
 (function(root){"use strict";
-var GAS_URL="https://script.google.com/macros/s/AKfycbw5Tp5aRsYczNhhr2n69gBXJNUJQ2I8Md0OR1OptHDPvvqIolRQGfxf6Y50cZ0zZL5-/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbzPGoqp2zsH_9kYrcJhtcI0I4GeBjHR1Xv2ptDu507j_fvAbJBoVTWSHF-0SI0e0rLV/exec";
 var RELEASE="commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330";
 var ASSET_VERSION="asset-manifest-r330-login-dashboard-tracking-v59";
 var QUALITY_GATE="current-quality-gate-r330";
