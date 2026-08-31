@@ -168,6 +168,14 @@ ok('retired frontend code stays removed',()=>{
   assert.ok(!index.includes('function navFromRoute(path){var inverse;'));
 });
 
+
+ok('search edit journey keeps meeting status normalizer available',()=>{
+  assert.ok(index.includes('id="app-meeting-status-normalizer-compat-current"'));
+  assert.ok(index.includes('w.normalizeMeetingStatusValue=function'));
+  assert.ok(index.includes('__APP_MEETING_STATUS_NORMALIZER_COMPAT_CURRENT__="r330-open-editor"'));
+  assert.ok(index.includes('/^กมธ\\.\\s*พิจารณา$/'));
+});
+
 ok('deferred meeting compatibility remains available',()=>{
   assert.ok(index.includes('id="app-meeting-deferred-compat-current"'));
   assert.ok(index.includes('w.__Scripts_Page_Meeting_setVal=function'));
