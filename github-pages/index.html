@@ -15,6 +15,25 @@
 <link data-app-asset-name="fontAwesomeCss" data-app-asset-policy="sri-required-r330" rel="stylesheet"href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="crossorigin="anonymous"referrerpolicy="no-referrer">
 <link data-app-asset-name="googleFonts" data-app-asset-policy="host-pinned-integrity-exempt-r330" data-app-integrity-exempt="true" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet" crossorigin="anonymous" referrerpolicy="no-referrer">
 
+
+<script id="app-meeting-status-normalizer-compat-current">
+(function(w){
+  "use strict";
+  if(typeof w.normalizeMeetingStatusValue==="function")return;
+  var canonical={
+    "เรื่องเข้าใหม่":"เรื่องเข้าใหม่","ไม่รับเรื่อง":"ไม่รับเรื่อง","อนุฯ พิจารณา":"อนุฯ พิจารณา",
+    "รอพิจารณา":"รอพิจารณา","กมธ.พิจารณา":"กมธ.พิจารณา","ยุติเรื่อง":"ยุติเรื่อง",
+    "ส่งหน่วยงาน":"ส่งหน่วยงาน","จัดทำรายงาน":"จัดทำรายงาน"
+  };
+  w.normalizeMeetingStatusValue=function(value){
+    var text=value==null?"":String(value).trim().replace(/\s+/g," ");
+    if(!text)return "เรื่องเข้าใหม่";
+    if(/^กมธ\.\s*พิจารณา$/.test(text))text="กมธ.พิจารณา";
+    return canonical[text]||text;
+  };
+  w.__APP_MEETING_STATUS_NORMALIZER_COMPAT_CURRENT__="r330-open-editor";
+})(window);
+</script>
 <script id="app-central-utility-store-owner">
 (function (root) {
     "use strict";
