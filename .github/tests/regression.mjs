@@ -102,12 +102,16 @@ ok('accessibility and no-blank loading contract',()=>{
   assert.ok(index.includes('app:page-changing'));
   assert.ok(index.includes('app:page-activated'));
   assert.ok(index.includes('app:page-activation-failed'));
+  assert.ok(index.includes('app:request:start'));
   assert.ok(index.includes('app:request:end'));
   assert.ok(index.includes('app:data:rendered'));
   assert.ok(index.includes('app:dashboard-load-settled'));
   assert.ok(index.includes('app:transport:stale-served'));
   assert.ok(index.includes('data-app-route-loading'));
   assert.ok(index.includes('function waitShell(id,start)'));
+  assert.ok(index.includes('function settle(){cancelIdle();if(active)return;idleTimer=setTimeout(function(){if(!active)done()},600)}'));
+  assert.ok(index.includes('if(dataPage.test(route))set(true)'));
+  assert.ok(!index.includes('if(!active)done()},true);["app:data:rendered"'));
   assert.ok(index.includes('host.getClientRects().length'));
 });
 
