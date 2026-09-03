@@ -31,7 +31,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run R330 automated regression suite
+      - name: Run R331/v62 automated regression suite
         shell: bash
         run: |
           set -euo pipefail

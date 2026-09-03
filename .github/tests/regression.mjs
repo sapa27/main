@@ -5,9 +5,10 @@ import path from 'node:path';
 import vm from 'node:vm';
 
 const ROOT = process.cwd();
-const REV = 'r330';
-const RELEASE = 'commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330';
-const ASSET = 'asset-manifest-r330-login-dashboard-tracking-v59';
+const REV = 'r331';
+const RPC_REV = 'r330';
+const RELEASE = 'commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62';
+const ASSET = 'asset-manifest-r331-v62-reliability';
 const QUALITY = 'current-quality-gate-r330';
 const RPC = 'github-pages-rpc-r330';
 let passed = 0;
@@ -23,27 +24,27 @@ const config=file('github-pages/app-config.js');
 const transport=file('github-pages/github-gas-transport.js');
 const workflow=file('.github/workflows/pages.yml');
 
-ok('R330 application release converges across public Pages files',()=>{
+ok('R331/v62 frontend release converges across public Pages files',()=>{
   for(const [name,text] of [['index',index],['config',config],['transport',transport],['workflow',workflow]])assert.ok(text.toLowerCase().includes(REV),`missing ${REV} in ${name}`);
-  assert.ok(index.includes('CANONICAL GITHUB FRONTEND r330'));
+  assert.ok(index.includes('CANONICAL GITHUB FRONTEND r331-v62; GAS RPC PROTOCOL r330'));
   assert.ok(index.includes('sri-required-r330'));
   assert.ok(index.includes('host-pinned-integrity-exempt-r330'));
   assert.ok(config.includes(RELEASE));assert.ok(config.includes(ASSET));assert.ok(config.includes(QUALITY));assert.ok(config.includes(RPC));
-  assert.ok(transport.includes('github-gas-transport.js::rpc-r330'));
+  assert.ok(transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330'));
 });
 
-ok('single application revision with RPC protocol separated',()=>{
+ok('frontend revision is separated from the stable RPC protocol',()=>{
   const stale=[];
   for(const [name,text] of [['index',index],['config',config],['transport',transport],['workflow',workflow]]){
-    for(const token of stripNonRevision(text).match(/r\d{2,3}/gi)||[])if(token.toLowerCase()!==REV)stale.push(`${name}:${token}`)
+    for(const token of stripNonRevision(text).match(/r\d{2,3}/gi)||[])if(![REV,RPC_REV].includes(token.toLowerCase()))stale.push(`${name}:${token}`)
   }
   assert.deepEqual(stale,[])
 });
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r330-login-dashboard-tracking-v59'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r330-login-dashboard-tracking-v59'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-reliability'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-reliability'))
 });
 
 ok('SRI integrity preserved',()=>{
@@ -59,7 +60,7 @@ ok('RPC transport is fetch-only',()=>{
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
 
 ok('workflow gates regression before deployment',()=>{
-  assert.ok(workflow.includes('needs: regression'));assert.ok(workflow.includes('actions/checkout@v4'));assert.ok(workflow.includes('actions/configure-pages@v5'));assert.ok(workflow.includes('actions/upload-pages-artifact@v3'));assert.ok(workflow.includes('actions/deploy-pages@v4'));assert.ok(workflow.includes('workflow_dispatch:'));assert.ok(workflow.includes('Run R330 automated regression suite'));
+  assert.ok(workflow.includes('needs: regression'));assert.ok(workflow.includes('actions/checkout@v4'));assert.ok(workflow.includes('actions/configure-pages@v5'));assert.ok(workflow.includes('actions/upload-pages-artifact@v3'));assert.ok(workflow.includes('actions/deploy-pages@v4'));assert.ok(workflow.includes('workflow_dispatch:'));assert.ok(workflow.includes('Run R331/v62 automated regression suite'));
   assert.ok(workflow.includes('async function fetchHealth()'));assert.ok(workflow.includes('attempt <= 3'));assert.ok(workflow.includes('AbortSignal.timeout(45000)'))
 });
 
@@ -101,6 +102,11 @@ ok('accessibility and no-blank loading contract',()=>{
   assert.ok(index.includes('app:page-changing'));
   assert.ok(index.includes('app:page-activated'));
   assert.ok(index.includes('app:page-activation-failed'));
+  assert.ok(index.includes('app:request:end'));
+  assert.ok(index.includes('app:data:rendered'));
+  assert.ok(index.includes('app:dashboard-load-settled'));
+  assert.ok(index.includes('app:transport:stale-served'));
+  assert.ok(index.includes('data-app-route-loading'));
   assert.ok(index.includes('function waitShell(id,start)'));
   assert.ok(index.includes('host.getClientRects().length'));
 });
@@ -119,15 +125,21 @@ ok('RPC reliability performance and cache rules',()=>{
   assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
   assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
   assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000'));
-  assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:15000'));
+  assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:60000'));
+  assert.ok(config.includes('RPC_READ_STALE_TTL_MS:300000'));
+  assert.ok(config.includes('apiGetDashboardBundle:180000'));
+  assert.ok(config.includes('apiGetTracking:300000'));
   assert.ok(transport.includes('function prewarm(){health(false)'));
   assert.ok(transport.includes('if(RH&&!force)return RH'));
-  assert.ok(transport.includes('if(F[key])return F[key]'));
+  assert.ok(transport.includes('if(key&&F[key])return F[key]'));
+  assert.ok(transport.includes('stale-while-revalidate'));
+  assert.ok(transport.includes('app:transport:cache-updated'));
+  assert.ok(transport.includes('function sessionError(e)'));
   assert.ok(transport.includes('function isReadMethod(fn)'));
   assert.ok(transport.includes('read=isReadMethod(fn)'));
   assert.ok(transport.includes('w[cb]=function(){}'));
   assert.ok(transport.includes('},600000)'));
-  assert.ok(transport.includes('if(write)TTL=Object.create(null)'));
+  assert.ok(transport.includes('if(write){TTL=Object.create(null)'));
   assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
   assert.ok(transport.includes('getLastRpcTrace'));
 });
@@ -248,8 +260,8 @@ ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
   assert.ok(transport.includes('aiDocument=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
   assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
-  assert.ok(config.includes('commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330'));
-  assert.ok(config.includes('asset-manifest-r330-login-dashboard-tracking-v59'))
+  assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
+  assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
 });
 
-console.log(`# ${passed} regression groups passed (frontend-only R330 mode)`);
+console.log(`# ${passed} regression groups passed (frontend r331/v62, RPC r330 mode)`);

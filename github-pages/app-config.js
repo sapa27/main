@@ -1,13 +1,13 @@
 (function(root){"use strict";
 var GAS_URL="https://script.google.com/macros/s/AKfycbzPGoqp2zsH_9kYrcJhtcI0I4GeBjHR1Xv2ptDu507j_fvAbJBoVTWSHF-0SI0e0rLV/exec";
-var RELEASE="commission-v1.2-login-dashboard-tracking-v59-2026-08-28-r330";
-var ASSET_VERSION="asset-manifest-r330-login-dashboard-tracking-v59";
+var RELEASE="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62";
+var ASSET_VERSION="asset-manifest-r331-v62-reliability";
 var QUALITY_GATE="current-quality-gate-r330";
 var RPC_VERSION="github-pages-rpc-r330";
 var TRANSPORT_MODE="github-pages-gas-router-rpc-only";
 var LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg";
-root.APP_GITHUB_CONFIG={GAS_WEB_APP_URL:GAS_URL,RPC_VERSION:RPC_VERSION,RPC_HEALTH_TIMEOUT_MS:20000,RPC_HEALTH_RETRIES:1,RPC_RESULT_JSONP_TIMEOUT_MS:30000,RPC_RESULT_POLL_MIN_MS:250,RPC_RESULT_POLL_MAX_MS:1200,REQUEST_TIMEOUT_MS:90000,WRITE_REQUEST_TIMEOUT_MS:120000,AI_DOCUMENT_TIMEOUT_MS:300000,RPC_READ_CACHE_TTL_MS:15000,DEFERRED_ASSET_VERSION:ASSET_VERSION,DEFERRED_ASSET_FORCE_FRESH:false};
-root.APP_CONFIG=Object.assign({},root.APP_CONFIG||{},{version:"1.2.0-r330",releaseStamp:RELEASE,qualityGate:QUALITY_GATE,transportMode:TRANSPORT_MODE,gasWebAppUrl:GAS_URL,logoUrl:LOGO,deferredAssetVersion:ASSET_VERSION,deferredAssetForceFresh:false,rpcVersion:RPC_VERSION,contractGuardMode:"canonical-function-capability"});
+root.APP_GITHUB_CONFIG={GAS_WEB_APP_URL:GAS_URL,RPC_VERSION:RPC_VERSION,RPC_HEALTH_TIMEOUT_MS:20000,RPC_HEALTH_RETRIES:1,RPC_RESULT_JSONP_TIMEOUT_MS:30000,RPC_RESULT_POLL_MIN_MS:250,RPC_RESULT_POLL_MAX_MS:1200,REQUEST_TIMEOUT_MS:90000,WRITE_REQUEST_TIMEOUT_MS:120000,AI_DOCUMENT_TIMEOUT_MS:300000,RPC_READ_CACHE_TTL_MS:60000,RPC_READ_STALE_TTL_MS:300000,RPC_READ_CACHE_TTL_BY_METHOD_MS:{apiGetDashboardBundle:180000,apiGetTracking:300000,apiGetPeoplePageBundle:180000,apiGetPetitioners:180000,apiSearchCasesLite:60000},DEFERRED_ASSET_VERSION:ASSET_VERSION,DEFERRED_ASSET_FORCE_FRESH:false};
+root.APP_CONFIG=Object.assign({},root.APP_CONFIG||{},{version:"1.2.0-r331-v62",releaseStamp:RELEASE,qualityGate:QUALITY_GATE,transportMode:TRANSPORT_MODE,gasWebAppUrl:GAS_URL,logoUrl:LOGO,deferredAssetVersion:ASSET_VERSION,deferredAssetForceFresh:false,rpcVersion:RPC_VERSION,contractGuardMode:"canonical-function-capability"});
 root.APP_DEPLOY_RELEASE=Object.assign({},root.APP_DEPLOY_RELEASE||{},{stamp:RELEASE,version:root.APP_CONFIG.version,qualityGate:QUALITY_GATE,source:"github-pages/app-config.js",transportMode:TRANSPORT_MODE,rpcVersion:RPC_VERSION,deferredAssetVersion:ASSET_VERSION});
 root.GAS_WEB_APP_URL=GAS_URL;root.APP_FALLBACK_LOGO_URL=LOGO;root.DEFAULT_LOGO=root.DEFAULT_LOGO||LOGO;root.LOGO_URL=root.LOGO_URL||LOGO;
 })(typeof window!=="undefined"?window:globalThis);
