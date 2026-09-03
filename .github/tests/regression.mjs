@@ -234,11 +234,15 @@ ok('tracking filters dispatch without reloading deferred page assets',()=>{
 
 ok('login starts the Dashboard data controller automatically',()=>{
   assert.ok(index.includes('id="app-login-dashboard-autostart-current"'));
-  assert.ok(index.includes('__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__="r330-v59"'));
+  assert.ok(index.includes('__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__="r331-v62.2"'));
   assert.ok(index.includes('AppRouteAssetPrefetchCurrent.prepare("/dashboard")'));
   assert.ok(index.includes('AppVue3Bridge.activatePage("dashboard")'));
   assert.ok(index.includes('app:auth-login-success'));
   assert.ok(index.includes('app:core-runtime-ready'));
+  assert.ok(index.includes('function suspiciousEmpty()'));
+  assert.ok(index.includes('dashboard.transientEmptyRetry'));
+  assert.ok(index.includes('app:dashboard-load-settled'));
+  assert.ok(index.includes('emptyRetry++'));
 });
 
 ok('AI chat uses the canonical permission-bound search API',()=>{
