@@ -112,9 +112,12 @@ jobs:
             signal: AbortSignal.timeout(45000)
           });
           if (!post.ok) throw new Error('GAS apiRouter POST HTTP '+post.status);
-          const deadline = Date.now() + 45000;
+          const deadline = Date.now() + 90000;
           let payload = null;
+          let lastResultError = null;
+          let resultAttempt = 0;
           while (Date.now() < deadline) {
+            resultAttempt += 1;
             const url = new URL(gas);
             for (const [key,value] of Object.entries({
               mode: 'github-rpc-result',
@@ -125,16 +128,22 @@ jobs:
               callback,
               _ts: Date.now().toString(36)
             })) url.searchParams.set(key,value);
-            const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
-            if (!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
-            const text = await response.text();
-            const prefix = '/**/'+callback+'(';
-            if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
-            payload = JSON.parse(text.slice(prefix.length,-2));
-            if (payload.pending !== true) break;
-            await new Promise(resolve=>setTimeout(resolve,750));
+            try {
+              const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
+              if (!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
+              const text = await response.text();
+              const prefix = '/**/'+callback+'(';
+              if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
+              payload = JSON.parse(text.slice(prefix.length,-2));
+              if (payload.pending !== true) break;
+              lastResultError = null;
+            } catch (error) {
+              lastResultError = error;
+              console.warn('GAS apiRouter result attempt '+resultAttempt+' failed:',error && error.message || error);
+            }
+            if (Date.now() < deadline) await new Promise(resolve=>setTimeout(resolve,Math.min(2000,500+resultAttempt*250)));
           }
-          if (!payload || payload.pending === true) throw new Error('GAS apiRouter round trip timeout');
+          if (!payload || payload.pending === true) throw new Error('GAS apiRouter round trip timeout'+(lastResultError?': '+(lastResultError.message||lastResultError):''));
           if (payload.transportOk !== true || !payload.result || payload.result.ok !== true) {
             throw new Error('GAS apiRouter round trip failed: '+JSON.stringify(payload && payload.error || payload));
           }
