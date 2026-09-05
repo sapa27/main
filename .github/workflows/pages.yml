@@ -31,26 +31,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Run R331/v62 automated regression suite
+      - name: Run R331/v62 automated regression suite (static, contract-aware)
         shell: bash
         run: |
           set -euo pipefail
+          mode=--frontend-only
           if [ -d gas-backend ]; then
-            node .github/tests/regression.mjs --full
-          else
-            node .github/tests/regression.mjs --frontend-only
+            mode=--full
           fi
+          echo "Regression mode: ${mode#--}"
+          node .github/tests/regression.mjs "$mode"
 
-      - name: Validate live GAS RPC health contract
+  gas_attestation:
+    needs: regression
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: P2-C attest live GAS release before Pages deploy
         shell: bash
         run: |
           node <<'NODE'
           const fs = await import('node:fs');
-          const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
+          const { randomUUID } = await import('node:crypto');
+          const pageSource = fs.readFileSync('github-pages/index.html','utf8');
+          const cfg = (pageSource.match(/<script id="app-release-config-current">([\s\S]*?)<\/script>/)||[])[1] || '';
           const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
           const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
-          if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
-          const callback = '__ghRpcCb_cihealth123';
+          const expectedRelease = (cfg.match(/RELEASE="([^"]+)"/)||[])[1];
+          const expectedFingerprint = (cfg.match(/SOURCE_FINGERPRINT="([^"]+)"/)||[])[1];
+          if (!gas || !rpc || !expectedRelease || !/^p2c-sha256-[0-9a-f]{64}$/.test(expectedFingerprint||'')) {
+            throw new Error('P2-C canonical release config missing');
+          }
+          const callback = '__ghRpcCb_p2chealth123';
           async function fetchHealth() {
             let lastError;
             for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -69,31 +86,21 @@ jobs:
                 return JSON.parse(text.slice(prefix.length,-2));
               } catch (error) {
                 lastError = error;
-                console.warn('GAS health attempt '+attempt+' failed:',error && error.message || error);
+                console.warn('GAS attestation attempt '+attempt+' failed:',error && error.message || error);
                 if (attempt < 3) await new Promise(resolve=>setTimeout(resolve,attempt*1500));
               }
             }
             throw lastError || new Error('GAS health unavailable');
           }
-          const payload = await fetchHealth();
-          if (payload.ok !== true || payload.allowedOrigin !== true) throw new Error('GAS origin health denied');
-          if (payload.transportVersion !== rpc) throw new Error('GAS RPC version mismatch');
-          console.log('GAS RPC health ok:',payload.transportVersion);
-          NODE
+          const health = await fetchHealth();
+          if (health.ok !== true || health.allowedOrigin !== true) throw new Error('GAS origin health denied');
+          if (health.transportVersion !== rpc) throw new Error('GAS RPC version mismatch');
+          if (health.releaseStamp !== expectedRelease) throw new Error('P2-C GAS release stamp mismatch: '+String(health.releaseStamp||''));
+          if (health.sourceFingerprint !== expectedFingerprint) throw new Error('P2-C GAS source fingerprint mismatch: expected '+expectedFingerprint+' got '+String(health.sourceFingerprint||''));
 
-      - name: Validate live GAS apiRouter round trip
-        shell: bash
-        run: |
-          node <<'NODE'
-          const fs = await import('node:fs');
-          const { randomUUID } = await import('node:crypto');
-          const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
-          const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
-          const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
-          if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
-          const rpcId = 'req_ci_' + randomUUID().replaceAll('-','');
-          const rpcToken = 'tok_ci_' + randomUUID().replaceAll('-','');
-          const callback = '__ghRpcCb_ciroundtrip1234';
+          const rpcId = 'req_p2c_' + randomUUID().replaceAll('-','');
+          const rpcToken = 'tok_p2c_' + randomUUID().replaceAll('-','');
+          const resultCallback = '__ghRpcCb_p2croundtrip123';
           const body = new URLSearchParams({
             mode: 'github-rpc',
             parentOrigin: 'https://sapa27.github.io',
@@ -102,56 +109,34 @@ jobs:
             rpcToken,
             rpcFunction: 'apiRouter',
             rpcPayload: JSON.stringify({method:'apiSessionCheck',payload:{}}),
-            traceId: 'trace_ci_' + randomUUID().replaceAll('-',''),
+            traceId: 'trace_p2c_' + randomUUID().replaceAll('-',''),
             clientStartedAt: new Date().toISOString()
           });
-          const post = await fetch(gas, {
-            method: 'POST',
-            redirect: 'follow',
-            body,
-            signal: AbortSignal.timeout(45000)
-          });
+          const post = await fetch(gas,{method:'POST',redirect:'follow',body,signal:AbortSignal.timeout(45000)});
           if (!post.ok) throw new Error('GAS apiRouter POST HTTP '+post.status);
-          const deadline = Date.now() + 90000;
+          const deadline = Date.now()+90000;
           let payload = null;
-          let lastResultError = null;
-          let resultAttempt = 0;
-          while (Date.now() < deadline) {
-            resultAttempt += 1;
+          while (Date.now()<deadline) {
             const url = new URL(gas);
-            for (const [key,value] of Object.entries({
-              mode: 'github-rpc-result',
-              parentOrigin: 'https://sapa27.github.io',
-              rpcVersion: rpc,
-              rpcId,
-              rpcToken,
-              callback,
-              _ts: Date.now().toString(36)
-            })) url.searchParams.set(key,value);
-            try {
-              const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
-              if (!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
-              const text = await response.text();
-              const prefix = '/**/'+callback+'(';
-              if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
-              payload = JSON.parse(text.slice(prefix.length,-2));
-              if (payload.pending !== true) break;
-              lastResultError = null;
-            } catch (error) {
-              lastResultError = error;
-              console.warn('GAS apiRouter result attempt '+resultAttempt+' failed:',error && error.message || error);
-            }
-            if (Date.now() < deadline) await new Promise(resolve=>setTimeout(resolve,Math.min(2000,500+resultAttempt*250)));
+            for (const [key,value] of Object.entries({mode:'github-rpc-result',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,callback:resultCallback,_ts:Date.now().toString(36)})) url.searchParams.set(key,value);
+            const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
+            if (!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
+            const text = await response.text(), prefix='/**/'+resultCallback+'(';
+            if (!text.startsWith(prefix)||!text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
+            payload = JSON.parse(text.slice(prefix.length,-2));
+            if (payload.pending !== true) break;
+            await new Promise(resolve=>setTimeout(resolve,750));
           }
-          if (!payload || payload.pending === true) throw new Error('GAS apiRouter round trip timeout'+(lastResultError?': '+(lastResultError.message||lastResultError):''));
-          if (payload.transportOk !== true || !payload.result || payload.result.ok !== true) {
-            throw new Error('GAS apiRouter round trip failed: '+JSON.stringify(payload && payload.error || payload));
-          }
-          console.log('GAS apiRouter round trip ok');
+          if (!payload || payload.pending === true) throw new Error('GAS apiRouter round trip timeout');
+          if (payload.transportOk !== true || !payload.result || payload.result.ok !== true) throw new Error('GAS apiRouter round trip failed');
+          if (payload.releaseStamp !== expectedRelease || payload.sourceFingerprint !== expectedFingerprint) throw new Error('P2-C apiRouter release attestation mismatch');
+          console.log(JSON.stringify({gate:'P2-C-live-gas-attestation',releaseStamp:expectedRelease,sourceFingerprint:expectedFingerprint,rpcVersion:rpc,ok:true}));
           NODE
 
   deploy:
-    needs: regression
+    needs: [regression, gas_attestation]
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
@@ -176,3 +161,94 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  production_smoke:
+    needs: deploy
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: P2-C post-deploy dual-host release / performance smoke
+        shell: bash
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          node <<'NODE'
+          const fs = await import('node:fs');
+          const { randomUUID } = await import('node:crypto');
+          const pageSource = fs.readFileSync('github-pages/index.html','utf8');
+          const cfg = (pageSource.match(/<script id="app-release-config-current">([\s\S]*?)<\/script>/)||[])[1] || '';
+          const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
+          const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
+          const expectedRelease = (cfg.match(/RELEASE="([^"]+)"/)||[])[1];
+          const expectedFingerprint = (cfg.match(/SOURCE_FINGERPRINT="([^"]+)"/)||[])[1];
+          if (!gas || !rpc || !expectedRelease || !/^p2c-sha256-[0-9a-f]{64}$/.test(expectedFingerprint||'')) throw new Error('canonical P2-C release config missing');
+          const base = new URL(process.env.PAGE_URL || 'https://sapa27.github.io/main/');
+          async function timed(url, options={}, timeoutMs=30000) {
+            const started=performance.now();
+            const response=await fetch(url,{...options,redirect:'follow',signal:AbortSignal.timeout(timeoutMs)});
+            const text=await response.text();
+            return {ok:response.ok,status:response.status,text,ms:Math.round(performance.now()-started)};
+          }
+          const pageSamples=[]; let pageText='';
+          for(let i=0;i<3;i++){
+            const r=await timed(new URL('./',base),{},20000);
+            if(!r.ok) throw new Error('deployed Pages HTTP '+r.status);
+            pageSamples.push(r.ms); pageText=r.text;
+            if(i<2) await new Promise(resolve=>setTimeout(resolve,500));
+          }
+          const pageMaxMs=Math.max(...pageSamples);
+          if(pageMaxMs>8000) throw new Error('deployed Pages max-of-3 exceeds 8000 ms: '+pageMaxMs);
+          if(!pageText.includes('CANONICAL GITHUB FRONTEND r331-v62')) throw new Error('deployed Pages canonical marker missing');
+          if(!pageText.includes('P2-C IMMUTABLE RELEASE FINGERPRINT '+expectedFingerprint)) throw new Error('deployed Pages immutable fingerprint marker mismatch');
+
+          const deployedCfg=(pageText.match(/<script id="app-release-config-current">([\s\S]*?)<\/script>/)||[])[1]||'';
+          const deployedRelease=(deployedCfg.match(/RELEASE="([^"]+)"/)||[])[1];
+          const deployedFingerprint=(deployedCfg.match(/SOURCE_FINGERPRINT="([^"]+)"/)||[])[1];
+          if(deployedRelease!==expectedRelease||deployedFingerprint!==expectedFingerprint) throw new Error('deployed inline release attestation mismatch');
+
+          const criticalRuntime=await timed(new URL('./app-critical-runtime.js',base),{},20000);
+          if(!criticalRuntime.ok||!criticalRuntime.text.includes('__APP_CRITICAL_LOGIN_RUNTIME_READY__')) throw new Error('deployed critical runtime marker mismatch');
+          if(criticalRuntime.ms>8000) throw new Error('deployed critical runtime fetch exceeds 8000 ms: '+criticalRuntime.ms);
+
+          const transport=await timed(new URL('./github-gas-transport.js',base),{},20000);
+          if(!transport.ok||!transport.text.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport marker mismatch');
+          if(transport.ms>8000) throw new Error('deployed transport fetch exceeds 8000 ms: '+transport.ms);
+
+          const callback='__ghRpcCb_p2chealthprod';
+          const healthUrl=new URL(gas);
+          healthUrl.searchParams.set('mode','github-rpc-health');
+          healthUrl.searchParams.set('parentOrigin','https://sapa27.github.io');
+          healthUrl.searchParams.set('rpcVersion',rpc);
+          healthUrl.searchParams.set('callback',callback);
+          healthUrl.searchParams.set('_ts',Date.now().toString(36));
+          const health=await timed(healthUrl,{},30000), prefix='/**/'+callback+'(';
+          if(!health.ok||!health.text.startsWith(prefix)||!health.text.endsWith(');')) throw new Error('P2-C GAS health response invalid');
+          const healthPayload=JSON.parse(health.text.slice(prefix.length,-2));
+          if(healthPayload.ok!==true||healthPayload.allowedOrigin!==true||healthPayload.transportVersion!==rpc) throw new Error('P2-C GAS health contract failed');
+          if(healthPayload.releaseStamp!==expectedRelease||healthPayload.sourceFingerprint!==expectedFingerprint) throw new Error('P2-C live GAS release mismatch after Pages deploy');
+          if(health.ms>20000) throw new Error('P2-C GAS health exceeds 20000 ms: '+health.ms);
+
+          const rpcId='req_p2cprod_'+randomUUID().replaceAll('-',''), rpcToken='tok_p2cprod_'+randomUUID().replaceAll('-',''), rpcCallback='__ghRpcCb_p2cprodroundtrip';
+          const rpcStarted=performance.now();
+          const postBody=new URLSearchParams({mode:'github-rpc',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,rpcFunction:'apiRouter',rpcPayload:JSON.stringify({method:'apiSessionCheck',payload:{}}),traceId:'trace_p2cprod_'+randomUUID().replaceAll('-',''),clientStartedAt:new Date().toISOString()});
+          const post=await fetch(gas,{method:'POST',redirect:'follow',body:postBody,signal:AbortSignal.timeout(30000)});
+          if(!post.ok) throw new Error('P2-C GAS apiRouter POST HTTP '+post.status);
+          let resultPayload=null; const deadline=Date.now()+45000;
+          while(Date.now()<deadline){
+            const resultUrl=new URL(gas); for(const [k,v] of Object.entries({mode:'github-rpc-result',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,callback:rpcCallback,_ts:Date.now().toString(36)})) resultUrl.searchParams.set(k,v);
+            const r=await timed(resultUrl,{},15000), pfx='/**/'+rpcCallback+'(';
+            if(!r.ok||!r.text.startsWith(pfx)||!r.text.endsWith(');')) throw new Error('P2-C GAS apiRouter result invalid');
+            resultPayload=JSON.parse(r.text.slice(pfx.length,-2)); if(resultPayload.pending!==true) break; await new Promise(resolve=>setTimeout(resolve,500));
+          }
+          const rpcRoundTripMs=Math.round(performance.now()-rpcStarted);
+          if(!resultPayload||resultPayload.pending===true) throw new Error('P2-C GAS apiRouter round trip timeout');
+          if(resultPayload.transportOk!==true||!resultPayload.result||resultPayload.result.ok!==true) throw new Error('P2-C GAS apiRouter round trip failed');
+          if(resultPayload.releaseStamp!==expectedRelease||resultPayload.sourceFingerprint!==expectedFingerprint) throw new Error('P2-C apiRouter production release mismatch');
+          if(rpcRoundTripMs>45000) throw new Error('P2-C GAS apiRouter round trip exceeds 45000 ms: '+rpcRoundTripMs);
+          console.log(JSON.stringify({gate:'P2-C-post-deploy-dual-host-attestation',pageSamplesMs:pageSamples,pageMaxMs,criticalRuntimeMs:criticalRuntime.ms,transportMs:transport.ms,gasHealthMs:health.ms,rpcRoundTripMs,rpcVersion:rpc,releaseStamp:expectedRelease,sourceFingerprint:expectedFingerprint,ok:true}));
+          NODE
