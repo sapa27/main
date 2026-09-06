@@ -5,6 +5,7 @@ on:
     branches: [release/p2f-production]
     paths:
       - '.github/workflows/p2f-stage.yml'
+      - '.p2f-payload/**'
 
 permissions:
   contents: write
