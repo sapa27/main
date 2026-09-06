@@ -5,7 +5,6 @@ on:
     branches: [release/p2f-production]
     paths:
       - '.github/workflows/p2f-stage.yml'
-      - '.p2f-payload/**'
 
 permissions:
   contents: write
@@ -35,14 +34,14 @@ jobs:
           test ! -e github-pages/app-config.js
           node .github/tests/regression.mjs --frontend-only
 
-      - name: Commit exact P2-F release tree
+      - name: Commit verified P2-F source (workflow finalized separately)
         shell: bash
         run: |
           set -euo pipefail
+          git checkout HEAD -- .github/workflows/pages.yml
           rm -rf .p2f-payload
-          rm -f .github/workflows/p2f-stage.yml
           git add -A
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "release: stage P2-F frontend and CI"
+          git commit -m "release: stage verified P2-F frontend source"
           git push origin HEAD:release/p2f-production
