@@ -7,8 +7,8 @@ import crypto from 'node:crypto';
 
 const ROOT = process.cwd();
 const RPC_REV = 'r330';
-const RELEASE = 'commission-v1.3.2-production-2026-09-07';
-const ASSET = 'asset-manifest-v1.3.2';
+const RELEASE = 'commission-v1.3.1-production-2026-09-06';
+const ASSET = 'asset-manifest-v1.3.1';
 const QUALITY = 'current-quality-gate';
 const RPC = 'github-pages-rpc-r330';
 const BACKEND_DIR = path.join(ROOT,'gas-backend');
@@ -64,37 +64,6 @@ function extractNamedFunctionSource(source,name){
 function backendGsSources(){
   if(!FULL)return [];
   return fs.readdirSync(BACKEND_DIR).filter(name=>name.endsWith('.gs')).sort().map(name=>({name,rel:`gas-backend/${name}`,source:file(`gas-backend/${name}`)}));
-}
-function backendFunctionOwner(name){
-  assert.ok(FULL,'backend function owner lookup requires gas-backend');
-  const rows=topLevelFunctionInventory(backendGsSources()).filter(row=>row.name===name);
-  assert.equal(rows.length,1,`canonical backend function owner drift: ${name}`);
-  return rows[0];
-}
-function backendFunctionSource(name){return backendFunctionOwner(name).source}
-function htmlFragmentBody(rel,fragment){
-  const source=file(rel),safe=fragment.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  const re=/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;let m;
-  while((m=re.exec(source))){const attrs=m[1]||'',fm=new RegExp('data-app-fragment=[\"\']'+safe+'[\"\']','i');if(fm.test(attrs))return m[2].trim()}
-  assert.fail(`missing deferred fragment: ${rel}::${fragment}`);
-}
-function publicCriticalSourceBody(){
-  assert.ok(FULL,'critical source projection requires gas-backend');
-  const source=file('gas-backend/Scripts_Critical_Login_Runtime.html'),re=/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi,out=[];let m;
-  while((m=re.exec(source))){const attrs=m[1]||'',id=(attrs.match(/\bid=[\"\']([^\"\']+)[\"\']/i)||[])[1]||'';if(id==='app-gas-iframe-durable-resume-current')continue;out.push(m[2].trim())}
-  assert.equal(out.length,1,'critical runtime must expose one public executable owner plus the GAS-only durable-resume adapter');
-  return out[0];
-}
-function expectedCriticalRuntimeProjection(){
-  assert.ok(FULL,'critical runtime projection requires gas-backend');
-  return '/* Production v1.3.2 critical runtime; stable RPC r330; canonical permission and execution order preserved. */\n'+publicCriticalSourceBody()+'\n\n/* GENERATED_SHELL_PROJECTION_v1_3_2_BEGIN */\n/* GENERATED_PRODUCTION_MEASUREMENT_v1_3_2_BEGIN */\n'+htmlFragmentBody('gas-backend/Runtime_01_Request_Lifecycle.html','production-measurement')+'\n/* GENERATED_PRODUCTION_MEASUREMENT_v1_3_2_END */\n/* GENERATED_SHELL_NAVIGATION_v1_3_2_BEGIN */\n'+htmlFragmentBody('gas-backend/Runtime_03_Table_UI.html','shell-navigation')+'\n/* GENERATED_SHELL_NAVIGATION_v1_3_2_END */\n/* GENERATED_SHELL_PROJECTION_v1_3_2_END */\n';
-}
-function generatedRuntimeFragment(kind){
-  const safe=String(kind||'').toUpperCase().replace(/[^A-Z0-9_]/g,'_');
-  const begin='/* GENERATED_'+safe+'_v1_3_2_BEGIN */',end='/* GENERATED_'+safe+'_v1_3_2_END */';
-  const a=runtime.indexOf(begin),b=runtime.indexOf(end,a+begin.length);
-  assert.ok(a>=0&&b>a,`generated runtime fragment missing: ${kind}`);
-  return runtime.slice(a+begin.length,b).trim();
 }
 function topLevelFunctionInventory(files){
   const rows=[];
@@ -190,9 +159,9 @@ function staticDataContract(coreSource){
   }
   return {entities,methods,block};
 }
-function staticCacheLedgerContract(cacheSource){
+function staticCacheLedgerContract(coreSource){
   const sandbox={};vm.createContext(sandbox);
-  vm.runInContext([extractNamedFunctionSource(cacheSource,'_cacheLedgerCanonicalDomain_'),extractNamedFunctionSource(cacheSource,'_cacheLedgerProfiles_')].join('\n'),sandbox,{filename:'Code_05_Repository_Cache_Performance.static-cache-ledger.js'});
+  vm.runInContext([extractNamedFunctionSource(coreSource,'_cacheLedgerCanonicalDomain_'),extractNamedFunctionSource(coreSource,'_cacheLedgerProfiles_')].join('\n'),sandbox,{filename:'Code_00_PlatformCore.static-cache-ledger.js'});
   return {canonical:sandbox._cacheLedgerCanonicalDomain_,profiles:sandbox._cacheLedgerProfiles_()};
 }
 
@@ -264,9 +233,9 @@ ok('single production release converges across public Pages files',()=>{
   assert.ok(index.includes('sri-required-r330'));
   assert.ok(index.includes('host-pinned-integrity-exempt-r330'));
   assert.ok(config.includes(RELEASE));assert.ok(config.includes(ASSET));assert.ok(config.includes(QUALITY));assert.ok(config.includes(RPC));
-  assert.ok(config.includes('version:"1.3.2"'));
+  assert.ok(config.includes('version:"1.3.1"'));
   assert.ok(!index.includes('CANONICAL GITHUB FRONTEND')&&!index.includes('PRODUCTION RELEASE FINGERPRINT'),'release metadata must not be duplicated in marker comments');
-  assert.ok(!index.includes('clientRelease:"1.3.2"'),'dual-host contract must not duplicate the canonical release version');
+  assert.ok(!index.includes('clientRelease:"1.3.1"'),'dual-host contract must not duplicate the canonical release version');
   assert.ok(transport.includes('github-pages/github-gas-transport.js::rpc-r330::canonical-read-cache'));
 });
 
@@ -305,8 +274,8 @@ ok('production source contains no historical phase/release markers',()=>{
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
   assert.ok(index.includes('id="app-release-config-current"'));
-  assert.ok(index.includes('./app-critical-runtime.js?v=1.3.2'));
-  assert.ok(index.includes('./github-gas-transport.js?v=1.3.2'))
+  assert.ok(index.includes('./app-critical-runtime.js?v=1.3.1'));
+  assert.ok(index.includes('./github-gas-transport.js?v=1.3.1'))
 });
 
 ok('SRI integrity preserved',()=>{
@@ -317,6 +286,20 @@ ok('SRI integrity preserved',()=>{
 ok('RPC transport is fetch-only',()=>{
   assert.ok(transport.includes('w.AppTransport.run=run'));assert.ok(transport.includes('method:"POST",mode:"no-cors"'));
   for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE'])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
+});
+
+ok('RPC ingress rejection and dashboard retry fail-fast are bounded',()=>{
+  assert.ok(config.includes('RPC_READ_SERVER_OBSERVE_TIMEOUT_MS:12000'),'read RPC observe timeout must be explicit');
+  for(const token of ['GAS_RPC_POST_NOT_OBSERVED','function unobservedReadError(rec)','rec.write||rec.serverObserved'])assert.ok(transport.includes(token),`read fail-fast missing: ${token}`);
+  assert.ok(index.includes('lastSettledErrorCode=""'),'dashboard autostart must remember terminal transport failure');
+  assert.ok(index.includes('deterministicError(lastSettledErrorCode)'),'empty-dashboard retry must stop on deterministic transport failures');
+  if(FULL){
+    const core=file('gas-backend/Code_00_PlatformCore.gs'),dashboard=file('gas-backend/Scripts_Page_Dashboard.html');
+    for(const token of ['_githubRpcStoreRejectedEnvelope_','GITHUB_PAGES_ORIGIN_NOT_ALLOWED','GITHUB_RPC_CAPABILITY_INVALID','GITHUB_RPC_VERSION_MISMATCH'])assert.ok(core.includes(token),`backend reject envelope missing: ${token}`);
+    assert.ok(dashboard.includes('v.code || v.errorCode || v.dashboardErrorCode'),'dashboard must preserve transport Error.code');
+    assert.ok(dashboard.includes('dashboardDeterministicTransportError'),'dashboard deterministic retry guard missing');
+    assert.ok(dashboard.includes('GAS_RPC_POST_NOT_OBSERVED'),'dashboard must suppress retry for unobserved POST');
+  }
 });
 
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'index.html#app-release-config-current');jsSyntax(runtime,'app-critical-runtime.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
@@ -441,7 +424,7 @@ ok('release readiness, transport and deployment boundary are canonical',()=>{
   assert.ok(workflow.match(/if: github\.event_name != 'pull_request' && github\.ref == 'refs\/heads\/main'/g)?.length>=3,'all live/deploy jobs must be main-only');
   assert.ok(!workflow.includes("if: github.event_name != 'pull_request'\n"),'unscoped deploy guard remains');
   if(!FULL)return;
-  const core=file('gas-backend/Code_00_PlatformCore.gs'),router=file('gas-backend/Code_20_Router.gs'),auth=file('gas-backend/Code_10_Security_Auth.gs'),manifest=file('gas-backend/appsscript.json'),allBackend=backendGsSources().map(x=>x.source).join('\n');
+  const core=file('gas-backend/Code_00_PlatformCore.gs'),router=file('gas-backend/Code_20_Router.gs'),auth=file('gas-backend/Code_10_Security_Auth.gs'),manifest=file('gas-backend/appsscript.json');
   const surface=staticRouteSurface(router),routeNames=new Set(Object.keys(surface.routes));
   const policy=(core.match(/var APP_RELEASE_POLICY_CURRENT = Object\.freeze\(\{([\s\S]*?)\n\}\);\nfunction _safeScriptProp_/ )||[])[1]||'';
   assert.ok(policy,'release policy source block missing');
@@ -451,13 +434,13 @@ ok('release readiness, transport and deployment boundary are canonical',()=>{
   assert.deepEqual(required.filter(name=>!routeNames.has(name)),[],'release readiness requires a route not present in canonical Router');
   assert.ok(routeNames.has('apiGetReleaseReadiness'),'canonical release readiness route missing');
   assert.ok(!/apiGetPhase[0-9]|apiGetPhase4QaGate/.test(core+router),'retired phase API remains');
-  for(const token of ['github-bridge','github-api-post','legacyBridgeAvailable','APP_GITHUB_BRIDGE_VERSION','XFrameOptionsMode.ALLOWALL'])assert.ok(!allBackend.includes(token),`retired legacy transport remains: ${token}`);
+  for(const token of ['github-bridge','github-api-post','legacyBridgeAvailable','APP_GITHUB_BRIDGE_VERSION','XFrameOptionsMode.ALLOWALL'])assert.ok(!core.includes(token),`retired legacy transport remains: ${token}`);
   assert.ok(core.includes('transportMode: "api-router-fetch-only"'),'backend release transport mode must be fetch-only');
-  assert.ok(backendFunctionSource('_githubRpcJsonpOutput_').includes('ContentService.createTextOutput("/**/" + callback + "("'),'GAS JSONP producer must match the workflow/browser callback framing contract');
+  assert.ok(core.includes('ContentService.createTextOutput("/**/" + callback + "("'),'GAS JSONP producer must match the workflow/browser callback framing contract');
   assert.ok(workflow.includes("const prefix = '/**/'+callback+'('")&&workflow.includes("prefix='/**/'+resultCallback+'('")&&workflow.includes("prefix='/**/'+callback+'('") ,'workflow JSONP parser framing drift');
-  assert.ok(backendFunctionSource('_renderGitHubRpcHealth_').includes('backendModuleAttestation: _backendRuntimeModuleAttestation_()'),'GAS health must attest loaded backend modules');
-  assert.ok(backendFunctionSource('_renderGitHubRpcHealth_').includes('frontendSourceFingerprint: APP_DEPLOY_RELEASE.frontendSourceFingerprint'),'GAS health must bind the expected frontend source fingerprint');
-  assert.ok(backendFunctionSource('_getReleaseReadiness_').includes('release.backendModules'),'release readiness must block on backend module attestation');
+  assert.ok(core.includes('backendModuleAttestation: _backendRuntimeModuleAttestation_()'),'GAS health must attest loaded backend modules');
+  assert.ok(core.includes('frontendSourceFingerprint: APP_DEPLOY_RELEASE.frontendSourceFingerprint'),'GAS health must bind the expected frontend source fingerprint');
+  assert.ok(core.includes('release.backendModules'),'release readiness must block on backend module attestation');
   assert.ok(!manifest.includes('userinfo.email'),'unused userinfo.email OAuth scope remains');
   const defaultRounds=Number((auth.match(/_SECURE_PASSWORD_ROUNDS_\s*=\s*(\d+)/)||[])[1]||0);
   assert.ok(defaultRounds>=7200,'new password hashes must use hardened default rounds');
@@ -482,7 +465,7 @@ ok('all write routes converge on the canonical root write gateway and recovery l
     assert.ok(new RegExp(member.replace('.','\\.')+'\\s*=\\s*function[\\s\\S]{0,180}'+owner).test(budgetFacade),`${member} must resolve to ${owner}`);
     assert.ok(staticCallPath(callGraph.graph,owner,'writeGateway_'),`${owner} must enter canonical writeGateway_`);
   }
-  const gateway=backendFunctionSource('writeGateway_'),domainWrite=backendFunctionSource('domainWrite_'),flush=backendFunctionSource('_cacheLedgerFlush_');
+  const gateway=extractNamedFunctionSource(core,'writeGateway_'),domainWrite=extractNamedFunctionSource(core,'domainWrite_'),flush=extractNamedFunctionSource(core,'_cacheLedgerFlush_');
   assert.ok(gateway.includes('_writeGatewayResetInvalidationQueue_(writeName)'),'root write must start with a fresh invalidation ledger');
   assert.ok(gateway.includes('_writeGatewayInvalidateAfterWrite_(writeName, payload, normalized)'),'successful root write must flush cache invalidation');
   assert.ok(gateway.includes('failed-result-after-repository-mutation'),'failed-result mutation recovery missing');
@@ -500,7 +483,7 @@ ok('write invalidation contracts close over backend cache domains and frontend r
   if(!FULL)return;
   const router=file('gas-backend/Code_20_Router.gs'),core=file('gas-backend/Code_00_PlatformCore.gs'),lifecycle=file('gas-backend/Runtime_01_Request_Lifecycle.html');
   const surface=staticRouteSurface(router),writeRoutes=Object.entries(surface.routes).filter(([,route])=>route.meta.write===true).map(([name])=>name).sort();
-  const cache=file('gas-backend/Code_05_Repository_Cache_Performance.gs'),contract=staticDataContract(core),writeMethods=Object.entries(contract.methods).filter(([,spec])=>spec.write).map(([name])=>name).sort(),ledger=staticCacheLedgerContract(cache),issues=[];
+  const contract=staticDataContract(core),writeMethods=Object.entries(contract.methods).filter(([,spec])=>spec.write).map(([name])=>name).sort(),ledger=staticCacheLedgerContract(core),issues=[];
   assert.deepEqual(writeMethods,writeRoutes,'write route set must exactly equal APP_DATA_CONTRACT_CURRENT write method set');
   for(const method of writeMethods){
     const spec=contract.methods[method];
@@ -595,8 +578,6 @@ ok('async reads enforce latest-request-wins and reject transport-empty responses
   const lifecycle=file('gas-backend/Runtime_01_Request_Lifecycle.html'),
         dashboard=file('gas-backend/Scripts_Page_Dashboard.html'),
         meeting=file('gas-backend/Scripts_Page_Meeting.html'),
-        meetingRuntime=file('gas-backend/Scripts_Page_Meeting_Runtime.html'),
-        committeeMeeting=file('gas-backend/Scripts_Page_CommitteeMeeting.html'),
         report=file('gas-backend/Scripts_Page_ReportTrack.html'),
         petitioner=file('gas-backend/Scripts_Page_Petitioner.html'),
         people=file('gas-backend/Scripts_Page_People.html'),
@@ -608,16 +589,16 @@ ok('async reads enforce latest-request-wins and reject transport-empty responses
   assert.ok(dashboard.includes('requestLane: "dashboard-main"')&&dashboard.includes('rejectEmptyResponse: !0')&&dashboard.includes('if (token !== state.loadToken)\n                return state.data || !1;'),'Dashboard stale completion must be non-destructive');
   assert.ok(report.includes('latestOnly: !prefetch')&&report.includes('requestLane: "report" === mode ? "report-main" : "search-main"'),'Search/Report main reads must use separate latest-only lanes');
   assert.ok(report.includes('var fetchBaseKey = cacheBaseKey;')&&report.includes('if (state.pageCacheBaseKey === fetchBaseKey) state.pageCache[String(entry.page)] = entry;'),'stale Search/Report prefetch must not poison the new query page cache');
-  assert.ok(meetingRuntime.includes('__meetingEditCaseRequestSeq')&&meetingRuntime.includes('function editRequestIsCurrent()'),'Meeting case editor must suppress older case hydration');
-  assert.ok(meetingRuntime.includes('__meetingRelatedRequestSeq')&&meetingRuntime.includes('function relatedRequestIsCurrent()'),'Meeting related history/letter bundle must suppress older case rendering');
-  assert.ok(committeeMeeting.includes('requestLane: "committee-meeting-list"')&&committeeMeeting.includes('requestSeq !== listState.requestSeq'),'Committee meeting list stale errors must not overwrite the current list');
-  assert.ok(committeeMeeting.includes('__committeeMeetingEditSeq')&&committeeMeeting.includes('__committeeMeetingSummarySeq'),'Committee meeting edit/summary reads must have latest-request guards');
+  assert.ok(meeting.includes('__meetingEditCaseRequestSeq')&&meeting.includes('function editRequestIsCurrent()'),'Meeting case editor must suppress older case hydration');
+  assert.ok(meeting.includes('__meetingRelatedRequestSeq')&&meeting.includes('function relatedRequestIsCurrent()'),'Meeting related history/letter bundle must suppress older case rendering');
+  assert.ok(meeting.includes('requestLane: "committee-meeting-list"')&&meeting.includes('requestSeq !== listState.requestSeq'),'Committee meeting list stale errors must not overwrite the current list');
+  assert.ok(meeting.includes('__committeeMeetingEditSeq')&&meeting.includes('__committeeMeetingSummarySeq'),'Committee meeting edit/summary reads must have latest-request guards');
   assert.ok(petitioner.includes('requestLane:"petitioner-list"')&&petitioner.includes('requestSeq!==window.__petitionerLoadSeq||err&&'),'Petitioner stale failures must be non-destructive');
   assert.ok(people.includes('state.requestSeqByTab=state.requestSeqByTab||{}')&&people.includes('requestLane:"people-"+tab'),'People force-refresh must not be overwritten by an older per-tab response');
   assert.ok(people.includes('state.inFlightByTab[tab]===request&&(state.inFlightByTab[tab]=null)'),'old People finally handlers must not clear a newer in-flight request');
   assert.ok(budget.includes('budgetState._summaryRequestSeq=summaryRequestSeq')&&budget.includes('requestLane:"budget-summary"'),'Budget summary must have a canonical latest-only request lane');
   assert.ok(budget.includes('budgetState._summaryPromise===summaryRequest&&(budgetState._summaryPromise=null)'),'old Budget summary finally handlers must not clear a newer request');
-  for(const [name,html] of [['Dashboard',dashboard],['Meeting',meeting],['MeetingRuntime',meetingRuntime],['CommitteeMeeting',committeeMeeting],['ReportTrack',report],['Petitioner',petitioner],['People',people],['Budget',budget]])
+  for(const [name,html] of [['Dashboard',dashboard],['Meeting',meeting],['ReportTrack',report],['Petitioner',petitioner],['People',people],['Budget',budget]])
     htmlScripts(html).forEach((body,i)=>jsSyntax(body,`gas-backend/Scripts_Page_${name}.html#${i+1}`));
   console.log('# async-read audit: critical lanes=Dashboard/Search/Report/Meeting/Petitioner/People/Budget, stale UI overwrite gaps=0, transport-empty admission=guarded');
 });
@@ -626,8 +607,7 @@ ok('session/auth and route transitions suppress obsolete request contexts',()=>{
   if(!FULL)return;
   const lifecycle=file('gas-backend/Runtime_01_Request_Lifecycle.html'),
         critical=file('gas-backend/Scripts_Critical_Login_Runtime.html'),
-        gasIndex=file('gas-backend/Index.html'),
-        navigation=htmlFragmentBody('gas-backend/Runtime_03_Table_UI.html','shell-navigation');
+        gasIndex=file('gas-backend/Index.html');
   for(const token of [
     'var contextEpoch = { auth: 0, route: 0 }',
     'function contextSnapshot()',
@@ -648,17 +628,16 @@ ok('session/auth and route transitions suppress obsolete request contexts',()=>{
   assert.ok(critical.includes('bumpContext("auth","login-attempt")'),'explicit login must fence requests from the prior auth context before apiLogin');
   assert.ok(critical.includes('bumpContext("auth","session-resume-attempt")'),'session resume must fence requests from the prior auth context before apiSessionResume');
   assert.ok(critical.includes('bumpContext("auth","logout-clear-auth")'),'logout must fence authenticated requests before local auth state is cleared');
-  assert.ok(navigation.includes('function runPageActivation(id,generation)')&&navigation.includes('if(!activationIsCurrent(id,generation))return Promise.resolve(!1)'),'route activation must be generation-bound');
-  assert.ok(navigation.includes('app:page-changing')&&navigation.includes('generation:generation'),'route transitions must publish generation context before page activation');
+  assert.ok(gasIndex.includes('function runPageActivation(id,generation)')&&gasIndex.includes('if(!activationIsCurrent(id,generation))return Promise.resolve(!1)'),'route activation must be generation-bound');
+  assert.ok(gasIndex.includes('app:page-changing')&&gasIndex.includes('generation:generation'),'route transitions must publish generation context before page activation');
   console.log('# session-route context audit: auth epoch=login/resume/logout, route epoch=page-changing, in-flight reuse reset=guarded, activation generation=guarded');
 });
 
 ok('production end-to-end production reliability / performance gate is release-blocking and non-destructive',()=>{
-  const measurement=FULL?htmlFragmentBody('gas-backend/Runtime_01_Request_Lifecycle.html','production-measurement'):generatedRuntimeFragment('PRODUCTION_MEASUREMENT');
+  const measurement=scriptById(index,'app-production-measurement-gate-current');
   if(FULL){
     const gasIndex=file('gas-backend/Index.html');
-    assert.equal(scriptById(gasIndex,'app-production-measurement-gate-current'),scriptById(index,'app-production-measurement-gate-current'),'production measurement initializer stub must remain exact dual-host parity');
-    assert.equal(runtime,expectedCriticalRuntimeProjection(),'GitHub critical runtime must be a deterministic projection of canonical GAS runtime sources');
+    assert.equal(measurement,scriptById(gasIndex,'app-production-measurement-gate-current'),'production measurement owner must remain exact dual-host parity');
   }
   for(const token of [
     'CRITICAL_E2E_STEPS = Object.freeze(["login","dashboard","search","editor","meeting","tracking","save","refresh","logout"])',
@@ -677,59 +656,13 @@ ok('production end-to-end production reliability / performance gate is release-b
       'requiredJourneys: Object.freeze(["login-to-dashboard", "route-transition", "critical-e2e", "session-resume-to-dashboard", "logout-to-login"])',
       'journeyBudgets: Object.freeze({ "login-to-dashboard": 30000, "route-transition": 3000, "critical-e2e": 0, "session-resume-to-dashboard": 30000, "logout-to-login": 5000 })',
       'plan.journeyBudgets && plan.journeyBudgets[name]'
-    ])assert.ok((core+quality).includes(token),`server release gate missing: ${token}`);
+    ])assert.ok(core.includes(token),`server release gate missing: ${token}`);
     for(const token of ['endToEndProductionReliabilityGate: !0','criticalJourneySequenceAudit: !0','journeyTimeoutAdmissionAudit: !0','postDeploySmokeGate: !0','production-e2e-reliability-performance-contract'])
       assert.ok(quality.includes(token),`production quality contract missing: ${token}`);
   }
   for(const token of ['production_smoke:','needs: deploy','page_url: ${{ steps.deployment.outputs.page_url }}','Post-deploy dual-host release / performance smoke','pageMaxMs>8000','health.ms>20000','rpcRoundTripMs>45000'])
     assert.ok(workflow.includes(token),`post-deploy CI smoke missing: ${token}`);
   console.log('# production gate: critical flow=9 ordered steps, observed writes only, fresh-after-write required, resume/logout timed, post-deploy Pages+GAS smoke enabled');
-});
-
-ok('architecture consolidation redistributes owners and enforces God-file ceilings',()=>{
-  const publicFiles=fs.readdirSync(path.join(ROOT,'github-pages')).sort();
-  assert.deepEqual(publicFiles,['app-critical-runtime.js','github-gas-transport.js','index.html'],'public artifact count drift');
-  assert.ok(Buffer.byteLength(index,'utf8')<=330000,'GitHub Index exceeds 330 KB architecture ceiling');
-  assert.ok(Buffer.byteLength(runtime,'utf8')<=200000,'generated critical runtime exceeds 200 KB architecture ceiling');
-  assert.ok(Buffer.byteLength(transport,'utf8')<=15000,'transport exceeds 15 KB architecture ceiling');
-  assert.ok(!index.includes('function runPageActivation(id,generation)'),'shell navigation implementation must not regrow inline in GitHub Index');
-  assert.ok(!index.includes('function productionReliabilityStatus()'),'production measurement implementation must not regrow inline in GitHub Index');
-  assert.ok(runtime.includes('GENERATED_SHELL_PROJECTION_v1_3_2_BEGIN')&&runtime.includes('GENERATED_SHELL_PROJECTION_v1_3_2_END'),'generated shell projection boundary missing');
-  if(!FULL)return;
-  const sizes={
-    core:Buffer.byteLength(file('gas-backend/Code_00_PlatformCore.gs'),'utf8'),
-    gasIndex:Buffer.byteLength(file('gas-backend/Index.html'),'utf8'),
-    critical:Buffer.byteLength(file('gas-backend/Scripts_Critical_Login_Runtime.html'),'utf8'),
-    coreRuntime:Buffer.byteLength(file('gas-backend/Scripts_Core_Runtime.html'),'utf8'),
-    reportTrack:Buffer.byteLength(file('gas-backend/Scripts_Page_ReportTrack.html'),'utf8'),
-    meeting:Buffer.byteLength(file('gas-backend/Scripts_Page_Meeting.html'),'utf8'),
-    meetingRuntime:Buffer.byteLength(file('gas-backend/Scripts_Page_Meeting_Runtime.html'),'utf8'),
-    committee:Buffer.byteLength(file('gas-backend/Scripts_Page_CommitteeMeeting.html'),'utf8'),
-    tableUi:Buffer.byteLength(file('gas-backend/Runtime_03_Table_UI.html'),'utf8')
-  };
-  assert.ok(sizes.core<=120000,`Code_00 exceeds 120 KB: ${sizes.core}`);
-  assert.ok(sizes.gasIndex<=300000,`GAS Index exceeds 300 KB: ${sizes.gasIndex}`);
-  assert.ok(sizes.critical<=100000,`critical login runtime exceeds 100 KB: ${sizes.critical}`);
-  assert.ok(sizes.coreRuntime<=200000,`core runtime exceeds 200 KB: ${sizes.coreRuntime}`);
-  assert.ok(sizes.reportTrack<=245000,`ReportTrack exceeds 245 KB: ${sizes.reportTrack}`);
-  assert.ok(sizes.meeting<=80000,`Meeting shell/actions exceeds 80 KB: ${sizes.meeting}`);
-  assert.ok(sizes.meetingRuntime<=285000,`Meeting runtime exceeds 285 KB: ${sizes.meetingRuntime}`);
-  assert.ok(sizes.committee<=110000,`CommitteeMeeting exceeds 110 KB: ${sizes.committee}`);
-  assert.ok(sizes.tableUi<=175000,`Runtime_03 table/UI owner exceeds 175 KB: ${sizes.tableUi}`);
-  assert.equal(backendFunctionOwner('writeGateway_').file,'Code_05_Repository_Cache_Performance.gs','write gateway owner drift');
-  assert.equal(backendFunctionOwner('_cacheLedgerFlush_').file,'Code_05_Repository_Cache_Performance.gs','cache ledger owner drift');
-  assert.equal(backendFunctionOwner('_getReleaseReadiness_').file,'Code_06_Platform_QualityGates.gs','release readiness owner drift');
-  assert.equal(backendFunctionOwner('_renderGitHubRpcHealth_').file,'Code_20_Router.gs','RPC health owner drift');
-  const critical=file('gas-backend/Scripts_Critical_Login_Runtime.html');
-  for(const duplicateId of ['app-critical-foundation-consumer','login-after-logout-no-refresh-fix-currentStamp','app-production-measurement-gate-current','app-production-quality-gate-f5-r330'])assert.ok(!critical.includes('id="'+duplicateId+'"'),`critical runtime duplicate owner regrew: ${duplicateId}`);
-  assert.equal(runtime,expectedCriticalRuntimeProjection(),'generated GitHub critical runtime drifted from canonical GAS source fragments');
-  for(const retired of ['gas-backend/Runtime_02_Date_Time.html','gas-backend/Runtime_05_Status_Aging.html'])assert.ok(!fs.existsSync(path.join(ROOT,retired)),`retired runtime slot returned: ${retired}`);
-  for(const current of ['gas-backend/Scripts_Page_Meeting_Runtime.html','gas-backend/Scripts_Page_CommitteeMeeting.html'])assert.ok(fs.existsSync(path.join(ROOT,current)),`split page owner missing: ${current}`);
-  const prodText=productionReleaseFiles().map(rel=>fs.readFileSync(path.join(ROOT,rel),'utf8')).join('\n');
-  for(const retired of ['Runtime_02_Date_Time','Runtime_05_Status_Aging','Scripts_Page_Meeting::committee'])assert.ok(!prodText.includes(retired),`retired asset owner reference returned: ${retired}`);
-  const quality=file('gas-backend/Code_06_Platform_QualityGates.gs');
-  for(const token of ['architectureOwnerRedistributionAudit: !0','deterministicGeneratedShellProjectionAudit: !0','meetingRouteOwnerSplitAudit: !0','godFileSizeCeilingsAudit: !0','criticalRuntimeDuplicatePrunedAudit: !0','fileCountNeutralArchitectureAudit: !0'])assert.ok(quality.includes(token),`architecture quality contract missing: ${token}`);
-  console.log('# architecture sizes: '+JSON.stringify(sizes));
 });
 
 ok('immutable release fingerprint and dual-deploy attestation remain source-derived',()=>{
@@ -750,7 +683,7 @@ ok('immutable release fingerprint and dual-deploy attestation remain source-deri
     const coreModule=(core.match(/APP_BACKEND_MODULE_MANIFEST_FINGERPRINT = "([^"]+)"/)||[])[1]||'';
     assert.equal(backendModulesConfigured,moduleDerived,'frontend backend-module fingerprint must match all GAS modules');
     assert.equal(coreModule,moduleDerived,'GAS backend-module manifest fingerprint drift');
-    const backendAll=backendGsSources().map(x=>x.source).join('\n');for(const token of ['releaseStamp: APP_DEPLOY_RELEASE.stamp','sourceFingerprint: APP_DEPLOY_RELEASE.sourceFingerprint','frontendSourceFingerprint: APP_DEPLOY_RELEASE.frontendSourceFingerprint','immutableReleaseFingerprintAudit: !0','dualDeployAttestationAudit: !0','liveGasReleaseMatchRequiredBeforePagesDeploy: !0','productionSmokeReleaseMatchRequired: !0'])assert.ok(backendAll.includes(token),`backend attestation contract missing: ${token}`);
+    for(const token of ['releaseStamp: APP_DEPLOY_RELEASE.stamp','sourceFingerprint: APP_DEPLOY_RELEASE.sourceFingerprint','frontendSourceFingerprint: APP_DEPLOY_RELEASE.frontendSourceFingerprint','immutableReleaseFingerprintAudit: !0','dualDeployAttestationAudit: !0','liveGasReleaseMatchRequiredBeforePagesDeploy: !0','productionSmokeReleaseMatchRequired: !0'])assert.ok(core.includes(token)||quality.includes(token),`backend attestation contract missing: ${token}`);
   }
   console.log('# production release fingerprint: '+configured);
 });
@@ -766,11 +699,7 @@ ok('dual-host release and reliability owners stay aligned',()=>{
     'app-upfront-runtime-owner-r330','app-login-dashboard-autostart-current','app-meeting-deferred-compat-current',
     'app-session-resume-persist-current','app-session-resume-boot-isolation-current','app-track-filter-fast-dispatch-current','app-ai-chat-search-current'
   ])assert.equal(scriptById(gasIndex,id),scriptById(index,id),`dual-host owner drift: ${id}`);
-  const canonicalNavigation=htmlFragmentBody('gas-backend/Runtime_03_Table_UI.html','shell-navigation');
-  assert.ok(canonicalNavigation.includes('function startVueBootstrap()'),'canonical navigation fragment must own Vue bootstrap');
-  assert.ok(runtime.includes('function startVueBootstrap()'),'generated GitHub critical runtime must project Vue bootstrap');
-  assert.equal(runtime,expectedCriticalRuntimeProjection(),'dual-host generated critical runtime projection drift');
-  assert.equal(scriptById(gasIndex,'app-shell-navigation-runtime-current'),scriptById(index,'app-shell-navigation-runtime-current'),'dual-host shell-navigation initializer drift');
+  assert.equal(scriptContaining(gasIndex,'function startVueBootstrap()'),scriptContaining(index,'function startVueBootstrap()'),'dual-host Vue/navigation bootstrap drift');
   for(const id of ['tpl-page-track','tpl-page-report','tpl-page-meeting','tpl-page-people','tpl-page-petitioner','tpl-page-budget','tpl-page-admin'])
     assert.equal(normalizeHostTemplate(scriptById(gasIndex,id)),normalizeHostTemplate(scriptById(index,id)),`dual-host template drift: ${id}`);
   assert.equal(normalizeHostTemplate(scriptById(gasIndex,'tpl-vue3-root')),normalizeHostTemplate(scriptById(index,'tpl-vue3-root')),'dual-host shell template drift');
@@ -823,8 +752,7 @@ ok('CSP/PWA and dead-metadata/navigation consolidation stay canonical',()=>{
   const manifest=JSON.parse(manifestMatch[1]);assert.deepEqual(Object.keys(manifest).sort(),['assetPolicy','bundles','chunks','stamp'].sort(),'GitHub asset manifest dead metadata regrew');
   assert.equal(manifest.stamp,ASSET);assert.ok(!Object.hasOwn(manifest.chunks,'personnel'),'personnel chunk alias must remain canonicalized to people');
   assert.deepEqual(Object.keys(manifest.assetPolicy).sort(),['contractFingerprint','stamp'],'GitHub manifest must not duplicate the full AppAssetPolicy registry');
-  const navSource=FULL?htmlFragmentBody('gas-backend/Runtime_03_Table_UI.html','shell-navigation'):runtime;
-  assert.ok(navSource.includes('function canonicalPageId(id){var m=window.AppPermissionMatrix,p=m&&__appIsFn(m.normalizePage)?m.normalizePage(id)'),'canonical shell page normalization must delegate to AppPermissionMatrix');
+  assert.ok(index.includes('function canonicalPageId(id){var m=window.AppPermissionMatrix,p=m&&__appIsFn(m.normalizePage)?m.normalizePage(id)'),'inline page canonicalization must delegate to AppPermissionMatrix');
   assert.ok(index.includes("publish('__APP_DEFERRED_SCRIPTS__',(window.__APP_ASSET_MANIFEST__&&window.__APP_ASSET_MANIFEST__.chunks)||{}"),'deferred-map duplicate fallback must remain removed');
   if(FULL){
     const gasIndex=file('gas-backend/Index.html'),assets=file('gas-backend/Code_03_Platform_Assets.gs'),quality=file('gas-backend/Code_06_Platform_QualityGates.gs');
@@ -839,8 +767,8 @@ ok('CSP/PWA and dead-metadata/navigation consolidation stay canonical',()=>{
 });
 
 ok('artifact performance budgets',()=>{
-  assert.ok(Buffer.byteLength(index,'utf8')<=330000,'index.html exceeds production 330 KB budget');
-  assert.ok(Buffer.byteLength(runtime,'utf8')<=200000,'generated critical runtime exceeds 200 KB budget');
+  assert.ok(Buffer.byteLength(index,'utf8')<=460000,'index.html exceeds production 460 KB budget');
+  assert.ok(Buffer.byteLength(runtime,'utf8')<=95000,'critical runtime exceeds 95 KB budget');
   assert.ok(Buffer.byteLength(transport,'utf8')<=15000,'transport exceeds 15 KB budget');
   assert.ok(Buffer.byteLength(config,'utf8')<=3000,'inline release config exceeds 3 KB budget');
   const blocks=htmlScripts(index);
@@ -850,7 +778,7 @@ ok('artifact performance budgets',()=>{
 
 ok('production preserves canonical external runtime order and file count',()=>{
   assert.ok(index.includes('<script id="app-release-config-current">'),'release config must execute before transport');
-  const configPos=index.indexOf('id="app-release-config-current"'), transportPos=index.indexOf('src="./github-gas-transport.js?v=1.3.2"'), foundationPos=index.indexOf('id="app-critical-foundation-consumer"'), runtimePos=index.indexOf('src="./app-critical-runtime.js?v=1.3.2"'), logoutPos=index.indexOf('id="login-after-logout-no-refresh-fix-currentStamp"');
+  const configPos=index.indexOf('id="app-release-config-current"'), transportPos=index.indexOf('src="./github-gas-transport.js?v=1.3.1"'), foundationPos=index.indexOf('id="app-critical-foundation-consumer"'), runtimePos=index.indexOf('src="./app-critical-runtime.js?v=1.3.1"'), logoutPos=index.indexOf('id="login-after-logout-no-refresh-fix-currentStamp"');
   assert.ok(configPos>=0&&transportPos>configPos&&foundationPos>transportPos&&runtimePos>foundationPos&&logoutPos>runtimePos,'critical runtime execution order drift');
   assert.equal((runtime.match(/__APP_CRITICAL_LOGIN_RUNTIME_READY__/g)||[]).length,2,'external critical runtime owner marker count drift');
   assert.ok(runtime.includes('if(!root2.__APP_CRITICAL_LOGIN_RUNTIME_READY__){root2.__APP_CRITICAL_LOGIN_RUNTIME_READY__=!0'),'external critical runtime owner guard missing');
@@ -950,14 +878,13 @@ ok('RPC capability and origin boundary',()=>{
 });
 
 ok('data identity and operational feedback markers',()=>{
-  const clientSource=index+'\n'+runtime;
-  assert.ok(clientSource.includes('ลำดับเรื่อง'));
-  assert.ok(clientSource.includes('เปิดหน้าไม่สำเร็จ'));
-  assert.ok(clientSource.includes('โหลดหน้านี้อีกครั้ง'));
-  assert.ok(clientSource.includes('data-auto-dismiss-ms'));
+  assert.ok(index.includes('ลำดับเรื่อง'));
+  assert.ok(index.includes('เปิดหน้าไม่สำเร็จ'));
+  assert.ok(index.includes('โหลดหน้านี้อีกครั้ง'));
+  assert.ok(index.includes('data-auto-dismiss-ms'));
   assert.ok(index.includes('app-production-measurement-gate-current'));
-  assert.ok(clientSource.includes('recordMetric'));
-  assert.ok(clientSource.includes('recordWarning'));
+  assert.ok(index.includes('recordMetric'));
+  assert.ok(index.includes('recordWarning'));
 });
 
 ok('repository remains minimal and deployment-safe',()=>{
@@ -1004,11 +931,11 @@ ok('session resume is persisted from normalized login responses',()=>{
 ok('session resume survives login-route reloads unless logout is explicit',()=>{
   assert.ok(runtime.includes('/(?:\\?|&)_logout=/.test(location.search||"")||root2.__APP_LOGGED_OUT_LOCK__||criticalReadyHasActiveSession()'));
   assert.ok(runtime.includes('(/(?:\\?|&)_logout=/.test(location.search||"")||root2.__APP_LOGGED_OUT_LOCK__)&&(clearResume(),clearFields()'));
-  assert.ok(runtime.includes('var explicitLogout=/(?:\\?|&)_logout=/.test(location.search||"")||appBootGet("__APP_LOGGED_OUT_LOCK__",!1)===!0;if(!explicitLogout&&'));
-  assert.ok(runtime.includes('if(explicitLogout)try{window.AppSessionResume'));
-  assert.ok(!runtime.includes('location.hash==="#/login"||/(?:\\?|&)_(?:logout|login)=/'));
-  assert.ok(!runtime.includes('var explicitLogin=location.hash==="#/login"'));
-  assert.ok(!runtime.includes('if(explicitLogin)try{window.AppSessionResume'));
+  assert.ok(index.includes('var explicitLogout=/(?:\\?|&)_logout=/.test(location.search||"")||appBootGet("__APP_LOGGED_OUT_LOCK__",!1)===!0;if(!explicitLogout&&'));
+  assert.ok(index.includes('if(explicitLogout)try{window.AppSessionResume'));
+  assert.ok(!index.includes('location.hash==="#/login"||/(?:\\?|&)_(?:logout|login)=/'));
+  assert.ok(!index.includes('var explicitLogin=location.hash==="#/login"'));
+  assert.ok(!index.includes('if(explicitLogin)try{window.AppSessionResume'));
 });
 
 ok('expired GAS sessions recover to login without a data-error modal',()=>{
@@ -1064,4 +991,4 @@ ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes(ASSET))
 });
 
-console.log(`# ${passed} regression groups passed (production v1.3.2, RPC r330 protocol)`);
+console.log(`# ${passed} regression groups passed (production v1.3.1, RPC r330 protocol)`);
