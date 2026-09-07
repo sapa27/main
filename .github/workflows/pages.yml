@@ -83,9 +83,13 @@ jobs:
                 const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(45000)});
                 if (!response.ok) throw new Error('GAS health HTTP '+response.status);
                 const text = await response.text();
+                const normalized = text.replace(/^\uFEFF/,'').trim();
                 const prefix = '/**/'+callback+'(';
-                if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS health JSONP');
-                return JSON.parse(text.slice(prefix.length,-2));
+                if (!normalized.startsWith(prefix) || !normalized.endsWith(');')) {
+                  const preview = normalized.slice(0,180).replace(/\s+/g,' ');
+                  throw new Error('invalid GAS health JSONP; status='+response.status+' type='+String(response.headers.get('content-type')||'')+' url='+response.url.split('?')[0]+' body='+preview);
+                }
+                return JSON.parse(normalized.slice(prefix.length,-2));
               } catch (error) {
                 lastError = error;
                 console.warn('GAS attestation attempt '+attempt+' failed:',error && error.message || error);
@@ -235,9 +239,9 @@ jobs:
           healthUrl.searchParams.set('rpcVersion',rpc);
           healthUrl.searchParams.set('callback',callback);
           healthUrl.searchParams.set('_ts',Date.now().toString(36));
-          const health=await timed(healthUrl,{},30000), prefix='/**/'+callback+'(';
-          if(!health.ok||!health.text.startsWith(prefix)||!health.text.endsWith(');')) throw new Error('GAS health response invalid');
-          const healthPayload=JSON.parse(health.text.slice(prefix.length,-2));
+          const health=await timed(healthUrl,{},30000), prefix='/**/'+callback+'(', healthText=health.text.replace(/^\uFEFF/,'').trim();
+          if(!health.ok||!healthText.startsWith(prefix)||!healthText.endsWith(');')) throw new Error('GAS health response invalid: '+healthText.slice(0,180).replace(/\s+/g,' '));
+          const healthPayload=JSON.parse(healthText.slice(prefix.length,-2));
           if(healthPayload.ok!==true||healthPayload.allowedOrigin!==true||healthPayload.transportVersion!==rpc) throw new Error('GAS health contract failed');
           if(healthPayload.releaseStamp!==expectedRelease||healthPayload.sourceFingerprint!==expectedFingerprint||healthPayload.frontendSourceFingerprint!==expectedFrontend) throw new Error('live GAS release mismatch after Pages deploy');
           if(!healthPayload.backendModuleAttestation||healthPayload.backendModuleAttestation.ok!==true||healthPayload.backendModuleAttestation.manifestFingerprint!==expectedBackendModules) throw new Error('live GAS backend module attestation mismatch');
@@ -251,9 +255,9 @@ jobs:
           let resultPayload=null; const deadline=Date.now()+45000;
           while(Date.now()<deadline){
             const resultUrl=new URL(gas); for(const [k,v] of Object.entries({mode:'github-rpc-result',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,callback:rpcCallback,_ts:Date.now().toString(36)})) resultUrl.searchParams.set(k,v);
-            const r=await timed(resultUrl,{},15000), pfx='/**/'+rpcCallback+'(';
-            if(!r.ok||!r.text.startsWith(pfx)||!r.text.endsWith(');')) throw new Error('GAS apiRouter result invalid');
-            resultPayload=JSON.parse(r.text.slice(pfx.length,-2)); if(resultPayload.pending!==true) break; await new Promise(resolve=>setTimeout(resolve,500));
+            const r=await timed(resultUrl,{},15000), pfx='/**/'+rpcCallback+'(', resultText=r.text.replace(/^\uFEFF/,'').trim();
+            if(!r.ok||!resultText.startsWith(pfx)||!resultText.endsWith(');')) throw new Error('GAS apiRouter result invalid: '+resultText.slice(0,180).replace(/\s+/g,' '));
+            resultPayload=JSON.parse(resultText.slice(pfx.length,-2)); if(resultPayload.pending!==true) break; await new Promise(resolve=>setTimeout(resolve,500));
           }
           const rpcRoundTripMs=Math.round(performance.now()-rpcStarted);
           if(!resultPayload||resultPayload.pending===true) throw new Error('GAS apiRouter round trip timeout');
