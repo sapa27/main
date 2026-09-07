@@ -1,5 +1,5 @@
 (function(root){"use strict";
-var GAS_URL="https://script.google.com/macros/s/AKfycbzPGoqp2zsH_9kYrcJhtcI0I4GeBjHR1Xv2ptDu507j_fvAbJBoVTWSHF-0SI0e0rLV/exec";
+var GAS_URL="https://script.google.com/macros/s/AKfycbxgsNIyy4vU_TRVMKJkzh8rYYMmDlplzHEdGl2dV47JPu64Gvx2K6XKBi-tYuQOipj-/exec";
 var RELEASE="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62";
 var ASSET_VERSION="asset-manifest-r331-v62-reliability";
 var QUALITY_GATE="current-quality-gate-r330";
