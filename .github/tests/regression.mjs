@@ -6,10 +6,9 @@ import vm from 'node:vm';
 
 const ROOT = process.cwd();
 const REV = 'r331';
-const CACHE_REV = 'r332';
 const RPC_REV = 'r330';
-const RELEASE = 'commission-v1.2-github-backend-alignment-2026-09-08-r332-v69';
-const ASSET = 'asset-manifest-r332-v69-alignment';
+const RELEASE = 'commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62';
+const ASSET = 'asset-manifest-r331-v62-reliability';
 const QUALITY = 'current-quality-gate-r330';
 const RPC = 'github-pages-rpc-r330';
 let passed = 0;
@@ -27,7 +26,7 @@ const workflow=file('.github/workflows/pages.yml');
 
 ok('R331/v62 frontend release converges across public Pages files',()=>{
   for(const [name,text] of [['index',index],['config',config],['transport',transport],['workflow',workflow]])assert.ok(text.toLowerCase().includes(REV),`missing ${REV} in ${name}`);
-  assert.ok(index.includes('CANONICAL GITHUB FRONTEND r331-v62; GAS RPC PROTOCOL r330; CACHE RELEASE r332-v69'));
+  assert.ok(index.includes('CANONICAL GITHUB FRONTEND r331-v62; GAS RPC PROTOCOL r330'));
   assert.ok(index.includes('sri-required-r330'));
   assert.ok(index.includes('host-pinned-integrity-exempt-r330'));
   assert.ok(config.includes(RELEASE));assert.ok(config.includes(ASSET));assert.ok(config.includes(QUALITY));assert.ok(config.includes(RPC));
@@ -37,15 +36,15 @@ ok('R331/v62 frontend release converges across public Pages files',()=>{
 ok('frontend revision is separated from the stable RPC protocol',()=>{
   const stale=[];
   for(const [name,text] of [['index',index],['config',config],['transport',transport],['workflow',workflow]]){
-    for(const token of stripNonRevision(text).match(/r\d{2,3}/gi)||[])if(![REV,CACHE_REV,RPC_REV].includes(token.toLowerCase()))stale.push(`${name}:${token}`)
+    for(const token of stripNonRevision(text).match(/r\d{2,3}/gi)||[])if(![REV,RPC_REV].includes(token.toLowerCase()))stale.push(`${name}:${token}`)
   }
   assert.deepEqual(stale,[])
 });
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r332-v69-alignment'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r332-v69-alignment'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-reliability'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-reliability'))
 });
 
 ok('SRI integrity preserved',()=>{
@@ -269,8 +268,8 @@ ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
   assert.ok(transport.includes('aiDocument=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
   assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
-  assert.ok(config.includes('commission-v1.2-github-backend-alignment-2026-09-08-r332-v69'));
-  assert.ok(config.includes('asset-manifest-r332-v69-alignment'))
+  assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
+  assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
 });
 
-console.log(`# ${passed} regression groups passed (frontend r331/v62, cache r332/v69, RPC r330 mode)`);
+console.log(`# ${passed} regression groups passed (frontend r331/v62, RPC r330 mode)`);
