@@ -1,7 +1,7 @@
 (function(root){"use strict";
 var GAS_URL="https://script.google.com/macros/s/AKfycby2y_IUKo24n1Hgne4tfO4oOVF1bxfKeSZFDsqX7FJry9nEBOeVRhUlJNwUroNmr0c4/exec";
-var RELEASE="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62";
-var ASSET_VERSION="asset-manifest-r331-v62-reliability";
+var RELEASE="commission-v1.2-github-backend-alignment-2026-09-08-r332-v69";
+var ASSET_VERSION="asset-manifest-r332-v69-alignment";
 var QUALITY_GATE="current-quality-gate-r330";
 var RPC_VERSION="github-pages-rpc-r330";
 var TRANSPORT_MODE="github-pages-gas-router-rpc-only";
