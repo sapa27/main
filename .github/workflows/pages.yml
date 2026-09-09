@@ -48,7 +48,7 @@ jobs:
           const fs = await import('node:fs');
           const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
           const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
-          const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
+          const rpc = (cfg.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
           if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
           const callback = '__ghRpcCb_cihealth123';
           async function fetchHealth() {
@@ -89,7 +89,7 @@ jobs:
           const { randomUUID } = await import('node:crypto');
           const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
           const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
-          const rpc = (cfg.match(/RPC_VERSION="([^"]+)"/)||[])[1];
+          const rpc = (cfg.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
           if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
           const rpcId = 'req_ci_' + randomUUID().replaceAll('-','');
           const rpcToken = 'tok_ci_' + randomUUID().replaceAll('-','');
