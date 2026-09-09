@@ -446,9 +446,13 @@ ok('canonical page and role surfaces remain complete',()=>{
 ok('RPC reliability performance and cache rules',()=>{
   assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
   assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
-  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000'));
+  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:15000'));
+  assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'));
+  assert.ok(config.includes('RPC_READ_TIMEOUT_BY_METHOD_MS'));
+  assert.ok(config.includes('apiGetDashboardBundle:35000'));
+  assert.ok(config.includes('apiGetTracking:35000'));
   assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:60000'));
-  assert.ok(config.includes('RPC_READ_STALE_TTL_MS:300000'));
+  assert.ok(config.includes('RPC_READ_STALE_TTL_MS:600000'));
   assert.ok(config.includes('apiGetDashboardBundle:180000'));
   assert.ok(config.includes('apiGetTracking:300000'));
   assert.ok(transport.includes('function prewarm(){health(false)'));
@@ -464,11 +468,16 @@ ok('RPC reliability performance and cache rules',()=>{
   assert.ok(transport.includes('if(write){TTL=Object.create(null)'));
   assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
   assert.ok(transport.includes('getLastRpcTrace'));
+  assert.ok(transport.includes('function requestTimeoutMs('));
+  assert.ok(transport.includes('Math.min(n,Number(m[f]))'));
+  assert.ok(transport.includes('function finishTrace('));
+  assert.ok(transport.includes('app:transport:rpc-start'));
+  assert.ok(transport.includes('app:transport:rpc-settled'));
 });
 
 await okAsync('RPC POST/result handshake fails fast without discarding an earlier result',async()=>{
   assert.ok(transport.includes('Promise.race(['),'RPC must race result polling against POST failure');
-  assert.ok(transport.includes('resultState="post-failed"'));
+  assert.ok(transport.includes('finishTrace(rec,"post-failed"'));
   assert.ok(transport.includes('GAS_RPC_POST_FAILED'));
   assert.ok(transport.includes('GAS_RPC_WRITE_POST_UNCONFIRMED'));
   assert.ok(!transport.includes('rec.postPromise=post(rec,I).catch(function(e)'),'POST failure must not be swallowed');
@@ -488,6 +497,9 @@ await okAsync('RPC POST/result handshake fails fast without discarding an earlie
       capability:()=>`cap_${++seq}`,
       post:()=>postPromise,
       poll:()=>pollPromise,
+      requestTimeoutMs:()=>90000,
+      emit:()=>{},
+      finishTrace:(rec,state)=>{rec.resultState=state;rec.clientDurationMs=1;ctx.LAST_TRACE=Object.assign({},rec)},
       err:(message,code)=>Object.assign(new Error(message),{code}),
       t:v=>v==null?'':String(v)
     };
@@ -739,7 +751,7 @@ ok('AI chat uses the canonical permission-bound search API',()=>{
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
   assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
-  assert.ok(transport.includes('aiDocument=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
+  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
   assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
   assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
   assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
