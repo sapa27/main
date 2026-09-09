@@ -176,3 +176,44 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+
+      - name: Validate deployed Pages release surface
+        shell: bash
+        env:
+          PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          node <<'NODE'
+          const base = String(process.env.PAGES_URL || '').trim();
+          if (!/^https:\/\//.test(base)) throw new Error('Pages deployment URL missing');
+          const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
+          async function fetchReady(url,label) {
+            let lastError;
+            for (let attempt=1; attempt<=5; attempt++) {
+              try {
+                const response = await fetch(url,{redirect:'follow',cache:'no-store',signal:AbortSignal.timeout(30000)});
+                if (!response.ok) throw new Error(label+' HTTP '+response.status);
+                return await response.text();
+              } catch (error) {
+                lastError=error;
+                console.warn(label+' attempt '+attempt+' failed:',error && error.message || error);
+                if (attempt<5) await sleep(attempt*1500);
+              }
+            }
+            throw lastError || new Error(label+' unavailable');
+          }
+          const indexUrl = new URL('./', base).href;
+          const [html,cfg,transport] = await Promise.all([
+            fetchReady(indexUrl,'Pages index'),
+            fetchReady(new URL('app-config.js',indexUrl).href,'Pages config'),
+            fetchReady(new URL('github-gas-transport.js',indexUrl).href,'Pages transport')
+          ]);
+          for (const marker of ['gas-backend-single-source-r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) {
+            if (!html.includes(marker)) throw new Error('deployed index missing '+marker);
+          }
+          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','github-pages-rpc-r330']) {
+            if (!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
+          }
+          if (!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');
+          console.log('Pages post-deploy release surface ok:',indexUrl);
+          NODE
