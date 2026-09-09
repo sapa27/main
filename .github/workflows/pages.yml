@@ -208,10 +208,10 @@ jobs:
             fetchReady(new URL('app-config.js',indexUrl).href,'Pages config'),
             fetchReady(new URL('github-gas-transport.js',indexUrl).href,'Pages transport')
           ]);
-          for (const marker of ['gas-backend-single-source-r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) {
+          for (const marker of ['CANONICAL GITHUB FRONTEND r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) {
             if (!html.includes(marker)) throw new Error('deployed index missing '+marker);
           }
-          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','github-pages-rpc-r330']) {
+          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330']) {
             if (!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
           }
           if (!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');
