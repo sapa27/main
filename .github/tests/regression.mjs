@@ -658,6 +658,15 @@ ok('Thai holiday settings are parsed without an undefined add() owner',()=>{
   assert.deepEqual(budgetWarnings,[],'valid budget holiday settings should not emit warnings');
 });
 
+ok('dashboard deferred assets do not false-timeout behind the RPC health preflight',()=>{
+  assert.ok(config.includes('pageScriptLoadTimeoutMs:55000'),'page-script timeout must outlive the transport read timeout');
+  assert.ok(config.includes('pageActivationTimeoutMs:75000'),'page activation must allow deferred script completion');
+  assert.ok(transport.includes('fn==="getDeferredInclude"?Promise.resolve(true):health(false)'),'deferred include must not wait for a duplicate health preflight');
+  assert.ok(index.includes('routeConfiguredTimeout("pageScriptLoadTimeoutMs",20000,5000,90000)'));
+  assert.ok(index.includes('routeConfiguredTimeout("pageActivationTimeoutMs",30000,10000,120000)'));
+  assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'),'transport remains bounded at 45 seconds');
+});
+
 ok('repository remains minimal and deployment-safe',()=>{
   const publicFiles=fs.readdirSync(path.join(ROOT,'github-pages')).sort();
   assert.deepEqual(publicFiles,['app-config.js','github-gas-transport.js','index.html']);
