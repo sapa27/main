@@ -817,6 +817,43 @@ ok('single-owner frontend surfaces contain no duplicate active implementation or
   assert.deepEqual(dupDom,[],'duplicate live DOM ids detected: '+dupDom.join(','));
 });
 
+ok('table and card loading states are visible once per active data surface',()=>{
+  if(MODE==='full'){
+    const dash=file('gas-backend/Scripts_Page_Dashboard.html');
+    const reportTrack=file('gas-backend/Scripts_Page_ReportTrack.html');
+    const meeting=file('gas-backend/Scripts_Page_Meeting.html');
+    const people=file('gas-backend/Scripts_Page_People.html');
+    const budget=file('gas-backend/Scripts_Page_Budget.html');
+    const admin=file('gas-backend/Scripts_Page_Admin.html');
+    const gasIndex=file('gas-backend/Index.html');
+    assert.ok(dash.includes('function dashboardSetChartLoading(active)'));
+    assert.ok(dash.includes('var loadingText="กำลังโหลดข้อมูล"'));
+    ['table-case-status','table-type','table-topic','table-letter','table-budget-summary','table-budget-status-summary','table-meeting-summary'].forEach(id=>{
+      assert.ok(gasIndex.includes('id="'+id+'"><tr data-app-loading-state="dashboard"'),id+' must have first-paint loading state');
+    });
+    assert.ok(reportTrack.includes('data-app-loading-state="search"'));
+    assert.ok(reportTrack.includes('data-app-loading-state="report"'));
+    assert.ok(reportTrack.includes('app-table-loading-state"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>กำลังโหลดข้อมูล'));
+    assert.ok(meeting.includes('data-app-loading-state="committee-meeting-list"'));
+    assert.ok(meeting.includes('meeting-history-tbody",\'<tr><td colspan="5" class="text-center text-muted py-3">กำลังโหลดข้อมูล</td></tr>\''));
+    assert.ok(meeting.includes('meeting-letter-tbody",\'<tr><td colspan="8" class="text-center text-muted py-3">กำลังโหลดข้อมูล</td></tr>\''));
+    assert.ok(people.includes('data-app-loading-state="people"'));
+    assert.ok(people.includes('data-app-loading-state="people-salary"'));
+    assert.ok(budget.includes('data-app-loading-state="budget-summary"'));
+    assert.ok(budget.includes('data-app-loading-state="budget-type-summary"'));
+    assert.ok(admin.includes('data-app-loading-state="admin-users"'));
+    assert.ok(admin.includes('data-app-loading-state="admin-subcommittee"'));
+    assert.ok(admin.includes('status.id="adm-salary-loading-state"'));
+    assert.ok(admin.includes('status.textContent="กำลังโหลดข้อมูล"'));
+    assert.ok(!admin.includes('setAttribute("placeholder","กำลังโหลด...")'));
+    assert.equal((gasIndex.match(/class="app-dashboard-chart-loading text-center text-muted py-5"/g)||[]).length,2,'each Dashboard chart card must have exactly one first-paint loading message');
+    assert.ok(/id="pet-table-res"[\s\S]{0,120}>กำลังโหลดข้อมูล<\/td>/.test(gasIndex));
+    [reportTrack,meeting,people,budget,admin].forEach(src=>{
+      assert.ok(!/data-app-loading-state=["'][^"']+["'][\s\S]{0,180}(?:appendChild|insertAdjacentHTML)/.test(src),'loading states must replace a surface, not append duplicate messages');
+    });
+  }
+});
+
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
   assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
