@@ -404,12 +404,35 @@ ok('browser security primitives are constrained',()=>{
   for(const m of remoteTags)assert.ok(/\bintegrity="/i.test(m[2])||/data-app-integrity-exempt="true"/i.test(m[2]),'remote executable asset lacks integrity policy');
 });
 
+ok('section loading preserves rows, avoids duplicates, and clears on navigation',()=>{
+  const listeners={};
+  function node(tag,visible=true){return {tagName:tag.toUpperCase(),children:[],getClientRects:()=>visible?[1]:[],setAttribute(){},contains(other){return this.children.includes(other)},querySelector(){return this.children.find(n=>n.className==='app-section-loading')||null},insertBefore(n){n.parentNode=this;this.children.unshift(n)},removeChild(n){this.children=this.children.filter(x=>x!==n);n.parentNode=null}}}
+  const table=node('table'),card=node('div'),hidden=node('table',false),row={data:'existing'};table.children.push(row);
+  const host={querySelector:()=>({}),getClientRects:()=>[1],querySelectorAll:()=>[table,card,hidden]};
+  const doc={getElementById:id=>id==='p-search'?host:null,querySelector:()=>null,createElement:tag=>node(tag),addEventListener(name,fn){(listeners[name]||(listeners[name]=[])).push(fn)}};
+  const ctx={document:doc,setTimeout,clearTimeout,Date,Object,String,Number};ctx.window=ctx;
+  vm.runInNewContext(scriptBlockById(index,'app-route-loading-controller-current').replace(/^<script[^>]*>/,'').replace(/<\/script>$/,''),ctx);
+  const emit=(name,detail)=>{for(const fn of listeners[name]||[])fn({detail})};
+  emit('app:page-changing',{to:'search',generation:1});
+  assert.equal(table.children[0].tagName,'CAPTION');
+  assert.equal(table.children[0].textContent,'กำลังโหลดข้อมูล');
+  assert.equal(table.children[1],row,'existing rows remain usable');
+  assert.equal(card.children.length,1);assert.equal(hidden.children.length,0);
+  emit('app:request:start',{requestId:'one',pageId:'search',generation:1});
+  assert.equal(table.children.length,2,'repeated loading must not duplicate status');
+  emit('app:page-changing',{to:'login',generation:2});
+  assert.equal(table.children.length,1);assert.equal(card.children.length,0);
+  ctx.AppPageLoading.hide();
+});
+
 ok('accessibility and no-blank loading contract',()=>{
   assert.equal((index.match(/<button\b(?![^>]*\btype\s*=)/gi)||[]).length,0,'button without explicit type');
   assert.equal((index.match(/<img\b(?![^>]*\balt\s*=)/gi)||[]).length,0,'image without alt');
   assert.ok(index.includes('id="main"'));
   assert.ok(index.includes('id="app-live-region"'));
-  assert.ok(index.includes('id="app-page-loading-state"'));
+  assert.ok(!index.includes('id="app-page-loading-state"'),'full-page data loading overlay must be absent');
+  assert.ok(index.includes('caption.app-section-loading'));
+  assert.ok(index.includes('n.textContent="กำลังโหลดข้อมูล"'));
   assert.ok(index.includes('role="status"'));
   assert.ok(index.includes('กำลังโหลดข้อมูล'));
   assert.ok(index.includes('กรุณารอสักครู่'));
@@ -421,7 +444,7 @@ ok('accessibility and no-blank loading contract',()=>{
   assert.ok(index.includes('app:data:rendered'));
   assert.ok(index.includes('app:dashboard-load-settled'));
   assert.ok(index.includes('app:transport:stale-served'));
-  assert.ok(index.includes('data-app-route-loading'));
+  assert.ok(!index.includes('data-app-route-loading'),'loading must not apply a whole-page visual state');
   assert.ok(index.includes('function waitShell(id,start)'));
   assert.ok(index.includes('function settle(){cancelIdle();if(active)return;idleTimer=setTimeout(function(){if(!active)done("idle-after-data")},600)}'));
   assert.ok(index.includes('app:route-settled'));
@@ -758,3 +781,4 @@ ok('AI PDF extraction has a dedicated long-running timeout',()=>{
 });
 
 console.log(`# ${passed} regression groups passed (${MODE} repository mode; frontend r331/v62, RPC r330 mode)`);
+
