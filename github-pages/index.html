@@ -839,6 +839,10 @@ html body .mobile-topbar .mobile-menu-btn,html body .mobile-topbar button,html b
 caption.app-section-loading{caption-side:top}
 @media print{.app-section-loading{display:none!important}}
 </style>
+<style id="app-no-global-loading-cover-current">
+/* No full-page loading cover: loading feedback stays local to each data section. */
+#app-boot-status,.app-boot-status,.app-initial-shell,.app-loading-overlay,.page-loading-overlay,.loading-overlay{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+</style>
 <script src="./app-config.js?v=r331-v62-reliability"></script>
 </head>
 <body class="vue3-preserve-body">
@@ -871,10 +875,7 @@ try{document.documentElement.setAttribute("data-permission-matrix-stamp",String(
 </script>
 <a class="app-skip-link"href="#main">ข้ามไปยังเนื้อหาหลัก</a>
 <div id="app-live-region"class="app-live-region app-sr-only"role="status"aria-live="polite"aria-atomic="true"></div>
-<div id="app"><div class="app-initial-shell"aria-live="polite"><div class="app-initial-card"><div class="app-initial-logo"></div><div class="app-initial-title">ระบบบริหารจัดการเรื่องพิจารณา</div><div class="app-initial-subtitle">กำลังเตรียมหน้าเข้าระบบ...</div></div></div></div>
-<div id="app-boot-status"class="app-boot-status"aria-live="polite">
-<div class="app-boot-note text-center small mt-3">กำลังเตรียมระบบ หากหน้านี้ค้างอยู่กรุณาโหลดหน้าใหม่</div>
-</div>
+<div id="app"></div>
 <script type="text/x-template"id="tpl-vue3-root">
 <div class="vue3-preserve-root">
 <div class="vue3-login-host"v-show="!state.shellReady">
