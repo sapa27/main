@@ -211,7 +211,7 @@ ok('P1-E route operational status requires a mounted canonical lifecycle control
 
 ok('P1-E route loading ignores stale request completions from an older generation',()=>{
   const block=scriptBlockById(index,'app-route-loading-controller-current');
-  assert.ok(block.includes('r331-v62.2-route-generation-data-ready'));
+  assert.ok(block.includes('r331-v62-route-generation-data-ready'));
   const body=block.replace(/^<script\b[^>]*>/i,'').replace(/<\/script\s*>$/i,'');
   const listeners=Object.create(null),loading={hidden:true,setAttribute(){},removeAttribute(){}},host={querySelector:()=>({}),getClientRects:()=>[1]};
   const doc={
@@ -404,24 +404,22 @@ ok('browser security primitives are constrained',()=>{
   for(const m of remoteTags)assert.ok(/\bintegrity="/i.test(m[2])||/data-app-integrity-exempt="true"/i.test(m[2]),'remote executable asset lacks integrity policy');
 });
 
-ok('section loading preserves rows, avoids duplicates, and clears on navigation',()=>{
+ok('route loading is telemetry-only and never injects duplicate table/card messages',()=>{
   const listeners={};
-  function node(tag,visible=true){return {tagName:tag.toUpperCase(),children:[],getClientRects:()=>visible?[1]:[],setAttribute(){},contains(other){return this.children.includes(other)},querySelector(){return this.children.find(n=>n.className==='app-section-loading')||null},insertBefore(n){n.parentNode=this;this.children.unshift(n)},removeChild(n){this.children=this.children.filter(x=>x!==n);n.parentNode=null}}}
-  const table=node('table'),card=node('div'),hidden=node('table',false),row={data:'existing'};table.children.push(row);
-  const host={querySelector:()=>({}),getClientRects:()=>[1],querySelectorAll:()=>[table,card,hidden]};
-  const doc={getElementById:id=>id==='p-search'?host:null,querySelector:()=>null,createElement:tag=>node(tag),addEventListener(name,fn){(listeners[name]||(listeners[name]=[])).push(fn)}};
-  const ctx={document:doc,setTimeout,clearTimeout,Date,Object,String,Number};ctx.window=ctx;
+  function node(tag){return {tagName:tag.toUpperCase(),children:[],getClientRects:()=>[1],setAttribute(){},querySelector(){return null},insertBefore(n){n.parentNode=this;this.children.unshift(n)},removeChild(n){this.children=this.children.filter(x=>x!==n);n.parentNode=null}}}
+  const table=node('table'),card=node('div'),row={data:'existing'};table.children.push(row);
+  const host={querySelector:()=>({}),getClientRects:()=>[1],querySelectorAll:()=>[table,card]};
+  const doc={getElementById:id=>id==='p-search'?host:null,querySelector:()=>null,querySelectorAll:()=>[],createElement:tag=>node(tag),addEventListener(name,fn){(listeners[name]||(listeners[name]=[])).push(fn)},dispatchEvent(){return true}};
+  const ctx={document:doc,setTimeout,clearTimeout,Date,Object,String,Number,Array,CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail}};ctx.window=ctx;
   vm.runInNewContext(scriptBlockById(index,'app-route-loading-controller-current').replace(/^<script[^>]*>/,'').replace(/<\/script>$/,''),ctx);
   const emit=(name,detail)=>{for(const fn of listeners[name]||[])fn({detail})};
   emit('app:page-changing',{to:'search',generation:1});
-  assert.equal(table.children[0].tagName,'CAPTION');
-  assert.equal(table.children[0].textContent,'กำลังโหลดข้อมูล');
-  assert.equal(table.children[1],row,'existing rows remain usable');
-  assert.equal(card.children.length,1);assert.equal(hidden.children.length,0);
+  assert.equal(table.children.length,1,'route loading must not inject a caption/status row');
+  assert.equal(table.children[0],row,'existing rows must remain untouched');
+  assert.equal(card.children.length,0,'route loading must not inject card text');
   emit('app:request:start',{requestId:'one',pageId:'search',generation:1});
-  assert.equal(table.children.length,2,'repeated loading must not duplicate status');
-  emit('app:page-changing',{to:'login',generation:2});
-  assert.equal(table.children.length,1);assert.equal(card.children.length,0);
+  assert.equal(table.children.length,1,'request start must not inject duplicate loading text');
+  assert.equal(ctx.AppPageLoading.status().waiting,true,'telemetry waiting state remains available');
   ctx.AppPageLoading.hide();
 });
 
@@ -431,10 +429,9 @@ ok('accessibility and no-blank loading contract',()=>{
   assert.ok(index.includes('id="main"'));
   assert.ok(index.includes('id="app-live-region"'));
   assert.ok(!index.includes('id="app-page-loading-state"'),'full-page data loading overlay must be absent');
-  assert.ok(index.includes('caption.app-section-loading'));
-  assert.ok(index.includes('n.textContent="กำลังโหลดข้อมูล"'));
-  assert.ok(index.includes('role="status"'));
-  assert.ok(index.includes('กำลังโหลดข้อมูล'));
+  assert.ok(index.includes('.app-section-loading{display:none!important}'));
+  assert.ok(!index.includes('n.textContent="กำลังโหลดข้อมูล"'));
+  assert.ok(!index.includes('กำลังโหลดข้อมูล'),'generic per-section loading copy must be removed');
   assert.ok(index.includes('กรุณารอสักครู่'));
   assert.ok(index.includes('app:page-changing'));
   assert.ok(index.includes('app:page-activated'));
@@ -448,7 +445,7 @@ ok('accessibility and no-blank loading contract',()=>{
   assert.ok(index.includes('function waitShell(id,start)'));
   assert.ok(index.includes('function settle(){cancelIdle();if(active)return;idleTimer=setTimeout(function(){if(!active)done("idle-after-data")},600)}'));
   assert.ok(index.includes('app:route-settled'));
-  assert.ok(index.includes('r331-v62.2-route-generation-data-ready'));
+  assert.ok(index.includes('r331-v62-route-generation-data-ready'));
   assert.ok(index.includes('requests=Object.create(null)'));
   assert.ok(index.includes('function currentEvent(ev)'));
   assert.ok(index.includes('if(dataPage.test(route))set(true)'));
@@ -742,7 +739,7 @@ ok('tracking filters are dispatched by the canonical ReportTrack owner',()=>{
 
 ok('login starts the Dashboard data controller automatically',()=>{
   assert.ok(index.includes('id="app-login-dashboard-autostart-current"'));
-  assert.ok(index.includes('__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__="r331-v62.2"'));
+  assert.ok(index.includes('__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__="r331-v62"'));
   assert.ok(index.includes('AppRouteAssetPrefetchCurrent.prepare("/dashboard")'));
   assert.ok(index.includes('AppVue3Bridge.activatePage("dashboard")'));
   assert.ok(index.includes('app:auth-login-success'));
@@ -769,6 +766,25 @@ ok('AI chat uses the canonical permission-bound search API',()=>{
   assert.ok(index.includes('ตอบจากข้อมูลที่ค้นพบตามสิทธิ์ของคุณ'));
   assert.ok(!index.includes('AIza'));
   assert.ok(!index.includes('api.openai.com'));
+});
+
+
+ok('single-owner frontend surfaces contain no duplicate active implementation or subrevision',()=>{
+  assert.ok(!index.includes('r331-v62.2'),'retired frontend subrevision marker returned');
+  const ids=scriptIds(index), dupIds=[...new Set(ids.filter((id,i)=>ids.indexOf(id)!==i))].sort();
+  assert.deepEqual(dupIds,[],'duplicate script owner ids detected: '+dupIds.join(','));
+  assert.equal((index.match(/root\.AppSafeHtml\s*=\s*root\.AppSafeHtml\s*\|\|\s*\{\}/g)||[]).length,1,'AppSafeHtml must have one production owner');
+  assert.equal((index.match(/root\.AppFormat\s*=\s*root\.AppFormat\s*\|\|\s*\{\}/g)||[]).length,1,'AppFormat namespace must be created by one owner');
+  assert.equal((index.match(/root\.ScriptsUtils\s*=\s*root\.ScriptsUtils\s*\|\|\s*\{\}/g)||[]).length,1,'ScriptsUtils namespace must be created by one owner');
+  assert.ok(!index.includes('root.AppFormat.escapeHtml=escapeHtml'),'sanitizer must not overwrite canonical AppFormat.escapeHtml');
+  assert.ok(index.includes('Format.number = Format.number || function (v)'),'number formatter must belong to canonical AppFormat');
+  assert.ok(index.includes('Format.money = Format.money || function (v)'),'money formatter must belong to canonical AppFormat');
+  assert.ok(index.includes('escapeHtml=root.AppFormat&&root.AppFormat.escapeHtml'),'sanitizer must consume canonical escapeHtml');
+  assert.ok(index.includes('var number=root.AppFormat&&root.AppFormat.number,money=root.AppFormat&&root.AppFormat.money;'),'sanitizer must consume canonical numeric formatters');
+  const htmlWithoutJs=index.replace(/<script\b[^>]*type=["'](?:text\/x-template)["'][^>]*>[\s\S]*?<\/script\s*>/gi,'').replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'');
+  const domIds=[...htmlWithoutJs.matchAll(/\bid=["']([^"']+)["']/gi)].map(m=>m[1]);
+  const dupDom=[...new Set(domIds.filter((id,i)=>domIds.indexOf(id)!==i))].sort();
+  assert.deepEqual(dupDom,[],'duplicate live DOM ids detected: '+dupDom.join(','));
 });
 
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
