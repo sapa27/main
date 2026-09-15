@@ -54,7 +54,7 @@ ok('GAS endpoint is canonical /exec URL',()=>{
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
-  const current='https://script.google.com/macros/s/AKfycbwXYbMU8olrctFNZHp5eYPshuTelOLGecDaDn3L-q7BNsw3A7ned55Il8YL82apAO--/exec';
+  const current='https://script.google.com/macros/s/AKfycbwcj6zCQlZHZY3RTcIAqiREYX7LDOi0XBJi3p09SReWFDOy48jXYbAQxwrosR4E7-bv/exec';
   const retired='AKfycbzPGoqp2zsH_9kYrcJhtcI0I4GeBjHR1Xv2ptDu507j_fvAbJBoVTWSHF-0SI0e0rLV';
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);
   assert.equal(m&&m[1],current,'release candidate would switch away from the current production GAS endpoint');
@@ -728,10 +728,31 @@ ok('session resume survives login-route reloads unless logout is explicit',()=>{
   assert.ok(!index.includes('if(explicitLogin)try{window.AppSessionResume'));
 });
 
-ok('expired GAS sessions recover to login without a data-error modal',()=>{
+ok('transient GAS auth races soft-recover without forcing a successful save back to login',()=>{
   assert.ok(index.includes('function ae(v){return/SESSION_EXPIRED|AUTH_REQUIRED|UNAUTHORIZED|เซสชันหมดอายุ|ยังไม่ได้เข้าสู่ระบบ/i'));
-  assert.ok(index.includes('root.__APP_FORCE_LOGIN_VIEW__("session-expired-r330")'));
+  assert.ok(index.includes('root.AppRuntime.handleAuthExpiry("swal-auth-expiry-r331")'));
+  assert.ok(index.includes('w.AppRuntime.handleAuthExpiry(ev&&ev.detail||"transport-session-expired-r331")'));
+  assert.ok(index.includes('session-expired-r331-hard-fallback'));
+  assert.ok(!index.includes('root.__APP_FORCE_LOGIN_VIEW__("session-expired-r330")'));
   assert.ok(index.includes('Promise.resolve({isDismissed:!0})'));
+  if(MODE==='full'){
+    const core=file('gas-backend/Code_00_PlatformCore.gs');
+    const auth=file('gas-backend/Code_10_Security_Auth.gs');
+    assert.ok(core.includes('function _sessionRotationGraceSeconds_()'));
+    assert.ok(core.includes('tokenRotationGraceOnly: !0'));
+    assert.ok(core.includes('safeCachePut_(_AppScriptCache_(), "sess_" + oldToken, graceSess, graceSeconds)'));
+    assert.ok(auth.includes('SESSION_TOKEN_ROTATED_RETRY'));
+  }
+});
+
+ok('meeting petitioner database selection has one canonical apply path with DOM-state fallback',()=>{
+  if(MODE==='full'){
+    const meeting=file('gas-backend/Scripts_Page_Meeting.html');
+    assert.ok(meeting.includes('(meetingRoot.__MEETING_LOOKUP_ACTIVE_KEY__ = n)'));
+    assert.ok(meeting.includes('document.querySelectorAll("#meetingLookupModal .meeting-lookup-modal-check:checked")'));
+    assert.ok(meeting.includes('Canonical modal apply is owned by be()'));
+    assert.ok(!meeting.includes('key: "meeting.lookup.apply"'));
+  }
 });
 
 ok('tracking filters are dispatched by the canonical ReportTrack owner',()=>{
