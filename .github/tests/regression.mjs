@@ -466,7 +466,9 @@ ok('canonical page and role surfaces remain complete',()=>{
 ok('RPC reliability performance and cache rules',()=>{
   assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
   assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
-  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:15000'));
+  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:7000'));
+  assert.ok(config.includes('RPC_HEALTH_TIMEOUT_MS:5000'));
+  assert.ok(config.includes('RPC_HEALTH_RETRIES:0'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'));
   assert.ok(config.includes('RPC_READ_TIMEOUT_BY_METHOD_MS'));
   assert.ok(config.includes('apiGetDashboardBundle:35000'));
@@ -475,7 +477,10 @@ ok('RPC reliability performance and cache rules',()=>{
   assert.ok(config.includes('RPC_READ_STALE_TTL_MS:600000'));
   assert.ok(config.includes('apiGetDashboardBundle:180000'));
   assert.ok(config.includes('apiGetTracking:300000'));
-  assert.ok(transport.includes('function prewarm(){health(false)'));
+  assert.ok(transport.includes('var p=rpc(fn,a,opt)'),'cold RPC must start immediately without a blocking health preflight');
+  assert.ok(!transport.includes('health(false).then(function(){return rpc(fn,a,opt)}'),'health must not gate RPC execution');
+  assert.ok(!transport.includes('function prewarm(){'),'page load must not start a redundant health request before user traffic');
+  assert.ok(transport.includes('w.AppTransport.health=health'),'health remains available as an explicit diagnostic only');
   assert.ok(transport.includes('if(RH&&!force)return RH'));
   assert.ok(transport.includes('if(key&&F[key])return F[key]'));
   assert.ok(transport.includes('stale-while-revalidate'));
@@ -658,10 +663,11 @@ ok('Thai holiday settings are parsed without an undefined add() owner',()=>{
   assert.deepEqual(budgetWarnings,[],'valid budget holiday settings should not emit warnings');
 });
 
-ok('dashboard deferred assets do not false-timeout behind the RPC health preflight',()=>{
+ok('dashboard deferred assets and data RPC do not wait behind a health preflight',()=>{
   assert.ok(config.includes('pageScriptLoadTimeoutMs:55000'),'page-script timeout must outlive the transport read timeout');
   assert.ok(config.includes('pageActivationTimeoutMs:75000'),'page activation must allow deferred script completion');
-  assert.ok(transport.includes('fn==="getDeferredInclude"?Promise.resolve(true):health(false)'),'deferred include must not wait for a duplicate health preflight');
+  assert.ok(transport.includes('var p=rpc(fn,a,opt)'),'all RPC methods must use the same immediate fast path');
+  assert.ok(!transport.includes('fn==="getDeferredInclude"?Promise.resolve(true):health(false)'),'legacy blocking health preflight must stay retired');
   assert.ok(index.includes('routeConfiguredTimeout("pageScriptLoadTimeoutMs",20000,5000,90000)'));
   assert.ok(index.includes('routeConfiguredTimeout("pageActivationTimeoutMs",30000,10000,120000)'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'),'transport remains bounded at 45 seconds');
