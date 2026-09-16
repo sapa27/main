@@ -1,4 +1,5 @@
 name: Validate and Deploy GitHub Pages
+# Canonical production transport: GitHub Pages -> GAS Web App directly.
 
 on:
   pull_request:
