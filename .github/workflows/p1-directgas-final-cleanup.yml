@@ -1,0 +1,91 @@
+name: P1 Direct-GAS Final Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1-directgas-final-cleanup.yml'
+
+permissions:
+  contents: write
+
+env:
+  CLEANUP_STAMP: r331-v62-directgas-p1-20260916
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply bounded Direct-GAS cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p=Path(path); s=p.read_text()
+              if old not in s:
+                  raise SystemExit(f'expected marker missing in {path}: {old[:120]}')
+              p.write_text(s.replace(old,new,1))
+
+          replace_once('github-pages/app-config.js',
+              'HA="github-pages-canonical-projection-r331-v62"',
+              'HA="github-pages-canonical-projection-r331-v62-directgas-p1-20260916"')
+          replace_once('github-pages/index.html',
+              './app-config.js?v=r331-v62-reliability',
+              './app-config.js?v=r331-v62-directgas-p1-20260916')
+          replace_once('github-pages/index.html',
+              './github-gas-transport.js?v=r331-v62-reliability',
+              './github-gas-transport.js?v=r331-v62-directgas-p1-20260916')
+          replace_once('github-pages/github-gas-transport.js',
+              'w.setTimeout(function(){try{delete w[cb]}catch(_){w[cb]=void 0}},600000)',
+              'w.setTimeout(function(){try{delete w[cb]}catch(_){w[cb]=void 0}},Math.min(90000,Math.max(60000,timeoutMs*2)))')
+
+          p=Path('.github/workflows/pages.yml'); s=p.read_text()
+          old="""          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330']) {\n            if (!cfg.includes(marker)) throw new Error('deployed config missing '+marker);\n          }\n          if (!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');\n          console.log('Pages post-deploy release surface ok:',indexUrl,surfaceDurationMs+'ms');"""
+          new="""          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330','github-pages-canonical-projection-r331-v62-directgas-p1-20260916']) {\n            if (!cfg.includes(marker)) throw new Error('deployed config missing '+marker);\n          }\n          const expectedGas='https://script.google.com/macros/s/AKfycbyjAUVjRD7xWiHPBcJBOQcXBIY6s3PLEE5wZSDKx3bSD7c36tYpKBQiAUsT8tngWZJ-/exec';\n          if (!cfg.includes('GAS_URL=\\\"'+expectedGas+'\\\"')) throw new Error('deployed GAS endpoint mismatch');\n          if (!cfg.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000')) throw new Error('deployed RPC result timeout mismatch');\n          if (!html.includes('./app-config.js?v=r331-v62-directgas-p1-20260916') || !html.includes('./github-gas-transport.js?v=r331-v62-directgas-p1-20260916')) throw new Error('deployed Direct-GAS cache-buster mismatch');\n          if (/GATEWAY_URL|GATEWAY_REQUIRED_ON_MOBILE|workers\\.dev|cloudflare-worker|gateway\\/worker/i.test(cfg+'\\n'+transport)) throw new Error('retired gateway configuration returned');\n          if (!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');\n          if (transport.includes('},600000)')) throw new Error('unbounded JSONP callback tombstone returned');\n          if (!transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))')) throw new Error('bounded JSONP callback cleanup missing');\n          console.log('Pages post-deploy release surface ok:',indexUrl,surfaceDurationMs+'ms');"""
+          if old not in s:
+              raise SystemExit('pages post-deploy marker block missing')
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('.github/tests/regression.mjs'); s=p.read_text()
+          replacements=[
+              ('./app-config.js?v=r331-v62-reliability','./app-config.js?v=r331-v62-directgas-p1-20260916'),
+              ('./github-gas-transport.js?v=r331-v62-reliability','./github-gas-transport.js?v=r331-v62-directgas-p1-20260916'),
+              ("assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62');","assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-directgas-p1-20260916');"),
+              ("assert.ok(transport.includes('},600000)'));","assert.ok(!transport.includes('},600000)'));\n  assert.ok(transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))'));"),
+          ]
+          for old,new in replacements:
+              if old not in s:
+                  raise SystemExit('regression marker missing: '+old[:100])
+              s=s.replace(old,new,1)
+          smoke="""  for(const marker of ['gas-backend-single-source-r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled'])assert.ok(workflow.includes(marker));\n"""
+          if smoke not in s:
+              raise SystemExit('smoke assertion marker missing')
+          s=s.replace(smoke,smoke+"  for(const marker of ['github-pages-canonical-projection-r331-v62-directgas-p1-20260916','RPC_RESULT_JSONP_TIMEOUT_MS:30000','deployed GAS endpoint mismatch','retired gateway configuration returned','bounded JSONP callback cleanup missing'])assert.ok(workflow.includes(marker));\n",1)
+          meeting="""  assert.ok(meeting.includes('meetingStoreGet(\"auth.role\", \"\")'),'Meeting admin tools must honor canonical auth.role');\n"""
+          if meeting not in s:
+              raise SystemExit('meeting regression marker missing')
+          s=s.replace(meeting,meeting+"  assert.ok(meeting.includes('__appObserve(_lookupErr, \\\"meeting.lookup-options.load\\\")'),'Meeting lookup failure must be observable');\n  assert.ok(meeting.includes('meeting.lookup.warningAt'),'Meeting lookup empty fallback warning must be throttled');\n",1)
+          p.write_text(s)
+          PY
+          node .github/tests/regression.mjs --frontend-only
+          test "$(wc -c < github-pages/app-config.js)" -le 3000
+          test "$(wc -c < github-pages/github-gas-transport.js)" -le 12000
+          test "$(wc -c < github-pages/index.html)" -le 545000
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add github-pages/app-config.js github-pages/index.html github-pages/github-gas-transport.js .github/workflows/pages.yml .github/tests/regression.mjs
+          git commit -m "P1 Direct-GAS final cleanup"
+          git push
+      - name: Upload exact cleanup snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-directgas-final-snapshot
+          path: |
+            github-pages
+            .github/tests/regression.mjs
+            .github/workflows/pages.yml
+          if-no-files-found: error
