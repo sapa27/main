@@ -860,6 +860,15 @@ ok('table and card loading states are visible once per active data surface',()=>
   }
 });
 
+
+ok('meeting activation waits for the interactive runtime and clears stale failure state',()=>{
+  assert.ok(index.includes('forceFresh:/^Scripts_Page_Meeting(?:::|$)/.test(n)'),'meeting fragments must bypass stale GAS deferred cache');
+  assert.ok(index.includes('ensureBootstrapAssets()).then(function(){return loaderWork()})'),'meeting route must await Bootstrap tab runtime');
+  assert.ok(index.includes('function waitForPageOperational(id,generation,timeoutMs)'),'meeting route needs an operational recovery window');
+  assert.ok(index.includes('waitForPageOperational(id,generation,1800)'),'activation failure must wait briefly before surfacing an error');
+  assert.ok(index.includes('app:page-activation-recovered'),'recovered meeting activation must clear stale failure UI');
+});
+
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
   assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
