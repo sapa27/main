@@ -866,6 +866,9 @@ ok('meeting activation waits for the interactive runtime and clears stale failur
   assert.ok(index.includes('ensureBootstrapAssets()).then(function(){return loaderWork()})'),'meeting route must await Bootstrap tab runtime');
   assert.ok(index.includes('function waitForPageOperational(id,generation,timeoutMs)'),'meeting route needs an operational recovery window');
   assert.ok(index.includes('waitForPageOperational(id,generation,1800)'),'activation failure must wait briefly before surfacing an error');
+  assert.ok(index.includes('document.documentElement.dataset.meetingPageInitialized==="1"'),'meeting operational detection must accept the initialized interactive surface even if lifecycle mounted state races');
+  assert.ok(index.includes('page.querySelector("#meeting-tabs")&&page.querySelector("#meeting-case-form")'),'meeting recovery must verify real interactive DOM before suppressing a false controller error');
+  assert.ok(index.includes('waitForPageOperational(id,generation,15000)'),'a displayed meeting failure must keep watching for late lifecycle recovery');
   assert.ok(index.includes('app:page-activation-recovered'),'recovered meeting activation must clear stale failure UI');
 });
 
