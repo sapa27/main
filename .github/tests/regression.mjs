@@ -51,8 +51,8 @@ ok('frontend revision is separated from the stable RPC protocol',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r331-v62-reliability'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-reliability'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-directgas-p1-20260916'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-directgas-p1-20260916'))
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
@@ -146,10 +146,10 @@ ok('P1-D release/build provenance is single-owner and matches canonical backend 
   assert.equal(p.releaseStamp,RELEASE);assert.equal(p.assetStamp,ASSET);assert.equal(p.qualityGate,QUALITY);assert.equal(p.rpcProtocolVersion,RPC);
   assert.equal(p.frontendRevision,'r331-v62');assert.equal(p.sourceFingerprint,'gas-backend-single-source-r331-v62');
   assert.equal(p.buildName,'V1.2 Reliability Loading Cache Session r331 / v62');
-  assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62');
+  assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-directgas-p1-20260916');
   assert.equal(ctx.APP_CONFIG.releaseStamp,p.releaseStamp);assert.equal(ctx.APP_CONFIG.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_CONFIG.rpcVersion,RPC);
   assert.equal(ctx.APP_DEPLOY_RELEASE.stamp,p.releaseStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.assetStamp,p.assetStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_DEPLOY_RELEASE.rpcVersion,RPC);
-  const configTag='<script src="./app-config.js?v=r331-v62-reliability"></script>';
+  const configTag='<script src="./app-config.js?v=r331-v62-directgas-p1-20260916"></script>';
   assert.equal(index.split(configTag).length-1,1,'app-config must load exactly once');
   assert.ok(index.indexOf(configTag)<index.indexOf('window.__APP_BOOTSTRAP__='),'provenance owner must load before bootstrap');
   const bootScript=htmlScripts(index).find(x=>x.includes('window.__APP_BOOTSTRAP__=')&&x.includes('window.__APP_ASSET_MANIFEST__='));
@@ -502,7 +502,8 @@ ok('RPC reliability performance and cache rules',()=>{
   assert.ok(transport.includes('function isReadMethod(fn)'));
   assert.ok(transport.includes('read=isReadMethod(fn)'));
   assert.ok(transport.includes('w[cb]=function(){}'));
-  assert.ok(transport.includes('},600000)'));
+  assert.ok(!transport.includes('},600000)'));
+  assert.ok(transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))'));
   assert.ok(transport.includes('if(write){TTL=Object.create(null)'));
   assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
   assert.ok(transport.includes('getLastRpcTrace'));
