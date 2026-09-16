@@ -1,0 +1,74 @@
+name: Meeting Live Contract Smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/meeting-live-contract-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify live production Meeting API contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const { randomUUID } = require('crypto');
+          const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
+          const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
+          const rpc = (cfg.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
+          if (!gas || !rpc) throw new Error('GAS/RPC config missing');
+          const rpcId='req_meeting_contract_'+randomUUID().replaceAll('-','');
+          const rpcToken='tok_meeting_contract_'+randomUUID().replaceAll('-','');
+          const callback='__meetingContractSmoke';
+          const body=new URLSearchParams({
+            mode:'github-rpc', parentOrigin:'https://sapa27.github.io', rpcVersion:rpc,
+            rpcId, rpcToken, rpcFunction:'apiRouter',
+            rpcPayload:JSON.stringify({method:'apiGetRouteContract',payload:{}}),
+            traceId:'trace_'+randomUUID().replaceAll('-',''), clientStartedAt:new Date().toISOString()
+          });
+          const post=await fetch(gas,{method:'POST',redirect:'follow',body,signal:AbortSignal.timeout(45000)});
+          if(!post.ok) throw new Error('POST HTTP '+post.status);
+          const deadline=Date.now()+90000;
+          let envelope=null;
+          for(let attempt=1;Date.now()<deadline;attempt++){
+            const u=new URL(gas);
+            for(const [k,v] of Object.entries({mode:'github-rpc-result',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,callback,_ts:Date.now().toString(36)}))u.searchParams.set(k,v);
+            try{
+              const res=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(30000)});
+              if(!res.ok) throw new Error('result HTTP '+res.status);
+              const text=await res.text(), prefix='/**/'+callback+'(';
+              if(!text.startsWith(prefix)||!text.endsWith(');'))throw new Error('invalid JSONP');
+              envelope=JSON.parse(text.slice(prefix.length,-2));
+              if(envelope.pending!==true)break;
+            }catch(e){console.warn('result attempt',attempt,e.message)}
+            await new Promise(r=>setTimeout(r,Math.min(2000,500+attempt*250)));
+          }
+          if(!envelope||envelope.pending===true)throw new Error('route contract timeout');
+          if(envelope.transportOk!==true||!envelope.result||envelope.result.ok!==true)throw new Error('route contract failed '+JSON.stringify(envelope.error||envelope));
+          const contract=envelope.result.data||envelope.result;
+          const routes=contract.routes||{};
+          const allowed=new Set(contract.allowedMethods||contract.activeAllowedMethods||Object.keys(routes));
+          const required=[
+            'apiSearchCasesLite','apiGetCanonicalCaseBundle','apiGetMeetingLookupOptions','apiGetMeetingHistory',
+            'apiListCommitteeMeetings','apiGetCommitteeMeetingSystem','apiGetCommitteeMeetingSystemSpec',
+            'apiSearchMeetingAgendaCases','apiGetCommitteeMeetingPrintBundle','apiGetLetters','apiGetPetitioners',
+            'apiSaveCase','apiDeleteCase','apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter',
+            'apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem'
+          ];
+          const missing=required.filter(x=>!allowed.has(x)&&!routes[x]);
+          if(missing.length)throw new Error('live Meeting routes missing: '+missing.join(','));
+          for(const method of ['apiSaveCase','apiDeleteCase','apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter','apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem']){
+            const meta=routes[method];
+            if(meta && meta.write!==true)throw new Error(method+' is not write-locked');
+            if(meta && meta.csrf!==true)throw new Error(method+' missing CSRF contract');
+          }
+          console.log('LIVE MEETING ROUTE CONTRACT PASS',required.length,'routes; rpc',rpc);
+          NODE
