@@ -6,9 +6,11 @@ import vm from 'node:vm';
 
 const ROOT = process.cwd();
 const GAS_BACKEND_DIR = path.join(ROOT,'gas-backend');
+const FULL_GAS_BACKEND_MARKER = path.join(GAS_BACKEND_DIR,'Code_00_PlatformCore.gs');
+const HAS_FULL_GAS_BACKEND = fs.existsSync(FULL_GAS_BACKEND_MARKER);
 const requestedModes = process.argv.slice(2).filter(arg=>arg==='--full'||arg==='--frontend-only');
 assert.ok(requestedModes.length<=1,'choose exactly one regression mode: --full or --frontend-only');
-const MODE = requestedModes[0] ? requestedModes[0].slice(2) : (fs.existsSync(GAS_BACKEND_DIR)?'full':'frontend-only');
+const MODE = requestedModes[0] ? requestedModes[0].slice(2) : (HAS_FULL_GAS_BACKEND?'full':'frontend-only');
 for(const arg of process.argv.slice(2))assert.ok(arg==='--full'||arg==='--frontend-only',`unknown regression option: ${arg}`);
 const REV = 'r331';
 const RPC_REV = 'r330';
@@ -75,17 +77,28 @@ ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(t
 
 ok('workflow gates regression before deployment',()=>{
   assert.ok(workflow.includes('needs: regression'));assert.ok(workflow.includes('actions/checkout@v4'));assert.ok(workflow.includes('actions/configure-pages@v5'));assert.ok(workflow.includes('actions/upload-pages-artifact@v3'));assert.ok(workflow.includes('actions/deploy-pages@v4'));assert.ok(workflow.includes('workflow_dispatch:'));assert.ok(workflow.includes('Run R331/v62 automated regression suite'));
-  assert.ok(workflow.includes('if [ -d gas-backend ]; then'));
+  assert.ok(workflow.includes('if [ -f gas-backend/Code_00_PlatformCore.gs ]; then'));
   assert.ok(workflow.includes('node .github/tests/regression.mjs --full'));
   assert.ok(workflow.includes('node .github/tests/regression.mjs --frontend-only'));
   assert.ok(workflow.includes('async function fetchHealth()'));assert.ok(workflow.includes('attempt <= 3'));assert.ok(workflow.includes('AbortSignal.timeout(45000)'));assert.ok(workflow.includes('Validate deployed Pages release surface'));assert.ok(workflow.includes('PAGES_URL: ${{ steps.deployment.outputs.page_url }}'));assert.ok(workflow.includes('app:route-settled'))
 });
 
 ok(`repository layout matches ${MODE} regression mode`,()=>{
-  const hasGasBackend=fs.existsSync(GAS_BACKEND_DIR);
-  if(MODE==='full')assert.ok(hasGasBackend,'--full regression requires gas-backend source');
-  else assert.ok(!hasGasBackend,'--frontend-only regression must not contain gas-backend source');
+  if(MODE==='full')assert.ok(HAS_FULL_GAS_BACKEND,'--full regression requires canonical Code_00_PlatformCore.gs');
+  else assert.ok(!HAS_FULL_GAS_BACKEND,'--frontend-only is reserved for frontend or partial GAS patch sets');
 })
+
+
+ok('partial Meeting patch preserves native timer fallback and visible-reactivation lookup hydration',()=>{
+  const meetingPath=path.join(GAS_BACKEND_DIR,'Scripts_Page_Meeting.html');
+  if(!fs.existsSync(meetingPath))return;
+  const meeting=fs.readFileSync(meetingPath,'utf8');
+  htmlScripts(meeting).forEach((src,i)=>jsSyntax(src,`Scripts_Page_Meeting.html#${i+1}`));
+  assert.ok(meeting.includes('meetingRoot.setTimeout(n, o)'),'Meeting delay fallback must schedule with native setTimeout');
+  assert.ok(meeting.includes('page:meeting.lookup-options.reactivate'),'Meeting visible reactivation must retry lookup hydration');
+  assert.ok(meeting.includes('meetingStoreGet("auth.user", null)'),'Meeting admin tools must prefer canonical auth.user');
+  assert.ok(meeting.includes('meetingStoreGet("auth.role", "")'),'Meeting admin tools must honor canonical auth.role');
+});
 
 
 function scriptBlockById(html,id){
@@ -466,7 +479,7 @@ ok('canonical page and role surfaces remain complete',()=>{
 ok('RPC reliability performance and cache rules',()=>{
   assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
   assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
-  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:7000'));
+  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000'));
   assert.ok(config.includes('RPC_HEALTH_TIMEOUT_MS:5000'));
   assert.ok(config.includes('RPC_HEALTH_RETRIES:0'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'));
