@@ -52,15 +52,15 @@ jobs:
 
           p=Path('.github/tests/regression.mjs'); s=p.read_text()
           replacements=[
-              ('./app-config.js?v=r331-v62-reliability','./app-config.js?v=r331-v62-directgas-p1-20260916'),
-              ('./github-gas-transport.js?v=r331-v62-reliability','./github-gas-transport.js?v=r331-v62-directgas-p1-20260916'),
-              ("assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62');","assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-directgas-p1-20260916');"),
-              ("assert.ok(transport.includes('},600000)'));","assert.ok(!transport.includes('},600000)'));\n  assert.ok(transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))'));"),
+              ('./app-config.js?v=r331-v62-reliability','./app-config.js?v=r331-v62-directgas-p1-20260916',False),
+              ('./github-gas-transport.js?v=r331-v62-reliability','./github-gas-transport.js?v=r331-v62-directgas-p1-20260916',False),
+              ("assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62');","assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-directgas-p1-20260916');",True),
+              ("assert.ok(transport.includes('},600000)'));","assert.ok(!transport.includes('},600000)'));\n  assert.ok(transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))'));",True),
           ]
-          for old,new in replacements:
+          for old,new,once in replacements:
               if old not in s:
                   raise SystemExit('regression marker missing: '+old[:100])
-              s=s.replace(old,new,1)
+              s=s.replace(old,new,1) if once else s.replace(old,new)
           smoke="""  for(const marker of ['gas-backend-single-source-r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled'])assert.ok(workflow.includes(marker));\n"""
           if smoke not in s:
               raise SystemExit('smoke assertion marker missing')
