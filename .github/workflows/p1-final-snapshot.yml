@@ -1,0 +1,27 @@
+name: P1 Final Snapshot
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/p1-final-snapshot.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify final frontend regression
+        run: node .github/tests/regression.mjs --frontend-only
+      - name: Upload final production snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1-directgas-final-production-snapshot
+          path: |
+            github-pages
+            .github/tests/regression.mjs
+            .github/workflows/pages.yml
+          if-no-files-found: error
