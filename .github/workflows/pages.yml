@@ -178,7 +178,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-
       - name: Validate deployed Pages release surface
         shell: bash
         env:
@@ -215,9 +214,16 @@ jobs:
           for (const marker of ['CANONICAL GITHUB FRONTEND r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) {
             if (!html.includes(marker)) throw new Error('deployed index missing '+marker);
           }
-          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330']) {
+          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330','github-pages-canonical-projection-r331-v62-directgas-p1-20260916']) {
             if (!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
           }
+          const expectedGas='https://script.google.com/macros/s/AKfycbyjAUVjRD7xWiHPBcJBOQcXBIY6s3PLEE5wZSDKx3bSD7c36tYpKBQiAUsT8tngWZJ-/exec';
+          if (!cfg.includes('GAS_URL="'+expectedGas+'"')) throw new Error('deployed GAS endpoint mismatch');
+          if (!cfg.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000')) throw new Error('deployed RPC result timeout mismatch');
+          if (!html.includes('./app-config.js?v=r331-v62-directgas-p1-20260916') || !html.includes('./github-gas-transport.js?v=r331-v62-directgas-p1-20260916')) throw new Error('deployed Direct-GAS cache-buster mismatch');
+          if (/GATEWAY_URL|GATEWAY_REQUIRED_ON_MOBILE|workers\.dev|cloudflare-worker|gateway\/worker/i.test(cfg+'\n'+transport)) throw new Error('retired gateway configuration returned');
           if (!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');
+          if (transport.includes('},600000)')) throw new Error('unbounded JSONP callback tombstone returned');
+          if (!transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))')) throw new Error('bounded JSONP callback cleanup missing');
           console.log('Pages post-deploy release surface ok:',indexUrl,surfaceDurationMs+'ms');
           NODE
