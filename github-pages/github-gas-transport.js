@@ -1,4 +1,5 @@
 (function(w,d){"use strict";if(!w||!d)return;
+w.__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__="r331-v62-gas-parity-disabled";
 var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},O="github-pages/github-gas-transport.js::frontend-r331-v62::rpc-r330",MODE="github-pages-gas-router-rpc-only",RPC_VER=String(CFG.RPC_VERSION||APP.rpcVersion||"github-pages-rpc-r330"),F=Object.create(null),RH=null,S="unknown",RC=0,TTL=Object.create(null),LAST_TRACE=null;
 var READ_METHODS={apiGetDashboardBundle:1,apiSearchCasesLite:1,apiGetCommitteeMeetingSystem:1,apiGetTracking:1,apiBudgetGetSummary:1};
 function isReadMethod(fn){return!!READ_METHODS[fn]||/^(?:apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase)/.test(fn)}
