@@ -35,7 +35,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d gas-backend ]; then
+          if [ -f gas-backend/Code_00_PlatformCore.gs ]; then
             node .github/tests/regression.mjs --full
           else
             node .github/tests/regression.mjs --frontend-only
