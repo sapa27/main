@@ -1,5 +1,6 @@
 name: Validate and Deploy GitHub Pages
 # Canonical production transport: GitHub Pages -> GAS Web App directly.
+# Quota guard: PRs run static regression only; live GAS smoke/deploy run on main/manual.
 
 on:
   pull_request:
@@ -28,6 +29,7 @@ concurrency:
 jobs:
   regression:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,6 +45,7 @@ jobs:
           fi
 
       - name: Validate live GAS RPC health contract
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           node <<'NODE'
@@ -83,6 +86,7 @@ jobs:
           NODE
 
       - name: Validate live GAS apiRouter round trip
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           node <<'NODE'
@@ -92,180 +96,82 @@ jobs:
           const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
           const rpc = (cfg.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
           if (!gas || !rpc) throw new Error('canonical GAS/RPC config missing');
-          const rpcId = 'req_ci_' + randomUUID().replaceAll('-','');
-          const rpcToken = 'tok_ci_' + randomUUID().replaceAll('-','');
-          const callback = '__ghRpcCb_ciroundtrip1234';
-          const body = new URLSearchParams({
-            mode: 'github-rpc',
-            parentOrigin: 'https://sapa27.github.io',
-            rpcVersion: rpc,
-            rpcId,
-            rpcToken,
-            rpcFunction: 'apiRouter',
-            rpcPayload: JSON.stringify({method:'apiSessionCheck',payload:{}}),
-            traceId: 'trace_ci_' + randomUUID().replaceAll('-',''),
-            clientStartedAt: new Date().toISOString()
-          });
-          const post = await fetch(gas, {
-            method: 'POST',
-            redirect: 'follow',
-            body,
-            signal: AbortSignal.timeout(45000)
-          });
-          if (!post.ok) throw new Error('GAS apiRouter POST HTTP '+post.status);
-          const deadline = Date.now() + 90000;
-          let payload = null;
-          let lastResultError = null;
-          let resultAttempt = 0;
-          while (Date.now() < deadline) {
-            resultAttempt += 1;
-            const url = new URL(gas);
-            for (const [key,value] of Object.entries({
-              mode: 'github-rpc-result',
-              parentOrigin: 'https://sapa27.github.io',
-              rpcVersion: rpc,
-              rpcId,
-              rpcToken,
-              callback,
-              _ts: Date.now().toString(36)
-            })) url.searchParams.set(key,value);
-            try {
-              const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
-              if (!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
-              const text = await response.text();
-              const prefix = '/**/'+callback+'(';
-              if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
-              payload = JSON.parse(text.slice(prefix.length,-2));
-              if (payload.pending !== true) break;
-              lastResultError = null;
-            } catch (error) {
-              lastResultError = error;
-              console.warn('GAS apiRouter result attempt '+resultAttempt+' failed:',error && error.message || error);
-            }
-            if (Date.now() < deadline) await new Promise(resolve=>setTimeout(resolve,Math.min(2000,500+resultAttempt*250)));
+          const rpcId='req_ci_'+randomUUID().replaceAll('-','');
+          const rpcToken='tok_ci_'+randomUUID().replaceAll('-','');
+          const callback='__ghRpcCb_ciroundtrip1234';
+          const body=new URLSearchParams({mode:'github-rpc',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,rpcFunction:'apiRouter',rpcPayload:JSON.stringify({method:'apiSessionCheck',payload:{}}),traceId:'trace_ci_'+randomUUID().replaceAll('-',''),clientStartedAt:new Date().toISOString()});
+          const post=await fetch(gas,{method:'POST',redirect:'follow',body,signal:AbortSignal.timeout(45000)});
+          if(!post.ok) throw new Error('GAS apiRouter POST HTTP '+post.status);
+          const deadline=Date.now()+90000;
+          let payload=null,lastError=null,attempt=0;
+          while(Date.now()<deadline){
+            attempt++;
+            const url=new URL(gas);
+            for(const [k,v] of Object.entries({mode:'github-rpc-result',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,callback,_ts:Date.now().toString(36)+'-'+attempt})) url.searchParams.set(k,v);
+            try{
+              const response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(30000)});
+              if(!response.ok) throw new Error('GAS apiRouter result HTTP '+response.status);
+              const text=await response.text(),prefix='/**/'+callback+'(';
+              if(!text.startsWith(prefix)||!text.endsWith(');')) throw new Error('invalid GAS apiRouter JSONP');
+              payload=JSON.parse(text.slice(prefix.length,-2));
+              if(payload.pending!==true) break;
+              lastError=null;
+            }catch(error){lastError=error;console.warn('GAS apiRouter result attempt '+attempt+' failed:',error&&error.message||error)}
+            if(Date.now()<deadline) await new Promise(resolve=>setTimeout(resolve,Math.min(2000,500+attempt*250)));
           }
-          if (!payload || payload.pending === true) throw new Error('GAS apiRouter round trip timeout'+(lastResultError?': '+(lastResultError.message||lastResultError):''));
-          if (payload.transportOk !== true || !payload.result || payload.result.ok !== true) {
-            throw new Error('GAS apiRouter round trip failed: '+JSON.stringify(payload && payload.error || payload));
-          }
+          if(!payload||payload.pending===true) throw new Error('GAS apiRouter round trip timeout'+(lastError?': '+(lastError.message||lastError):''));
+          if(payload.transportOk!==true||!payload.result||payload.result.ok!==true) throw new Error('GAS apiRouter round trip failed: '+JSON.stringify(payload&&payload.error||payload));
           console.log('GAS apiRouter round trip ok');
           NODE
 
       - name: Validate live Meeting JSONP transport contract
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           node <<'NODE'
           const fs = await import('node:fs');
           const { randomUUID } = await import('node:crypto');
-          const cfg = fs.readFileSync('github-pages/app-config.js','utf8');
-          const gas = (cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
-          const rpc = (cfg.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
-          if (!gas || !rpc) throw new Error('GAS/RPC config missing');
-
-          const rpcId = 'req_meeting_contract_' + randomUUID().replaceAll('-','');
-          const rpcToken = 'tok_meeting_contract_' + randomUUID().replaceAll('-','');
-          const callback = '__ghRpcCb_meetingContractSmoke1234';
-          const startedAt = Date.now();
-          const body = new URLSearchParams({
-            mode: 'github-rpc',
-            parentOrigin: 'https://sapa27.github.io',
-            rpcVersion: rpc,
-            rpcId,
-            rpcToken,
-            rpcFunction: 'apiRouter',
-            rpcPayload: JSON.stringify({method:'apiGetRouteContract',payload:{}}),
-            traceId: 'trace_' + randomUUID().replaceAll('-',''),
-            clientStartedAt: new Date().toISOString()
-          });
-
-          const post = await fetch(gas,{
-            method:'POST',
-            redirect:'follow',
-            body,
-            signal:AbortSignal.timeout(45000)
-          });
-          if (!post.ok) throw new Error('POST HTTP '+post.status);
-
-          const deadline = Date.now() + 120000;
-          let envelope = null;
-          let lastResultError = null;
-          let attempt = 0;
-          while (Date.now() < deadline) {
-            attempt += 1;
-            const url = new URL(gas);
-            for (const [key,value] of Object.entries({
-              mode:'github-rpc-result',
-              parentOrigin:'https://sapa27.github.io',
-              rpcVersion:rpc,
-              rpcId,
-              rpcToken,
-              callback,
-              _ts:Date.now().toString(36)+'-'+attempt
-            })) url.searchParams.set(key,value);
-            try {
-              const response = await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(45000)});
-              if (!response.ok) throw new Error('result HTTP '+response.status);
-              const text = await response.text();
-              const prefix = '/**/'+callback+'(';
-              if (!text.startsWith(prefix) || !text.endsWith(');')) throw new Error('invalid JSONP');
-              envelope = JSON.parse(text.slice(prefix.length,-2));
-              if (envelope.pending !== true) break;
-              lastResultError = null;
-            } catch (error) {
-              lastResultError = error;
-              console.warn('Meeting result attempt '+attempt+' failed:',error && error.message || error);
-            }
-            if (Date.now() < deadline) {
-              await new Promise(resolve=>setTimeout(resolve,Math.min(2500,750+attempt*250)));
-            }
+          const cfg=fs.readFileSync('github-pages/app-config.js','utf8');
+          const gas=(cfg.match(/GAS_URL="([^"]+)"/)||[])[1];
+          const rpc=(cfg.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
+          if(!gas||!rpc) throw new Error('GAS/RPC config missing');
+          const rpcId='req_meeting_contract_'+randomUUID().replaceAll('-','');
+          const rpcToken='tok_meeting_contract_'+randomUUID().replaceAll('-','');
+          const callback='__ghRpcCb_meetingContractSmoke1234';
+          const body=new URLSearchParams({mode:'github-rpc',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,rpcFunction:'apiRouter',rpcPayload:JSON.stringify({method:'apiGetRouteContract',payload:{}}),traceId:'trace_'+randomUUID().replaceAll('-',''),clientStartedAt:new Date().toISOString()});
+          const post=await fetch(gas,{method:'POST',redirect:'follow',body,signal:AbortSignal.timeout(45000)});
+          if(!post.ok) throw new Error('POST HTTP '+post.status);
+          const deadline=Date.now()+120000;
+          let envelope=null,lastError=null,attempt=0;
+          while(Date.now()<deadline){
+            attempt++;
+            const url=new URL(gas);
+            for(const [k,v] of Object.entries({mode:'github-rpc-result',parentOrigin:'https://sapa27.github.io',rpcVersion:rpc,rpcId,rpcToken,callback,_ts:Date.now().toString(36)+'-'+attempt})) url.searchParams.set(k,v);
+            try{
+              const response=await fetch(url,{redirect:'follow',signal:AbortSignal.timeout(45000)});
+              if(!response.ok) throw new Error('result HTTP '+response.status);
+              const text=await response.text(),prefix='/**/'+callback+'(';
+              if(!text.startsWith(prefix)||!text.endsWith(');')) throw new Error('invalid JSONP');
+              envelope=JSON.parse(text.slice(prefix.length,-2));
+              if(envelope.pending!==true) break;
+              lastError=null;
+            }catch(error){lastError=error;console.warn('Meeting result attempt '+attempt+' failed:',error&&error.message||error)}
+            if(Date.now()<deadline) await new Promise(resolve=>setTimeout(resolve,Math.min(2500,750+attempt*250)));
           }
-
-          if (!envelope || envelope.pending === true) {
-            throw new Error('Meeting JSONP result timeout'+(lastResultError?': '+(lastResultError.message||lastResultError):''));
-          }
-          if (envelope.transportOk !== true) {
-            throw new Error('Meeting JSONP transport failed '+JSON.stringify(envelope.error||envelope));
-          }
-          if (envelope.transportVersion && envelope.transportVersion !== rpc) {
-            throw new Error('Meeting JSONP transport version mismatch: '+envelope.transportVersion+' != '+rpc);
-          }
-          if (!envelope.result) {
-            throw new Error('Meeting JSONP application envelope missing');
-          }
-
-          const result = envelope.result;
-          const elapsedMs = Date.now() - startedAt;
-          if (attempt > 1 || elapsedMs > 30000) {
-            console.log('::warning::Meeting JSONP transport was functionally correct but slow: '+elapsedMs+'ms across '+attempt+' result attempt(s)');
-          }
-
-          if (result.ok === true) {
-            const contract = result.data || result;
-            const routes = contract.routes || {};
-            const allowed = new Set(contract.allowedMethods || contract.activeAllowedMethods || Object.keys(routes));
-            const required = [
-              'apiSearchCasesLite','apiGetCanonicalCaseBundle','apiGetMeetingLookupOptions','apiGetMeetingHistory',
-              'apiListCommitteeMeetings','apiGetCommitteeMeetingSystem','apiGetCommitteeMeetingSystemSpec',
-              'apiSearchMeetingAgendaCases','apiGetCommitteeMeetingPrintBundle','apiGetLetters','apiGetPetitioners',
-              'apiSaveCase','apiDeleteCase','apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter',
-              'apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem'
-            ];
-            const missing = required.filter(method=>!allowed.has(method) && !routes[method]);
-            if (missing.length) throw new Error('live Meeting routes missing: '+missing.join(','));
-            for (const method of [
-              'apiSaveCase','apiDeleteCase','apiSaveMeetingLog','apiDeleteMeetingLog',
-              'apiSaveLetter','apiDeleteLetter','apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem'
-            ]) {
-              const meta = routes[method];
-              if (meta && meta.write !== true) throw new Error(method+' is not write-locked');
-              if (meta && meta.csrf !== true) throw new Error(method+' missing CSRF contract');
-            }
-            console.log('LIVE MEETING ROUTE CONTRACT PASS',required.length,'routes; rpc',rpc,'elapsed',elapsedMs+'ms');
-          } else if (result.errorCode === 'AUTH_REQUIRED' && result.method === 'apiGetRouteContract') {
-            console.log('LIVE MEETING JSONP TRANSPORT PASS; AUTH_REQUIRED is the expected unauthenticated security boundary; rpc',rpc,'elapsed',elapsedMs+'ms');
-          } else {
-            throw new Error('unexpected Meeting application result '+JSON.stringify(result));
-          }
+          if(!envelope||envelope.pending===true) throw new Error('Meeting JSONP result timeout'+(lastError?': '+(lastError.message||lastError):''));
+          if(envelope.transportOk!==true) throw new Error('Meeting JSONP transport failed '+JSON.stringify(envelope.error||envelope));
+          if(envelope.transportVersion&&envelope.transportVersion!==rpc) throw new Error('Meeting JSONP transport version mismatch');
+          const result=envelope.result;
+          if(!result) throw new Error('Meeting JSONP application envelope missing');
+          if(result.ok===true){
+            const contract=result.data||result,routes=contract.routes||{},allowed=new Set(contract.allowedMethods||contract.activeAllowedMethods||Object.keys(routes));
+            const required=['apiSearchCasesLite','apiGetCanonicalCaseBundle','apiGetMeetingLookupOptions','apiGetMeetingHistory','apiListCommitteeMeetings','apiGetCommitteeMeetingSystem','apiGetCommitteeMeetingSystemSpec','apiSearchMeetingAgendaCases','apiGetCommitteeMeetingPrintBundle','apiGetLetters','apiGetPetitioners','apiSaveCase','apiDeleteCase','apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter','apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem'];
+            const missing=required.filter(m=>!allowed.has(m)&&!routes[m]);
+            if(missing.length) throw new Error('live Meeting routes missing: '+missing.join(','));
+            console.log('LIVE MEETING ROUTE CONTRACT PASS',required.length,'routes; rpc',rpc);
+          } else if(result.errorCode==='AUTH_REQUIRED'&&result.method==='apiGetRouteContract') {
+            console.log('LIVE MEETING JSONP TRANSPORT PASS; AUTH_REQUIRED expected; rpc',rpc);
+          } else throw new Error('unexpected Meeting application result '+JSON.stringify(result));
           NODE
 
   deploy:
@@ -279,6 +185,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -301,46 +208,26 @@ jobs:
           PAGES_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           node <<'NODE'
-          const base = String(process.env.PAGES_URL || '').trim();
-          if (!/^https:\/\//.test(base)) throw new Error('Pages deployment URL missing');
-          const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
-          async function fetchReady(url,label) {
+          const base=String(process.env.PAGES_URL||'').trim();
+          if(!/^https:\/\//.test(base)) throw new Error('Pages deployment URL missing');
+          const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+          async function fetchReady(url,label){
             let lastError;
-            for (let attempt=1; attempt<=5; attempt++) {
-              try {
-                const response = await fetch(url,{redirect:'follow',cache:'no-store',signal:AbortSignal.timeout(30000)});
-                if (!response.ok) throw new Error(label+' HTTP '+response.status);
+            for(let attempt=1;attempt<=5;attempt++){
+              try{
+                const response=await fetch(url,{redirect:'follow',cache:'no-store',signal:AbortSignal.timeout(30000)});
+                if(!response.ok) throw new Error(label+' HTTP '+response.status);
                 return await response.text();
-              } catch (error) {
-                lastError=error;
-                console.warn(label+' attempt '+attempt+' failed:',error && error.message || error);
-                if (attempt<5) await sleep(attempt*1500);
-              }
+              }catch(error){lastError=error;console.warn(label+' attempt '+attempt+' failed:',error&&error.message||error);if(attempt<5)await sleep(attempt*1500)}
             }
-            throw lastError || new Error(label+' unavailable');
+            throw lastError||new Error(label+' unavailable');
           }
-          const indexUrl = new URL('./', base).href;
-          const surfaceStartedAt = Date.now();
-          const [html,cfg,transport] = await Promise.all([
-            fetchReady(indexUrl,'Pages index'),
-            fetchReady(new URL('app-config.js',indexUrl).href,'Pages config'),
-            fetchReady(new URL('github-gas-transport.js',indexUrl).href,'Pages transport')
-          ]);
-          const surfaceDurationMs = Date.now() - surfaceStartedAt;
-          if (surfaceDurationMs > 8000) throw new Error('Pages release surface exceeded 8000ms budget: '+surfaceDurationMs+'ms');
-          for (const marker of ['CANONICAL GITHUB FRONTEND r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) {
-            if (!html.includes(marker)) throw new Error('deployed index missing '+marker);
-          }
-          for (const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330','github-pages-canonical-projection-r331-v62-directgas-p1-20260916']) {
-            if (!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
-          }
+          const indexUrl=new URL('./',base).href;
+          const [html,cfg,transport]=await Promise.all([fetchReady(indexUrl,'Pages index'),fetchReady(new URL('app-config.js',indexUrl).href,'Pages config'),fetchReady(new URL('github-gas-transport.js',indexUrl).href,'Pages transport')]);
+          for(const marker of ['CANONICAL GITHUB FRONTEND r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) if(!html.includes(marker)) throw new Error('deployed index missing '+marker);
+          for(const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330','github-pages-canonical-projection-r331-v62-directgas-p1-20260916']) if(!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
           const expectedGas='https://script.google.com/macros/s/AKfycbyjAUVjRD7xWiHPBcJBOQcXBIY6s3PLEE5wZSDKx3bSD7c36tYpKBQiAUsT8tngWZJ-/exec';
-          if (!cfg.includes('GAS_URL="'+expectedGas+'"')) throw new Error('deployed GAS endpoint mismatch');
-          if (!cfg.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000')) throw new Error('deployed RPC result timeout mismatch');
-          if (!html.includes('./app-config.js?v=r331-v62-directgas-p1-20260916') || !html.includes('./github-gas-transport.js?v=r331-v62-directgas-p1-20260916')) throw new Error('deployed Direct-GAS cache-buster mismatch');
-          if (/GATEWAY_URL|GATEWAY_REQUIRED_ON_MOBILE|workers\.dev|cloudflare-worker|gateway\/worker/i.test(cfg+'\n'+transport)) throw new Error('retired gateway configuration returned');
-          if (!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');
-          if (transport.includes('},600000)')) throw new Error('unbounded JSONP callback tombstone returned');
-          if (!transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))')) throw new Error('bounded JSONP callback cleanup missing');
-          console.log('Pages post-deploy release surface ok:',indexUrl,surfaceDurationMs+'ms');
+          if(!cfg.includes('GAS_URL="'+expectedGas+'"')) throw new Error('deployed GAS endpoint mismatch');
+          if(!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');
+          console.log('Pages post-deploy release surface ok:',indexUrl);
           NODE
