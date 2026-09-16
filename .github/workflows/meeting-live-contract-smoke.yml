@@ -27,7 +27,7 @@ jobs:
           if (!gas || !rpc) throw new Error('GAS/RPC config missing');
           const rpcId='req_meeting_contract_'+randomUUID().replaceAll('-','');
           const rpcToken='tok_meeting_contract_'+randomUUID().replaceAll('-','');
-          const callback='__meetingContractSmoke';
+          const callback='__ghRpcCb_meetingContractSmoke1234';
           const body=new URLSearchParams({
             mode:'github-rpc', parentOrigin:'https://sapa27.github.io', rpcVersion:rpc,
             rpcId, rpcToken, rpcFunction:'apiRouter',
