@@ -56,7 +56,7 @@ ok('GAS endpoint is canonical /exec URL',()=>{
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
-  const current='https://script.google.com/macros/s/AKfycbyjAUVjRD7xWiHPBcJBOQcXBIY6s3PLEE5wZSDKx3bSD7c36tYpKBQiAUsT8tngWZJ-/exec';
+  const current='https://script.google.com/macros/s/AKfycbwwgJxx1kZikW6UDNHc9pg86eBo2c-wiPAvHuOmIbtu0Zrb6qfesgRT1EdhO5xm0fY5/exec';
   const retired=['AKfycbze3llnjuZS0YGrQggu-xKpPBs_Y9YPKbTB80lK4M4M0rEjaIOYWVE59DYV0BPoeSmr','AKfycbwcj6zCQlZHZY3RTcIAqiREYX7LDOi0XBJi3p09SReWFDOy48jXYbAQxwrosR4E7-bv'];
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);
   assert.equal(m&&m[1],current,'release candidate would switch away from the current production GAS endpoint');
