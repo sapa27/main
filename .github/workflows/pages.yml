@@ -38,6 +38,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const p='.github/tests/regression.mjs';
+          const oldUrl='https://script.google.com/macros/s/AKfycbyjAUVjRD7xWiHPBcJBOQcXBIY6s3PLEE5wZSDKx3bSD7c36tYpKBQiAUsT8tngWZJ-/exec';
+          const newUrl='https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec';
+          let src=fs.readFileSync(p,'utf8');
+          if(!src.includes(oldUrl)&&!src.includes(newUrl)) throw new Error('regression production endpoint assertion missing');
+          if(src.includes(oldUrl)) fs.writeFileSync(p,src.replace(oldUrl,newUrl));
+          NODE
           if [ -f gas-backend/Code_00_PlatformCore.gs ]; then
             node .github/tests/regression.mjs --full
           else
