@@ -2,7 +2,7 @@
   "name": "sapa27-cloud-run-gateway",
   "version": "0.7.0",
   "private": true,
-  "description": "Cloud Run production frontend and server-to-server GAS gateway; CR-7 runtime decoupled from GitHub Pages",
+  "description": "CR-7 direct-only Cloud Run frontend and GAS gateway with no GitHub Pages runtime dependency",
   "engines": {
     "node": ">=24"
   },
