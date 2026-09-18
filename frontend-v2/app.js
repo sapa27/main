@@ -146,7 +146,7 @@ async function loadDashboard(epoch){
     ];
     $("#dashboard-stats").innerHTML=cards.map(([k,v])=>`<div class="card stat"><div class="muted">${esc(k)}</div><div class="value">${esc(v||0)}</div></div>`).join("");
     setCard("dashboard-data",`<div class="codebox">${esc(JSON.stringify({stats:d.stats||{},summary:d.summary||{}},null,2))}</div>`,"อัปเดตแล้ว");
-  }catch(e){genericError("dashboard-data",e)}
+  }catch(e){if(isAbortError(e)||epoch!==state.routeEpoch)return;genericError("dashboard-data",e)}
 }
 function routeDashboard(){
   $("#page-host").innerHTML=pageFrame("Dashboard","ภาพรวมข้อมูลจาก GAS โดยตรง",'<button class="btn" id="dash-refresh">รีเฟรช</button>')+`<div class="page"><div id="dashboard-stats" class="grid cols-4">${[1,2,3,4].map(()=>'<div class="card stat"><div class="muted">กำลังโหลด</div><div class="value">—</div></div>').join("")}</div><div style="height:14px"></div>${statusCard("dashboard-data","ข้อมูลสรุป")}</div>`;
@@ -158,10 +158,11 @@ function searchControls(prefix){
  return `<div class="toolbar"><label>คำค้น<input id="${prefix}-q" placeholder="ลำดับเรื่อง / เลขรับ / ชื่อเรื่อง"></label><button class="btn primary" id="${prefix}-go">ค้นหา</button></div>`;
 }
 async function searchCases(prefix,selectable=false){
-  const q=text($("#"+prefix+"-q")?.value||"");
-  const target=$("#"+prefix+"-result");target.innerHTML='<div class="loading-card">กำลังค้นหา</div>';
+  const epoch=state.routeEpoch,q=text($("#"+prefix+"-q")?.value||"");
+  const target=$("#"+prefix+"-result");if(!target)return;target.innerHTML='<div class="loading-card">กำลังค้นหา</div>';
   try{
     const res=await call("apiSearchCasesLite",{q,query:q,search:q,page:1,limit:selectable?30:50});
+    if(epoch!==state.routeEpoch||!target.isConnected)return;
     const rows=rowsOf(res);state.caseRows=rows;
     if(!selectable){
       target.innerHTML=table(rows,[["ลำดับเรื่อง",["caseNum","caseNo","runningNo","ลำดับเรื่อง"]],["เลขรับ",["recNo","receiveNo"]],["ชื่อเรื่อง",["title","caseTitle"]],["สถานะ",["status","caseStatus"]],["วันที่รับ",["recDateText","recDate"]]]);
@@ -169,7 +170,7 @@ async function searchCases(prefix,selectable=false){
       target.innerHTML=rows.length?rows.map((r,i)=>`<div class="list-item" data-case-index="${i}"><strong>${esc(caseKey(r)||recNo(r)||"ไม่ระบุ")}</strong><small>${esc(caseTitle(r)||"-")}</small><span class="badge">${esc(firstVal(r,["status","caseStatus"])||"-")}</span></div>`).join(""):'<div class="empty">ไม่พบข้อมูล</div>';
       $$("[data-case-index]",target).forEach(el=>el.onclick=()=>openCase(rows[Number(el.dataset.caseIndex)]));
     }
-  }catch(e){target.innerHTML=`<div class="error-box">${esc(errorMessage(e))}</div>`}
+  }catch(e){if(isAbortError(e)||epoch!==state.routeEpoch||!target.isConnected)return;target.innerHTML=`<div class="error-box">${esc(errorMessage(e))}</div>`}
 }
 function routeSearch(){
   $("#page-host").innerHTML=pageFrame("ค้นหาเรื่องพิจารณา","ค้นหาจาก MainData โดยไม่โหลด page script")+`<div class="page"><div class="card"><div class="card-body">${searchControls("search")}<div style="height:12px"></div><div id="search-result"></div></div></div></div>`;
