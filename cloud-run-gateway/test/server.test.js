@@ -21,7 +21,7 @@ async function withServer(fn){
 
 test('configuration and method routing stay canonical',()=>{
   const c=cfg(ENV);
-  assert.equal(REV,'cr5-mobile-meeting-r330');
+  assert.equal(REV,'cr6-data-loading-r330');
   assert.equal(c.rpc,'github-pages-rpc-r330');
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(gasUrl('http://script.google.com/macros/s/x/exec'),'');
@@ -38,14 +38,14 @@ test('JSONP parser accepts only the exact callback envelope',()=>{
   assert.throws(()=>parseJsonp('cb({"ok":true});','cb'),/Invalid GAS JSONP/);
 });
 
-test('readiness and version endpoints expose the CR-5 contract',async()=>withServer(async base=>{
+test('readiness and version endpoints expose the CR-6 contract',async()=>withServer(async base=>{
   const r=await (await fetch(base+'/ready')).json();
   assert.equal(r.ok,true);
-  assert.equal(r.gateway,'cr5-mobile-meeting-r330');
+  assert.equal(r.gateway,'cr6-data-loading-r330');
   assert.equal(r.upstreamConfigured,true);
   const v=await (await fetch(base+'/version')).json();
   assert.equal(v.ok,true);
-  assert.equal(v.gateway,'cr5-mobile-meeting-r330');
+  assert.equal(v.gateway,'cr6-data-loading-r330');
   assert.equal(v.rpcVersion,'github-pages-rpc-r330');
 }));
 
