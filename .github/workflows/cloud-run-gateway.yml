@@ -5,7 +5,6 @@ on:
     paths:
       - 'cloud-run-gateway/**'
       - '.github/workflows/cloud-run-gateway.yml'
-      - '.github/tests/regression.mjs'
   workflow_dispatch:
     inputs:
       deploy:
@@ -28,11 +27,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate gateway source
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate and test gateway
+        working-directory: cloud-run-gateway
         run: |
           set -euo pipefail
-          node --check cloud-run-gateway/server.js
-          node -e "const p=require('./cloud-run-gateway/package.json');if(p.private!==true||p.scripts.start!=='node server.js')process.exit(1)"
+          npm run check
+          npm test
       - name: Smoke local readiness endpoint
         run: |
           set -euo pipefail
@@ -40,7 +44,17 @@ jobs:
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/ready >/tmp/ready.json && break || sleep .25; done
-          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr0-rpc-r330')process.exit(1)"
+          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr1-rpc-r330'||x.upstreamConfigured!==true)process.exit(1)"
+      - name: Smoke local version endpoint
+        run: |
+          set -euo pipefail
+          PORT=18081 node cloud-run-gateway/server.js >/tmp/gateway-version.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18081/version >/tmp/version.json && break || sleep .25; done
+          node -e "const x=require('/tmp/version.json');if(x.ok!==true||x.gateway!=='cr1-rpc-r330'||x.rpcVersion!=='github-pages-rpc-r330')process.exit(1)"
+      - name: Validate container build
+        run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
 
   deploy:
     needs: validate
@@ -52,7 +66,7 @@ jobs:
       id-token: write
     env:
       PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-      REGION: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast3' }}
       SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'sapa27-gateway' }}
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
       DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
@@ -86,7 +100,7 @@ jobs:
       - name: Deploy Cloud Run gateway from source
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27.github.io"
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27.github.io"
       - name: Smoke deployed gateway
         run: |
           set -euo pipefail
