@@ -21,7 +21,7 @@ async function withServer(fn){
 
 test('configuration and method routing stay canonical',()=>{
   const c=cfg(ENV);
-  assert.equal(REV,'cr1-rpc-r330');
+  assert.equal(REV,'cr2-rpc-r330');
   assert.equal(c.rpc,'github-pages-rpc-r330');
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(gasUrl('http://script.google.com/macros/s/x/exec'),'');
@@ -41,11 +41,11 @@ test('JSONP parser accepts only the exact callback envelope',()=>{
 test('readiness and version endpoints expose the CR-1 contract',async()=>withServer(async base=>{
   const r=await (await fetch(base+'/ready')).json();
   assert.equal(r.ok,true);
-  assert.equal(r.gateway,'cr1-rpc-r330');
+  assert.equal(r.gateway,'cr2-rpc-r330');
   assert.equal(r.upstreamConfigured,true);
   const v=await (await fetch(base+'/version')).json();
   assert.equal(v.ok,true);
-  assert.equal(v.gateway,'cr1-rpc-r330');
+  assert.equal(v.gateway,'cr2-rpc-r330');
   assert.equal(v.rpcVersion,'github-pages-rpc-r330');
 }));
 
