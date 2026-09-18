@@ -1,8 +1,8 @@
 {
   "name": "sapa27-cloud-run-gateway",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "private": true,
-  "description": "CR-7 direct-only Cloud Run cutover using the new GAS direct-JSON deployment",
+  "description": "CR-7 direct-only cutover; GAS direct JSON canary passed, smoke false-negative fixed",
   "engines": {
     "node": ">=24"
   },
