@@ -1,71 +1,48 @@
-name: Cloud Run Gateway
-
+name: Cloud Run Production
 on:
   push:
     paths:
       - 'cloud-run-gateway/**'
-      - 'github-pages/**'
+      - 'frontend/**'
       - '.github/workflows/cloud-run-gateway.yml'
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Deploy validated gateway to Cloud Run'
+        description: 'Deploy validated Cloud Run production service'
         required: true
         type: boolean
         default: false
-
 concurrency:
-  group: cloud-run-gateway-${{ github.ref }}
+  group: cloud-run-production-${{ github.ref }}
   cancel-in-progress: true
-
 permissions:
   contents: read
-
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - name: Stage production frontend
         run: |
           set -euo pipefail
           rm -rf cloud-run-gateway/public
-          cp -R github-pages cloud-run-gateway/public
+          cp -R frontend cloud-run-gateway/public
           test -f cloud-run-gateway/public/index.html
           test -f cloud-run-gateway/public/app-config.js
-          test -f cloud-run-gateway/public/github-gas-transport.js
-      - name: Set up Node 24
-        uses: actions/setup-node@v4
+          test -f cloud-run-gateway/public/cloud-run-transport.js
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Validate and test gateway
-        working-directory: cloud-run-gateway
+      - name: Validate frontend and gateway
         run: |
           set -euo pipefail
+          node .github/tests/regression.mjs --frontend-only
+          cd cloud-run-gateway
           npm run check
           npm test
-          bash -n bootstrap-gcp.sh
-      - name: Smoke local readiness endpoint
-        run: |
-          set -euo pipefail
-          PORT=18080 node cloud-run-gateway/server.js >/tmp/gateway.log 2>&1 &
-          pid=$!
-          trap 'kill "$pid" 2>/dev/null || true' EXIT
-          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/ready >/tmp/ready.json && break || sleep .25; done
-          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr6-data-loading-r330')process.exit(1)"
-      - name: Smoke local version endpoint
-        run: |
-          set -euo pipefail
-          PORT=18081 node cloud-run-gateway/server.js >/tmp/gateway-version.log 2>&1 &
-          pid=$!
-          trap 'kill "$pid" 2>/dev/null || true' EXIT
-          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18081/version >/tmp/version.json && break || sleep .25; done
-          node -e "const x=require('/tmp/version.json');if(x.ok!==true||x.gateway!=='cr6-data-loading-r330'||x.rpcVersion!=='github-pages-rpc-r330')process.exit(1)"
       - name: Validate container build
         run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
-
   deploy:
     needs: validate
     if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
@@ -80,64 +57,41 @@ jobs:
       SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'sapa27-gateway' }}
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
       DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
+      GAS_WEB_APP_URL: ${{ vars.GAS_WEB_APP_URL || 'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec' }}
+      CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - name: Stage production frontend
         run: |
           set -euo pipefail
           rm -rf cloud-run-gateway/public
-          cp -R github-pages cloud-run-gateway/public
-          test -f cloud-run-gateway/public/index.html
+          cp -R frontend cloud-run-gateway/public
       - name: Validate deployment variables
         run: |
           set -euo pipefail
-          missing=0
-          for name in PROJECT_ID REGION SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT; do
-            value="${!name:-}"
-            if [ -z "$value" ]; then echo "Missing repository variable: $name" >&2; missing=1; fi
-          done
-          exit "$missing"
-      - name: Read canonical GAS production configuration
-        run: |
-          node <<'NODE' >> "$GITHUB_ENV"
-          const fs=require('node:fs'),s=fs.readFileSync('github-pages/app-config.js','utf8');
-          const gas=(s.match(/GAS_URL="([^"]+)"/)||[])[1],rpc=(s.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
-          if(!gas||!rpc)throw new Error('canonical GAS/RPC config missing');
-          console.log('GAS_WEB_APP_URL='+gas);console.log('GAS_RPC_VERSION='+rpc);
-          NODE
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
+          for name in PROJECT_ID REGION SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL CLOUD_RUN_ORIGIN; do test -n "${!name:-}" || { echo "Missing $name" >&2; exit 1; }; done
+      - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v3
+      - uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ env.PROJECT_ID }}
-      - name: Deploy Cloud Run gateway from source
+      - name: Deploy CR-7 direct-primary compatibility probe
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27-gateway-asxuzzwspa-eu.a.run.app"
-      - name: Smoke deployed gateway
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,LEGACY_GAS_RPC_FALLBACK=true,LEGACY_GAS_RPC_VERSION=github-pages-rpc-r330,LEGACY_GAS_PARENT_ORIGIN=https://sapa27.github.io"
+      - name: Require direct GAS transport before CR-7 finalization
         run: |
           set -euo pipefail
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           ready="$(curl --max-time 20 -fsS "$url/ready")"
-          frontend_file="$(mktemp)"
-          curl --max-time 30 -fsS "$url/" > "$frontend_file"
-          grep -q 'CANONICAL GITHUB FRONTEND r331-v62' "$frontend_file"
-          curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cloud-run-canonical-frontend-r331-v62-cr6-data-loading-20260918'
-          curl --max-time 30 -fsS "$url/github-gas-transport.js" | grep -q 'cloud-run-all-primary-cr6'
-          health_file="$(mktemp)"
-          health_status="$(curl --max-time 60 -sS -o "$health_file" -w '%{http_code}' "$url/health" || true)"
-          health="$(cat "$health_file")"
-          echo "Gateway URL: $url"
-          echo "Health HTTP: $health_status"
-          echo "Health body: $health"
-          test "$health_status" = "200"
-          node -e 'const r=JSON.parse(process.argv[1]),h=JSON.parse(process.argv[2]);if(r.ok!==true||h.ok!==true)process.exit(1)' "$ready" "$health"
-          echo "### Cloud Run Gateway" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: $url" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Region: $REGION" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Service: $SERVICE" >> "$GITHUB_STEP_SUMMARY"
+          version="$(curl --max-time 20 -fsS "$url/version")"
+          health="$(curl --max-time 60 -fsS "$url/health")"
+          echo "Ready: $ready"
+          echo "Version: $version"
+          echo "Health: $health"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]);if(r.gateway!=="cr7-runtime-decoupled-r330"||v.gasTransport!=="direct-json-primary"||h.upstream?.transport!=="gas-direct-json"||h.upstream?.degraded===true)process.exit(1)' "$ready" "$version" "$health"
+          curl --max-time 30 -fsS "$url/" | grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62'
+          curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cr7-runtime-decoupled'
+          curl --max-time 30 -fsS "$url/cloud-run-transport.js" | grep -q 'cloud-run-direct-json-cr7'

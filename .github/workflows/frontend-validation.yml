@@ -1,0 +1,31 @@
+name: Validate Cloud Run Frontend Source
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/tests/regression.mjs'
+      - '.github/workflows/frontend-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/tests/regression.mjs'
+      - '.github/workflows/frontend-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: frontend-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run CR-7 frontend regression
+        run: node .github/tests/regression.mjs --frontend-only

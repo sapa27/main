@@ -1,61 +1,22 @@
 # sapa27 Cloud Run Production Service
 
-CR-4 makes Cloud Run the single production web surface:
+Production architecture:
 
-`Browser -> Cloud Run (frontend + API) -> Google Apps Script`
+`Browser -> Cloud Run -> GAS`
 
-The previous GitHub Pages URL is no longer the production entry point. The `github-pages/` directory remains only as the canonical frontend source that is bundled into the Cloud Run image during deployment.
+CR-7 removes GitHub Pages from the runtime chain. GitHub is used only as the source repository and CI/CD trigger.
 
-## Production URL
+## CR-7 Runtime Decoupling
 
-`https://sapa27-gateway-asxuzzwspa-eu.a.run.app/`
+- Canonical frontend source: `frontend/`
+- Production browser origin: `https://sapa27-gateway-asxuzzwspa-eu.a.run.app`
+- Browser API path: same-origin `/api/router`
+- Cloud Run to GAS: server-to-server JSON POST
+- Browser has no GAS URL, GAS parent origin, JSONP, iframe bridge, or GitHub Pages transport configuration.
+- The frontend transport is `frontend/cloud-run-transport.js`.
+- CR-6 nested API classification, bounded read cache, stale-while-revalidate, write invalidation epochs, and deferred bundle expansion remain enabled.
+- CR-5 mobile Meeting protections remain enabled.
 
-## Endpoints
+The initial CR-7 deployment enables the legacy GAS RPC only as a server-side emergency fallback while the deploy smoke test proves that production GAS accepts direct JSON POST. The smoke gate fails unless `/health` reports `gas-direct-json` without degradation. After that proof, the fallback is removed in CR-7 final.
 
-- `GET /` — production frontend
-- `GET /ready` — readiness plus bundled-frontend marker
-- `GET /version` — gateway/RPC version
-- `GET /health` — live Cloud Run -> GAS RPC health
-- `POST /api/router` — canonical API entry point
-
-Browser login, session, reads, and writes all use Cloud Run. The browser no longer requires direct access to `script.google.com`.
-
-## Deployment
-
-Service: `sapa27-gateway`  
-Region: `asia-southeast3`  
-CPU: 1 vCPU  
-Memory: 512 MiB  
-Concurrency: 40  
-Min instances: 0  
-Max instances: 5
-
-The GitHub workflow stages `github-pages/` into `cloud-run-gateway/public/`, validates the gateway, deploys the unified service, and smoke-tests the frontend, configuration, transport, readiness, and GAS health.
-
-The gateway continues to read the canonical GAS `/exec` URL and RPC version from `github-pages/app-config.js` during deployment. Workload Identity Federation is used instead of a long-lived service-account key.
-
-## CR-5 Mobile / Meeting reliability
-
-CR-5 keeps Cloud Run as the only production web surface and optimizes the Meeting route for narrow/mobile screens.
-
-- Meeting fragments use the normal authenticated GAS deferred cache path instead of forcing a fresh include on every navigation.
-- Meeting controller loading no longer waits for Bootstrap asset warming.
-- Initial navigation does not invalidate Meeting fragments before they have ever loaded.
-- Meeting-specific script/activation budgets are 80s/95s as a recovery ceiling, while normal routes retain the existing budgets.
-- Mobile Meeting tabs scroll horizontally, forms use touch-friendly 16px controls, action buttons wrap cleanly, and tables remain horizontally scrollable instead of compressing columns.
-- GitHub Pages deployment is removed; its directory is source-only and is packaged into Cloud Run.
-- Deferred includes are not cached across users at the gateway; GAS remains the authorization boundary for every include request.
-
-
-## CR-6 Data-loading bottleneck fixes
-
-CR-6 removes two frontend bottlenecks without changing business rules or API contracts.
-
-- Browser transport now unwraps nested `apiRouter` calls before classifying read/write/AI methods, so method-specific timeouts and read-cache policies apply to the real API method.
-- Repeated reads use bounded in-memory cache + stale-while-revalidate; writes increment a cache epoch and invalidate prior read state so stale in-flight reads cannot repopulate the cache after mutation.
-- Meeting read-heavy methods have targeted TTLs while all writes still invalidate cached reads immediately.
-- Deferred asset bundles are expanded to their real partial files before prefetch, removing failed pseudo-bundle RPCs such as `bundle:appCore` and allowing actual files to prefetch in parallel.
-- Cloud Run remains the only production browser transport; GAS RPC stays server-side.
-- Client cache diagnostics are available through `AppTransport.getClientCacheStats()`.
-
-Deployment marker: `CR-6-data-loading-validated-20260918`
+Deployment marker: `CR-7-runtime-decoupled-probe-20260918`

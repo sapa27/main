@@ -1,9 +1,9 @@
 (function(w,d){"use strict";if(!w||!d)return;
 w.__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__=1;
-var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},O="github-pages/github-gas-transport.js::frontend-r331-v62::rpc-r330",MODE="cloud-run-all-primary-cr6",F=Object.create(null),TTL=Object.create(null),EPOCH=0,LAST_TRACE=null,RH=null,S="unknown";
+var CFG=w.APP_RUNTIME_CONFIG||{},APP=w.APP_CONFIG||{},O="frontend/cloud-run-transport.js::cr7",MODE="cloud-run-direct-json-cr7",F=Object.create(null),TTL=Object.create(null),EPOCH=0,LAST_TRACE=null,RH=null,S="unknown";
 function t(v){return v==null?"":String(v)}
 function c(k,f){var v=CFG[k];if(v==null||v==="")v=APP[k];return v==null||v===""?f:v}
-function cloud(){var current=t(w.location&&w.location.origin||"").trim().replace(/\/+$/,""),configured=t(CFG.CLOUD_RUN_GATEWAY_URL||APP.cloudRunGatewayUrl||"").trim().replace(/\/+$/,"");return /\.run\.app$/i.test(current)?current:configured||current}
+function cloud(){var current=t(w.location&&w.location.origin||"").trim().replace(/\\\/+$/,""),configured=t(CFG.CLOUD_RUN_GATEWAY_URL||APP.cloudRunGatewayUrl||"").trim().replace(/\\\/+$/,"");return /\\.run\\.app$/i.test(current)?current:configured||current}
 function err(m,k){var e=new Error(t(m||"Cloud Run transport error"));e.code=t(k||"CLOUD_RUN_TRANSPORT_ERROR");return e}
 function invocation(fn,a){var wire=t(fn).trim(),wirePayload=a==null?{}:a,method=wire,payload=wirePayload;if(wire==="apiRouter"&&wirePayload&&typeof wirePayload==="object"&&!Array.isArray(wirePayload)){var nested=t(wirePayload.method).trim();if(nested){method=nested;payload=wirePayload.payload==null?{}:wirePayload.payload}}return{wire:wire,wirePayload:wirePayload,method:method,payload:payload}}
 function isReadMethod(fn){return /^(?:apiGet|apiList|apiSearch|apiBudgetGet|apiBudgetList|apiBudgetAdminList|apiAdminList|apiCheckDuplicateCase)/.test(fn)}

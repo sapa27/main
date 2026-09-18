@@ -1,8 +1,8 @@
 {
   "name": "sapa27-cloud-run-gateway",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "Cloud Run production frontend and API gateway for sapa27 with nested API classification, active read caching, and faster deferred asset loading",
+  "description": "Cloud Run production frontend and server-to-server GAS gateway; CR-7 runtime decoupled from GitHub Pages",
   "engines": {
     "node": ">=24"
   },
