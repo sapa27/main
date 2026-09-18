@@ -37,6 +37,7 @@ jobs:
           set -euo pipefail
           npm run check
           npm test
+          bash -n bootstrap-gcp.sh
       - name: Smoke local readiness endpoint
         run: |
           set -euo pipefail
@@ -76,10 +77,12 @@ jobs:
       - name: Validate deployment variables
         run: |
           set -euo pipefail
+          missing=0
           for name in PROJECT_ID REGION SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT; do
             value="${!name:-}"
-            if [ -z "$value" ]; then echo "Missing repository variable: $name" >&2; exit 1; fi
+            if [ -z "$value" ]; then echo "Missing repository variable: $name" >&2; missing=1; fi
           done
+          exit "$missing"
       - name: Read canonical GAS production configuration
         run: |
           node <<'NODE' >> "$GITHUB_ENV"
