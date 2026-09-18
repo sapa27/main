@@ -16,6 +16,9 @@ const transport=file('frontend/cloud-run-transport.js');
 const gateway=file('cloud-run-gateway/server.js');
 const workflow=file('.github/workflows/cloud-run-gateway.yml');
 const frontWorkflow=file('.github/workflows/frontend-validation.yml');
+const v2CanaryWorkflow=file('.github/workflows/v2-canary.yml');
+const v2CloudCanaryWorkflow=file('.github/workflows/v2-cloud-run-canary.yml');
+const v2PromoteWorkflow=file('.github/workflows/v2-promote-production.yml');
 
 ok('CR-7 repository layout is Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
@@ -82,6 +85,7 @@ ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   assert.ok(gateway.includes("transport:'gas-direct-json'"));
   assert.ok(gateway.includes("gasTransport:'direct-json-primary'"));
   assert.ok(gateway.includes('legacyFallbackEnabled:false'));
+  assert.ok(gateway.includes('sourceSha:sourceSha(env)'));
   for(const token of ['sapa27.github.io','github-pages-rpc','GAS_PARENT_ORIGIN','legacyRpc','legacyJsonp','github-rpc'])assert.ok(!gateway.includes(token),'retired gateway token: '+token);
 });
 
@@ -96,6 +100,18 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(!workflow.includes('sapa27.github.io'));
   assert.ok(!workflow.includes('github-pages-rpc'));
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
+});
+
+ok('all deployment gates require live GAS upstream',()=>{
+  for(const [name,wf] of [['cr7',workflow],['v2-canary',v2CanaryWorkflow],['v2-cloud-canary',v2CloudCanaryWorkflow],['v2-promote',v2PromoteWorkflow]]){
+    assert.ok(wf.includes('/upstream-health'),name+' missing upstream probe');
+    assert.ok(wf.includes('APP_SOURCE_SHA='),name+' missing source SHA deployment attestation');
+    assert.ok(wf.includes('sourceSha'),name+' missing source SHA verification');
+    assert.ok(wf.includes('u.upstream?.checked!==true'),name+' missing checked=true gate');
+    assert.ok(wf.includes('u.upstream?.ok!==true'),name+' missing upstream ok gate');
+    assert.ok(wf.includes('u.upstream?.transport!==\"gas-direct-json\"'),name+' missing direct-json transport gate');
+    assert.ok(!/upstream-health[^\n]*\|\|\s*echo/.test(wf),name+' upstream probe must fail closed');
+  }
 });
 
 ok('frontend performance cache policy remains bounded',()=>{

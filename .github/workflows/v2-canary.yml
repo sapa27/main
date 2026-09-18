@@ -6,6 +6,8 @@ on:
       - 'cloud-run-gateway/**'
       - '.github/tests/v2-regression.mjs'
       - '.github/workflows/v2-canary.yml'
+      - '.github/workflows/v2-cloud-run-canary.yml'
+      - '.github/workflows/v2-promote-production.yml'
   workflow_dispatch:
     inputs:
       deploy:
@@ -89,15 +91,19 @@ jobs:
       - name: Deploy isolated V2 canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 30             --min-instances 0 --max-instances 3 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL"
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 30             --min-instances 0 --max-instances 3 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,APP_SOURCE_SHA=$GITHUB_SHA"
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           echo "V2_URL=$url" >> "$GITHUB_ENV"
       - name: Smoke V2 static/runtime boundary
         run: |
           set -euo pipefail
-          curl --max-time 30 -fsS "$V2_URL/ready"
-          curl --max-time 15 -fsS "$V2_URL/health"
-          curl --max-time 12 -fsS "$V2_URL/upstream-health" || echo "V2 canary GAS upstream probe degraded; local Cloud Run health remains healthy"
+          ready="$(curl --max-time 30 -fsS "$V2_URL/ready")"
+          health="$(curl --max-time 15 -fsS "$V2_URL/health")"
+          upstream="$(curl --max-time 45 -fsS "$V2_URL/upstream-health")"
+          echo "V2 ready: $ready"
+          echo "V2 health: $health"
+          echo "V2 upstream: $upstream"
+          node -e 'const r=JSON.parse(process.argv[1]),h=JSON.parse(process.argv[2]),u=JSON.parse(process.argv[3]),sha=process.argv[4];if(r.ok!==true||r.sourceSha!==sha||h.ok!==true||u.ok!==true||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$V2_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$V2_URL/app.js" -o "$tmp_dir/app.js"

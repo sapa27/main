@@ -7,7 +7,8 @@ const {REV,cfg,gasUrl,allowed,isWrite,timeout,directRpc,createServer}=require('.
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
   GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec',
-  GATEWAY_ALLOWED_ORIGINS:ORIGIN
+  GATEWAY_ALLOWED_ORIGINS:ORIGIN,
+  APP_SOURCE_SHA:'test-source-sha'
 };
 
 async function withServer(fn,env=ENV){
@@ -38,9 +39,11 @@ test('readiness and version expose direct-only CR-7 contract',async()=>withServe
   assert.equal(ready.gateway,'cr7-runtime-decoupled-r330');
   assert.equal(ready.gasTransport,'direct-json-primary');
   assert.equal(ready.legacyFallbackEnabled,false);
+  assert.equal(ready.sourceSha,'test-source-sha');
   assert.equal(version.frontendHost,'cloud-run');
   assert.equal(version.gasTransport,'direct-json-primary');
   assert.equal(version.legacyFallbackEnabled,false);
+  assert.equal(version.sourceSha,'test-source-sha');
 }));
 
 test('local health is fast and does not depend on GAS',async()=>withServer(async base=>{
@@ -70,6 +73,14 @@ test('upstream health probes GAS separately',async()=>{
     });
   }finally{global.fetch=original}
 });
+
+test('upstream health fails closed when GAS is unavailable',async()=>withServer(async base=>{
+  const r=await fetch(base+'/upstream-health');
+  const j=await r.json();
+  assert.equal(r.status,503);
+  assert.equal(j.ok,false);
+  assert.equal(j.error.code,'GAS_URL_NOT_CONFIGURED');
+},{...ENV,GAS_WEB_APP_URL:''}));
 
 test('CORS accepts same Cloud Run origin and rejects unknown origin',async()=>withServer(async base=>{
   const denied=await fetch(base+'/api/router',{method:'OPTIONS',headers:{Origin:'https://evil.invalid','Access-Control-Request-Method':'POST'}});
