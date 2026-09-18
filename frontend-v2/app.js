@@ -259,7 +259,9 @@ function routeMeeting(){
   bindTabs();$("#meeting-go").onclick=()=>searchCases("meeting",true);$("#meeting-new").onclick=newCase;$("#meeting-refresh").onclick=()=>{clearReadCache();searchCases("meeting",true)};newCase();searchCases("meeting",true);
 }
 async function genericPageLoad(cardId,method,payload={},columns=null){
- try{const res=await call(method,payload);setCard(cardId,table(rowsOf(res),columns),"อัปเดตแล้ว")}catch(e){genericError(cardId,e)}
+ const ctx=currentRouteContext();
+ try{const res=await call(method,payload,{signal:ctx.signal});if(ctx.epoch!==state.routeEpoch)return;setCard(cardId,table(rowsOf(res),columns),"อัปเดตแล้ว")}
+ catch(e){if(isAbortError(e)||ctx.epoch!==state.routeEpoch)return;genericError(cardId,e)}
 }
 function routeTrack(){
  $("#page-host").innerHTML=pageFrame("ระบบติดตามหนังสือ","ข้อมูลหนังสือติดตามแบบ server-paged")+`<div class="page">${statusCard("track-data","รายการติดตาม")}</div>`;
