@@ -222,6 +222,32 @@ ok('P1-E route operational status requires a mounted canonical lifecycle control
   assert.ok(index.includes('sessionStorage.removeItem("commission.system.sessionResume.current")'),'fallback logout must clear the actual canonical resume key');
 });
 
+await okAsync('P0-1 same-route hash navigation does not create a new route generation',async()=>{
+  const start=index.indexOf('function applyRoute(target,replace)');
+  const end=index.indexOf('function prefetchRouteFromElementCurrent',start);
+  assert.ok(start>=0&&end>start,'applyRoute source boundary missing');
+  const snippet=index.slice(start,end);
+  let commits=0,marks=0,releases=0;
+  const ctx={
+    routeState:{path:'/meeting'},bridgeState:{authenticated:true,currentPath:'/meeting'},BOOT:{defaultRoute:'/dashboard'},
+    routeNavigationInFlightCurrent:{},Promise,
+    normalizeRouteTarget:v=>String(v||'').replace(/^#/,'')||'/dashboard',
+    syncStateFromStore(){},appNavAllowed:()=>true,navFromRoute:v=>String(v||'').replace(/^\//,''),
+    resolveCurrentRole:()=> 'admin',notifyPermissionDenied(){},
+    commitRouteCurrent(target){commits++;ctx.routeState.path=target;return Promise.resolve(true)},
+    markSidebar(){marks++},clearSidebarPending(){},releaseUiLock(){releases++},
+    canonicalPageId:v=>String(v||''),window:{AppRuntime:{recordWarning(){}}},
+    document:{documentElement:{classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){}}}
+  };
+  vm.runInNewContext(snippet,ctx);
+  assert.equal(await ctx.applyRoute('/meeting',true),true);
+  assert.equal(commits,0,'same-route hashchange must not call commitRouteCurrent or advance generation');
+  assert.ok(marks>0,'same-route guard should keep sidebar state synchronized');
+  assert.ok(releases>0,'same-route guard should release any stale UI lock');
+  assert.equal(await ctx.applyRoute('/search',true),true);
+  assert.equal(commits,1,'a real route change must still commit exactly once');
+});
+
 ok('P1-E route loading ignores stale request completions from an older generation',()=>{
   const block=scriptBlockById(index,'app-route-loading-controller-current');
   assert.ok(block.includes('r331-v62-route-generation-data-ready'));

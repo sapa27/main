@@ -3373,6 +3373,7 @@ if(target!=="/login"&&!appNavAllowed(navFromRoute(target),resolveCurrentRole()))
 if(target==="/login")return commitRouteCurrent(target,replace);
 var key=target;
 if(routeNavigationInFlightCurrent[key])return routeNavigationInFlightCurrent[key];
+if(routeState.path===target){markSidebar(target);clearSidebarPending();releaseUiLock("route-same-current:"+target);return Promise.resolve(!0)}
 document.documentElement.classList.add("app-route-prefetching");
 document.documentElement.setAttribute("data-app-route-target",canonicalPageId(navFromRoute(target)));
 var navigation=Promise.resolve(commitRouteCurrent(target,replace)).catch(function(err){
