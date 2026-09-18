@@ -1,0 +1,108 @@
+name: V2 Clean Frontend Canary
+on:
+  push:
+    paths:
+      - 'frontend-v2/**'
+      - '.github/workflows/v2-canary.yml'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy V2 clean frontend canary'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: v2-clean-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate V2 deterministic runtime
+        run: |
+          set -euo pipefail
+          node --check frontend-v2/app.js
+          test -f frontend-v2/index.html
+          test -f frontend-v2/styles.css
+          grep -q 'V2 CLEAN' frontend-v2/index.html || true
+          grep -q 'meeting:{title:"จัดการเรื่องพิจารณา",render:routeMeeting}' frontend-v2/app.js
+          ! grep -Eq 'getDeferredInclude|loadPageScripts|pageController|meetingPageScriptLoadTimeout' frontend-v2/app.js
+          for route in dashboard search meeting report track committee-meeting people petitioner budget admin; do
+            grep -q "$route" frontend-v2/app.js
+          done
+      - name: Stage V2 into gateway image
+        run: |
+          rm -rf cloud-run-gateway/public
+          cp -R frontend-v2 cloud-run-gateway/public
+          test -f cloud-run-gateway/public/index.html
+          test -f cloud-run-gateway/public/app.js
+          test -f cloud-run-gateway/public/styles.css
+      - name: Validate gateway
+        run: |
+          cd cloud-run-gateway
+          npm run check
+          npm test
+      - name: Validate container
+        run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
+
+  deploy:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deploy-v2]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'sapa27' }}
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast3' }}
+      SERVICE: sapa27-v2-canary
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
+      GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage V2
+        run: |
+          rm -rf cloud-run-gateway/public
+          cp -R frontend-v2 cloud-run-gateway/public
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+      - name: Deploy isolated V2 canary
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 30             --min-instances 0 --max-instances 3 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL"
+          url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          echo "V2_URL=$url" >> "$GITHUB_ENV"
+      - name: Smoke V2 static/runtime boundary
+        run: |
+          set -euo pipefail
+          curl --max-time 30 -fsS "$V2_URL/ready"
+          curl --max-time 90 -fsS "$V2_URL/health"
+          curl --max-time 30 -fsS "$V2_URL/" | grep -q 'Clean Runtime V2'
+          curl --max-time 30 -fsS "$V2_URL/app.js" | grep -q 'v2-clean-20260918'
+          curl --max-time 30 -fsS "$V2_URL/app.js" | grep -q 'meeting:{title:"จัดการเรื่องพิจารณา",render:routeMeeting}'
+          if curl --max-time 30 -fsS "$V2_URL/app.js" | grep -Eq 'getDeferredInclude|loadPageScripts|pageController'; then
+            echo "Legacy loader dependency detected" >&2
+            exit 1
+          fi
+          echo "### V2 Clean Canary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $V2_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Runtime: deterministic single bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Deferred page loader: removed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Meeting controller: static route registry" >> "$GITHUB_STEP_SUMMARY"
