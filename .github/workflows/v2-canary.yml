@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'frontend-v2/**'
+      - '.github/tests/v2-regression.mjs'
       - '.github/workflows/v2-canary.yml'
   workflow_dispatch:
     inputs:
