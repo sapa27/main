@@ -50,15 +50,19 @@ async function rawCall(method,payload={},opts={}){
   const key=!isWrite(effective)&&ttl?cacheKey(effective,payload):"";
   if(key&&!opts.forceFresh){
     const hit=state.cache.get(key);
-    if(hit&&hit.exp>now())return hit.value;
+    if(hit&&hit.exp>now()){state.perf.cacheHits++;return hit.value}
   }
-  if(key&&state.inflight.has(key))return state.inflight.get(key);
+  if(key&&state.inflight.has(key)){state.perf.dedupHits++;return state.inflight.get(key)}
   const controller=new AbortController();
   const timeout=Math.max(10000,Number(opts.timeout|| (isWrite(effective)?120000:45000)));
-  const timer=setTimeout(()=>controller.abort(),timeout);
-  const work=fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({method:wireMethod,payload:wirePayload,timeoutMs:timeout}),signal:opts.signal||controller.signal})
+  const routeSignal=!isWrite(effective)&&opts.routeBound!==false?(state.routeAbort&&state.routeAbort.signal):null;
+  const external=opts.signal||routeSignal;
+  if(external){if(external.aborted)controller.abort();else external.addEventListener("abort",()=>controller.abort(),{once:true})}
+  const timer=setTimeout(()=>controller.abort(),timeout);state.perf.requests++;
+  const work=fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({method:wireMethod,payload:wirePayload,timeoutMs:timeout}),signal:controller.signal})
     .then(async r=>{const body=await r.json().catch(()=>null);if(!r.ok)throw new Error(body?.error?.message||("HTTP "+r.status));return normalizeGateway(body)})
     .then(value=>{if(key&&ttl)state.cache.set(key,{value,exp:now()+ttl});if(isWrite(effective))clearReadCache();return value})
+    .catch(e=>{if(isAbortError(e)){state.perf.aborts++;e.code="REQUEST_CANCELLED"}throw e})
     .finally(()=>{clearTimeout(timer);if(key)state.inflight.delete(key)});
   if(key)state.inflight.set(key,work);
   return work;
