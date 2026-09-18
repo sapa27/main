@@ -1,4 +1,4 @@
-const VERSION="v2-clean-20260918";
+const VERSION="v2-rebuild-20260918";
 const API="/api/router";
 const BOOTSTRAP_METHODS=new Set(["apiLogin","apiLogout","apiSessionCheck","apiSessionResume"]);
 const READ_TTL={
@@ -12,8 +12,8 @@ const WRITE_METHODS=new Set(["apiSaveCase","apiDeleteCase","apiSaveMeetingLog","
 
 const state={
   auth:{token:"",csrfToken:"",user:null,role:"viewer"},
-  route:"dashboard",routeEpoch:0,cache:new Map(),inflight:new Map(),selectedCase:null,
-  caseRows:[],meetingBundle:null
+  route:"dashboard",routeEpoch:0,routeAbort:null,cache:new Map(),inflight:new Map(),selectedCase:null,
+  caseRows:[],meetingBundle:null,perf:{requests:0,cacheHits:0,dedupHits:0,aborts:0,routeStarts:0}
 };
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -34,6 +34,9 @@ function authPayload(payload={}){
 function isWrite(method){return WRITE_METHODS.has(method)||/^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup)/.test(method)}
 function cacheKey(method,payload){try{return method+"|"+JSON.stringify(payload)}catch{return""}}
 function clearReadCache(){state.cache.clear()}
+function isAbortError(e){return !!e&&(e.name==="AbortError"||e.code==="ABORT_ERR"||/aborted|abort/i.test(String(e.message||"")))}
+function beginRoute(route){if(state.routeAbort){try{state.routeAbort.abort()}catch{}}state.routeAbort=new AbortController();state.route=route;state.routeEpoch++;state.perf.routeStarts++;return{epoch:state.routeEpoch,signal:state.routeAbort.signal}}
+function currentRouteContext(){return{epoch:state.routeEpoch,signal:state.routeAbort&&state.routeAbort.signal||null}}
 function normalizeGateway(j){
   if(!j||j.ok!==true){const e=new Error(j?.error?.message||"API request failed");e.code=j?.error?.code||"API_ERROR";throw e}
   return j.result;
