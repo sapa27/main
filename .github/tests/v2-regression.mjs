@@ -11,8 +11,20 @@ function ok(name,fn){fn();passed++;console.log("ok "+passed+" - "+name)}
 
 ok("V2 JavaScript compiles",()=>new vm.Script(app,{filename:"frontend-v2/app.js"}));
 ok("V2 static routes are complete",()=>{
-  for(const route of ["dashboard","search","meeting","report","track","committee-meeting","petitioner","people","budget","admin"]){
-    assert.ok(app.includes(route+':{title:'),"missing route "+route);
+  const routeTokens={
+    dashboard:'dashboard:{title:',
+    search:'search:{title:',
+    meeting:'meeting:{title:',
+    report:'report:{title:',
+    track:'track:{title:',
+    "committee-meeting":'"committee-meeting":{title:',
+    petitioner:'petitioner:{title:',
+    people:'people:{title:',
+    budget:'budget:{title:',
+    admin:'admin:{title:'
+  };
+  for(const [route,token] of Object.entries(routeTokens)){
+    assert.ok(app.includes(token),"missing route "+route);
   }
   assert.ok(app.includes('meeting:{title:"จัดการเรื่องพิจารณา",render:routeMeeting}'));
   assert.ok(app.includes("function assertRouteRegistry()"));
