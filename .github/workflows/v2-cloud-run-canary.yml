@@ -1,0 +1,78 @@
+name: V2 Cloud Run Canary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: sapa27
+  REGION: asia-southeast3
+  SERVICE: sapa27-v2-canary
+  WIF_PROVIDER: projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main
+  DEPLOY_SERVICE_ACCOUNT: github-cloud-run-deployer@sapa27.iam.gserviceaccount.com
+  GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validate V2
+        run: |
+          set -euo pipefail
+          node --check frontend-v2/app.js
+          node .github/tests/v2-regression.mjs
+          rm -rf cloud-run-gateway/public
+          cp -R frontend-v2 cloud-run-gateway/public
+          cd cloud-run-gateway
+          npm run check
+          npm test
+
+      - name: Build container in GitHub Actions
+        run: |
+          docker build -t sapa27-v2:canary cloud-run-gateway
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy canary to Cloud Run
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --source cloud-run-gateway \
+            --allow-unauthenticated \
+            --cpu 1 \
+            --memory 512Mi \
+            --concurrency 30 \
+            --min-instances 0 \
+            --max-instances 3 \
+            --timeout 300 \
+            --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL"
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          echo "Cloud Run URL: $URL"
+          curl --max-time 30 -fsS "$URL/ready"
+          curl --max-time 90 -fsS "$URL/health"
+          curl --max-time 30 -fsS "$URL/app.js" | grep -q 'v2-rebuild-20260918'
+          echo "Runtime: Browser -> Cloud Run -> GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "URL: $URL" >> "$GITHUB_STEP_SUMMARY"
