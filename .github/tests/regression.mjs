@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.3-static-meeting-controller-20260918'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.4-meeting-static-first-20260918'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -116,7 +116,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.3-static-meeting-controller'"));
+  assert.ok(workflow.includes("grep -q 'cr8.4-meeting-static-first'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -157,6 +157,18 @@ ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')>=0);
   assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')<fetchBlock.indexOf('AppApi.call("getDeferredInclude"'),'Meeting must resolve locally before GAS deferred include');
+});
+
+ok('Meeting controller opens before shared deferred runtime',()=>{
+  assert.ok(index.includes('function warmMeetingSharedAssets(list)'));
+  const loadStart=index.indexOf('function loadPage(p)');
+  const loadEnd=index.indexOf('function assertExternalAsset',loadStart);
+  const loadBlock=index.slice(loadStart,loadEnd);
+  assert.ok(loadBlock.includes('if(n==="meeting")return ensureCore()'));
+  assert.ok(loadBlock.includes('safePartial("Scripts_Page_Meeting::meeting-common")'));
+  assert.ok(loadBlock.includes('warmMeetingSharedAssets(list);return!0'));
+  assert.ok(loadBlock.indexOf('safePartial("Scripts_Page_Meeting::meeting-common")')<loadBlock.indexOf('warmMeetingSharedAssets(list)'));
+  assert.ok(index.includes('meeting.shared.load.degraded'));
 });
 
 ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
