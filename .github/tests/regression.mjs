@@ -123,13 +123,16 @@ ok('CR-5 Cloud Run is the canonical browser transport with direct GAS disabled',
 });
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
 
-ok('GitHub Pages deployment is disabled and regression remains available',()=>{
+ok('GitHub Pages deployment is removed and source validation remains available',()=>{
   assert.ok(workflow.includes('name: Validate Frontend Source (Cloud Run Production)'));
   assert.ok(workflow.includes('Run R331/v62 automated regression suite'));
   assert.ok(workflow.includes('if [ -f gas-backend/Code_00_PlatformCore.gs ]; then'));
   assert.ok(workflow.includes('node .github/tests/regression.mjs --full'));
   assert.ok(workflow.includes('node .github/tests/regression.mjs --frontend-only'));
-  assert.ok(workflow.includes('if: ${{ false }}'));
+  assert.ok(!workflow.includes('actions/configure-pages@'));
+  assert.ok(!workflow.includes('actions/upload-pages-artifact@'));
+  assert.ok(!workflow.includes('actions/deploy-pages@'));
+  assert.ok(!workflow.includes('PAGES_URL:'));
 });
 
 ok(`repository layout matches ${MODE} regression mode`,()=>{
