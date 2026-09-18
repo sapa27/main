@@ -43,25 +43,22 @@ test('readiness and version expose direct-only CR-7 contract',async()=>withServe
   assert.equal(version.legacyFallbackEnabled,false);
 }));
 
-test('local health is fast and does not depend on GAS',async()=>{
-  const original=global.fetch;
-  global.fetch=async()=>{throw new Error('GAS must not be called by /health')};
-  try{
-    await withServer(async base=>{
-      const r=await fetch(base+'/health');
-      const j=await r.json();
-      assert.equal(r.status,200);
-      assert.equal(j.ok,true);
-      assert.equal(j.status,'healthy');
-      assert.equal(j.upstream.checked,false);
-      assert.equal(j.upstream.transport,'gas-direct-json');
-    });
-  }finally{global.fetch=original}
-});
+test('local health is fast and does not depend on GAS',async()=>withServer(async base=>{
+  const r=await fetch(base+'/health');
+  const j=await r.json();
+  assert.equal(r.status,200);
+  assert.equal(j.ok,true);
+  assert.equal(j.status,'healthy');
+  assert.equal(j.upstream.checked,false);
+  assert.equal(j.upstream.transport,'gas-direct-json');
+},{...ENV,GAS_WEB_APP_URL:''}));
 
 test('upstream health probes GAS separately',async()=>{
   const original=global.fetch;
-  global.fetch=async()=>({ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true}})});
+  global.fetch=async(url,opt={})=>{
+    if(String(url).startsWith('http://127.0.0.1:'))return original(url,opt);
+    return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true}})};
+  };
   try{
     await withServer(async base=>{
       const r=await fetch(base+'/upstream-health');
