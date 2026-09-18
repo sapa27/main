@@ -19,4 +19,4 @@ CR-7 removes GitHub Pages from the runtime chain. GitHub is used only as the sou
 
 The initial CR-7 deployment enables the legacy GAS RPC only as a server-side emergency fallback while the deploy smoke test proves that production GAS accepts direct JSON POST. The smoke gate fails unless `/health` reports `gas-direct-json` without degradation. After that proof, the fallback is removed in CR-7 final.
 
-Deployment marker: `CR-7-runtime-decoupled-probe-20260918`
+Deployment marker: `CR-7-stabilized-origin-probe-v2-20260918`
