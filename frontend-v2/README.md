@@ -17,3 +17,5 @@ Key guarantees:
 - Meeting is a static route rendered synchronously before data fetches
 
 Canary candidate: r2 meeting-stability build.
+
+Main canary trigger: r2 validated build.
