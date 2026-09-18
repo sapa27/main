@@ -56,11 +56,13 @@ test('directRpc posts JSON to GAS and normalizes response',async()=>{
   let call=null;
   global.fetch=async(url,opt={})=>{
     call={url:String(url),opt};
-    return {ok:true,status:200,text:async()=>JSON.stringify({ok:true,data:{rows:[{id:1}]}})};
+    return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{rows:[{id:1}]}}})};
   };
   try{
     const out=await directRpc('apiGetDashboardBundle',{scope:'main'},35000,cfg(ENV));
     assert.equal(out.ok,true);
+    assert.equal(out.result.ok,true);
+    assert.deepEqual(out.result.data.rows,[{id:1}]);
     assert.equal(out.meta.transport,'gas-direct-json');
     assert.equal(out.meta.method,'apiGetDashboardBundle');
     assert.equal(call.url,ENV.GAS_WEB_APP_URL);
