@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2742">
+  <title>ระบบเรื่องพิจารณาของคณะกรรมาธิการ — V2</title>
+  <link rel="stylesheet" href="./styles.css?v=v2-clean-20260918">
+</head>
+<body>
+  <div id="toast-region" class="toast-region" aria-live="polite"></div>
+
+  <section id="login-view" class="login-view">
+    <div class="login-card">
+      <div class="brand-mark">ส</div>
+      <div>
+        <h1>ระบบเรื่องพิจารณาของคณะกรรมาธิการ</h1>
+        <p class="muted">Clean Runtime V2 · Cloud Run → GAS Direct JSON</p>
+      </div>
+      <form id="login-form" autocomplete="on">
+        <label>ชื่อผู้ใช้
+          <input id="login-username" name="username" autocomplete="username" required>
+        </label>
+        <label>รหัสผ่าน
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button id="login-submit" type="submit" class="btn primary">เข้าสู่ระบบ</button>
+        <div id="login-error" class="error-box hidden"></div>
+      </form>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <header class="topbar">
+      <button id="menu-toggle" class="icon-btn mobile-only" aria-label="เปิดเมนู">☰</button>
+      <div class="topbar-title">
+        <strong>ระบบเรื่องพิจารณา</strong>
+        <span id="route-title" class="muted">Dashboard</span>
+      </div>
+      <div class="topbar-user">
+        <span id="user-label"></span>
+        <button id="logout-btn" class="btn ghost">ออกจากระบบ</button>
+      </div>
+    </header>
+
+    <aside id="sidebar" class="sidebar" aria-label="เมนูหลัก">
+      <div class="sidebar-brand">
+        <div class="brand-mark small">ส</div>
+        <div><strong>คณะกรรมาธิการ</strong><small>Clean Runtime V2</small></div>
+      </div>
+      <nav id="nav"></nav>
+      <div class="sidebar-foot"><span id="runtime-badge">V2</span></div>
+    </aside>
+    <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+    <main id="main" class="main" tabindex="-1">
+      <div id="page-host"></div>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js?v=v2-clean-20260918"></script>
+</body>
+</html>
