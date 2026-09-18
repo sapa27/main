@@ -214,33 +214,59 @@ function meetingTabs(){
  return `<div class="tabs" id="meeting-tabs"><button class="tab active" data-tab="case">ข้อมูลเรื่อง</button><button class="tab" data-tab="history">ประวัติการประชุม</button><button class="tab" data-tab="letters">หนังสือติดตามมติ</button></div>
  <div id="tab-case" class="tab-panel active"></div><div id="tab-history" class="tab-panel"></div><div id="tab-letters" class="tab-panel"></div>`;
 }
+function meetingIdentity(row){
+  return {caseId:firstVal(row,["caseId","id"]),caseNum:caseKey(row),caseNo:caseKey(row),runningNo:caseKey(row),recNo:recNo(row),title:caseTitle(row)};
+}
 function bindTabs(){
-  $$(".tab","#meeting-tabs").forEach(btn=>btn.onclick=()=>{$$(".tab","#meeting-tabs").forEach(x=>x.classList.toggle("active",x===btn));$$(".tab-panel").forEach(p=>p.classList.toggle("active",p.id==="tab-"+btn.dataset.tab))});
+  $$(".tab","#meeting-tabs").forEach(btn=>btn.onclick=()=>{
+    $$(".tab","#meeting-tabs").forEach(x=>x.classList.toggle("active",x===btn));
+    $$(".tab-panel").forEach(p=>p.classList.toggle("active",p.id==="tab-"+btn.dataset.tab));
+    if((btn.dataset.tab==="history"||btn.dataset.tab==="letters")&&state.selectedCase)loadMeetingTab(btn.dataset.tab);
+  });
+}
+async function loadMeetingTab(kind){
+  const row=state.selectedCase,epoch=state.routeEpoch;
+  if(state.route!=="meeting"||!row)return;
+  const panel=$("#tab-"+kind);if(!panel||panel.dataset.loaded==="1"||panel.dataset.loaded==="loading")return;
+  panel.dataset.loaded="loading";
+  panel.innerHTML='<div class="loading-card">กำลังโหลดข้อมูล</div>';
+  const identity=meetingIdentity(row);
+  try{
+    const value=kind==="history"
+      ?await call("apiGetMeetingHistory",identity)
+      :await call("apiGetLetters",Object.assign({page:1,limit:100},identity));
+    if(state.route!=="meeting"||epoch!==state.routeEpoch||state.selectedCase!==row||!panel.isConnected)return;
+    panel.innerHTML=kind==="history"?renderHistory(rowsOf(value),identity):renderLetters(rowsOf(value),identity);
+    panel.dataset.loaded="1";
+  }catch(e){
+    if(isAbortError(e)||epoch!==state.routeEpoch||state.selectedCase!==row||!panel.isConnected)return;
+    panel.dataset.loaded="0";
+    panel.innerHTML=`<div class="error-box">${esc(errorMessage(e))}</div>`;
+  }
 }
 async function openCase(row){
   const epoch=state.routeEpoch;if(state.route!=="meeting")return;
   state.selectedCase=row;$$("[data-case-index]").forEach(el=>el.classList.toggle("active",state.caseRows[Number(el.dataset.caseIndex)]===row));
   $("#tab-case").innerHTML=renderCaseForm(row);$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
-  $("#tab-history").innerHTML='<div class="loading-card">กำลังโหลดประวัติการประชุม</div>';
-  $("#tab-letters").innerHTML='<div class="loading-card">กำลังโหลดหนังสือติดตามมติ</div>';
-  const identity={caseId:firstVal(row,["caseId","id"]),caseNum:caseKey(row),caseNo:caseKey(row),runningNo:caseKey(row),recNo:recNo(row),title:caseTitle(row)};
-  const settled=await Promise.allSettled([
-    call("apiGetCanonicalCaseBundle",identity),
-    call("apiGetMeetingHistory",identity),
-    call("apiGetLetters",Object.assign({page:1,limit:100},identity))
-  ]);
-  if(state.route!=="meeting"||epoch!==state.routeEpoch||state.selectedCase!==row)return;
-  if(!$("#tab-case")||!$("#tab-history")||!$("#tab-letters"))return;
-  if(settled[0].status==="fulfilled"){
-    const bundle=firstObject(dataOf(settled[0].value));state.meetingBundle=bundle;
+  $("#tab-history").dataset.loaded="0";$("#tab-history").innerHTML='<div class="empty">เปิดแท็บนี้เพื่อโหลดประวัติการประชุม</div>';
+  $("#tab-letters").dataset.loaded="0";$("#tab-letters").innerHTML='<div class="empty">เปิดแท็บนี้เพื่อโหลดหนังสือติดตามมติ</div>';
+  const identity=meetingIdentity(row);
+  try{
+    const value=await call("apiGetCanonicalCaseBundle",identity);
+    if(state.route!=="meeting"||epoch!==state.routeEpoch||state.selectedCase!==row||!$("#tab-case"))return;
+    const bundle=firstObject(dataOf(value));state.meetingBundle=bundle;
     const enriched=bundle.case||bundle.caseRow||bundle.main||bundle.data||row;
     $("#tab-case").innerHTML=renderCaseForm(Object.assign({},row,enriched));$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
+  }catch(e){
+    if(isAbortError(e)||epoch!==state.routeEpoch||state.selectedCase!==row)return;
+    $("#tab-case").innerHTML=renderCaseForm(row)+`<div class="error-box">${esc(errorMessage(e))}</div>`;
+    $("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
   }
-  if(settled[1].status==="fulfilled")$("#tab-history").innerHTML=renderHistory(rowsOf(settled[1].value),identity);else $("#tab-history").innerHTML=`<div class="error-box">${esc(errorMessage(settled[1].reason))}</div>`;
-  if(settled[2].status==="fulfilled")$("#tab-letters").innerHTML=renderLetters(rowsOf(settled[2].value),identity);else $("#tab-letters").innerHTML=`<div class="error-box">${esc(errorMessage(settled[2].reason))}</div>`;
 }
 function newCase(){
-  state.selectedCase=null;$("#tab-case").innerHTML=renderCaseForm({status:"เรื่องเข้าใหม่"});$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();$("#tab-history").innerHTML='<div class="empty">บันทึกข้อมูลเรื่องก่อนเพิ่มประวัติการประชุม</div>';$("#tab-letters").innerHTML='<div class="empty">บันทึกข้อมูลเรื่องก่อนเพิ่มหนังสือติดตาม</div>';
+  state.selectedCase=null;$("#tab-case").innerHTML=renderCaseForm({status:"เรื่องเข้าใหม่"});$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
+  $("#tab-history").dataset.loaded="0";$("#tab-history").innerHTML='<div class="empty">บันทึกข้อมูลเรื่องก่อนเพิ่มประวัติการประชุม</div>';
+  $("#tab-letters").dataset.loaded="0";$("#tab-letters").innerHTML='<div class="empty">บันทึกข้อมูลเรื่องก่อนเพิ่มหนังสือติดตาม</div>';
 }
 function renderHistory(rows,identity){
   const form=canEdit()?`<form id="history-form" class="form-grid"><label>ครั้งที่<input name="round" required></label><label>วันที่ประชุม<input name="date" type="date" required></label><label class="span-2">ผลการพิจารณา/สรุป<textarea name="result"></textarea></label><button class="btn primary" type="submit">เพิ่มประวัติการประชุม</button></form><hr>`:"";
