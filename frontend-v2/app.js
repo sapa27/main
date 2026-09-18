@@ -298,7 +298,7 @@ const ROUTES={
 function go(route,replace=false){
  route=text(route||"dashboard").replace(/^#\/?/,"");if(!ROUTES[route])route="dashboard";
  if(role()==="viewer"&&(route==="track"||route==="budget"))route="dashboard";
- state.route=route;state.routeEpoch++;$("#route-title").textContent=ROUTES[route].title;renderNav();openSidebar(false);
+ beginRoute(route);$("#route-title").textContent=ROUTES[route].title;renderNav();openSidebar(false);
  if((location.hash||"").replace(/^#\/?/,"")!==route){history[replace?"replaceState":"pushState"](null,"","#/"+route)}
  $("#page-host").innerHTML="";try{ROUTES[route].render()}catch(e){$("#page-host").innerHTML=pageFrame("เปิดหน้าไม่สำเร็จ","V2 route registry error")+`<div class="error-box">${esc(errorMessage(e))}</div>`;console.error(e)}
  $("#main").focus({preventScroll:true});
