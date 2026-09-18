@@ -94,10 +94,13 @@ jobs:
           set -euo pipefail
           curl --max-time 30 -fsS "$V2_URL/ready"
           curl --max-time 90 -fsS "$V2_URL/health"
-          curl --max-time 30 -fsS "$V2_URL/" | grep -q 'Clean Runtime V2'
-          curl --max-time 30 -fsS "$V2_URL/app.js" | grep -q 'v2-clean-20260918'
-          curl --max-time 30 -fsS "$V2_URL/app.js" | grep -q 'meeting:{title:"จัดการเรื่องพิจารณา",render:routeMeeting}'
-          if curl --max-time 30 -fsS "$V2_URL/app.js" | grep -Eq 'getDeferredInclude|loadPageScripts|pageController'; then
+          tmp_dir="$(mktemp -d)"
+          curl --max-time 30 -fsS "$V2_URL/" -o "$tmp_dir/index.html"
+          curl --max-time 30 -fsS "$V2_URL/app.js" -o "$tmp_dir/app.js"
+          grep -q 'Clean Runtime V2' "$tmp_dir/index.html"
+          grep -q 'v2-clean-20260918' "$tmp_dir/app.js"
+          grep -q 'meeting:{title:"จัดการเรื่องพิจารณา",render:routeMeeting}' "$tmp_dir/app.js"
+          if grep -Eq 'getDeferredInclude|loadPageScripts|pageController|meetingPageScriptLoadTimeout' "$tmp_dir/app.js"; then
             echo "Legacy loader dependency detected" >&2
             exit 1
           fi
