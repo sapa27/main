@@ -36,7 +36,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8-gas-response-20260918'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.1-meeting-recovery-20260918'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -129,6 +129,20 @@ ok('all deployment gates require live GAS upstream',()=>{
     assert.ok(wf.includes('u.upstream?.transport!==\"gas-direct-json\"'),name+' missing direct-json transport gate');
     assert.ok(!/upstream-health[^\n]*\|\|\s*echo/.test(wf),name+' upstream probe must fail closed');
   }
+});
+
+ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
+  assert.ok(index.includes('function meetingInteractiveReadyCurrent(id)'));
+  assert.ok(index.includes('function repairMeetingCanonicalMountCurrent(id,generation)'));
+  assert.ok(index.includes('router-meeting-canonical-recovery'));
+  assert.ok(index.includes('adapter.reload'));
+  assert.ok(index.includes('meetingPageInitialized==="1"'));
+  assert.ok(index.includes('result===!1&&id==="meeting"&&!isPageOperational(id)?repairMeetingCanonicalMountCurrent(id,generation)'));
+  const opStart=index.indexOf('function isPageOperational(id)');
+  const opEnd=index.indexOf('function waitForPageOperational',opStart);
+  const op=index.slice(opStart,opEnd);
+  assert.ok(!op.includes('initMeetingPage'),'operational check must still have one lifecycle owner');
+  assert.ok(!op.includes('meetingPageInitialized'),'DOM must not become an independent lifecycle owner');
 });
 
 ok('interaction paths avoid blocking work on tap',()=>{
