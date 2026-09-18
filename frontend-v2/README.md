@@ -15,3 +15,5 @@ Key guarantees:
 - route-bound request cancellation
 - bounded read cache and request dedupe
 - Meeting is a static route rendered synchronously before data fetches
+
+Canary candidate: r2 meeting-stability build.
