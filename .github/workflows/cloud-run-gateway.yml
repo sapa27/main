@@ -41,6 +41,26 @@ jobs:
           cd cloud-run-gateway
           npm run check
           npm test
+      - name: Probe GAS RPC with Cloud Run parent origin
+        env:
+          GAS_WEB_APP_URL: ${{ vars.GAS_WEB_APP_URL || 'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec' }}
+          CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+          LEGACY_RPC_VERSION: github-pages-rpc-r330
+        run: |
+          node <<'NODE'
+          const gas=process.env.GAS_WEB_APP_URL,parentOrigin=process.env.CLOUD_RUN_ORIGIN,rpcVersion=process.env.LEGACY_RPC_VERSION;
+          const cb='__cr7OriginProbe_'+Date.now().toString(36);
+          const u=new URL(gas);
+          for(const [k,v] of Object.entries({mode:'github-rpc-health',parentOrigin,rpcVersion,callback:cb,_ts:Date.now().toString(36)}))u.searchParams.set(k,v);
+          const r=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(60000)});
+          const body=await r.text();
+          if(!r.ok)throw new Error('health HTTP '+r.status);
+          const prefix='/**/'+cb+'(';
+          if(!body.trim().startsWith(prefix)||!body.trim().endsWith(');'))throw new Error('unexpected health body: '+body.slice(0,240));
+          const x=JSON.parse(body.trim().slice(prefix.length,-2));
+          console.log(JSON.stringify({ok:x.ok,allowedOrigin:x.allowedOrigin,transportVersion:x.transportVersion,parentOrigin},null,2));
+          if(x.ok!==true||x.allowedOrigin!==true||x.transportVersion!==rpcVersion)process.exit(1);
+          NODE
       - name: Validate container build
         run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
   deploy:
