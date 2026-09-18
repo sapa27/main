@@ -66,11 +66,11 @@ jobs:
       contents: read
       id-token: write
     env:
-      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'sapa27' }}
       REGION: ${{ vars.GCP_REGION || 'asia-southeast3' }}
       SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'sapa27-gateway' }}
-      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
-      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
