@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'frontend-v2/**'
+      - '.github/tests/v2-regression.mjs'
       - '.github/workflows/v2-canary.yml'
   workflow_dispatch:
     inputs:
@@ -32,6 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check frontend-v2/app.js
+          node .github/tests/v2-regression.mjs
           test -f frontend-v2/index.html
           test -f frontend-v2/styles.css
           grep -q 'V2 CLEAN' frontend-v2/index.html || true
@@ -98,7 +100,7 @@ jobs:
           curl --max-time 30 -fsS "$V2_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$V2_URL/app.js" -o "$tmp_dir/app.js"
           grep -q 'Clean Runtime V2' "$tmp_dir/index.html"
-          grep -q 'v2-clean-20260918' "$tmp_dir/app.js"
+          grep -q 'v2-rebuild-20260918' "$tmp_dir/app.js"
           grep -q 'meeting:{title:"จัดการเรื่องพิจารณา",render:routeMeeting}' "$tmp_dir/app.js"
           if grep -Eq 'getDeferredInclude|loadPageScripts|pageController|meetingPageScriptLoadTimeout' "$tmp_dir/app.js"; then
             echo "Legacy loader dependency detected" >&2
@@ -106,6 +108,7 @@ jobs:
           fi
           echo "### V2 Clean Canary" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $V2_URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Runtime: deterministic single bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Runtime: Browser → Cloud Run → GAS only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GitHub runtime dependency: none" >> "$GITHUB_STEP_SUMMARY"
           echo "- Deferred page loader: removed" >> "$GITHUB_STEP_SUMMARY"
           echo "- Meeting controller: static route registry" >> "$GITHUB_STEP_SUMMARY"
