@@ -112,7 +112,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Deploy CR-8 GAS-canonical canary'));
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
-  assert.ok(workflow.includes('Remove CR-7 canary'));
+  assert.ok(workflow.includes('Remove CR-8 canary'));
   assert.ok(!workflow.includes('sapa27.github.io'));
   assert.ok(!workflow.includes('github-pages-rpc'));
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
