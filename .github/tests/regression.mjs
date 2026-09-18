@@ -36,7 +36,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.1-meeting-recovery-20260918'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.2-meeting-canonical-mount-20260918'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -114,7 +114,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.1-meeting-recovery'"));
+  assert.ok(workflow.includes("grep -q 'cr8.2-meeting-canonical-mount'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(!workflow.includes('sapa27.github.io'));
   assert.ok(!workflow.includes('github-pages-rpc'));
@@ -134,12 +134,37 @@ ok('all deployment gates require live GAS upstream',()=>{
 });
 
 ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
+  assert.ok(index.includes('critical-bootstrap-lifecycle-compatible-r342'));
+  assert.ok(index.includes('a.__canonicalLifecycle=!0'));
+  assert.ok(index.includes('function ensureCanonicalPageControllerCurrent(id)'));
   assert.ok(index.includes('function meetingInteractiveReadyCurrent(id)'));
   assert.ok(index.includes('function repairMeetingCanonicalMountCurrent(id,generation)'));
   assert.ok(index.includes('router-meeting-canonical-recovery'));
-  assert.ok(index.includes('adapter.reload'));
+  assert.ok(index.includes('var adapter=ensureCanonicalPageControllerCurrent(id)'));
+  assert.ok(index.includes('force:id==="meeting"'));
+  assert.ok(index.includes('reload:id==="meeting"?!1:void 0'));
   assert.ok(index.includes('meetingPageInitialized==="1"'));
   assert.ok(index.includes('result===!1&&id==="meeting"&&!isPageOperational(id)?repairMeetingCanonicalMountCurrent(id,generation)'));
+  const bridgeStart=index.indexOf('function ensureCanonicalPageControllerCurrent(id)');
+  const bridgeEnd=index.indexOf('function pageControllerReadyCurrent',bridgeStart);
+  assert.ok(bridgeStart>=0&&bridgeEnd>bridgeStart,'canonical controller bridge missing');
+  const bridge=index.slice(bridgeStart,bridgeEnd);
+  const adapter={mount(){return true},reload(){return true},dispose(){return true}};
+  const ctx={
+    canonicalPageId:v=>String(v||''),
+    __appIsFn:v=>typeof v==='function',
+    __appObserve:()=>false,
+    window:{
+      AppPages:{get:()=>adapter},
+      AppLifecycle:{
+        getPage:()=>adapter,
+        registerPage:(id,a)=>{a.__canonicalLifecycle=true;return a}
+      }
+    }
+  };
+  vm.runInNewContext(bridge,ctx);
+  assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),adapter);
+  assert.equal(adapter.__canonicalLifecycle,true,'legacy/bootstrap Meeting adapter must be promoted into canonical lifecycle');
   const opStart=index.indexOf('function isPageOperational(id)');
   const opEnd=index.indexOf('function waitForPageOperational',opStart);
   const op=index.slice(opStart,opEnd);
