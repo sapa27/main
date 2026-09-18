@@ -1,5 +1,4 @@
 name: Validate and Deploy GitHub Pages
-# Canonical production transport: GitHub Pages -> GAS Web App directly.
 # Quota guard: PRs run static regression only; live GAS smoke/deploy run on main/manual.
 
 on:
