@@ -1,0 +1,99 @@
+name: Cloud Run Gateway
+
+on:
+  push:
+    paths:
+      - 'cloud-run-gateway/**'
+      - '.github/workflows/cloud-run-gateway.yml'
+      - '.github/tests/regression.mjs'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy validated gateway to Cloud Run'
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: cloud-run-gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate gateway source
+        run: |
+          set -euo pipefail
+          node --check cloud-run-gateway/server.js
+          node -e "const p=require('./cloud-run-gateway/package.json');if(p.private!==true||p.scripts.start!=='node server.js')process.exit(1)"
+      - name: Smoke local readiness endpoint
+        run: |
+          set -euo pipefail
+          PORT=18080 node cloud-run-gateway/server.js >/tmp/gateway.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/ready >/tmp/ready.json && break || sleep .25; done
+          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr0-rpc-r330')process.exit(1)"
+
+  deploy:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'sapa27-gateway' }}
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate deployment variables
+        run: |
+          set -euo pipefail
+          for name in PROJECT_ID REGION SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT; do
+            value="${!name:-}"
+            if [ -z "$value" ]; then echo "Missing repository variable: $name" >&2; exit 1; fi
+          done
+      - name: Read canonical GAS production configuration
+        run: |
+          node <<'NODE' >> "$GITHUB_ENV"
+          const fs=require('node:fs'),s=fs.readFileSync('github-pages/app-config.js','utf8');
+          const gas=(s.match(/GAS_URL="([^"]+)"/)||[])[1],rpc=(s.match(/(?:RPC_VERSION|RV)="([^"]+)"/)||[])[1];
+          if(!gas||!rpc)throw new Error('canonical GAS/RPC config missing');
+          console.log('GAS_WEB_APP_URL='+gas);console.log('GAS_RPC_VERSION='+rpc);
+          NODE
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+      - name: Deploy Cloud Run gateway from source
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27.github.io"
+      - name: Smoke deployed gateway
+        run: |
+          set -euo pipefail
+          url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          ready="$(curl -fsS "$url/ready")"; health="$(curl -fsS "$url/health")"
+          node -e 'const r=JSON.parse(process.argv[1]),h=JSON.parse(process.argv[2]);if(r.ok!==true||h.ok!==true)process.exit(1)' "$ready" "$health"
+          echo "### Cloud Run Gateway" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Region: $REGION" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Service: $SERVICE" >> "$GITHUB_STEP_SUMMARY"

@@ -31,6 +31,9 @@ const index=file('github-pages/index.html');
 const config=file('github-pages/app-config.js');
 const transport=file('github-pages/github-gas-transport.js');
 const workflow=file('.github/workflows/pages.yml');
+const cloudRunGateway=file('cloud-run-gateway/server.js');
+const cloudRunPackage=JSON.parse(file('cloud-run-gateway/package.json'));
+const cloudRunWorkflow=file('.github/workflows/cloud-run-gateway.yml');
 
 ok('R331/v62 frontend release converges across public Pages files',()=>{
   for(const [name,text] of [['index',index],['config',config],['transport',transport],['workflow',workflow]])assert.ok(text.toLowerCase().includes(REV),`missing ${REV} in ${name}`);
@@ -71,6 +74,29 @@ ok('SRI integrity preserved',()=>{
 ok('RPC transport is fetch-only',()=>{
   assert.ok(transport.includes('w.AppTransport.run=run'));assert.ok(transport.includes('method:"POST",mode:"no-cors"'));
   for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE'])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
+});
+
+ok('CR-0 Cloud Run gateway is isolated, deployable and preserves GAS RPC r330',()=>{
+  jsSyntax(cloudRunGateway,'cloud-run-gateway/server.js');
+  assert.equal(cloudRunPackage.private,true);
+  assert.equal(cloudRunPackage.scripts&&cloudRunPackage.scripts.start,'node server.js');
+  assert.ok(String(cloudRunPackage.engines&&cloudRunPackage.engines.node||'').includes('24'));
+  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr0-rpc-r330'"));
+  assert.ok(cloudRunGateway.includes("env.GAS_RPC_VERSION||'github-pages-rpc-r330'"));
+  assert.ok(cloudRunGateway.includes("env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'"));
+  assert.ok(cloudRunGateway.includes("env.GATEWAY_ALLOWED_ORIGINS||'https://sapa27.github.io'"));
+  assert.ok(cloudRunGateway.includes("s.listen(c.port,'0.0.0.0'"));
+  assert.ok(cloudRunGateway.includes("mode:'github-rpc'"));
+  assert.ok(cloudRunGateway.includes("jsonp('github-rpc-result'"));
+  assert.ok(cloudRunGateway.includes("u.pathname==='/api/router'"));
+  assert.ok(!/script\.google\.com\/macros\/s\/AK[A-Za-z0-9_-]+\/exec/.test(cloudRunGateway));
+  assert.ok(cloudRunWorkflow.includes('workflow_dispatch:'));
+  assert.ok(cloudRunWorkflow.includes('google-github-actions/auth@v3'));
+  assert.ok(cloudRunWorkflow.includes('google-github-actions/setup-gcloud@v3'));
+  assert.ok(cloudRunWorkflow.includes('gcloud run deploy "$SERVICE"'));
+  assert.ok(cloudRunWorkflow.includes('--source cloud-run-gateway'));
+  assert.ok(cloudRunWorkflow.includes('--min-instances 0'));
+  assert.ok(cloudRunWorkflow.includes('Read canonical GAS production configuration'));
 });
 
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
