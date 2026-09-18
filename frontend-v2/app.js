@@ -161,7 +161,7 @@ async function searchCases(prefix,selectable=false){
   const q=text($("#"+prefix+"-q")?.value||"");
   const target=$("#"+prefix+"-result");target.innerHTML='<div class="loading-card">กำลังค้นหา</div>';
   try{
-    const res=await call("apiSearchCasesLite",{q,query:q,search:q,page:1,limit:50});
+    const res=await call("apiSearchCasesLite",{q,query:q,search:q,page:1,limit:selectable?30:50});
     const rows=rowsOf(res);state.caseRows=rows;
     if(!selectable){
       target.innerHTML=table(rows,[["ลำดับเรื่อง",["caseNum","caseNo","runningNo","ลำดับเรื่อง"]],["เลขรับ",["recNo","receiveNo"]],["ชื่อเรื่อง",["title","caseTitle"]],["สถานะ",["status","caseStatus"]],["วันที่รับ",["recDateText","recDate"]]]);
