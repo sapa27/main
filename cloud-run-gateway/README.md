@@ -46,4 +46,16 @@ CR-5 keeps Cloud Run as the only production web surface and optimizes the Meetin
 - GitHub Pages deployment is removed; its directory is source-only and is packaged into Cloud Run.
 - Deferred includes are not cached across users at the gateway; GAS remains the authorization boundary for every include request.
 
-Deployment marker: `CR-5-mobile-meeting-validated-20260918`
+
+## CR-6 Data-loading bottleneck fixes
+
+CR-6 removes two frontend bottlenecks without changing business rules or API contracts.
+
+- Browser transport now unwraps nested `apiRouter` calls before classifying read/write/AI methods, so method-specific timeouts and read-cache policies apply to the real API method.
+- Repeated reads use bounded in-memory cache + stale-while-revalidate; writes increment a cache epoch and invalidate prior read state so stale in-flight reads cannot repopulate the cache after mutation.
+- Meeting read-heavy methods have targeted TTLs while all writes still invalidate cached reads immediately.
+- Deferred asset bundles are expanded to their real partial files before prefetch, removing failed pseudo-bundle RPCs such as `bundle:appCore` and allowing actual files to prefetch in parallel.
+- Cloud Run remains the only production browser transport; GAS RPC stays server-side.
+- Client cache diagnostics are available through `AppTransport.getClientCacheStats()`.
+
+Deployment marker: `CR-6-data-loading-validated-20260918`
