@@ -295,12 +295,13 @@ const ROUTES={
  people:{title:"บุคคล",render:routePeople},petitioner:{title:"ผู้ร้อง/ผู้เสนอญัตติ",render:routePetitioner},
  budget:{title:"งบประมาณ",render:routeBudget},admin:{title:"การจัดการระบบ",render:routeAdmin}
 };
+function assertRouteRegistry(){const missing=NAV.map(x=>x[0]).filter(id=>!ROUTES[id]||typeof ROUTES[id].render!=="function");if(missing.length)throw new Error("V2_ROUTE_REGISTRY_INVALID: "+missing.join(","));if(!ROUTES.meeting||ROUTES.meeting.render!==routeMeeting)throw new Error("V2_MEETING_ROUTE_NOT_STATIC");return true}
 function go(route,replace=false){
  route=text(route||"dashboard").replace(/^#\/?/,"");if(!ROUTES[route])route="dashboard";
  if(role()==="viewer"&&(route==="track"||route==="budget"))route="dashboard";
  beginRoute(route);$("#route-title").textContent=ROUTES[route].title;renderNav();openSidebar(false);
  if((location.hash||"").replace(/^#\/?/,"")!==route){history[replace?"replaceState":"pushState"](null,"","#/"+route)}
- $("#page-host").innerHTML="";try{ROUTES[route].render()}catch(e){$("#page-host").innerHTML=pageFrame("เปิดหน้าไม่สำเร็จ","V2 route registry error")+`<div class="error-box">${esc(errorMessage(e))}</div>`;console.error(e)}
+ $("#page-host").innerHTML="";try{ROUTES[route].render()}catch(e){$("#page-host").innerHTML=pageFrame("ส่วนติดต่อหน้านี้เกิดข้อผิดพลาด","V2 render boundary")+`<div class="error-box">${esc(errorMessage(e))}</div>`;console.error(e)}
  $("#main").focus({preventScroll:true});
 }
 async function login(e){
@@ -317,6 +318,7 @@ async function logout(){
  const p={token:state.auth.token,csrfToken:state.auth.csrfToken};try{await call("apiLogout",p,{direct:true,noCache:true,timeout:30000})}catch{}clearSession();setShell(false);history.replaceState(null,"","#/login");
 }
 async function boot(){
+ assertRouteRegistry();
  $("#runtime-badge").textContent=VERSION;$("#login-form").onsubmit=login;$("#logout-btn").onclick=logout;$("#menu-toggle").onclick=()=>openSidebar(true);$("#sidebar-overlay").onclick=()=>openSidebar(false);
  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-route]");if(b)go(b.dataset.route)});
  addEventListener("popstate",()=>{if(state.auth.token)go(location.hash||"dashboard",true)});
