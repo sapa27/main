@@ -1,6 +1,6 @@
 const VERSION="v2-clean-20260918";
 const API="/api/router";
-const BOOTSTRAP_METHODS=new Set(["apiLogin","apiLogout","apiSessionCheck","apiSessionResume","getDeferredInclude"]);
+const BOOTSTRAP_METHODS=new Set(["apiLogin","apiLogout","apiSessionCheck","apiSessionResume"]);
 const READ_TTL={
   apiGetDashboardBundle:120000,apiSearchCasesLite:90000,apiGetTracking:120000,
   apiGetMeetingLookupOptions:300000,apiGetMeetingHistory:90000,apiGetLetters:90000,
