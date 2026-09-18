@@ -33,11 +33,12 @@ ok('frontend runtime has no retired GitHub/GAS browser dependency',()=>{
 
 ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('CANONICAL CLOUD RUN FRONTEND r331-v62'));
+  assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
-  assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr7-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr7-runtime-decoupled-20260918'));
+  assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8-gas-response-20260918'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
-  assert.ok(config.includes('cloud-run-direct-json-v1'));
+  assert.ok(config.includes('gas-direct-json-v1'));
 });
 
 ok('frontend JavaScript syntax',()=>{
@@ -70,7 +71,7 @@ ok('CR-6 data-loading fixes remain',()=>{
 });
 
 ok('browser transport is Cloud Run only',()=>{
-  assert.ok(transport.includes('cloud-run-direct-json-cr7'));
+  assert.ok(transport.includes('gas-direct-json-v1'));
   assert.ok(transport.includes('u+"/api/router"'));
   assert.ok(transport.includes('credentials:"omit"'));
   assert.ok(transport.includes('cache:"no-store"'));
@@ -81,22 +82,38 @@ ok('browser transport is Cloud Run only',()=>{
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
-  assert.ok(gateway.includes("REV='cr7-runtime-decoupled-r330'"));
+  assert.ok(gateway.includes("REV='cr8-gas-canonical-response-r340'"));
+  assert.ok(gateway.includes("GAS_RESPONSE_CONTRACT='gas-direct-json-v1'"));
   assert.ok(gateway.includes("transport:'gas-direct-json'"));
+  assert.ok(gateway.includes('validateGasEnvelope'));
+  assert.ok(gateway.includes('out.envelope'));
+  assert.ok(!gateway.includes('return{ok:true,result:value'));
   assert.ok(gateway.includes("gasTransport:'direct-json-primary'"));
+  assert.ok(gateway.includes('responseContract:GAS_RESPONSE_CONTRACT'));
   assert.ok(gateway.includes('legacyFallbackEnabled:false'));
   assert.ok(gateway.includes('sourceSha:sourceSha(env)'));
   for(const token of ['sapa27.github.io','github-pages-rpc','GAS_PARENT_ORIGIN','legacyRpc','legacyJsonp','github-rpc'])assert.ok(!gateway.includes(token),'retired gateway token: '+token);
+});
+
+ok('GAS owns the application response envelope',()=>{
+  assert.ok(transport.includes('X-GAS-Response-Contract'));
+  assert.ok(transport.includes('x.transportOk!==true'));
+  assert.ok(transport.includes('return x.result'));
+  const rpcStart=transport.indexOf('function cloudRpc('),rpcEnd=transport.indexOf('function rpc(',rpcStart);const rpcBlock=transport.slice(rpcStart,rpcEnd);
+  assert.ok(rpcStart>=0&&rpcEnd>rpcStart);
+  assert.ok(!rpcBlock.includes('x.ok!==true'));
+  assert.ok(gateway.includes("'X-GAS-Response-Contract':GAS_RESPONSE_CONTRACT"));
+  assert.ok(gateway.includes('return send(res,200,out.envelope,headers)'));
 });
 
 ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('cp -R frontend cloud-run-gateway/public'));
   assert.ok(workflow.includes("'frontend/**'"));
   assert.ok(!workflow.includes("'github-pages/**'"));
-  assert.ok(workflow.includes('Deploy CR-7 direct-only canary'));
+  assert.ok(workflow.includes('Deploy CR-8 GAS-canonical canary'));
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
-  assert.ok(workflow.includes('Promote CR-7 direct-only to production'));
-  assert.ok(workflow.includes('Remove CR-7 canary'));
+  assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
+  assert.ok(workflow.includes('Remove CR-8 canary'));
   assert.ok(!workflow.includes('sapa27.github.io'));
   assert.ok(!workflow.includes('github-pages-rpc'));
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
@@ -112,6 +129,18 @@ ok('all deployment gates require live GAS upstream',()=>{
     assert.ok(wf.includes('u.upstream?.transport!==\"gas-direct-json\"'),name+' missing direct-json transport gate');
     assert.ok(!/upstream-health[^\n]*\|\|\s*echo/.test(wf),name+' upstream probe must fail closed');
   }
+});
+
+ok('interaction paths avoid blocking work on tap',()=>{
+  assert.ok(index.includes('function scheduleRoutePrefetchCurrent(el)'));
+  assert.ok(index.includes('requestIdleCallback'));
+  assert.ok(!index.includes('document.addEventListener("pointerdown",function(ev){prefetchRouteFromElementCurrent'));
+  assert.ok(index.includes('data-app-thai-date-ready'));
+  assert.ok(index.includes('input.setAttribute("inputmode", "numeric")'));
+  assert.ok(index.includes('var registeredNow=callRegistered(targetPage)'));
+  assert.ok(index.includes('var directNow=callGlobal()'));
+  assert.ok(index.includes('feedbackObserver = null'));
+  assert.ok(index.includes('stopFeedbackObserver()'));
 });
 
 ok('frontend performance cache policy remains bounded',()=>{

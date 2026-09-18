@@ -38,8 +38,9 @@ function clearReadCache(){state.cache.clear()}
 function isAbortError(e){return !!e&&(e.name==="AbortError"||e.code==="ABORT_ERR"||/aborted|abort/i.test(String(e.message||"")))}
 function beginRoute(route){if(state.routeAbort){try{state.routeAbort.abort()}catch{}}state.routeAbort=new AbortController();state.route=route;state.routeEpoch++;state.perf.routeStarts++;if(route!=="meeting"){state.selectedCase=null;state.meetingBundle=null}return{epoch:state.routeEpoch,signal:state.routeAbort.signal}}
 function currentRouteContext(){return{epoch:state.routeEpoch,signal:state.routeAbort&&state.routeAbort.signal||null}}
-function normalizeGateway(j){
-  if(!j||j.ok!==true){const e=new Error(j?.error?.message||"API request failed");e.code=j?.error?.code||"API_ERROR";throw e}
+function normalizeGasEnvelope(j){
+  if(!j||typeof j!=="object"||j.transportOk!==true){const e=new Error(j?.error?.message||j?.error?.error||"GAS request failed");e.code=j?.error?.code||j?.error?.errorCode||"GAS_DIRECT_FAILED";throw e}
+  if(!Object.prototype.hasOwnProperty.call(j,"result")){const e=new Error("GAS response contract mismatch");e.code="GAS_RESPONSE_CONTRACT_MISMATCH";throw e}
   return j.result;
 }
 async function rawCall(method,payload={},opts={}){
@@ -61,7 +62,7 @@ async function rawCall(method,payload={},opts={}){
   if(external){if(external.aborted)controller.abort();else external.addEventListener("abort",()=>controller.abort(),{once:true})}
   const timer=setTimeout(()=>controller.abort(),timeout);state.perf.requests++;
   const work=fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({method:wireMethod,payload:wirePayload,timeoutMs:timeout}),signal:controller.signal})
-    .then(async r=>{const body=await r.json().catch(()=>null);if(!r.ok)throw new Error(body?.error?.message||("HTTP "+r.status));return normalizeGateway(body)})
+    .then(async r=>{const body=await r.json().catch(()=>null);if(!r.ok){const e=new Error(body?.error?.message||("HTTP "+r.status));e.code=body?.error?.code||("CLOUD_RUN_HTTP_"+r.status);throw e}if(r.headers.get("X-GAS-Response-Contract")!=="gas-direct-json-v1"){const e=new Error("GAS response contract mismatch");e.code="GAS_RESPONSE_CONTRACT_MISMATCH";throw e}return normalizeGasEnvelope(body)})
     .then(value=>{if(key&&ttl)state.cache.set(key,{value,exp:now()+ttl});if(isWrite(effective))clearReadCache();return value})
     .catch(e=>{if(isAbortError(e)){state.perf.aborts++;e.code="REQUEST_CANCELLED"}throw e})
     .finally(()=>{clearTimeout(timer);if(key)state.inflight.delete(key)});

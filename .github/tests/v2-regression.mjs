@@ -50,6 +50,13 @@ ok("runtime path is Cloud Run same-origin only",()=>{
     assert.ok(!app.includes(token),"runtime dependency "+token);
   }
 });
+ok("V2 consumes the canonical GAS response envelope",()=>{
+  assert.ok(app.includes("function normalizeGasEnvelope(j)"));
+  assert.ok(app.includes('j.transportOk!==true'));
+  assert.ok(app.includes('X-GAS-Response-Contract'));
+  assert.ok(app.includes('gas-direct-json-v1'));
+  assert.ok(!app.includes("function normalizeGateway(j)"));
+});
 ok("read cache and request dedupe are bounded",()=>{
   for(const token of ["READ_TTL","state.cache","state.inflight","cacheHits","dedupHits"]){
     assert.ok(app.includes(token),"missing "+token);

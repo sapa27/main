@@ -2,21 +2,23 @@
 
 Production architecture:
 
-`Browser -> Cloud Run -> GAS`
+`Browser -> Cloud Run -> GAS Direct JSON`
 
-CR-7 removes GitHub Pages from the runtime chain. GitHub is used only as the source repository and CI/CD trigger.
+GitHub Actions is CI/CD only: it validates, builds, deploys and smoke-tests Cloud Run. GitHub Pages and Vercel are not production runtimes for this project.
 
-## CR-7 Runtime Decoupling
+## CR-8 GAS Canonical Response
 
 - Canonical frontend source: `frontend/`
-- Production browser origin: `https://sapa27-gateway-asxuzzwspa-eu.a.run.app`
+- Production runtime: Cloud Run service `sapa27-gateway`
 - Browser API path: same-origin `/api/router`
 - Cloud Run to GAS: server-to-server JSON POST
-- Browser has no GAS URL, GAS parent origin, JSONP, iframe bridge, or GitHub Pages transport configuration.
-- The frontend transport is `frontend/cloud-run-transport.js`.
-- CR-6 nested API classification, bounded read cache, stale-while-revalidate, write invalidation epochs, and deferred bundle expansion remain enabled.
-- CR-5 mobile Meeting protections remain enabled.
+- GAS owns the application response envelope: `gas-direct-json-v1`
+- Success envelope: `{"transportOk":true,"result":...}`
+- Failure envelope: `{"transportOk":false,"error":{...}}`
+- Cloud Run validates the GAS envelope and passes it through without business-response re-wrapping.
+- Gateway diagnostics such as request id and upstream duration are returned as HTTP headers.
+- Browser has no GAS URL, JSONP, iframe bridge, GitHub Pages transport, or direct browser-to-GAS fallback.
+- `/upstream-health` is a fail-closed live GAS contract probe used before promotion.
+- `APP_SOURCE_SHA` must be present in Canary and Production and must match the deployed Git commit.
 
-The initial CR-7 deployment enables the legacy GAS RPC only as a server-side emergency fallback while the deploy smoke test proves that production GAS accepts direct JSON POST. The smoke gate fails unless `/health` reports `gas-direct-json` without degradation. After that proof, the fallback is removed in CR-7 final.
-
-Deployment marker: `CR-7-proven-server-rpc-final-smoke-20260918`
+Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> final smoke.
