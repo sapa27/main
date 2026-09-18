@@ -54,7 +54,7 @@ jobs:
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/ready >/tmp/ready.json && break || sleep .25; done
-          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr2-rpc-r330')process.exit(1)"
+          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr4-cloudrun-origin-r330')process.exit(1)"
       - name: Smoke local version endpoint
         run: |
           set -euo pipefail
@@ -62,7 +62,7 @@ jobs:
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18081/version >/tmp/version.json && break || sleep .25; done
-          node -e "const x=require('/tmp/version.json');if(x.ok!==true||x.gateway!=='cr2-rpc-r330'||x.rpcVersion!=='github-pages-rpc-r330')process.exit(1)"
+          node -e "const x=require('/tmp/version.json');if(x.ok!==true||x.gateway!=='cr4-cloudrun-origin-r330'||x.rpcVersion!=='github-pages-rpc-r330')process.exit(1)"
       - name: Validate container build
         run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
 
