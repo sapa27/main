@@ -222,6 +222,21 @@ ok('P1-E route operational status requires a mounted canonical lifecycle control
   assert.ok(index.includes('sessionStorage.removeItem("commission.system.sessionResume.current")'),'fallback logout must clear the actual canonical resume key');
 });
 
+ok('P0 cross-page authenticated reads recover one stale token before rendering empty data',()=>{
+  const start=index.indexOf('var appApi=root2.AppApi');
+  const end=index.indexOf('root2.apiCall=',start);
+  assert.ok(start>=0&&end>start,'critical AppApi owner source boundary missing');
+  const api=index.slice(start,end);
+  assert.ok(api.includes('call:function(m,p,o)'),'AppApi.call must preserve caller timeout/options');
+  assert.ok(api.includes('RT.call(method,q,o)'),'AppApi.call must forward options to the canonical runtime');
+  assert.ok(api.includes('SESSION_EXPIRED|AUTH_REQUIRED|UNAUTHORIZED|SESSION_TOKEN_ROTATED_RETRY'),'authenticated read failures must share one recovery classifier');
+  assert.ok(api.includes('!q.__authRecovered'),'auth recovery must be bounded to one retry');
+  assert.ok(api.includes('AppSessionResume.tryResume({reason:"api-auth-retry:"+method})'),'stale non-empty tokens must trigger opaque session resume');
+  assert.ok(api.includes('q.token=txt(store.get("auth.token","")||"")'),'retry must replace the stale token with the newly resumed token');
+  assert.ok(api.includes('__APP_FORCE_LOGIN_VIEW__("api-auth-retry-failed:"+method)'),'failed recovery must not leave an authenticated-looking empty shell');
+  assert.ok(api.includes('return appApi.call(method,q,o)'),'the original data request must retry after token recovery');
+});
+
 ok('P0-3 Meeting controller has one canonical lifecycle owner',()=>{
   const config=file('github-pages/app-config.js');
   assert.ok(!config.includes('initMeetingPage'),'app-config must not intercept the Meeting controller');
