@@ -6,6 +6,9 @@ import vm from "node:vm";
 const app=fs.readFileSync("frontend-v2/app.js","utf8");
 const html=fs.readFileSync("frontend-v2/index.html","utf8");
 const css=fs.readFileSync("frontend-v2/styles.css","utf8");
+const canaryWorkflow=fs.readFileSync(".github/workflows/v2-canary.yml","utf8");
+const cloudCanaryWorkflow=fs.readFileSync(".github/workflows/v2-cloud-run-canary.yml","utf8");
+const promoteWorkflow=fs.readFileSync(".github/workflows/v2-promote-production.yml","utf8");
 let passed=0;
 function ok(name,fn){fn();passed++;console.log("ok "+passed+" - "+name)}
 
@@ -82,5 +85,14 @@ ok("mobile-safe layout exists",()=>{
 ok("release is cache-busted",()=>{
   assert.ok(html.includes("v2-rebuild-20260918-r3"));
   assert.ok(app.includes('const VERSION="v2-rebuild-20260918-r3"'));
+});
+ok("V2 deployment gates require live GAS upstream",()=>{
+  for(const [name,wf] of [["canary",canaryWorkflow],["cloud-canary",cloudCanaryWorkflow],["promote",promoteWorkflow]]){
+    assert.ok(wf.includes("/upstream-health"),name+" missing upstream probe");
+    assert.ok(wf.includes("u.upstream?.checked!==true"),name+" missing checked=true gate");
+    assert.ok(wf.includes("u.upstream?.ok!==true"),name+" missing upstream ok gate");
+    assert.ok(wf.includes('u.upstream?.transport!=="gas-direct-json"'),name+" missing direct-json transport gate");
+    assert.ok(!/upstream-health[^\n]*\|\|\s*echo/.test(wf),name+" upstream probe must fail closed");
+  }
 });
 console.log("# "+passed+" V2 rebuild regression groups passed");
