@@ -85,6 +85,7 @@ ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   assert.ok(gateway.includes("transport:'gas-direct-json'"));
   assert.ok(gateway.includes("gasTransport:'direct-json-primary'"));
   assert.ok(gateway.includes('legacyFallbackEnabled:false'));
+  assert.ok(gateway.includes('sourceSha:sourceSha(env)'));
   for(const token of ['sapa27.github.io','github-pages-rpc','GAS_PARENT_ORIGIN','legacyRpc','legacyJsonp','github-rpc'])assert.ok(!gateway.includes(token),'retired gateway token: '+token);
 });
 
@@ -104,6 +105,8 @@ ok('production deploy is gated by direct-only canary',()=>{
 ok('all deployment gates require live GAS upstream',()=>{
   for(const [name,wf] of [['cr7',workflow],['v2-canary',v2CanaryWorkflow],['v2-cloud-canary',v2CloudCanaryWorkflow],['v2-promote',v2PromoteWorkflow]]){
     assert.ok(wf.includes('/upstream-health'),name+' missing upstream probe');
+    assert.ok(wf.includes('APP_SOURCE_SHA='),name+' missing source SHA deployment attestation');
+    assert.ok(wf.includes('sourceSha'),name+' missing source SHA verification');
     assert.ok(wf.includes('u.upstream?.checked!==true'),name+' missing checked=true gate');
     assert.ok(wf.includes('u.upstream?.ok!==true'),name+' missing upstream ok gate');
     assert.ok(wf.includes('u.upstream?.transport!==\"gas-direct-json\"'),name+' missing direct-json transport gate');
