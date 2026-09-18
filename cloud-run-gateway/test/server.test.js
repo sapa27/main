@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,cfg,gasUrl,allowed,isWrite,timeout,directRpc,createServer}=require('../server');
+const {REV,GAS_RESPONSE_CONTRACT,cfg,gasUrl,allowed,isWrite,timeout,validateGasEnvelope,directRpc,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
@@ -21,7 +21,8 @@ async function withServer(fn,env=ENV){
 
 test('CR-7 configuration is direct-only',()=>{
   const c=cfg(ENV);
-  assert.equal(REV,'cr7-runtime-decoupled-r330');
+  assert.equal(REV,'cr8-gas-canonical-response-r340');
+  assert.equal(GAS_RESPONSE_CONTRACT,'gas-direct-json-v1');
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(allowed(ORIGIN,c),true);
   assert.equal(allowed('https://example.invalid',c),false);
@@ -36,12 +37,14 @@ test('readiness and version expose direct-only CR-7 contract',async()=>withServe
   const ready=await (await fetch(base+'/ready')).json();
   const version=await (await fetch(base+'/version')).json();
   assert.equal(ready.ok,true);
-  assert.equal(ready.gateway,'cr7-runtime-decoupled-r330');
+  assert.equal(ready.gateway,'cr8-gas-canonical-response-r340');
   assert.equal(ready.gasTransport,'direct-json-primary');
+  assert.equal(ready.responseContract,'gas-direct-json-v1');
   assert.equal(ready.legacyFallbackEnabled,false);
   assert.equal(ready.sourceSha,'test-source-sha');
   assert.equal(version.frontendHost,'cloud-run');
   assert.equal(version.gasTransport,'direct-json-primary');
+  assert.equal(version.responseContract,'gas-direct-json-v1');
   assert.equal(version.legacyFallbackEnabled,false);
   assert.equal(version.sourceSha,'test-source-sha');
 }));
@@ -90,7 +93,7 @@ test('CORS accepts same Cloud Run origin and rejects unknown origin',async()=>wi
   assert.equal(ok.headers.get('access-control-allow-origin'),ORIGIN);
 }));
 
-test('directRpc posts JSON to GAS and normalizes response',async()=>{
+test('directRpc posts JSON to GAS and preserves canonical GAS envelope',async()=>{
   const original=global.fetch;
   let call=null;
   global.fetch=async(url,opt={})=>{
@@ -99,15 +102,42 @@ test('directRpc posts JSON to GAS and normalizes response',async()=>{
   };
   try{
     const out=await directRpc('apiGetDashboardBundle',{scope:'main'},35000,cfg(ENV));
-    assert.equal(out.ok,true);
-    assert.equal(out.result.ok,true);
-    assert.deepEqual(out.result.data.rows,[{id:1}]);
+    assert.equal(out.envelope.transportOk,true);
+    assert.equal(out.envelope.result.ok,true);
+    assert.deepEqual(out.envelope.result.data.rows,[{id:1}]);
     assert.equal(out.meta.transport,'gas-direct-json');
+    assert.equal(out.meta.responseContract,'gas-direct-json-v1');
     assert.equal(out.meta.method,'apiGetDashboardBundle');
     assert.equal(call.url,ENV.GAS_WEB_APP_URL);
     assert.equal(call.opt.method,'POST');
     assert.equal(call.opt.headers['Content-Type'],'application/json;charset=UTF-8');
     assert.deepEqual(JSON.parse(call.opt.body),{method:'apiGetDashboardBundle',payload:{scope:'main'}});
+  }finally{global.fetch=original}
+});
+
+
+test('canonical GAS response contract is strict',()=>{
+  assert.deepEqual(validateGasEnvelope({transportOk:true,result:{ok:true}}),{transportOk:true,result:{ok:true}});
+  assert.deepEqual(validateGasEnvelope({transportOk:false,error:{code:'X',message:'fail'}}),{transportOk:false,error:{code:'X',message:'fail'}});
+  assert.throws(()=>validateGasEnvelope({ok:true,result:{}}),e=>e&&e.code==='GAS_RESPONSE_CONTRACT_MISMATCH');
+  assert.throws(()=>validateGasEnvelope({transportOk:true}),e=>e&&e.code==='GAS_RESPONSE_CONTRACT_MISMATCH');
+});
+
+test('api/router passes GAS envelope through without business re-wrapping',async()=>{
+  const original=global.fetch;
+  global.fetch=async(url,opt={})=>{
+    if(String(url).startsWith('http://127.0.0.1:'))return original(url,opt);
+    return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{value:7}}})};
+  };
+  try{
+    await withServer(async base=>{
+      const r=await fetch(base+'/api/router',{method:'POST',headers:{Origin:ORIGIN,'Content-Type':'application/json'},body:JSON.stringify({method:'apiGetDashboardBundle',payload:{}})});
+      const j=await r.json();
+      assert.equal(r.status,200);
+      assert.deepEqual(j,{transportOk:true,result:{ok:true,data:{value:7}}});
+      assert.equal(r.headers.get('x-gas-response-contract'),'gas-direct-json-v1');
+      assert.ok(r.headers.get('x-request-id'));
+    });
   }finally{global.fetch=original}
 });
 
@@ -118,6 +148,17 @@ test('directRpc rejects non-JSON GAS responses',async()=>{
     await assert.rejects(
       directRpc('apiSessionCheck',{},30000,cfg(ENV)),
       e=>e&&e.code==='GAS_DIRECT_JSON_INVALID'
+    );
+  }finally{global.fetch=original}
+});
+
+test('directRpc rejects non-canonical GAS envelopes',async()=>{
+  const original=global.fetch;
+  global.fetch=async()=>({ok:true,status:200,text:async()=>JSON.stringify({ok:true,result:{}})});
+  try{
+    await assert.rejects(
+      directRpc('apiSessionCheck',{},30000,cfg(ENV)),
+      e=>e&&e.code==='GAS_RESPONSE_CONTRACT_MISMATCH'
     );
   }finally{global.fetch=original}
 });
