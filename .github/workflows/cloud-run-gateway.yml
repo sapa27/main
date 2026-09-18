@@ -58,7 +58,7 @@ jobs:
 
   deploy:
     needs: validate
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy == true
+    if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -100,7 +100,7 @@ jobs:
       - name: Deploy Cloud Run gateway from source
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27.github.io"
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27.github.io"
       - name: Smoke deployed gateway
         run: |
           set -euo pipefail
