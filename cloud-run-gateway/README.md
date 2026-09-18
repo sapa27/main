@@ -22,3 +22,12 @@ GitHub Actions is CI/CD only: it validates, builds, deploys and smoke-tests Clou
 - `APP_SOURCE_SHA` must be present in Canary and Production and must match the deployed Git commit.
 
 Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> final smoke.
+
+## CR-8.3 Meeting Runtime Ownership
+
+- Meeting UI/controller code is a static Cloud Run asset: `frontend/meeting-controller.html`.
+- The Meeting route no longer calls GAS `getDeferredInclude` to obtain `meeting-common` or `meeting` controller code.
+- GAS remains the data/API owner through `/api/router`; no business data logic is moved into Cloud Run.
+- The first Meeting lifecycle mount is canonicalized and forced to avoid the mobile Vue visibility race.
+- Canary and Production smoke tests require the static Meeting controller markers before a deployment is accepted.
+- Live GAS upstream health remains fail-closed, with three bounded attempts to tolerate a single transient 504 without soft-passing a broken upstream.
