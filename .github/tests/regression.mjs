@@ -222,6 +222,20 @@ ok('P1-E route operational status requires a mounted canonical lifecycle control
   assert.ok(index.includes('sessionStorage.removeItem("commission.system.sessionResume.current")'),'fallback logout must clear the actual canonical resume key');
 });
 
+ok('P0-2 Meeting recovery and invalidation have one router owner',()=>{
+  assert.ok(index.includes('function pageControllerReadyCurrent(id)'),'router controller readiness owner missing');
+  assert.ok(index.includes('function invalidateMeetingControllerCurrent(id)'),'router Meeting invalidation owner missing');
+  assert.ok(index.includes('controllerRequired&&!controllerReady)invalidateMeetingControllerCurrent(id)'),'route preparation must own Meeting invalidation');
+  assert.ok(index.includes('!pageControllerReadyCurrent(id))throw new Error("ไม่พบ canonical page adapter หลังโหลดตัวควบคุม: "+id)'),'Meeting preparation must verify lifecycle adapter after script load');
+  assert.ok(index.includes('routeAssetsPreparedCurrent[id]&&((id!=="meeting"&&id!=="committee-meeting")||pageControllerReadyCurrent(id))'),'activation shortcut must validate Meeting controller');
+  const config=file('github-pages/app-config.js');
+  const transport=file('github-pages/github-gas-transport.js');
+  assert.ok(!/app:page-changing/.test(config),'app-config must not own Meeting route invalidation');
+  assert.ok(!/app:page-activation-failed/.test(config),'app-config must not recursively recover Meeting activation');
+  assert.ok(!/app:page-changing/.test(transport),'transport must not own Meeting route invalidation');
+  assert.ok(!/loadPageScripts\(p\)\.then\(\(\)=>V&&V\.activatePage/.test(config),'recursive Meeting reload/activate recovery must be removed');
+});
+
 await okAsync('P0-1 same-route hash navigation does not create a new route generation',async()=>{
   const start=index.indexOf('function applyRoute(target,replace)');
   const end=index.indexOf('function prefetchRouteFromElementCurrent',start);
