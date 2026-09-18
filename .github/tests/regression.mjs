@@ -13,6 +13,7 @@ function scripts(html){const out=[];for(const m of html.matchAll(/<script\b([^>]
 const index=file('frontend/index.html');
 const config=file('frontend/app-config.js');
 const transport=file('frontend/cloud-run-transport.js');
+const meetingController=file('frontend/meeting-controller.html');
 const gateway=file('cloud-run-gateway/server.js');
 const workflow=file('.github/workflows/cloud-run-gateway.yml');
 const frontWorkflow=file('.github/workflows/frontend-validation.yml');
@@ -23,11 +24,11 @@ const v2PromoteWorkflow=file('.github/workflows/v2-promote-production.yml');
 ok('CR-7 repository layout is Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
   assert.ok(!fs.existsSync(path.join(ROOT,'github-pages')));
-  assert.deepEqual(fs.readdirSync(path.join(ROOT,'frontend')).sort(),['app-config.js','cloud-run-transport.js','index.html']);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT,'frontend')).sort(),['app-config.js','cloud-run-transport.js','index.html','meeting-controller.html']);
 });
 
 ok('frontend runtime has no retired GitHub/GAS browser dependency',()=>{
-  const all=index+'\n'+config+'\n'+transport;
+  const all=index+'\n'+config+'\n'+transport+'\n'+meetingController;
   for(const token of ['sapa27.github.io','github-pages','github-gas-transport','APP_GITHUB_CONFIG','GAS_WEB_APP_URL','script.google.com','GAS_PARENT_ORIGIN'])assert.ok(!all.includes(token),'retired frontend token: '+token);
 });
 
@@ -36,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.2-meeting-canonical-mount-20260918'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.3-static-meeting-controller-20260918'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -45,6 +46,7 @@ ok('frontend JavaScript syntax',()=>{
   new vm.Script(config,{filename:'app-config.js'});
   new vm.Script(transport,{filename:'cloud-run-transport.js'});
   scripts(index).forEach((s,i)=>new vm.Script(s,{filename:'index#'+(i+1)}));
+  scripts(meetingController).forEach((s,i)=>new vm.Script(s,{filename:'meeting-controller#'+(i+1)}));
 });
 
 ok('critical application surfaces remain present',()=>{
@@ -114,7 +116,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.2-meeting-canonical-mount'"));
+  assert.ok(workflow.includes("grep -q 'cr8.3-static-meeting-controller'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(!workflow.includes('sapa27.github.io'));
   assert.ok(!workflow.includes('github-pages-rpc'));
@@ -131,6 +133,23 @@ ok('all deployment gates require live GAS upstream',()=>{
     assert.ok(wf.includes('u.upstream?.transport!==\"gas-direct-json\"'),name+' missing direct-json transport gate');
     assert.ok(!/upstream-health[^\n]*\|\|\s*echo/.test(wf),name+' upstream probe must fail closed');
   }
+});
+
+ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
+  assert.ok(meetingController.includes('CR-8.3 Cloud Run static Meeting controller'));
+  assert.ok(meetingController.includes('window.initMeetingPage'));
+  assert.ok(meetingController.includes('AppPages.register("meeting"'));
+  assert.ok(!meetingController.includes('data-app-fragment="committee"'));
+  for(const token of ['script.google.com','google.script.run','parentOrigin','getDeferredInclude'])assert.ok(!meetingController.includes(token),'retired/static controller dependency '+token);
+  assert.ok(index.includes('function isStaticMeetingPartial(n)'));
+  assert.ok(index.includes('function fetchStaticMeetingController()'));
+  assert.ok(index.includes('./meeting-controller.html?v='));
+  assert.ok(index.includes('loaded[STATIC_MEETING_KEY]'));
+  const fetchStart=index.indexOf('function fetchPartialHtml(n)');
+  const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
+  const fetchBlock=index.slice(fetchStart,fetchEnd);
+  assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')>=0);
+  assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')<fetchBlock.indexOf('AppApi.call("getDeferredInclude"'),'Meeting must resolve locally before GAS deferred include');
 });
 
 ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
