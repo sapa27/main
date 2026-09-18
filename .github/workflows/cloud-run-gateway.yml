@@ -99,21 +99,47 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ env.PROJECT_ID }}
-      - name: Deploy CR-7 direct-primary compatibility probe
+      - name: Deploy CR-7 direct-only canary
+        env:
+          CANARY_SERVICE: sapa27-gateway-cr7-canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,LEGACY_GAS_RPC_FALLBACK=true,LEGACY_GAS_RPC_VERSION=github-pages-rpc-r330,LEGACY_GAS_PARENT_ORIGIN=https://sapa27.github.io"
-      - name: Smoke stabilized CR-7 compatibility transport
+          gcloud run deploy "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 20 --min-instances 0 --max-instances 2 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,LEGACY_GAS_RPC_FALLBACK=false"
+          canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
+      - name: Require direct GAS transport on CR-7 canary
+        run: |
+          set -euo pipefail
+          ready="$(curl --max-time 30 -fsS "$CANARY_URL/ready")"
+          version="$(curl --max-time 30 -fsS "$CANARY_URL/version")"
+          health="$(curl --max-time 90 -fsS "$CANARY_URL/health")"
+          echo "Canary ready: $ready"
+          echo "Canary version: $version"
+          echo "Canary health: $health"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]);if(r.gateway!=="cr7-runtime-decoupled-r330"||v.gasTransport!=="direct-json-primary"||v.legacyFallbackEnabled!==false||h.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health"
+      - name: Promote CR-7 direct-only to production
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,LEGACY_GAS_RPC_FALLBACK=false" --remove-env-vars "LEGACY_GAS_RPC_VERSION,LEGACY_GAS_PARENT_ORIGIN"
+      - name: Smoke final CR-7 production
         run: |
           set -euo pipefail
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
-          ready="$(curl --max-time 20 -fsS "$url/ready")"
-          version="$(curl --max-time 20 -fsS "$url/version")"
-          health="$(curl --max-time 60 -fsS "$url/health")"
-          echo "Ready: $ready"
-          echo "Version: $version"
-          echo "Health: $health"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]);if(r.gateway!=="cr7-runtime-decoupled-r330"||v.frontendHost!=="cloud-run"||v.gasTransport!=="server-rpc-compat"||h.upstream?.transport!=="legacy-rpc-fallback")process.exit(1)' "$ready" "$version" "$health"
+          ready="$(curl --max-time 30 -fsS "$url/ready")"
+          version="$(curl --max-time 30 -fsS "$url/version")"
+          health="$(curl --max-time 90 -fsS "$url/health")"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]);if(r.gateway!=="cr7-runtime-decoupled-r330"||v.frontendHost!=="cloud-run"||v.gasTransport!=="direct-json-primary"||v.legacyFallbackEnabled!==false||h.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health"
           curl --max-time 30 -fsS "$url/" | grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62'
           curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cr7-runtime-decoupled'
           curl --max-time 30 -fsS "$url/cloud-run-transport.js" | grep -q 'cloud-run-direct-json-cr7'
+          echo "### CR-7 Runtime Decoupling" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser runtime: Cloud Run only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Legacy GitHub-origin fallback: disabled" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove CR-7 canary
+        if: always()
+        env:
+          CANARY_SERVICE: sapa27-gateway-cr7-canary
+        run: |
+          gcloud run services delete "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --quiet || true
