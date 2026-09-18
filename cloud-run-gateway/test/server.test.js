@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,cfg,gasUrl,allowed,invoke,isWrite,timeout,parseJsonp,deferredCacheKey,clearDeferredCache,createServer}=require('../server');
+const {REV,cfg,gasUrl,allowed,invoke,isWrite,timeout,parseJsonp,createServer}=require('../server');
 
 const ENV={
   GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec',
@@ -84,43 +84,4 @@ test('API route uses POST plus GAS result polling and returns normalized JSON',a
       assert.ok(upstream.some(x=>/mode=github-rpc-result/.test(x.url)));
     });
   } finally { global.fetch=browserFetch; }
-});
-
-
-test('deferred include cache is release-scoped and bypasses forceFresh',()=>{
-  clearDeferredCache();
-  const c=cfg(ENV);
-  assert.equal(deferredCacheKey('apiSearchCasesLite',{},c),'');
-  assert.equal(deferredCacheKey('getDeferredInclude',{name:'Scripts_Page_Meeting::meeting',forceFresh:true,assetStamp:'a'},c),'');
-  assert.equal(deferredCacheKey('getDeferredInclude',{name:'Scripts_Page_Meeting::meeting',forceFresh:false,assetStamp:'a'},c),'github-pages-rpc-r330|a|Scripts_Page_Meeting::meeting');
-});
-
-test('deferred include is served from Cloud Run memory cache after first fetch',async()=>{
-  clearDeferredCache();
-  const browserFetch=global.fetch;
-  const upstream=[];
-  global.fetch=async(url,opt={})=>{
-    const u=new URL(String(url));
-    upstream.push({url:u.toString(),method:opt.method||'GET',body:opt.body&&String(opt.body)});
-    if((opt.method||'GET')==='POST') return {ok:true,status:200,text:async()=>''};
-    const cb=u.searchParams.get('callback');
-    const payload={transportOk:true,result:{html:'<script>window.__meetingCached=1<\\/script>'}};
-    return {ok:true,status:200,text:async()=>'/ ** /'.replace(/ /g,'')+cb+'('+JSON.stringify(payload)+');'};
-  };
-  try{
-    await withServer(async base=>{
-      const req=()=>browserFetch(base+'/api/router',{
-        method:'POST',
-        headers:{Origin:'https://sapa27.github.io','Content-Type':'application/json'},
-        body:JSON.stringify({method:'getDeferredInclude',payload:{name:'Scripts_Page_Meeting::meeting',forceFresh:false,assetStamp:'asset-test'}})
-      });
-      const one=await (await req()).json();
-      const two=await (await req()).json();
-      assert.equal(one.ok,true);
-      assert.equal(one.meta.cache,'deferred-miss');
-      assert.equal(two.ok,true);
-      assert.equal(two.meta.cache,'deferred-hit');
-      assert.equal(upstream.filter(x=>x.method==='POST').length,1);
-    });
-  } finally { global.fetch=browserFetch;clearDeferredCache(); }
 });
