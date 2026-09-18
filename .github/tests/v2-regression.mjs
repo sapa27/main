@@ -52,12 +52,19 @@ ok("read cache and request dedupe are bounded",()=>{
     assert.ok(app.includes(token),"missing "+token);
   }
 });
-ok("Meeting initial load is bounded and parallel",()=>{
+ok("Meeting critical path is bounded and secondary tabs are lazy",()=>{
   assert.ok(app.includes("limit:selectable?30:50"));
-  assert.ok(app.includes("Promise.allSettled(["));
+  assert.ok(app.includes('function loadMeetingTab(kind)'));
   assert.ok(app.includes('call("apiGetCanonicalCaseBundle",identity)'));
-  assert.ok(app.includes('call("apiGetMeetingHistory",identity)'));
-  assert.ok(app.includes('call("apiGetLetters"'));
+  assert.ok(app.includes('panel.dataset.loaded="loading"'));
+  const openStart=app.indexOf("async function openCase(row)");
+  const openEnd=app.indexOf("function newCase()",openStart);
+  const openBlock=app.slice(openStart,openEnd);
+  assert.ok(openStart>=0&&openEnd>openStart);
+  assert.ok(!openBlock.includes("apiGetMeetingHistory"));
+  assert.ok(!openBlock.includes("apiGetLetters"));
+  assert.ok(app.includes('await call("apiGetMeetingHistory",identity)'));
+  assert.ok(app.includes('await call("apiGetLetters",Object.assign({page:1,limit:100},identity))'));
 });
 ok("Meeting selector and stale-response guards are safe",()=>{
   assert.ok(app.includes('$("[data-case-index]").forEach'));
