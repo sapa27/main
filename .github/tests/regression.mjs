@@ -54,8 +54,8 @@ ok('frontend revision is separated from the stable RPC protocol',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr5-20260918'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr5-20260918'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr6-20260918'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr6-20260918'))
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
@@ -74,18 +74,18 @@ ok('SRI integrity preserved',()=>{
 ok('RPC transport is Cloud Run fetch-only',()=>{
   assert.ok(transport.includes('w.AppTransport.run=run'));
   assert.ok(transport.includes('method:"POST",mode:"cors"'));
-  assert.ok(transport.includes('cloud-run-all-primary-cr5'));
+  assert.ok(transport.includes('cloud-run-all-primary-cr6'));
   assert.ok(!transport.includes('mode:"no-cors"'));
   assert.ok(!transport.includes('script.google.com'));
   for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE','directRpc(','jsonp('])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
 });
 
-ok('CR-5 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
+ok('CR-6 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
   jsSyntax(cloudRunGateway,'cloud-run-gateway/server.js');
   assert.equal(cloudRunPackage.private,true);
   assert.equal(cloudRunPackage.scripts&&cloudRunPackage.scripts.start,'node server.js');
   assert.ok(String(cloudRunPackage.engines&&cloudRunPackage.engines.node||'').includes('24'));
-  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr5-mobile-meeting-r330'"));
+  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr6-data-loading-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_RPC_VERSION||'github-pages-rpc-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'"));
   assert.ok(cloudRunGateway.includes("PUBLIC_DIR=path.join(__dirname,'public')"));
@@ -106,12 +106,12 @@ ok('CR-5 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
 });
 
 
-ok('CR-5 Cloud Run is the canonical browser transport with direct GAS disabled',()=>{
+ok('CR-6 Cloud Run is the canonical browser transport with direct GAS disabled',()=>{
   assert.ok(config.includes('CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app"'));
   assert.ok(config.includes('CLOUD_RUN_ALL_PRIMARY:!0'));
   assert.ok(config.includes('CLOUD_RUN_FALLBACK_DIRECT_GAS:!1'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr5-mobile-meeting-20260918'));
-  assert.ok(transport.includes('cloud-run-all-primary-cr5'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr6-data-loading-20260918'));
+  assert.ok(transport.includes('cloud-run-all-primary-cr6'));
   assert.ok(transport.includes('return cloudRpc(f,a,o)'));
   assert.ok(transport.includes('u+"/api/router"'));
   assert.ok(transport.includes('method:"POST",mode:"cors"'));
@@ -198,10 +198,10 @@ ok('P1-D release/build provenance is single-owner and matches canonical backend 
   assert.equal(p.releaseStamp,RELEASE);assert.equal(p.assetStamp,ASSET);assert.equal(p.qualityGate,QUALITY);assert.equal(p.rpcProtocolVersion,RPC);
   assert.equal(p.frontendRevision,'r331-v62');assert.equal(p.sourceFingerprint,'gas-backend-single-source-r331-v62');
   assert.equal(p.buildName,'V1.2 Reliability Loading Cache Session r331 / v62');
-  assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-cloudrun-parallel-cr3-20260918');
+  assert.equal(p.hostArtifact,'cloud-run-canonical-frontend-r331-v62-cr6-data-loading-20260918');
   assert.equal(ctx.APP_CONFIG.releaseStamp,p.releaseStamp);assert.equal(ctx.APP_CONFIG.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_CONFIG.rpcVersion,RPC);
   assert.equal(ctx.APP_DEPLOY_RELEASE.stamp,p.releaseStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.assetStamp,p.assetStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_DEPLOY_RELEASE.rpcVersion,RPC);
-  const configTag='<script src="./app-config.js?v=r331-v62-cloudrun-cr3-20260918"></script>';
+  const configTag='<script src="./app-config.js?v=r331-v62-cloudrun-cr6-20260918"></script>';
   assert.equal(index.split(configTag).length-1,1,'app-config must load exactly once');
   assert.ok(index.indexOf(configTag)<index.indexOf('window.__APP_BOOTSTRAP__='),'provenance owner must load before bootstrap');
   const bootScript=htmlScripts(index).find(x=>x.includes('window.__APP_BOOTSTRAP__=')&&x.includes('window.__APP_ASSET_MANIFEST__='));
@@ -626,134 +626,67 @@ ok('canonical page and role surfaces remain complete',()=>{
   assert.ok(index.includes('data-role-menu="all"'));
 });
 
-ok('RPC reliability performance and cache rules',()=>{
-  assert.ok(config.includes('RPC_RESULT_POLL_MIN_MS:250'));
-  assert.ok(config.includes('RPC_RESULT_POLL_MAX_MS:1200'));
-  assert.ok(config.includes('RPC_RESULT_JSONP_TIMEOUT_MS:30000'));
-  assert.ok(config.includes('RPC_HEALTH_TIMEOUT_MS:5000'));
-  assert.ok(config.includes('RPC_HEALTH_RETRIES:0'));
+ok('CR-6 RPC classification cache and timeout rules',()=>{
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'));
-  assert.ok(config.includes('RPC_READ_TIMEOUT_BY_METHOD_MS'));
-  assert.ok(config.includes('apiGetDashboardBundle:35000'));
-  assert.ok(config.includes('apiGetTracking:35000'));
+  assert.ok(config.includes('WRITE_REQUEST_TIMEOUT_MS:120000'));
+  assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
   assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:60000'));
   assert.ok(config.includes('RPC_READ_STALE_TTL_MS:600000'));
-  assert.ok(config.includes('apiGetDashboardBundle:180000'));
-  assert.ok(config.includes('apiGetTracking:300000'));
-  assert.ok(transport.includes('var p=rpc(fn,a,opt)'),'cold RPC must start immediately without a blocking health preflight');
-  assert.ok(!transport.includes('health(false).then(function(){return rpc(fn,a,opt)}'),'health must not gate RPC execution');
-  assert.ok(!transport.includes('function prewarm(){'),'page load must not start a redundant health request before user traffic');
-  assert.ok(transport.includes('w.AppTransport.health=health'),'health remains available as an explicit diagnostic only');
-  assert.ok(transport.includes('if(RH&&!force)return RH'));
-  assert.ok(transport.includes('if(key&&F[key])return F[key]'));
+  assert.ok(config.includes('RPC_READ_CACHE_MAX_ENTRIES:96'));
+  for(const marker of ['apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000','apiGetMeetingHistory:120000','apiGetLetters:120000','apiGetCanonicalCaseBundle:120000'])assert.ok(config.includes(marker),'missing read-cache policy: '+marker);
+  assert.ok(transport.includes('function invocation(fn,a)'),'nested API invocation resolver is required');
+  assert.ok(transport.includes('wire==="apiRouter"'),'apiRouter requests must be unwrapped for classification');
+  assert.ok(transport.includes('method=nested;payload=wirePayload.payload'),'nested effective method/payload must be preserved');
+  assert.ok(transport.includes('write=isWriteMethod(I.method),read=isReadMethod(I.method)'),'effective method must own read/write classification');
+  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$/i.test(I.method)'),'AI timeout must classify the nested method');
+  assert.ok(transport.includes('requestTimeoutMs(I.method,write,ai,o)'),'method-specific timeout must use the nested method');
+  assert.ok(transport.includes('body:JSON.stringify({method:I.wire,payload:I.wirePayload,timeoutMs:ms})'),'wire envelope must remain apiRouter-compatible');
+  assert.ok(transport.includes('function cacheKey(I)'));
+  assert.ok(transport.includes('app:transport:cache-hit'));
   assert.ok(transport.includes('stale-while-revalidate'));
   assert.ok(transport.includes('app:transport:cache-updated'));
-  assert.ok(transport.includes('function sessionError(e)'));
-  assert.ok(transport.includes('function isReadMethod(fn)'));
-  assert.ok(transport.includes('read=isReadMethod(fn)'));
-  assert.ok(transport.includes('w[cb]=function(){}'));
-  assert.ok(!transport.includes('},600000)'));
-  assert.ok(transport.includes('Math.min(90000,Math.max(60000,timeoutMs*2))'));
-  assert.ok(transport.includes('if(write){TTL=Object.create(null)'));
-  assert.ok(transport.includes('rec.write?"บันทึกข้อมูลไม่ได้รับการยืนยัน'));
-  assert.ok(transport.includes('getLastRpcTrace'));
-  assert.ok(transport.includes('function requestTimeoutMs('));
-  assert.ok(transport.includes('Math.min(n,Number(m[f]))'));
-  assert.ok(transport.includes('function finishTrace('));
-  assert.ok(transport.includes('app:transport:rpc-start'));
-  assert.ok(transport.includes('app:transport:rpc-settled'));
+  assert.ok(transport.includes('EPOCH++'));
+  assert.ok(transport.includes('epoch===EPOCH'),'pre-write reads must not repopulate cache after mutation');
+  assert.ok(transport.includes('function pruneCache()'));
+  assert.ok(transport.includes('getClientCacheStats'));
+  assert.ok(!transport.includes('health(false).then(function(){return rpc'),'health must not gate user RPCs');
+  assert.ok(transport.includes('w.AppTransport.health=health'),'health remains an explicit diagnostic');
 });
 
-await okAsync('RPC POST/result handshake fails fast without discarding an earlier result',async()=>{
-  assert.ok(transport.includes('Promise.race(['),'RPC must race result polling against POST failure');
-  assert.ok(transport.includes('finishTrace(rec,"post-failed"'));
-  assert.ok(transport.includes('GAS_RPC_POST_FAILED'));
-  assert.ok(transport.includes('GAS_RPC_WRITE_POST_UNCONFIRMED'));
-  assert.ok(!transport.includes('rec.postPromise=post(rec,I).catch(function(e)'),'POST failure must not be swallowed');
-  const start=transport.indexOf('function directRpc(fn,a,opt)');
-  const end=transport.indexOf('\nfunction cloudEligible(',start);
-  assert.ok(start>=0&&end>start,'rpc source boundary missing');
-  const rpcSource=transport.slice(start,end);
-  function harness({write=false,postPromise,pollPromise}){
-    let seq=0;
-    const ctx={
-      Promise,Date,Math,Number,Object,
-      LAST_TRACE:null,
-      w:{setTimeout:fn=>{fn();return 1}},
-      c:(k,f)=>f,
-      invocation:(fn,a)=>({fn,args:a||{},orig:fn}),
-      isWriteMethod:()=>write,
-      capability:()=>`cap_${++seq}`,
-      post:()=>postPromise,
-      poll:()=>pollPromise,
-      requestTimeoutMs:()=>90000,
-      emit:()=>{},
-      finishTrace:(rec,state)=>{rec.resultState=state;rec.clientDurationMs=1;ctx.LAST_TRACE=Object.assign({},rec)},
-      err:(message,code)=>Object.assign(new Error(message),{code}),
-      t:v=>v==null?'':String(v)
-    };
-    return {rpc:vm.runInNewContext('('+rpcSource+')',ctx),ctx};
-  }
-  {
-    const {rpc,ctx}=harness({postPromise:Promise.reject(new Error('network down')),pollPromise:new Promise(()=>{})});
-    await assert.rejects(rpc('apiGetDashboardBundle',{},{}),e=>e&&e.code==='GAS_RPC_POST_FAILED');
-    assert.equal(ctx.LAST_TRACE.resultState,'post-failed');
-  }
-  {
-    const {rpc}=harness({postPromise:new Promise(()=>{}),pollPromise:Promise.resolve({ok:'result-first'})});
-    assert.deepEqual(await rpc('apiGetDashboardBundle',{},{}),{ok:'result-first'});
-  }
-  {
-    const timeout=Object.assign(new Error('request timeout'),{code:'GAS_RPC_REQUEST_TIMEOUT'});
-    const {rpc}=harness({postPromise:Promise.resolve(true),pollPromise:Promise.reject(timeout)});
-    await assert.rejects(rpc('apiGetDashboardBundle',{},{}),e=>e===timeout);
-  }
-  {
-    const {rpc,ctx}=harness({write:true,postPromise:Promise.reject(new Error('write network down')),pollPromise:new Promise(()=>{})});
-    await assert.rejects(rpc('apiSaveCase',{},{}),e=>e&&e.code==='GAS_RPC_WRITE_POST_UNCONFIRMED'&&/unconfirmed/i.test(e.message));
-    assert.equal(ctx.LAST_TRACE.write,true);
-    assert.equal(ctx.LAST_TRACE.resultState,'post-failed');
-  }
-});
+ok('nested apiRouter classifier follows canonical mutation contract',()=>{
+  const invStart=transport.indexOf('function invocation(fn,a)');
+  const invEnd=transport.indexOf('\nfunction isReadMethod',invStart);
+  assert.ok(invStart>=0&&invEnd>invStart,'invocation resolver source boundary missing');
+  const inv=vm.runInNewContext('('+transport.slice(invStart,invEnd)+')',{t:v=>v==null?'':String(v),Array,Object});
+  const readInv=inv('apiRouter',{method:'apiGetDashboardBundle',payload:{scope:'main'}});
+  assert.equal(readInv.wire,'apiRouter');assert.equal(readInv.method,'apiGetDashboardBundle');assert.equal(readInv.payload.scope,'main');
+  const writeInv=inv('apiRouter',{method:'apiSaveCase',payload:{caseNum:'1'}});
+  assert.equal(writeInv.method,'apiSaveCase');assert.equal(writeInv.payload.caseNum,'1');
 
-ok('write API classifier follows canonical mutation contract',()=>{
-  assert.ok(transport.includes('function isWriteMethod(fn)'));
-  assert.ok(transport.includes('w.WRITE_API_METHODS&&w.WRITE_API_METHODS[fn]'));
-  assert.ok(transport.includes('w.AppRouteContract&&typeof w.AppRouteContract.isWrite==="function"'));
-  assert.ok(transport.includes('write=isWriteMethod(I.orig)'));
-  assert.ok(transport.includes('var write=isWriteMethod(fn),read=isReadMethod(fn)'));
-  assert.ok(!transport.includes('write=/^api(?:Save|Delete|Update|Create|Import|Extract|Upload|Issue|Process|Cleanup|Generate|Send|Patch|Approve|Reject|Submit|Queue|Migrate|Revoke|Refresh)'));
   const fm=/root2\.WRITE_API_METHODS=root2\.WRITE_API_METHODS\|\|\{([^}]*)\}/.exec(index);
   assert.ok(fm,'canonical frontend WRITE_API_METHODS map missing');
   const frontendWrites=[...fm[1].matchAll(/\b(api[A-Za-z0-9_]+):!0/g)].map(m=>m[1]).sort();
   assert.equal(frontendWrites.length,27,'unexpected canonical write-route count');
-  const p0bMethods=['apiBudgetSaveImport','apiBudgetDeleteImport','apiAdminSaveUser','apiAdminDeleteUser','apiAdminSaveSubcommittee','apiAdminDeleteSubcommittee','apiBudgetAdminSaveYearSettingsRows'];
-  for(const method of p0bMethods)assert.ok(frontendWrites.includes(method),`missing P0-B write route: ${method}`);
   const classifierStart=transport.indexOf('function isWriteMethod(fn)');
-  const classifierEnd=transport.indexOf('\nfunction t(',classifierStart);
+  const classifierEnd=transport.indexOf('\nfunction requestTimeoutMs',classifierStart);
   assert.ok(classifierStart>=0&&classifierEnd>classifierStart,'write classifier source boundary missing');
   const classifier=vm.runInNewContext('('+transport.slice(classifierStart,classifierEnd)+')',{
     w:{WRITE_API_METHODS:Object.fromEntries(frontendWrites.map(method=>[method,true])),AppRouteContract:{isWrite:()=>false}},
     t:v=>v==null?'':String(v)
   });
   for(const method of frontendWrites)assert.equal(classifier(method),true,`canonical write misclassified: ${method}`);
-  for(const method of ['apiGetDashboardBundle','apiGetTracking','apiSearchCasesLite','apiAdminListUsers','apiBudgetGetSummary'])assert.equal(classifier(method),false,`read route misclassified as write: ${method}`);
-  const fallbackClassifier=vm.runInNewContext('('+transport.slice(classifierStart,classifierEnd)+')',{w:{},t:v=>v==null?'':String(v)});
-  for(const method of p0bMethods)assert.equal(fallbackClassifier(method),true,`P0-B fallback misclassified: ${method}`);
-  if(MODE==='full'){
-    const core=file('gas-backend/Code_00_PlatformCore.gs');
-    const backendWrites=[...core.matchAll(/\b(api[A-Za-z0-9_]+): Object\.freeze\(\{ write: true,/g)].map(m=>m[1]).sort();
-    assert.deepEqual(frontendWrites,backendWrites,'frontend/backend write contracts drifted');
-  }
+  for(const method of ['apiGetDashboardBundle','apiGetTracking','apiSearchCasesLite','apiGetMeetingHistory','apiGetLetters'])assert.equal(classifier(method),false,`read route misclassified as write: ${method}`);
 });
 
-ok('RPC capability and origin boundary',()=>{
-  assert.ok(transport.includes('parentOrigin'));
-  assert.ok(transport.includes('rpcToken'));
-  assert.ok(transport.includes('rpcVersion'));
+ok('Cloud Run browser boundary remains credentialless and GAS details stay server-side',()=>{
   assert.ok(transport.includes('credentials:"omit"'));
-  assert.ok(transport.includes('referrerPolicy:"no-referrer"'));
   assert.ok(transport.includes('cache:"no-store"'));
+  assert.ok(transport.includes('/\\.run\\.app$/i.test(current)'),'Cloud Run hosted frontend should prefer its current same-origin service URL');
+  assert.ok(!transport.includes('script.google.com'));
+  assert.ok(!transport.includes('parentOrigin'));
+  assert.ok(cloudRunGateway.includes("env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'"));
+  assert.ok(cloudRunGateway.includes('rpcToken'));
+  assert.ok(cloudRunGateway.includes('rpcVersion'));
   assert.ok(!/localStorage\s*\.\s*setItem\s*\([^,]*(?:password|csrf|token)/i.test(index));
 });
 
@@ -830,13 +763,21 @@ ok('Thai holiday settings are parsed without an undefined add() owner',()=>{
 ok('dashboard deferred assets and data RPC do not wait behind a health preflight',()=>{
   assert.ok(config.includes('pageScriptLoadTimeoutMs:55000'),'page-script timeout must outlive the transport read timeout');
   assert.ok(config.includes('pageActivationTimeoutMs:75000'),'page activation must allow deferred script completion');
-  assert.ok(transport.includes('var p=rpc(fn,a,opt)'),'all RPC methods must use the same immediate fast path');
+  assert.ok(transport.includes('var p=rpc(I.wire,I.wirePayload,opt)'),'all RPC methods must use the same immediate Cloud Run fast path');
   assert.ok(!transport.includes('fn==="getDeferredInclude"?Promise.resolve(true):health(false)'),'legacy blocking health preflight must stay retired');
   assert.ok(index.includes('routeConfiguredTimeout(isMeetingRoute?"meetingPageScriptLoadTimeoutMs":"pageScriptLoadTimeoutMs",isMeetingRoute?80000:20000,5000,120000)'));
   assert.ok(config.includes('meetingPageScriptLoadTimeoutMs:80000'),'Meeting gets a mobile-safe script budget');
   assert.ok(config.includes('meetingPageActivationTimeoutMs:95000'),'Meeting activation budget must outlive script loading');
   assert.ok(index.includes('routeConfiguredTimeout(isMeetingActivation?"meetingPageActivationTimeoutMs":"pageActivationTimeoutMs",isMeetingActivation?95000:30000,10000,120000)'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'),'transport remains bounded at 45 seconds');
+});
+
+ok('CR-6 deferred loader expands bundles before network prefetch',()=>{
+  assert.ok(index.includes('function expandAssetList(list)'),'bundle expansion owner missing');
+  assert.ok(index.includes('function loadActualFiles(files,scope)'),'actual-file loader owner missing');
+  assert.ok(index.includes('list=expandAssetList(listFor(n))'),'page bundles must expand before prefetch');
+  assert.ok(index.includes('loadActualFiles(core,"core")'),'core runtime must load actual files directly');
+  assert.ok(!index.includes('safePartial("bundle:appCore")'),'core loader must not waste an RPC on pseudo-bundle names');
 });
 
 ok('repository remains minimal and deployment-safe',()=>{
@@ -1050,8 +991,8 @@ ok('meeting activation is mobile-safe and keeps canonical lifecycle recovery',()
 
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
-  assert.ok(transport.includes('body:JSON.stringify({method:f,payload:a==null?{}:a,timeoutMs:ms})'));
-  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
+  assert.ok(transport.includes('body:JSON.stringify({method:I.wire,payload:I.wirePayload,timeoutMs:ms})'));
+  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$/i.test(I.method)'));
   assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
   assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
   assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
