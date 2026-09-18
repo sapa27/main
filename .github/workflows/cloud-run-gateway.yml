@@ -54,7 +54,7 @@ jobs:
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/ready >/tmp/ready.json && break || sleep .25; done
-          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr4-cloudrun-origin-r330')process.exit(1)"
+          node -e "const x=require('/tmp/ready.json');if(x.ok!==true||x.gateway!=='cr5-mobile-meeting-r330')process.exit(1)"
       - name: Smoke local version endpoint
         run: |
           set -euo pipefail
@@ -62,7 +62,7 @@ jobs:
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18081/version >/tmp/version.json && break || sleep .25; done
-          node -e "const x=require('/tmp/version.json');if(x.ok!==true||x.gateway!=='cr4-cloudrun-origin-r330'||x.rpcVersion!=='github-pages-rpc-r330')process.exit(1)"
+          node -e "const x=require('/tmp/version.json');if(x.ok!==true||x.gateway!=='cr5-mobile-meeting-r330'||x.rpcVersion!=='github-pages-rpc-r330')process.exit(1)"
       - name: Validate container build
         run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
 
@@ -127,8 +127,8 @@ jobs:
           frontend_file="$(mktemp)"
           curl --max-time 30 -fsS "$url/" > "$frontend_file"
           grep -q 'CANONICAL GITHUB FRONTEND r331-v62' "$frontend_file"
-          curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cloud-run-canonical-frontend-r331-v62-cr4-20260918'
-          curl --max-time 30 -fsS "$url/github-gas-transport.js" | grep -q 'cloud-run-all-primary-cr4'
+          curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cloud-run-canonical-frontend-r331-v62-cr5-mobile-meeting-20260918'
+          curl --max-time 30 -fsS "$url/github-gas-transport.js" | grep -q 'cloud-run-all-primary-cr5'
           health_file="$(mktemp)"
           health_status="$(curl --max-time 60 -sS -o "$health_file" -w '%{http_code}' "$url/health" || true)"
           health="$(cat "$health_file")"
