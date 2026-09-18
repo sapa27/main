@@ -61,7 +61,7 @@ ok("Meeting initial load is bounded and parallel",()=>{
 });
 ok("Meeting selector and stale-response guards are safe",()=>{
   assert.ok(app.includes('$("[data-case-index]").forEach'));
-  assert.ok(!app.includes('$("[data-case-index]").forEach'));
+  assert.ok(!app.includes('state.selectedCase=row;$("[data-case-index]").forEach'));
   assert.ok(app.includes("if(epoch!==state.routeEpoch||!target.isConnected)return"));
   assert.ok(app.includes("if(isAbortError(e)||epoch!==state.routeEpoch||!target.isConnected)return"));
 });
