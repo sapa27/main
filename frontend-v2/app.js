@@ -78,6 +78,14 @@ function rowsOf(v){
 function firstObject(v){
   const x=dataOf(v);return x&&typeof x==="object"&&!Array.isArray(x)?x:{};
 }
+function authEnvelope(v){
+  const candidates=[v,v?.result,v?.data,v?.data?.data,v?.result?.data].filter(x=>x&&typeof x==="object"&&!Array.isArray(x));
+  let best=candidates[0]||{};
+  for(const x of candidates){
+    if(x.token||x.nextToken||x.sessionToken||x.user){best=x;break}
+  }
+  return best;
+}
 function firstVal(obj,keys){for(const k of keys){const v=obj?.[k];if(v!==undefined&&v!==null&&v!=="")return v}return""}
 function caseKey(row){return text(firstVal(row,["caseNum","caseNo","runningNo","ลำดับเรื่อง"]))}
 function recNo(row){return text(firstVal(row,["recNo","receiveNo","เลขรับเรื่อง"]))}
@@ -291,8 +299,8 @@ async function login(e){
  try{
   const username=text($("#login-username").value),password=$("#login-password").value;
   const res=await call("apiLogin",{username,email:username,password,clientContext:clientContext()},{direct:true,noCache:true,timeout:45000});
-  const d=firstObject(dataOf(res));const token=text(d.token||d.nextToken),user=d.user||{};
-  if(!token)throw new Error("ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
+  const d=authEnvelope(res),token=text(d.token||d.nextToken||d.sessionToken),user=d.user||d.account||{};
+  if(!token)throw new Error(firstVal(d,["msg","message","error"])||"ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง");
   state.auth={token,csrfToken:text(d.csrfToken||d.csrf),user,role:text(user.role||"viewer").toLowerCase()};saveSession();setShell(true);go("dashboard",true);
  }catch(x){err.textContent=errorMessage(x);err.classList.remove("hidden")}finally{btn.disabled=false}
 }
@@ -305,7 +313,7 @@ async function boot(){
  addEventListener("popstate",()=>{if(state.auth.token)go(location.hash||"dashboard",true)});
  restoreLocalSession();
  if(state.auth.token){
-   try{const r=await call("apiSessionCheck",{token:state.auth.token,sessionToken:state.auth.token},{direct:true,noCache:true,timeout:30000});const d=firstObject(dataOf(r));if(d?.user)state.auth.user=d.user;if(d?.role)state.auth.role=d.role;saveSession();setShell(true);go(location.hash||"dashboard",true);return}catch{clearSession()}
+   try{const r=await call("apiSessionCheck",{token:state.auth.token,sessionToken:state.auth.token},{direct:true,noCache:true,timeout:30000});const d=authEnvelope(r);if(d?.user)state.auth.user=d.user;if(d?.role)state.auth.role=d.role;if(d?.user?.role)state.auth.role=d.user.role;saveSession();setShell(true);go(location.hash||"dashboard",true);return}catch{clearSession()}
  }
  setShell(false);
 }
