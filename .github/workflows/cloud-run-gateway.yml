@@ -110,7 +110,7 @@ jobs:
           curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
           curl --max-time 30 -fsS "$CANARY_URL/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
           grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
-          grep -q 'cr7-runtime-decoupled' "$tmp_dir/app-config.js"
+          grep -q 'cr8-gas-response' "$tmp_dir/app-config.js"
           grep -q 'cloud-run-direct-json-cr7' "$tmp_dir/cloud-run-transport.js"
 
       - name: Promote CR-8 GAS-canonical to production
