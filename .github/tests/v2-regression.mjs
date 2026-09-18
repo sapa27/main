@@ -47,6 +47,13 @@ ok("Meeting initial load is bounded and parallel",()=>{
   assert.ok(app.includes('call("apiGetMeetingHistory",identity)'));
   assert.ok(app.includes('call("apiGetLetters"'));
 });
+ok("Meeting selector and stale-response guards are safe",()=>{
+  assert.ok(app.includes('$("[data-case-index]").forEach'));
+  assert.ok(!app.includes('$("[data-case-index]").forEach'));
+  assert.ok(app.includes("if(epoch!==state.routeEpoch||!target.isConnected)return"));
+  assert.ok(app.includes("if(isAbortError(e)||epoch!==state.routeEpoch||!target.isConnected)return"));
+});
+
 ok("mobile-safe layout exists",()=>{
   assert.ok(html.includes('name="viewport"'));
   assert.ok(css.includes("@media"));
