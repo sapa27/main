@@ -222,6 +222,49 @@ ok('P1-E route operational status requires a mounted canonical lifecycle control
   assert.ok(index.includes('sessionStorage.removeItem("commission.system.sessionResume.current")'),'fallback logout must clear the actual canonical resume key');
 });
 
+ok('P0-3 Meeting controller has one canonical lifecycle owner',()=>{
+  const config=file('github-pages/app-config.js');
+  assert.ok(!config.includes('initMeetingPage'),'app-config must not intercept the Meeting controller');
+  assert.ok(!config.includes('__MEETING_SEARCH_EDIT_IN_PROGRESS__'),'app-config must not own Meeting editor lifecycle state');
+  assert.ok(!config.includes('meetingEditCase'),'app-config must not alter Meeting editor controller behavior');
+  const start=index.indexOf('function isPageOperational(id)');
+  const end=index.indexOf('function waitForPageOperational',start);
+  assert.ok(start>=0&&end>start,'isPageOperational source boundary missing');
+  const snippet=index.slice(start,end);
+  assert.ok(!snippet.includes('initMeetingPage'),'router operational test must not use a global Meeting controller fallback');
+  assert.ok(!snippet.includes('meetingPageInitialized'),'router operational test must not use Meeting DOM initialization as a second lifecycle owner');
+  let adapter={__canonicalLifecycle:true,__mounted:true,mount(){},reload(){},dispose(){}};
+  const ctx={window:{AppLifecycle:{getPage:()=>adapter}},canonicalPageId:v=>String(v||''),pageHasRenderableContent:()=>true,__appIsFn:v=>typeof v==='function',__appObserve:()=>false};
+  vm.runInNewContext(snippet,ctx);
+  assert.equal(ctx.isPageOperational('meeting'),true,'mounted canonical Meeting adapter must be operational');
+  adapter.__mounted=false;
+  assert.equal(ctx.isPageOperational('meeting'),false,'unmounted canonical Meeting adapter must not be masked by DOM/global fallbacks');
+});
+
+await okAsync('P0-3 open Meeting then idle same-route navigation does not reactivate or fail',async()=>{
+  const start=index.indexOf('function applyRoute(target,replace)');
+  const end=index.indexOf('function prefetchRouteFromElementCurrent',start);
+  assert.ok(start>=0&&end>start,'applyRoute source boundary missing');
+  const snippet=index.slice(start,end);
+  let commits=0,failures=0;
+  const ctx={
+    routeState:{path:'/meeting'},bridgeState:{authenticated:true,currentPath:'/meeting'},BOOT:{defaultRoute:'/dashboard'},
+    routeNavigationInFlightCurrent:{},Promise,
+    normalizeRouteTarget:v=>String(v||'').replace(/^#/,'')||'/dashboard',
+    syncStateFromStore(){},appNavAllowed:()=>true,navFromRoute:v=>String(v||'').replace(/^\//,''),
+    resolveCurrentRole:()=> 'admin',notifyPermissionDenied(){},
+    commitRouteCurrent(){commits++;failures++;return Promise.resolve(false)},
+    markSidebar(){},clearSidebarPending(){},releaseUiLock(){},
+    canonicalPageId:v=>String(v||''),window:{AppRuntime:{recordWarning(){}}},
+    document:{documentElement:{classList:{add(){},remove(){}},setAttribute(){},removeAttribute(){}}}
+  };
+  vm.runInNewContext(snippet,ctx);
+  await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(await ctx.applyRoute('/meeting',true),true);
+  assert.equal(commits,0,'idle same-route Meeting navigation must not start a new activation');
+  assert.equal(failures,0,'idle same-route Meeting navigation must not reach an activation-failure path');
+});
+
 ok('P0-2 Meeting recovery and invalidation have one router owner',()=>{
   assert.ok(index.includes('function pageControllerReadyCurrent(id)'),'router controller readiness owner missing');
   assert.ok(index.includes('function invalidateMeetingControllerCurrent(id)'),'router Meeting invalidation owner missing');

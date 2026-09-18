@@ -3270,7 +3270,7 @@ try{return canonicalPageId(navFromRoute(routeState&&routeState.path||location.ha
 function isPageOperational(id){
 id=canonicalPageId(id);
 if(!pageHasRenderableContent(id))return!1;
-try{var lifecycle=window.AppLifecycle,adapter=lifecycle&&__appIsFn(lifecycle.getPage)?lifecycle.getPage(id):null,canonical=!!(adapter&&adapter.__canonicalLifecycle&&__appIsFn(adapter.mount)&&__appIsFn(adapter.reload)&&__appIsFn(adapter.dispose));if(!canonical)return!1;if(adapter.__mounted===!0)return!0;if(id==="meeting"){var page=document.getElementById("p-meeting"),initialized=!!(document.documentElement&&document.documentElement.dataset.meetingPageInitialized==="1"),controls=!!(page&&page.querySelector("#meeting-tabs")&&page.querySelector("#meeting-case-form")),controller=__appIsFn(window.initMeetingPage);if(initialized&&controls&&controller)return!0}return!1}catch(_operationalErr){return __appObserve(_operationalErr,"route.operational"),!1}
+try{var lifecycle=window.AppLifecycle,adapter=lifecycle&&__appIsFn(lifecycle.getPage)?lifecycle.getPage(id):null,canonical=!!(adapter&&adapter.__canonicalLifecycle&&__appIsFn(adapter.mount)&&__appIsFn(adapter.reload)&&__appIsFn(adapter.dispose));return!!(canonical&&adapter.__mounted===!0)}catch(_operationalErr){return __appObserve(_operationalErr,"route.operational"),!1}
 }
 function waitForPageOperational(id,generation,timeoutMs){
 id=canonicalPageId(id);generation=Number(generation||0);timeoutMs=Math.max(250,Number(timeoutMs||1800));
