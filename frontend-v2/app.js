@@ -1,4 +1,5 @@
-const VERSION="v2-clean-20260918";
+const VERSION="v2-rebuild-20260918-r2";
+const BUILD_SYNC="meeting-stability-r2";
 const API="/api/router";
 const BOOTSTRAP_METHODS=new Set(["apiLogin","apiLogout","apiSessionCheck","apiSessionResume"]);
 const READ_TTL={
@@ -12,8 +13,8 @@ const WRITE_METHODS=new Set(["apiSaveCase","apiDeleteCase","apiSaveMeetingLog","
 
 const state={
   auth:{token:"",csrfToken:"",user:null,role:"viewer"},
-  route:"dashboard",routeEpoch:0,cache:new Map(),inflight:new Map(),selectedCase:null,
-  caseRows:[],meetingBundle:null
+  route:"dashboard",routeEpoch:0,routeAbort:null,cache:new Map(),inflight:new Map(),selectedCase:null,
+  caseRows:[],meetingBundle:null,perf:{requests:0,cacheHits:0,dedupHits:0,aborts:0,routeStarts:0}
 };
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -34,6 +35,9 @@ function authPayload(payload={}){
 function isWrite(method){return WRITE_METHODS.has(method)||/^api(?:Admin)?(?:Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup)/.test(method)}
 function cacheKey(method,payload){try{return method+"|"+JSON.stringify(payload)}catch{return""}}
 function clearReadCache(){state.cache.clear()}
+function isAbortError(e){return !!e&&(e.name==="AbortError"||e.code==="ABORT_ERR"||/aborted|abort/i.test(String(e.message||"")))}
+function beginRoute(route){if(state.routeAbort){try{state.routeAbort.abort()}catch{}}state.routeAbort=new AbortController();state.route=route;state.routeEpoch++;state.perf.routeStarts++;if(route!=="meeting"){state.selectedCase=null;state.meetingBundle=null}return{epoch:state.routeEpoch,signal:state.routeAbort.signal}}
+function currentRouteContext(){return{epoch:state.routeEpoch,signal:state.routeAbort&&state.routeAbort.signal||null}}
 function normalizeGateway(j){
   if(!j||j.ok!==true){const e=new Error(j?.error?.message||"API request failed");e.code=j?.error?.code||"API_ERROR";throw e}
   return j.result;
@@ -47,15 +51,19 @@ async function rawCall(method,payload={},opts={}){
   const key=!isWrite(effective)&&ttl?cacheKey(effective,payload):"";
   if(key&&!opts.forceFresh){
     const hit=state.cache.get(key);
-    if(hit&&hit.exp>now())return hit.value;
+    if(hit&&hit.exp>now()){state.perf.cacheHits++;return hit.value}
   }
-  if(key&&state.inflight.has(key))return state.inflight.get(key);
+  if(key&&state.inflight.has(key)){state.perf.dedupHits++;return state.inflight.get(key)}
   const controller=new AbortController();
   const timeout=Math.max(10000,Number(opts.timeout|| (isWrite(effective)?120000:45000)));
-  const timer=setTimeout(()=>controller.abort(),timeout);
-  const work=fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({method:wireMethod,payload:wirePayload,timeoutMs:timeout}),signal:opts.signal||controller.signal})
+  const routeSignal=!isWrite(effective)&&opts.routeBound!==false?(state.routeAbort&&state.routeAbort.signal):null;
+  const external=opts.signal||routeSignal;
+  if(external){if(external.aborted)controller.abort();else external.addEventListener("abort",()=>controller.abort(),{once:true})}
+  const timer=setTimeout(()=>controller.abort(),timeout);state.perf.requests++;
+  const work=fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({method:wireMethod,payload:wirePayload,timeoutMs:timeout}),signal:controller.signal})
     .then(async r=>{const body=await r.json().catch(()=>null);if(!r.ok)throw new Error(body?.error?.message||("HTTP "+r.status));return normalizeGateway(body)})
     .then(value=>{if(key&&ttl)state.cache.set(key,{value,exp:now()+ttl});if(isWrite(effective))clearReadCache();return value})
+    .catch(e=>{if(isAbortError(e)){state.perf.aborts++;e.code="REQUEST_CANCELLED"}throw e})
     .finally(()=>{clearTimeout(timer);if(key)state.inflight.delete(key)});
   if(key)state.inflight.set(key,work);
   return work;
@@ -139,7 +147,7 @@ async function loadDashboard(epoch){
     ];
     $("#dashboard-stats").innerHTML=cards.map(([k,v])=>`<div class="card stat"><div class="muted">${esc(k)}</div><div class="value">${esc(v||0)}</div></div>`).join("");
     setCard("dashboard-data",`<div class="codebox">${esc(JSON.stringify({stats:d.stats||{},summary:d.summary||{}},null,2))}</div>`,"อัปเดตแล้ว");
-  }catch(e){genericError("dashboard-data",e)}
+  }catch(e){if(isAbortError(e)||epoch!==state.routeEpoch)return;genericError("dashboard-data",e)}
 }
 function routeDashboard(){
   $("#page-host").innerHTML=pageFrame("Dashboard","ภาพรวมข้อมูลจาก GAS โดยตรง",'<button class="btn" id="dash-refresh">รีเฟรช</button>')+`<div class="page"><div id="dashboard-stats" class="grid cols-4">${[1,2,3,4].map(()=>'<div class="card stat"><div class="muted">กำลังโหลด</div><div class="value">—</div></div>').join("")}</div><div style="height:14px"></div>${statusCard("dashboard-data","ข้อมูลสรุป")}</div>`;
@@ -151,10 +159,11 @@ function searchControls(prefix){
  return `<div class="toolbar"><label>คำค้น<input id="${prefix}-q" placeholder="ลำดับเรื่อง / เลขรับ / ชื่อเรื่อง"></label><button class="btn primary" id="${prefix}-go">ค้นหา</button></div>`;
 }
 async function searchCases(prefix,selectable=false){
-  const q=text($("#"+prefix+"-q")?.value||"");
-  const target=$("#"+prefix+"-result");target.innerHTML='<div class="loading-card">กำลังค้นหา</div>';
+  const epoch=state.routeEpoch,q=text($("#"+prefix+"-q")?.value||"");
+  const target=$("#"+prefix+"-result");if(!target)return;target.innerHTML='<div class="loading-card">กำลังค้นหา</div>';
   try{
-    const res=await call("apiSearchCasesLite",{q,query:q,search:q,page:1,limit:50});
+    const res=await call("apiSearchCasesLite",{q,query:q,search:q,page:1,limit:selectable?30:50});
+    if(epoch!==state.routeEpoch||!target.isConnected)return;
     const rows=rowsOf(res);state.caseRows=rows;
     if(!selectable){
       target.innerHTML=table(rows,[["ลำดับเรื่อง",["caseNum","caseNo","runningNo","ลำดับเรื่อง"]],["เลขรับ",["recNo","receiveNo"]],["ชื่อเรื่อง",["title","caseTitle"]],["สถานะ",["status","caseStatus"]],["วันที่รับ",["recDateText","recDate"]]]);
@@ -162,7 +171,7 @@ async function searchCases(prefix,selectable=false){
       target.innerHTML=rows.length?rows.map((r,i)=>`<div class="list-item" data-case-index="${i}"><strong>${esc(caseKey(r)||recNo(r)||"ไม่ระบุ")}</strong><small>${esc(caseTitle(r)||"-")}</small><span class="badge">${esc(firstVal(r,["status","caseStatus"])||"-")}</span></div>`).join(""):'<div class="empty">ไม่พบข้อมูล</div>';
       $$("[data-case-index]",target).forEach(el=>el.onclick=()=>openCase(rows[Number(el.dataset.caseIndex)]));
     }
-  }catch(e){target.innerHTML=`<div class="error-box">${esc(errorMessage(e))}</div>`}
+  }catch(e){if(isAbortError(e)||epoch!==state.routeEpoch||!target.isConnected)return;target.innerHTML=`<div class="error-box">${esc(errorMessage(e))}</div>`}
 }
 function routeSearch(){
   $("#page-host").innerHTML=pageFrame("ค้นหาเรื่องพิจารณา","ค้นหาจาก MainData โดยไม่โหลด page script")+`<div class="page"><div class="card"><div class="card-body">${searchControls("search")}<div style="height:12px"></div><div id="search-result"></div></div></div></div>`;
@@ -209,6 +218,7 @@ function bindTabs(){
   $$(".tab","#meeting-tabs").forEach(btn=>btn.onclick=()=>{$$(".tab","#meeting-tabs").forEach(x=>x.classList.toggle("active",x===btn));$$(".tab-panel").forEach(p=>p.classList.toggle("active",p.id==="tab-"+btn.dataset.tab))});
 }
 async function openCase(row){
+  const epoch=state.routeEpoch;if(state.route!=="meeting")return;
   state.selectedCase=row;$$("[data-case-index]").forEach(el=>el.classList.toggle("active",state.caseRows[Number(el.dataset.caseIndex)]===row));
   $("#tab-case").innerHTML=renderCaseForm(row);$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
   $("#tab-history").innerHTML='<div class="loading-card">กำลังโหลดประวัติการประชุม</div>';
@@ -219,7 +229,8 @@ async function openCase(row){
     call("apiGetMeetingHistory",identity),
     call("apiGetLetters",Object.assign({page:1,limit:100},identity))
   ]);
-  if(state.selectedCase!==row)return;
+  if(state.route!=="meeting"||epoch!==state.routeEpoch||state.selectedCase!==row)return;
+  if(!$("#tab-case")||!$("#tab-history")||!$("#tab-letters"))return;
   if(settled[0].status==="fulfilled"){
     const bundle=firstObject(dataOf(settled[0].value));state.meetingBundle=bundle;
     const enriched=bundle.case||bundle.caseRow||bundle.main||bundle.data||row;
@@ -252,7 +263,9 @@ function routeMeeting(){
   bindTabs();$("#meeting-go").onclick=()=>searchCases("meeting",true);$("#meeting-new").onclick=newCase;$("#meeting-refresh").onclick=()=>{clearReadCache();searchCases("meeting",true)};newCase();searchCases("meeting",true);
 }
 async function genericPageLoad(cardId,method,payload={},columns=null){
- try{const res=await call(method,payload);setCard(cardId,table(rowsOf(res),columns),"อัปเดตแล้ว")}catch(e){genericError(cardId,e)}
+ const ctx=currentRouteContext();
+ try{const res=await call(method,payload,{signal:ctx.signal});if(ctx.epoch!==state.routeEpoch)return;setCard(cardId,table(rowsOf(res),columns),"อัปเดตแล้ว")}
+ catch(e){if(isAbortError(e)||ctx.epoch!==state.routeEpoch)return;genericError(cardId,e)}
 }
 function routeTrack(){
  $("#page-host").innerHTML=pageFrame("ระบบติดตามหนังสือ","ข้อมูลหนังสือติดตามแบบ server-paged")+`<div class="page">${statusCard("track-data","รายการติดตาม")}</div>`;
@@ -286,12 +299,13 @@ const ROUTES={
  people:{title:"บุคคล",render:routePeople},petitioner:{title:"ผู้ร้อง/ผู้เสนอญัตติ",render:routePetitioner},
  budget:{title:"งบประมาณ",render:routeBudget},admin:{title:"การจัดการระบบ",render:routeAdmin}
 };
+function assertRouteRegistry(){const missing=NAV.map(x=>x[0]).filter(id=>!ROUTES[id]||typeof ROUTES[id].render!=="function");if(missing.length)throw new Error("V2_ROUTE_REGISTRY_INVALID: "+missing.join(","));if(!ROUTES.meeting||ROUTES.meeting.render!==routeMeeting)throw new Error("V2_MEETING_ROUTE_NOT_STATIC");return true}
 function go(route,replace=false){
  route=text(route||"dashboard").replace(/^#\/?/,"");if(!ROUTES[route])route="dashboard";
  if(role()==="viewer"&&(route==="track"||route==="budget"))route="dashboard";
- state.route=route;state.routeEpoch++;$("#route-title").textContent=ROUTES[route].title;renderNav();openSidebar(false);
+ beginRoute(route);$("#route-title").textContent=ROUTES[route].title;renderNav();openSidebar(false);
  if((location.hash||"").replace(/^#\/?/,"")!==route){history[replace?"replaceState":"pushState"](null,"","#/"+route)}
- $("#page-host").innerHTML="";try{ROUTES[route].render()}catch(e){$("#page-host").innerHTML=pageFrame("เปิดหน้าไม่สำเร็จ","V2 route registry error")+`<div class="error-box">${esc(errorMessage(e))}</div>`;console.error(e)}
+ $("#page-host").innerHTML="";try{ROUTES[route].render()}catch(e){$("#page-host").innerHTML=pageFrame("ส่วนติดต่อหน้านี้เกิดข้อผิดพลาด","V2 render boundary")+`<div class="error-box">${esc(errorMessage(e))}</div>`;console.error(e)}
  $("#main").focus({preventScroll:true});
 }
 async function login(e){
@@ -308,6 +322,7 @@ async function logout(){
  const p={token:state.auth.token,csrfToken:state.auth.csrfToken};try{await call("apiLogout",p,{direct:true,noCache:true,timeout:30000})}catch{}clearSession();setShell(false);history.replaceState(null,"","#/login");
 }
 async function boot(){
+ assertRouteRegistry();
  $("#runtime-badge").textContent=VERSION;$("#login-form").onsubmit=login;$("#logout-btn").onclick=logout;$("#menu-toggle").onclick=()=>openSidebar(true);$("#sidebar-overlay").onclick=()=>openSidebar(false);
  $("#nav").addEventListener("click",e=>{const b=e.target.closest("[data-route]");if(b)go(b.dataset.route)});
  addEventListener("popstate",()=>{if(state.auth.token)go(location.hash||"dashboard",true)});
