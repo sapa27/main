@@ -31,3 +31,10 @@ Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> fina
 - The first Meeting lifecycle mount is canonicalized and forced to avoid the mobile Vue visibility race.
 - Canary and Production smoke tests require the static Meeting controller markers before a deployment is accepted.
 - Live GAS upstream health remains fail-closed, with three bounded attempts to tolerate a single transient 504 without soft-passing a broken upstream.
+
+## CR-8.4 Meeting Static-First
+
+- The Meeting controller is executed from the Cloud Run static asset immediately after Core Runtime is ready.
+- Shared Date/Table deferred assets are warmed in the background and cannot block controller registration or first route activation.
+- Shared-runtime warmup failures are recorded as degraded support assets; they do not recreate the controller-not-found failure.
+- Meeting data remains server-driven through Cloud Run -> GAS Direct JSON.
