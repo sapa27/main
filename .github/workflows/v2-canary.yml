@@ -6,6 +6,8 @@ on:
       - 'cloud-run-gateway/**'
       - '.github/tests/v2-regression.mjs'
       - '.github/workflows/v2-canary.yml'
+      - '.github/workflows/v2-cloud-run-canary.yml'
+      - '.github/workflows/v2-promote-production.yml'
   workflow_dispatch:
     inputs:
       deploy:
