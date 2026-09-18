@@ -1,8 +1,8 @@
 {
   "name": "sapa27-cloud-run-gateway",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "Cloud Run API gateway for sapa27 GitHub Pages to Google Apps Script RPC",
+  "description": "Cloud Run production frontend and API gateway for sapa27 to Google Apps Script RPC",
   "engines": {
     "node": ">=24"
   },
