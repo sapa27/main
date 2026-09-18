@@ -1051,19 +1051,10 @@ ok('meeting activation is mobile-safe and keeps canonical lifecycle recovery',()
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
   assert.ok(transport.includes('body:JSON.stringify({method:f,payload:a==null?{}:a,timeoutMs:ms})'));
-  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf
+  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
   assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
   assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
   assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
 });
 
 console.log(`# ${passed} regression groups passed (${MODE} repository mode; frontend r331/v62, RPC r330 mode)`);
-
-));
-  assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
-  assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
-  assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
-});
-
-console.log(`# ${passed} regression groups passed (${MODE} repository mode; frontend r331/v62, RPC r330 mode)`);
-
