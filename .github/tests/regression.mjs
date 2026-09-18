@@ -107,7 +107,7 @@ ok('CR-3 parallel transport uses Cloud Run for safe reads with bounded direct-GA
   assert.ok(config.includes('github-pages-canonical-projection-r331-v62-cloudrun-parallel-cr3-20260918'));
   assert.ok(transport.includes('github-pages-cloudrun-read-primary-directgas-write-cr3'));
   assert.ok(transport.includes('function cloudEligible(f)'));
-  assert.ok(transport.includes('isReadMethod(f)&&!/^(?:apiLogin|apiLogout|apiSessionResume|apiSessionCheck|getDeferredInclude)$/'));
+  assert.ok(transport.includes('CLOUD_RUN_READ_PRIMARY",!1)===!0&&isReadMethod(f)'));
   assert.ok(transport.includes('return cloudRpc(f,a,o).catch(function(e)'));
   assert.ok(transport.includes('app:transport:cloud-fallback'));
   assert.ok(transport.includes('return directRpc(f,a,o)'));
@@ -115,6 +115,7 @@ ok('CR-3 parallel transport uses Cloud Run for safe reads with bounded direct-GA
   assert.ok(transport.includes('"Content-Type":"application/json"'));
   assert.ok(transport.includes('CLOUD_RUN_TIMEOUT'));
   assert.ok(transport.includes('CLOUD_RUN_FETCH_FAILED'));
+  assert.ok(!transport.includes('function cloudTransient('));
 });
 
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
