@@ -35,7 +35,7 @@ function isWrite(method){return WRITE_METHODS.has(method)||/^api(?:Admin)?(?:Sav
 function cacheKey(method,payload){try{return method+"|"+JSON.stringify(payload)}catch{return""}}
 function clearReadCache(){state.cache.clear()}
 function isAbortError(e){return !!e&&(e.name==="AbortError"||e.code==="ABORT_ERR"||/aborted|abort/i.test(String(e.message||"")))}
-function beginRoute(route){if(state.routeAbort){try{state.routeAbort.abort()}catch{}}state.routeAbort=new AbortController();state.route=route;state.routeEpoch++;state.perf.routeStarts++;return{epoch:state.routeEpoch,signal:state.routeAbort.signal}}
+function beginRoute(route){if(state.routeAbort){try{state.routeAbort.abort()}catch{}}state.routeAbort=new AbortController();state.route=route;state.routeEpoch++;state.perf.routeStarts++;if(route!=="meeting"){state.selectedCase=null;state.meetingBundle=null}return{epoch:state.routeEpoch,signal:state.routeAbort.signal}}
 function currentRouteContext(){return{epoch:state.routeEpoch,signal:state.routeAbort&&state.routeAbort.signal||null}}
 function normalizeGateway(j){
   if(!j||j.ok!==true){const e=new Error(j?.error?.message||"API request failed");e.code=j?.error?.code||"API_ERROR";throw e}
@@ -216,7 +216,8 @@ function bindTabs(){
   $$(".tab","#meeting-tabs").forEach(btn=>btn.onclick=()=>{$$(".tab","#meeting-tabs").forEach(x=>x.classList.toggle("active",x===btn));$$(".tab-panel").forEach(p=>p.classList.toggle("active",p.id==="tab-"+btn.dataset.tab))});
 }
 async function openCase(row){
-  state.selectedCase=row;$$("[data-case-index]").forEach(el=>el.classList.toggle("active",state.caseRows[Number(el.dataset.caseIndex)]===row));
+  const epoch=state.routeEpoch;if(state.route!=="meeting")return;
+  state.selectedCase=row;$("[data-case-index]").forEach(el=>el.classList.toggle("active",state.caseRows[Number(el.dataset.caseIndex)]===row));
   $("#tab-case").innerHTML=renderCaseForm(row);$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
   $("#tab-history").innerHTML='<div class="loading-card">กำลังโหลดประวัติการประชุม</div>';
   $("#tab-letters").innerHTML='<div class="loading-card">กำลังโหลดหนังสือติดตามมติ</div>';
@@ -226,7 +227,8 @@ async function openCase(row){
     call("apiGetMeetingHistory",identity),
     call("apiGetLetters",Object.assign({page:1,limit:100},identity))
   ]);
-  if(state.selectedCase!==row)return;
+  if(state.route!=="meeting"||epoch!==state.routeEpoch||state.selectedCase!==row)return;
+  if(!$("#tab-case")||!$("#tab-history")||!$("#tab-letters"))return;
   if(settled[0].status==="fulfilled"){
     const bundle=firstObject(dataOf(settled[0].value));state.meetingBundle=bundle;
     const enriched=bundle.case||bundle.caseRow||bundle.main||bundle.data||row;
