@@ -54,8 +54,8 @@ ok('frontend revision is separated from the stable RPC protocol',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr4-20260918'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr4-20260918'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr5-20260918'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr5-20260918'))
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
@@ -74,24 +74,27 @@ ok('SRI integrity preserved',()=>{
 ok('RPC transport is Cloud Run fetch-only',()=>{
   assert.ok(transport.includes('w.AppTransport.run=run'));
   assert.ok(transport.includes('method:"POST",mode:"cors"'));
-  assert.ok(transport.includes('cloud-run-all-primary-cr4'));
+  assert.ok(transport.includes('cloud-run-all-primary-cr5'));
   assert.ok(!transport.includes('mode:"no-cors"'));
   assert.ok(!transport.includes('script.google.com'));
   for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE','directRpc(','jsonp('])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
 });
 
-ok('CR-4 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
+ok('CR-5 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
   jsSyntax(cloudRunGateway,'cloud-run-gateway/server.js');
   assert.equal(cloudRunPackage.private,true);
   assert.equal(cloudRunPackage.scripts&&cloudRunPackage.scripts.start,'node server.js');
   assert.ok(String(cloudRunPackage.engines&&cloudRunPackage.engines.node||'').includes('24'));
-  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr4-cloudrun-origin-r330'"));
+  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr5-mobile-meeting-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_RPC_VERSION||'github-pages-rpc-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'"));
   assert.ok(cloudRunGateway.includes("PUBLIC_DIR=path.join(__dirname,'public')"));
   assert.ok(cloudRunGateway.includes('function serveStatic('));
   assert.ok(cloudRunGateway.includes("u.pathname==='/api/router'"));
   assert.ok(cloudRunGateway.includes('sameOrigin(req,o)'));
+  assert.ok(cloudRunGateway.includes("DEFERRED_CACHE_TTL_MS=15*60*1000"),'Cloud Run deferred fragment cache must be enabled');
+  assert.ok(cloudRunGateway.includes("method!=='getDeferredInclude'"),'cache must be scoped to deferred includes only');
+  assert.ok(cloudRunGateway.includes("cache:'deferred-hit'"),'cache hit metadata is required for diagnostics');
   assert.ok(!/script\.google\.com\/macros\/s\/AK[A-Za-z0-9_-]+\/exec/.test(cloudRunGateway));
   assert.ok(cloudRunWorkflow.includes("'github-pages/**'"));
   assert.ok(cloudRunWorkflow.includes('cp -R github-pages cloud-run-gateway/public'));
@@ -104,12 +107,12 @@ ok('CR-4 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
 });
 
 
-ok('CR-4 Cloud Run is the canonical browser transport with direct GAS disabled',()=>{
+ok('CR-5 Cloud Run is the canonical browser transport with direct GAS disabled',()=>{
   assert.ok(config.includes('CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app"'));
   assert.ok(config.includes('CLOUD_RUN_ALL_PRIMARY:!0'));
   assert.ok(config.includes('CLOUD_RUN_FALLBACK_DIRECT_GAS:!1'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr4-20260918'));
-  assert.ok(transport.includes('cloud-run-all-primary-cr4'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr5-mobile-meeting-20260918'));
+  assert.ok(transport.includes('cloud-run-all-primary-cr5'));
   assert.ok(transport.includes('return cloudRpc(f,a,o)'));
   assert.ok(transport.includes('u+"/api/router"'));
   assert.ok(transport.includes('method:"POST",mode:"cors"'));
@@ -330,7 +333,7 @@ await okAsync('P0-3 open Meeting then idle same-route navigation does not reacti
 ok('P0-2 Meeting recovery and invalidation have one router owner',()=>{
   assert.ok(index.includes('function pageControllerReadyCurrent(id)'),'router controller readiness owner missing');
   assert.ok(index.includes('function invalidateMeetingControllerCurrent(id)'),'router Meeting invalidation owner missing');
-  assert.ok(index.includes('controllerRequired&&!controllerReady)invalidateMeetingControllerCurrent(id)'),'route preparation must own Meeting invalidation');
+  assert.ok(index.includes('controllerRequired&&!controllerReady&&routeAssetsPreparedCurrent[id])invalidateMeetingControllerCurrent(id)'),'initial Meeting navigation must not invalidate fragments before first load');
   assert.ok(index.includes('!pageControllerReadyCurrent(id))throw new Error("ไม่พบ canonical page adapter หลังโหลดตัวควบคุม: "+id)'),'Meeting preparation must verify lifecycle adapter after script load');
   assert.ok(index.includes('routeAssetsPreparedCurrent[id]&&((id!=="meeting"&&id!=="committee-meeting")||pageControllerReadyCurrent(id))'),'activation shortcut must validate Meeting controller');
   const config=file('github-pages/app-config.js');
@@ -827,8 +830,10 @@ ok('dashboard deferred assets and data RPC do not wait behind a health preflight
   assert.ok(config.includes('pageActivationTimeoutMs:75000'),'page activation must allow deferred script completion');
   assert.ok(transport.includes('var p=rpc(fn,a,opt)'),'all RPC methods must use the same immediate fast path');
   assert.ok(!transport.includes('fn==="getDeferredInclude"?Promise.resolve(true):health(false)'),'legacy blocking health preflight must stay retired');
-  assert.ok(index.includes('routeConfiguredTimeout("pageScriptLoadTimeoutMs",20000,5000,90000)'));
-  assert.ok(index.includes('routeConfiguredTimeout("pageActivationTimeoutMs",30000,10000,120000)'));
+  assert.ok(index.includes('routeConfiguredTimeout(isMeetingRoute?"meetingPageScriptLoadTimeoutMs":"pageScriptLoadTimeoutMs",isMeetingRoute?80000:20000,5000,120000)'));
+  assert.ok(config.includes('meetingPageScriptLoadTimeoutMs:80000'),'Meeting gets a mobile-safe script budget');
+  assert.ok(config.includes('meetingPageActivationTimeoutMs:95000'),'Meeting activation budget must outlive script loading');
+  assert.ok(index.includes('routeConfiguredTimeout(isMeetingActivation?"meetingPageActivationTimeoutMs":"pageActivationTimeoutMs",isMeetingActivation?95000:30000,10000,120000)'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:45000'),'transport remains bounded at 45 seconds');
 });
 
@@ -1020,9 +1025,15 @@ ok('table and card loading states are visible once per active data surface',()=>
 });
 
 
-ok('meeting activation waits for the canonical lifecycle and clears stale failure state',()=>{
-  assert.ok(index.includes('forceFresh:/^Scripts_Page_Meeting(?:::|$)/.test(n)'),'meeting fragments must bypass stale GAS deferred cache');
-  assert.ok(index.includes('ensureBootstrapAssets()).then(function(){return loaderWork()})'),'meeting route must await Bootstrap tab runtime');
+ok('meeting activation is mobile-safe and keeps canonical lifecycle recovery',()=>{
+  assert.ok(index.includes('forceFresh:!1,assetStamp:'),'Meeting fragments should use release-scoped cache instead of forceFresh on every mobile load');
+  assert.ok(!index.includes('forceFresh:/^Scripts_Page_Meeting(?:::|$)/.test(n)'),'retired forceFresh Meeting path must stay removed');
+  assert.ok(index.includes('route.meeting.bootstrap-background:'),'Bootstrap warming must run after Meeting controller loading');
+  assert.ok(!index.includes('ensureBootstrapAssets()).then(function(){return loaderWork()})'),'Bootstrap must not block Meeting page-script loading');
+  assert.ok(index.includes('filter(function(name){return /^Scripts_Page_Meeting(?:::|$)/.test(String(name||""))})'),'Meeting invalidation must be limited to Meeting fragments');
+  assert.ok(index.includes('if(__appIsFn(isLoaded)&&!isLoaded.call(A,name))return'),'unloaded Meeting fragments must not be invalidated');
+  assert.ok(index.includes('id="app-mobile-compact-cr5"'),'mobile compact CSS owner is required');
+  assert.ok(index.includes('#p-meeting #meeting-tabs{display:flex;flex-wrap:nowrap!important'),'Meeting tabs must be horizontally scrollable on narrow screens');
   assert.ok(index.includes('function waitForPageOperational(id,generation,timeoutMs)'),'meeting route needs an operational recovery window');
   assert.ok(index.includes('waitForPageOperational(id,generation,1800)'),'activation failure must wait briefly before surfacing an error');
   const start=index.indexOf('function isPageOperational(id)');
@@ -1037,8 +1048,16 @@ ok('meeting activation waits for the canonical lifecycle and clears stale failur
 
 ok('AI PDF extraction has a dedicated long-running timeout',()=>{
   assert.ok(config.includes('AI_DOCUMENT_TIMEOUT_MS:300000'));
-  assert.ok(transport.includes('if(fn==="apiRouter"){var nested='));
-  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$'));
+  assert.ok(transport.includes('body:JSON.stringify({method:f,payload:a==null?{}:a,timeoutMs:ms})'));
+  assert.ok(transport.includes('ai=/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf
+  assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
+  assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
+  assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
+});
+
+console.log(`# ${passed} regression groups passed (${MODE} repository mode; frontend r331/v62, RPC r330 mode)`);
+
+));
   assert.ok(transport.includes('c("AI_DOCUMENT_TIMEOUT_MS",300000)'));
   assert.ok(config.includes('commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62'));
   assert.ok(config.includes('asset-manifest-r331-v62-reliability'))
