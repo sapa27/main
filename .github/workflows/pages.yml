@@ -234,9 +234,19 @@ jobs:
           const indexUrl=new URL('./',base).href;
           const [html,cfg,transport]=await Promise.all([fetchReady(indexUrl,'Pages index'),fetchReady(new URL('app-config.js',indexUrl).href,'Pages config'),fetchReady(new URL('github-gas-transport.js',indexUrl).href,'Pages transport')]);
           for(const marker of ['CANONICAL GITHUB FRONTEND r331-v62','app-production-measurement-gate-current','app-production-quality-gate-f5-r330','app:route-settled']) if(!html.includes(marker)) throw new Error('deployed index missing '+marker);
-          for(const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330','github-pages-canonical-projection-r331-v62-directgas-p1-20260916']) if(!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
+          for(const marker of ['commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62','asset-manifest-r331-v62-reliability','gas-backend-single-source-r331-v62','github-pages-rpc-r330','github-pages-canonical-projection-r331-v62-cloudrun-parallel-cr3-20260918']) if(!cfg.includes(marker)) throw new Error('deployed config missing '+marker);
           const expectedGas='https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec';
           if(!cfg.includes('GAS_URL="'+expectedGas+'"')) throw new Error('deployed GAS endpoint mismatch');
           if(!transport.includes('github-gas-transport.js::frontend-r331-v62::rpc-r330')) throw new Error('deployed transport revision mismatch');
+          if(!transport.includes('github-pages-cloudrun-read-primary-directgas-write-cr3')) throw new Error('deployed CR-3 transport mode missing');
+          const cm=/CR_URL="([^"]+)"/.exec(cfg);
+          if(!cm) throw new Error('Cloud Run gateway URL missing from deployed config');
+          const cloudBase=cm[1].replace(/\/$/,'');
+          const health=JSON.parse(await fetchReady(cloudBase+'/health','Cloud Run health'));
+          if(health.ok!==true||health.gateway!=='cr2-rpc-r330'||health.rpcVersion!=='github-pages-rpc-r330') throw new Error('Cloud Run health contract mismatch');
+          const probeRes=await fetch(cloudBase+'/api/router',{method:'POST',headers:{Origin:'https://sapa27.github.io','Content-Type':'application/json','X-Request-ID':'pages-cr3-smoke'},body:JSON.stringify({method:'apiGetRouteContract',payload:{}}),redirect:'follow',cache:'no-store',signal:AbortSignal.timeout(60000)});
+          const probeText=await probeRes.text();let probe;try{probe=JSON.parse(probeText)}catch(_){throw new Error('Cloud Run router returned non-JSON')};
+          if(!probeRes.ok||probe.ok!==true) throw new Error('Cloud Run router smoke failed HTTP '+probeRes.status+' '+probeText.slice(0,300));
+          console.log('Pages CR-3 Cloud Run parallel smoke ok:',cloudBase);
           console.log('Pages post-deploy release surface ok:',indexUrl);
           NODE

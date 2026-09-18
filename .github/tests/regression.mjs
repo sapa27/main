@@ -54,12 +54,12 @@ ok('frontend revision is separated from the stable RPC protocol',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r331-v62-directgas-p1-20260916'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-directgas-p1-20260916'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr3-20260918'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr3-20260918'))
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
-  const current='https://script.google.com/macros/s/AKfycbyjAUVjRD7xWiHPBcJBOQcXBIY6s3PLEE5wZSDKx3bSD7c36tYpKBQiAUsT8tngWZJ-/exec';
+  const current='https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec';
   const retired=['AKfycbze3llnjuZS0YGrQggu-xKpPBs_Y9YPKbTB80lK4M4M0rEjaIOYWVE59DYV0BPoeSmr','AKfycbwcj6zCQlZHZY3RTcIAqiREYX7LDOi0XBJi3p09SReWFDOy48jXYbAQxwrosR4E7-bv'];
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);
   assert.equal(m&&m[1],current,'release candidate would switch away from the current production GAS endpoint');
@@ -76,12 +76,12 @@ ok('RPC transport is fetch-only',()=>{
   for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE'])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
 });
 
-ok('CR-0 Cloud Run gateway is isolated, deployable and preserves GAS RPC r330',()=>{
+ok('CR-2 Cloud Run gateway is deployable and preserves GAS RPC r330',()=>{
   jsSyntax(cloudRunGateway,'cloud-run-gateway/server.js');
   assert.equal(cloudRunPackage.private,true);
   assert.equal(cloudRunPackage.scripts&&cloudRunPackage.scripts.start,'node server.js');
   assert.ok(String(cloudRunPackage.engines&&cloudRunPackage.engines.node||'').includes('24'));
-  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr0-rpc-r330'"));
+  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr2-rpc-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_RPC_VERSION||'github-pages-rpc-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'"));
   assert.ok(cloudRunGateway.includes("env.GATEWAY_ALLOWED_ORIGINS||'https://sapa27.github.io'"));
@@ -97,6 +97,24 @@ ok('CR-0 Cloud Run gateway is isolated, deployable and preserves GAS RPC r330',(
   assert.ok(cloudRunWorkflow.includes('--source cloud-run-gateway'));
   assert.ok(cloudRunWorkflow.includes('--min-instances 0'));
   assert.ok(cloudRunWorkflow.includes('Read canonical GAS production configuration'));
+});
+
+
+ok('CR-3 parallel transport uses Cloud Run for safe reads with bounded direct-GAS fallback',()=>{
+  assert.ok(config.includes('CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app"'));
+  assert.ok(config.includes('CLOUD_RUN_READ_PRIMARY:!0'));
+  assert.ok(config.includes('CLOUD_RUN_FALLBACK_DIRECT_GAS:!0'));
+  assert.ok(config.includes('github-pages-canonical-projection-r331-v62-cloudrun-parallel-cr3-20260918'));
+  assert.ok(transport.includes('github-pages-cloudrun-read-primary-directgas-write-cr3'));
+  assert.ok(transport.includes('function cloudEligible(fn)'));
+  assert.ok(transport.includes('isReadMethod(fn)&&!/^(?:apiLogin|apiLogout|apiSessionResume|apiSessionCheck|getDeferredInclude)$/'));
+  assert.ok(transport.includes('return cloudRpc(fn,a,opt).catch(function(e)'));
+  assert.ok(transport.includes('app:transport:cloud-fallback'));
+  assert.ok(transport.includes('return directRpc(fn,a,opt)'));
+  assert.ok(transport.includes('method:"POST",mode:"cors"'));
+  assert.ok(transport.includes('"Content-Type":"application/json"'));
+  assert.ok(transport.includes('CLOUD_RUN_TIMEOUT'));
+  assert.ok(transport.includes('CLOUD_RUN_FETCH_FAILED'));
 });
 
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
@@ -175,7 +193,7 @@ ok('P1-D release/build provenance is single-owner and matches canonical backend 
   assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-directgas-p1-20260916');
   assert.equal(ctx.APP_CONFIG.releaseStamp,p.releaseStamp);assert.equal(ctx.APP_CONFIG.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_CONFIG.rpcVersion,RPC);
   assert.equal(ctx.APP_DEPLOY_RELEASE.stamp,p.releaseStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.assetStamp,p.assetStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_DEPLOY_RELEASE.rpcVersion,RPC);
-  const configTag='<script src="./app-config.js?v=r331-v62-directgas-p1-20260916"></script>';
+  const configTag='<script src="./app-config.js?v=r331-v62-cloudrun-cr3-20260918"></script>';
   assert.equal(index.split(configTag).length-1,1,'app-config must load exactly once');
   assert.ok(index.indexOf(configTag)<index.indexOf('window.__APP_BOOTSTRAP__='),'provenance owner must load before bootstrap');
   const bootScript=htmlScripts(index).find(x=>x.includes('window.__APP_BOOTSTRAP__=')&&x.includes('window.__APP_ASSET_MANIFEST__='));
@@ -520,7 +538,7 @@ ok('P2 deployed Pages smoke runs after deployment and verifies the production ar
 
 ok('artifact performance budgets',()=>{
   assert.ok(Buffer.byteLength(index,'utf8')<=545000,'index.html exceeds 545 KB budget');
-  assert.ok(Buffer.byteLength(transport,'utf8')<=12000,'transport exceeds 12 KB budget');
+  assert.ok(Buffer.byteLength(transport,'utf8')<=14000,'transport exceeds 14 KB CR-3 budget');
   assert.ok(Buffer.byteLength(config,'utf8')<=3000,'config exceeds 3 KB budget');
   const blocks=htmlScripts(index);
   assert.ok(blocks.length<=50,'too many executable inline script blocks');
@@ -644,8 +662,8 @@ await okAsync('RPC POST/result handshake fails fast without discarding an earlie
   assert.ok(transport.includes('GAS_RPC_POST_FAILED'));
   assert.ok(transport.includes('GAS_RPC_WRITE_POST_UNCONFIRMED'));
   assert.ok(!transport.includes('rec.postPromise=post(rec,I).catch(function(e)'),'POST failure must not be swallowed');
-  const start=transport.indexOf('function rpc(fn,a,opt)');
-  const end=transport.indexOf('\nfunction ttlMs(',start);
+  const start=transport.indexOf('function directRpc(fn,a,opt)');
+  const end=transport.indexOf('\nfunction cloudEligible(',start);
   assert.ok(start>=0&&end>start,'rpc source boundary missing');
   const rpcSource=transport.slice(start,end);
   function harness({write=false,postPromise,pollPromise}){
