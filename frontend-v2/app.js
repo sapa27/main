@@ -1,4 +1,4 @@
-const VERSION="v2-rebuild-20260918";
+const VERSION="v2-rebuild-20260918-r2";
 const API="/api/router";
 const BOOTSTRAP_METHODS=new Set(["apiLogin","apiLogout","apiSessionCheck","apiSessionResume"]);
 const READ_TTL={
