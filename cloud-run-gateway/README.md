@@ -33,3 +33,16 @@ Max instances: 5
 The GitHub workflow stages `github-pages/` into `cloud-run-gateway/public/`, validates the gateway, deploys the unified service, and smoke-tests the frontend, configuration, transport, readiness, and GAS health.
 
 The gateway continues to read the canonical GAS `/exec` URL and RPC version from `github-pages/app-config.js` during deployment. Workload Identity Federation is used instead of a long-lived service-account key.
+
+## CR-5 Mobile / Meeting reliability
+
+CR-5 keeps Cloud Run as the only production web surface and optimizes the Meeting route for narrow/mobile screens.
+
+- Meeting fragments use the normal authenticated GAS deferred cache path instead of forcing a fresh include on every navigation.
+- Meeting controller loading no longer waits for Bootstrap asset warming.
+- Initial navigation does not invalidate Meeting fragments before they have ever loaded.
+- Meeting-specific script/activation budgets are 80s/95s as a recovery ceiling, while normal routes retain the existing budgets.
+- Mobile Meeting tabs scroll horizontally, forms use touch-friendly 16px controls, action buttons wrap cleanly, and tables remain horizontally scrollable instead of compressing columns.
+- GitHub Pages deployment is removed; its directory is source-only and is packaged into Cloud Run.
+- Deferred includes are not cached across users at the gateway; GAS remains the authorization boundary for every include request.
+
