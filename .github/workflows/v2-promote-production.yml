@@ -40,6 +40,23 @@ jobs:
         with:
           project_id: ${{ env.PROJECT_ID }}
 
+      - name: Preflight tested canary
+        run: |
+          set -euo pipefail
+          CANARY_URL="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          test -n "$CANARY_URL"
+          curl --max-time 30 -fsS "$CANARY_URL/ready"
+          curl --max-time 15 -fsS "$CANARY_URL/health"
+          tmp_dir="$(mktemp -d)"
+          curl --max-time 30 -fsS "$CANARY_URL/app.js" -o "$tmp_dir/app.js"
+          grep -q 'v2-rebuild-20260918-r3' "$tmp_dir/app.js"
+          grep -q 'function loadMeetingTab(kind)' "$tmp_dir/app.js"
+          if grep -Eq 'getDeferredInclude|loadPageScripts|pageController|meetingPageScriptLoadTimeout' "$tmp_dir/app.js"; then
+            echo "Legacy runtime dependency detected in canary" >&2
+            exit 1
+          fi
+          echo "CANARY_URL=$CANARY_URL" >> "$GITHUB_ENV"
+
       - name: Resolve tested canary image
         run: |
           set -euo pipefail
@@ -68,7 +85,8 @@ jobs:
           set -euo pipefail
           URL="$(gcloud run services describe "$PROD_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           curl --max-time 30 -fsS "$URL/ready"
-          curl --max-time 90 -fsS "$URL/health"
-          curl --max-time 30 -fsS "$URL/app.js" | grep -q 'v2-rebuild-20260918'
+          curl --max-time 15 -fsS "$URL/health"
+          curl --max-time 30 -fsS "$URL/app.js" | grep -q 'v2-rebuild-20260918-r3'
+          echo "Canary URL: $CANARY_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "Promoted image: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
           echo "Production URL: $URL" >> "$GITHUB_STEP_SUMMARY"
