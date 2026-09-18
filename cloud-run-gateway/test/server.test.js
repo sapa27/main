@@ -71,6 +71,14 @@ test('upstream health probes GAS separately',async()=>{
   }finally{global.fetch=original}
 });
 
+test('upstream health fails closed when GAS is unavailable',async()=>withServer(async base=>{
+  const r=await fetch(base+'/upstream-health');
+  const j=await r.json();
+  assert.equal(r.status,503);
+  assert.equal(j.ok,false);
+  assert.equal(j.error.code,'GAS_URL_NOT_CONFIGURED');
+},{...ENV,GAS_WEB_APP_URL:''}));
+
 test('CORS accepts same Cloud Run origin and rejects unknown origin',async()=>withServer(async base=>{
   const denied=await fetch(base+'/api/router',{method:'OPTIONS',headers:{Origin:'https://evil.invalid','Access-Control-Request-Method':'POST'}});
   assert.equal(denied.status,403);
