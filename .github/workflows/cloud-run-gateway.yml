@@ -118,7 +118,7 @@ jobs:
           set -euo pipefail
           gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
 
-      - name: Smoke final CR-7 production
+      - name: Smoke final CR-8 production
         run: |
           set -euo pipefail
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
