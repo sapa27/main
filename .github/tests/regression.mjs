@@ -118,6 +118,13 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Remove CR-8 canary'));
   assert.ok(workflow.includes("grep -q 'cr8.3-static-meeting-controller'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
+  assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
+  assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
+  assert.ok(workflow.includes("grep -q 'CR-8.3 Cloud Run static Meeting controller'"));
+  assert.ok(workflow.includes("grep -q 'fetchStaticMeetingController'"));
+  assert.ok(workflow.includes('for attempt in 1 2 3; do'));
+  assert.ok(workflow.includes('Production upstream health failed after 3 attempts'));
+  assert.ok(!workflow.includes('upstream health degraded'));
   assert.ok(!workflow.includes('sapa27.github.io'));
   assert.ok(!workflow.includes('github-pages-rpc'));
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
