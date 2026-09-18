@@ -46,3 +46,4 @@ CR-5 keeps Cloud Run as the only production web surface and optimizes the Meetin
 - GitHub Pages deployment is removed; its directory is source-only and is packaged into Cloud Run.
 - Deferred includes are not cached across users at the gateway; GAS remains the authorization boundary for every include request.
 
+Deployment marker: `CR-5-mobile-meeting-validated-20260918`
