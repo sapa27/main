@@ -219,7 +219,7 @@ function bindTabs(){
 }
 async function openCase(row){
   const epoch=state.routeEpoch;if(state.route!=="meeting")return;
-  state.selectedCase=row;$("[data-case-index]").forEach(el=>el.classList.toggle("active",state.caseRows[Number(el.dataset.caseIndex)]===row));
+  state.selectedCase=row;$$("[data-case-index]").forEach(el=>el.classList.toggle("active",state.caseRows[Number(el.dataset.caseIndex)]===row));
   $("#tab-case").innerHTML=renderCaseForm(row);$("#case-form").onsubmit=saveCase;$("#case-reset").onclick=()=>newCase();
   $("#tab-history").innerHTML='<div class="loading-card">กำลังโหลดประวัติการประชุม</div>';
   $("#tab-letters").innerHTML='<div class="loading-card">กำลังโหลดหนังสือติดตามมติ</div>';
