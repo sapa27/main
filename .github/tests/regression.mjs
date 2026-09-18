@@ -958,14 +958,18 @@ ok('table and card loading states are visible once per active data surface',()=>
 });
 
 
-ok('meeting activation waits for the interactive runtime and clears stale failure state',()=>{
+ok('meeting activation waits for the canonical lifecycle and clears stale failure state',()=>{
   assert.ok(index.includes('forceFresh:/^Scripts_Page_Meeting(?:::|$)/.test(n)'),'meeting fragments must bypass stale GAS deferred cache');
   assert.ok(index.includes('ensureBootstrapAssets()).then(function(){return loaderWork()})'),'meeting route must await Bootstrap tab runtime');
   assert.ok(index.includes('function waitForPageOperational(id,generation,timeoutMs)'),'meeting route needs an operational recovery window');
   assert.ok(index.includes('waitForPageOperational(id,generation,1800)'),'activation failure must wait briefly before surfacing an error');
-  assert.ok(index.includes('document.documentElement.dataset.meetingPageInitialized==="1"'),'meeting operational detection must accept the initialized interactive surface even if lifecycle mounted state races');
-  assert.ok(index.includes('page.querySelector("#meeting-tabs")&&page.querySelector("#meeting-case-form")'),'meeting recovery must verify real interactive DOM before suppressing a false controller error');
-  assert.ok(index.includes('waitForPageOperational(id,generation,15000)'),'a displayed meeting failure must keep watching for late lifecycle recovery');
+  const start=index.indexOf('function isPageOperational(id)');
+  const end=index.indexOf('function waitForPageOperational',start);
+  const operational=index.slice(start,end);
+  assert.ok(operational.includes('adapter.__mounted===!0'),'meeting operational state must require the mounted canonical lifecycle adapter');
+  assert.ok(!operational.includes('meetingPageInitialized'),'interactive DOM markers must not act as a second Meeting lifecycle owner');
+  assert.ok(!operational.includes('initMeetingPage'),'global Meeting functions must not mask an unmounted canonical adapter');
+  assert.ok(index.includes('waitForPageOperational(id,generation,15000)'),'a displayed meeting failure must keep watching for late canonical lifecycle recovery');
   assert.ok(index.includes('app:page-activation-recovered'),'recovered meeting activation must clear stale failure UI');
 });
 
