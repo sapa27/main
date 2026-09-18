@@ -110,8 +110,9 @@ jobs:
           curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
           curl --max-time 30 -fsS "$CANARY_URL/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
           grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
-          grep -q 'cr8-gas-response' "$tmp_dir/app-config.js"
+          grep -q 'cr8.1-meeting-recovery' "$tmp_dir/app-config.js"
           grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'repairMeetingCanonicalMountCurrent' "$tmp_dir/index.html"
 
       - name: Promote CR-8 GAS-canonical to production
         run: |
@@ -136,8 +137,9 @@ jobs:
           curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
           curl --max-time 30 -fsS "$url/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
           grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
-          grep -q 'cr8-gas-response' "$tmp_dir/app-config.js"
+          grep -q 'cr8.1-meeting-recovery' "$tmp_dir/app-config.js"
           grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'repairMeetingCanonicalMountCurrent' "$tmp_dir/index.html"
           echo "### CR-8 GAS Canonical Response" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
           echo "- Browser runtime: Cloud Run only" >> "$GITHUB_STEP_SUMMARY"
