@@ -190,7 +190,7 @@ ok('P1-D release/build provenance is single-owner and matches canonical backend 
   assert.equal(p.releaseStamp,RELEASE);assert.equal(p.assetStamp,ASSET);assert.equal(p.qualityGate,QUALITY);assert.equal(p.rpcProtocolVersion,RPC);
   assert.equal(p.frontendRevision,'r331-v62');assert.equal(p.sourceFingerprint,'gas-backend-single-source-r331-v62');
   assert.equal(p.buildName,'V1.2 Reliability Loading Cache Session r331 / v62');
-  assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-directgas-p1-20260916');
+  assert.equal(p.hostArtifact,'github-pages-canonical-projection-r331-v62-cloudrun-parallel-cr3-20260918');
   assert.equal(ctx.APP_CONFIG.releaseStamp,p.releaseStamp);assert.equal(ctx.APP_CONFIG.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_CONFIG.rpcVersion,RPC);
   assert.equal(ctx.APP_DEPLOY_RELEASE.stamp,p.releaseStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.assetStamp,p.assetStamp);assert.equal(ctx.APP_DEPLOY_RELEASE.sourceFingerprint,p.sourceFingerprint);assert.equal(ctx.APP_DEPLOY_RELEASE.rpcVersion,RPC);
   const configTag='<script src="./app-config.js?v=r331-v62-cloudrun-cr3-20260918"></script>';
