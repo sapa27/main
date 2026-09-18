@@ -1,4 +1,4 @@
-name: Validate and Deploy GitHub Pages
+name: Validate Frontend Source (Cloud Run Production)
 # Quota guard: PRs run static regression only; live GAS smoke/deploy run on main/manual.
 
 on:
@@ -184,7 +184,7 @@ jobs:
 
   deploy:
     needs: regression
-    if: github.event_name != 'pull_request'
+    if: ${{ false }}
     permissions:
       contents: read
       pages: write
