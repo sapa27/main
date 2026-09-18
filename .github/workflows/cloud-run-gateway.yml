@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'cloud-run-gateway/**'
+      - 'github-pages/**'
       - '.github/workflows/cloud-run-gateway.yml'
   workflow_dispatch:
     inputs:
@@ -27,6 +28,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Stage production frontend
+        run: |
+          set -euo pipefail
+          rm -rf cloud-run-gateway/public
+          cp -R github-pages cloud-run-gateway/public
+          test -f cloud-run-gateway/public/index.html
+          test -f cloud-run-gateway/public/app-config.js
+          test -f cloud-run-gateway/public/github-gas-transport.js
       - name: Set up Node 24
         uses: actions/setup-node@v4
         with:
@@ -74,6 +83,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Stage production frontend
+        run: |
+          set -euo pipefail
+          rm -rf cloud-run-gateway/public
+          cp -R github-pages cloud-run-gateway/public
+          test -f cloud-run-gateway/public/index.html
       - name: Validate deployment variables
         run: |
           set -euo pipefail
@@ -103,12 +118,17 @@ jobs:
       - name: Deploy Cloud Run gateway from source
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27.github.io"
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GAS_RPC_VERSION=$GAS_RPC_VERSION,GAS_PARENT_ORIGIN=https://sapa27.github.io,GATEWAY_ALLOWED_ORIGINS=https://sapa27-gateway-asxuzzwspa-eu.a.run.app"
       - name: Smoke deployed gateway
         run: |
           set -euo pipefail
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           ready="$(curl --max-time 20 -fsS "$url/ready")"
+          frontend_file="$(mktemp)"
+          curl --max-time 30 -fsS "$url/" > "$frontend_file"
+          grep -q 'CANONICAL GITHUB FRONTEND r331-v62' "$frontend_file"
+          curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cloud-run-canonical-frontend-r331-v62-cr4-20260918'
+          curl --max-time 30 -fsS "$url/github-gas-transport.js" | grep -q 'cloud-run-all-primary-cr4'
           health_file="$(mktemp)"
           health_status="$(curl --max-time 60 -sS -o "$health_file" -w '%{http_code}' "$url/health" || true)"
           health="$(cat "$health_file")"
