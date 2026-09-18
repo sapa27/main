@@ -92,9 +92,8 @@ ok('CR-5 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
   assert.ok(cloudRunGateway.includes('function serveStatic('));
   assert.ok(cloudRunGateway.includes("u.pathname==='/api/router'"));
   assert.ok(cloudRunGateway.includes('sameOrigin(req,o)'));
-  assert.ok(cloudRunGateway.includes("DEFERRED_CACHE_TTL_MS=15*60*1000"),'Cloud Run deferred fragment cache must be enabled');
-  assert.ok(cloudRunGateway.includes("method!=='getDeferredInclude'"),'cache must be scoped to deferred includes only');
-  assert.ok(cloudRunGateway.includes("cache:'deferred-hit'"),'cache hit metadata is required for diagnostics');
+  assert.ok(!cloudRunGateway.includes('DEFERRED_CACHE'),'gateway must not cache authenticated deferred includes across users');
+  assert.ok(!cloudRunGateway.includes("cache:'deferred-hit'"),'permission-sensitive deferred includes must always reach GAS authorization');
   assert.ok(!/script\.google\.com\/macros\/s\/AK[A-Za-z0-9_-]+\/exec/.test(cloudRunGateway));
   assert.ok(cloudRunWorkflow.includes("'github-pages/**'"));
   assert.ok(cloudRunWorkflow.includes('cp -R github-pages cloud-run-gateway/public'));
