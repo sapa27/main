@@ -130,6 +130,18 @@ ok('all deployment gates require live GAS upstream',()=>{
   }
 });
 
+ok('interaction paths avoid blocking work on tap',()=>{
+  assert.ok(index.includes('function scheduleRoutePrefetchCurrent(el)'));
+  assert.ok(index.includes('requestIdleCallback'));
+  assert.ok(!index.includes('document.addEventListener("pointerdown",function(ev){prefetchRouteFromElementCurrent'));
+  assert.ok(index.includes('data-app-thai-date-ready'));
+  assert.ok(index.includes('input.setAttribute("inputmode", "numeric")'));
+  assert.ok(index.includes('var registeredNow=callRegistered(targetPage)'));
+  assert.ok(index.includes('var directNow=callGlobal()'));
+  assert.ok(index.includes('feedbackObserver = null'));
+  assert.ok(index.includes('stopFeedbackObserver()'));
+});
+
 ok('frontend performance cache policy remains bounded',()=>{
   for(const token of ['REQUEST_TIMEOUT_MS:45000','WRITE_REQUEST_TIMEOUT_MS:120000','AI_DOCUMENT_TIMEOUT_MS:300000','RPC_READ_CACHE_MAX_ENTRIES:96','apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000'])assert.ok(config.includes(token),token);
 });
