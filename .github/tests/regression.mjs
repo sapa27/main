@@ -33,8 +33,9 @@ ok('frontend runtime has no retired GitHub/GAS browser dependency',()=>{
 
 ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('CANONICAL CLOUD RUN FRONTEND r331-v62'));
+  assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
-  assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr7-20260918'));
+  assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
   assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8-gas-response-20260918'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
