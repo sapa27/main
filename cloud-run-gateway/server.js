@@ -1,6 +1,6 @@
 'use strict';
 const http=require('node:http'),crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
-const NAME='sapa27-cloud-run-gateway',REV='cr5-mobile-meeting-r330',PUBLIC_DIR=path.join(__dirname,'public');
+const NAME='sapa27-cloud-run-gateway',REV='cr6-data-loading-r330',PUBLIC_DIR=path.join(__dirname,'public');
 const txt=v=>v==null?'':String(v),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function cfg(env=process.env){const origins=txt(env.GATEWAY_ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);return{port:+env.PORT||8080,gas:txt(env.GAS_WEB_APP_URL),rpc:txt(env.GAS_RPC_VERSION||'github-pages-rpc-r330'),parent:txt(env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'),origins,read:+env.GAS_READ_TIMEOUT_MS||45000,write:+env.GAS_WRITE_TIMEOUT_MS||120000,ai:+env.GAS_AI_TIMEOUT_MS||300000,maxBody:+env.MAX_BODY_BYTES||8388608}}
 function gasUrl(v){try{const u=new URL(v);if(u.protocol!=='https:'||u.hostname!=='script.google.com'||!/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname))return'';return u.origin+u.pathname}catch(_){return''}}
