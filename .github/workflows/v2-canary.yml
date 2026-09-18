@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'frontend-v2/**'
+      - 'cloud-run-gateway/**'
       - '.github/tests/v2-regression.mjs'
       - '.github/workflows/v2-canary.yml'
   workflow_dispatch:
@@ -95,7 +96,8 @@ jobs:
         run: |
           set -euo pipefail
           curl --max-time 30 -fsS "$V2_URL/ready"
-          curl --max-time 90 -fsS "$V2_URL/health" || echo "V2 canary upstream health probe degraded; browser E2E remains authoritative for authenticated data paths"
+          curl --max-time 15 -fsS "$V2_URL/health"
+          curl --max-time 12 -fsS "$V2_URL/upstream-health" || echo "V2 canary GAS upstream probe degraded; local Cloud Run health remains healthy"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$V2_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$V2_URL/app.js" -o "$tmp_dir/app.js"
