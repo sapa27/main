@@ -1,6 +1,6 @@
 (function(w,d){"use strict";if(!w||!d)return;
 w.__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__=1;
-var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},O="github-pages/github-gas-transport.js::frontend-r331-v62::rpc-r330",MODE="cloud-run-all-primary-cr4",F=Object.create(null),TTL=Object.create(null),LAST_TRACE=null,RH=null,S="unknown";
+var CFG=w.APP_GITHUB_CONFIG||{},APP=w.APP_CONFIG||{},O="github-pages/github-gas-transport.js::frontend-r331-v62::rpc-r330",MODE="cloud-run-all-primary-cr5",F=Object.create(null),TTL=Object.create(null),LAST_TRACE=null,RH=null,S="unknown";
 function t(v){return v==null?"":String(v)}
 function c(k,f){var v=CFG[k];if(v==null||v==="")v=APP[k];return v==null||v===""?f:v}
 function cloud(){var v=t(CFG.CLOUD_RUN_GATEWAY_URL||APP.cloudRunGatewayUrl||(w.location&&w.location.origin)||"").trim().replace(/\/+$/,"");return v}
