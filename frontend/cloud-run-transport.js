@@ -1,6 +1,6 @@
 (function(w,d){"use strict";if(!w||!d)return;
 w.__APP_LOGIN_DASHBOARD_AUTOSTART_CURRENT__=1;
-var CFG=w.APP_RUNTIME_CONFIG||{},APP=w.APP_CONFIG||{},O="frontend/cloud-run-transport.js::cr7",MODE="cloud-run-direct-json-cr7",F=Object.create(null),TTL=Object.create(null),EPOCH=0,LAST_TRACE=null,RH=null,S="unknown";
+var CFG=w.APP_RUNTIME_CONFIG||{},APP=w.APP_CONFIG||{},O="frontend/cloud-run-transport.js::cr8",MODE="cloud-run-gas-canonical-cr8",F=Object.create(null),TTL=Object.create(null),EPOCH=0,LAST_TRACE=null,RH=null,S="unknown";
 function t(v){return v==null?"":String(v)}
 function c(k,f){var v=CFG[k];if(v==null||v==="")v=APP[k];return v==null||v===""?f:v}
 function cloud(){var current=t(w.location&&w.location.origin||"").trim().replace(/\\\/+$/,""),configured=t(CFG.CLOUD_RUN_GATEWAY_URL||APP.cloudRunGatewayUrl||"").trim().replace(/\\\/+$/,"");return /\\.run\\.app$/i.test(current)?current:configured||current}
