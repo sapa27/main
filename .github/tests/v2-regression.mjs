@@ -80,7 +80,7 @@ ok("mobile-safe layout exists",()=>{
   assert.ok(css.includes(".tabs{display:flex"));
 });
 ok("release is cache-busted",()=>{
-  assert.ok(html.includes("v2-rebuild-20260918-r2"));
-  assert.ok(app.includes('const VERSION="v2-rebuild-20260918-r2"'));
+  assert.ok(html.includes("v2-rebuild-20260918-r3"));
+  assert.ok(app.includes('const VERSION="v2-rebuild-20260918-r3"'));
 });
 console.log("# "+passed+" V2 rebuild regression groups passed");
