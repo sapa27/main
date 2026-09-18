@@ -19,3 +19,5 @@ Key guarantees:
 Canary candidate: r2 meeting-stability build.
 
 Main canary trigger: r2 validated build.
+
+Health split canary: r2 validated gateway.
