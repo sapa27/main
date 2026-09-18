@@ -1,0 +1,74 @@
+name: V2 Promote Canary to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY_PRODUCTION to promote the tested canary image'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: sapa27
+  REGION: asia-southeast3
+  CANARY_SERVICE: sapa27-v2-canary
+  PROD_SERVICE: sapa27-gateway
+  WIF_PROVIDER: projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main
+  DEPLOY_SERVICE_ACCOUNT: github-cloud-run-deployer@sapa27.iam.gserviceaccount.com
+  GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require explicit production confirmation
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm }}" = "DEPLOY_PRODUCTION"
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Resolve tested canary image
+        run: |
+          set -euo pipefail
+          IMAGE="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(spec.template.spec.containers[0].image)')"
+          test -n "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Promote exact canary image
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$PROD_SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --image "$IMAGE" \
+            --allow-unauthenticated \
+            --cpu 1 \
+            --memory 512Mi \
+            --concurrency 40 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --timeout 300 \
+            --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL"
+
+      - name: Production smoke
+        run: |
+          set -euo pipefail
+          URL="$(gcloud run services describe "$PROD_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          curl --max-time 30 -fsS "$URL/ready"
+          curl --max-time 90 -fsS "$URL/health"
+          curl --max-time 30 -fsS "$URL/app.js" | grep -q 'v2-rebuild-20260918'
+          echo "Promoted image: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Production URL: $URL" >> "$GITHUB_STEP_SUMMARY"
