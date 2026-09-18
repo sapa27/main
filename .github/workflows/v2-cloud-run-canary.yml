@@ -64,7 +64,7 @@ jobs:
             --min-instances 0 \
             --max-instances 3 \
             --timeout 300 \
-            --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL"
+            --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,APP_SOURCE_SHA=$GITHUB_SHA"
 
       - name: Smoke test
         run: |
@@ -74,7 +74,7 @@ jobs:
           ready="$(curl --max-time 30 -fsS "$URL/ready")"
           health="$(curl --max-time 15 -fsS "$URL/health")"
           upstream="$(curl --max-time 45 -fsS "$URL/upstream-health")"
-          node -e 'const r=JSON.parse(process.argv[1]),h=JSON.parse(process.argv[2]),u=JSON.parse(process.argv[3]);if(r.ok!==true||h.ok!==true||u.ok!==true||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$health" "$upstream"
+          node -e 'const r=JSON.parse(process.argv[1]),h=JSON.parse(process.argv[2]),u=JSON.parse(process.argv[3]),sha=process.argv[4];if(r.ok!==true||r.sourceSha!==sha||h.ok!==true||u.ok!==true||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$health" "$upstream" "$GITHUB_SHA"
           curl --max-time 30 -fsS "$URL/app.js" | grep -q 'v2-rebuild-20260918'
           echo "Runtime: Browser -> Cloud Run -> GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "URL: $URL" >> "$GITHUB_STEP_SUMMARY"
