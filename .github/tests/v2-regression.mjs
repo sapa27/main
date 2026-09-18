@@ -89,6 +89,8 @@ ok("release is cache-busted",()=>{
 ok("V2 deployment gates require live GAS upstream",()=>{
   for(const [name,wf] of [["canary",canaryWorkflow],["cloud-canary",cloudCanaryWorkflow],["promote",promoteWorkflow]]){
     assert.ok(wf.includes("/upstream-health"),name+" missing upstream probe");
+    assert.ok(wf.includes("APP_SOURCE_SHA="),name+" missing source SHA deployment attestation");
+    assert.ok(wf.includes("sourceSha"),name+" missing source SHA verification");
     assert.ok(wf.includes("u.upstream?.checked!==true"),name+" missing checked=true gate");
     assert.ok(wf.includes("u.upstream?.ok!==true"),name+" missing upstream ok gate");
     assert.ok(wf.includes('u.upstream?.transport!=="gas-direct-json"'),name+" missing direct-json transport gate");
