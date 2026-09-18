@@ -54,8 +54,8 @@ ok('frontend revision is separated from the stable RPC protocol',()=>{
 
 ok('GAS endpoint is canonical /exec URL',()=>{
   const m=/GAS_URL=\"([^\"]+)\"/.exec(config);assert.ok(m&&/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(m[1]));
-  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr3-20260918'));
-  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr3-20260918'))
+  assert.ok(index.includes('./app-config.js?v=r331-v62-cloudrun-cr4-20260918'));
+  assert.ok(index.includes('./github-gas-transport.js?v=r331-v62-cloudrun-cr4-20260918'))
 });
 
 ok('P2 deployment alignment preserves the current production GAS deployment',()=>{
@@ -71,26 +71,30 @@ ok('SRI integrity preserved',()=>{
   assert.ok(!index.includes('sha512-r330gCh'));
 });
 
-ok('RPC transport is fetch-only',()=>{
-  assert.ok(transport.includes('w.AppTransport.run=run'));assert.ok(transport.includes('method:"POST",mode:"no-cors"'));
-  for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE'])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
+ok('RPC transport is Cloud Run fetch-only',()=>{
+  assert.ok(transport.includes('w.AppTransport.run=run'));
+  assert.ok(transport.includes('method:"POST",mode:"cors"'));
+  assert.ok(transport.includes('cloud-run-all-primary-cr4'));
+  assert.ok(!transport.includes('mode:"no-cors"'));
+  assert.ok(!transport.includes('script.google.com'));
+  for(const forbidden of ['MessageChannel','legacyRemote','runGasDirectBridge','runVercelProxy','runJsonpApi','createElement("form")','createElement("iframe")','warmAuthBridge','ensureBridgeClient','RPC_POST_SIGNAL_GRACE','directRpc(','jsonp('])assert.ok(!transport.includes(forbidden),`retired token: ${forbidden}`)
 });
 
-ok('CR-2 Cloud Run gateway is deployable and preserves GAS RPC r330',()=>{
+ok('CR-4 Cloud Run hosts the frontend and preserves GAS RPC r330',()=>{
   jsSyntax(cloudRunGateway,'cloud-run-gateway/server.js');
   assert.equal(cloudRunPackage.private,true);
   assert.equal(cloudRunPackage.scripts&&cloudRunPackage.scripts.start,'node server.js');
   assert.ok(String(cloudRunPackage.engines&&cloudRunPackage.engines.node||'').includes('24'));
-  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr2-rpc-r330'"));
+  assert.ok(cloudRunGateway.includes("const NAME='sapa27-cloud-run-gateway',REV='cr4-cloudrun-origin-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_RPC_VERSION||'github-pages-rpc-r330'"));
   assert.ok(cloudRunGateway.includes("env.GAS_PARENT_ORIGIN||'https://sapa27.github.io'"));
-  assert.ok(cloudRunGateway.includes("env.GATEWAY_ALLOWED_ORIGINS||'https://sapa27.github.io'"));
-  assert.ok(cloudRunGateway.includes("s.listen(c.port,'0.0.0.0'"));
-  assert.ok(cloudRunGateway.includes("mode:'github-rpc'"));
-  assert.ok(cloudRunGateway.includes("jsonp('github-rpc-result'"));
+  assert.ok(cloudRunGateway.includes("PUBLIC_DIR=path.join(__dirname,'public')"));
+  assert.ok(cloudRunGateway.includes('function serveStatic('));
   assert.ok(cloudRunGateway.includes("u.pathname==='/api/router'"));
+  assert.ok(cloudRunGateway.includes('sameOrigin(req,o)'));
   assert.ok(!/script\.google\.com\/macros\/s\/AK[A-Za-z0-9_-]+\/exec/.test(cloudRunGateway));
-  assert.ok(cloudRunWorkflow.includes('workflow_dispatch:'));
+  assert.ok(cloudRunWorkflow.includes("'github-pages/**'"));
+  assert.ok(cloudRunWorkflow.includes('cp -R github-pages cloud-run-gateway/public'));
   assert.ok(cloudRunWorkflow.includes('google-github-actions/auth@v3'));
   assert.ok(cloudRunWorkflow.includes('google-github-actions/setup-gcloud@v3'));
   assert.ok(cloudRunWorkflow.includes('gcloud run deploy "$SERVICE"'));
@@ -100,32 +104,30 @@ ok('CR-2 Cloud Run gateway is deployable and preserves GAS RPC r330',()=>{
 });
 
 
-ok('CR-3 parallel transport uses Cloud Run for safe reads with bounded direct-GAS fallback',()=>{
+ok('CR-4 Cloud Run is the canonical browser transport with direct GAS disabled',()=>{
   assert.ok(config.includes('CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app"'));
-  assert.ok(config.includes('CLOUD_RUN_READ_PRIMARY:!0'));
-  assert.ok(config.includes('CLOUD_RUN_FALLBACK_DIRECT_GAS:!0'));
-  assert.ok(config.includes('github-pages-canonical-projection-r331-v62-cloudrun-parallel-cr3-20260918'));
-  assert.ok(transport.includes('github-pages-cloudrun-read-primary-directgas-write-cr3'));
-  assert.ok(transport.includes('function cloudEligible(f)'));
-  assert.ok(transport.includes('CLOUD_RUN_READ_PRIMARY",!1)===!0&&isReadMethod(f)'));
-  assert.ok(transport.includes('return cloudRpc(f,a,o).catch(function(e)'));
-  assert.ok(transport.includes('app:transport:cloud-fallback'));
-  assert.ok(transport.includes('return directRpc(f,a,o)'));
+  assert.ok(config.includes('CLOUD_RUN_ALL_PRIMARY:!0'));
+  assert.ok(config.includes('CLOUD_RUN_FALLBACK_DIRECT_GAS:!1'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr4-20260918'));
+  assert.ok(transport.includes('cloud-run-all-primary-cr4'));
+  assert.ok(transport.includes('return cloudRpc(f,a,o)'));
+  assert.ok(transport.includes('u+"/api/router"'));
   assert.ok(transport.includes('method:"POST",mode:"cors"'));
   assert.ok(transport.includes('"Content-Type":"application/json"'));
   assert.ok(transport.includes('CLOUD_RUN_TIMEOUT'));
   assert.ok(transport.includes('CLOUD_RUN_FETCH_FAILED'));
-  assert.ok(!transport.includes('function cloudTransient('));
+  assert.ok(!transport.includes('directRpc('));
+  assert.ok(!transport.includes('cloud-fallback'));
 });
-
 ok('frontend JavaScript syntax',()=>{jsSyntax(config,'app-config.js');jsSyntax(transport,'github-gas-transport.js');htmlScripts(index).forEach((s,i)=>jsSyntax(s,`index.html#${i+1}`))});
 
-ok('workflow gates regression before deployment',()=>{
-  assert.ok(workflow.includes('needs: regression'));assert.ok(workflow.includes('actions/checkout@v4'));assert.ok(workflow.includes('actions/configure-pages@v5'));assert.ok(workflow.includes('actions/upload-pages-artifact@v3'));assert.ok(workflow.includes('actions/deploy-pages@v4'));assert.ok(workflow.includes('workflow_dispatch:'));assert.ok(workflow.includes('Run R331/v62 automated regression suite'));
+ok('GitHub Pages deployment is disabled and regression remains available',()=>{
+  assert.ok(workflow.includes('name: Validate Frontend Source (Cloud Run Production)'));
+  assert.ok(workflow.includes('Run R331/v62 automated regression suite'));
   assert.ok(workflow.includes('if [ -f gas-backend/Code_00_PlatformCore.gs ]; then'));
   assert.ok(workflow.includes('node .github/tests/regression.mjs --full'));
   assert.ok(workflow.includes('node .github/tests/regression.mjs --frontend-only'));
-  assert.ok(workflow.includes('async function fetchHealth()'));assert.ok(workflow.includes('attempt <= 3'));assert.ok(workflow.includes('AbortSignal.timeout(45000)'));assert.ok(workflow.includes('Validate deployed Pages release surface'));assert.ok(workflow.includes('PAGES_URL: ${{ steps.deployment.outputs.page_url }}'));assert.ok(workflow.includes('app:route-settled'))
+  assert.ok(workflow.includes('if: ${{ false }}'));
 });
 
 ok(`repository layout matches ${MODE} regression mode`,()=>{
