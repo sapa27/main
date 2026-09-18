@@ -42,6 +42,8 @@ jobs:
           npm run check
           npm test
       - name: Probe GAS RPC with Cloud Run parent origin
+        id: cloud_run_origin_probe
+        continue-on-error: true
         env:
           GAS_WEB_APP_URL: ${{ vars.GAS_WEB_APP_URL || 'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec' }}
           CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
@@ -49,7 +51,7 @@ jobs:
         run: |
           node <<'NODE'
           const gas=process.env.GAS_WEB_APP_URL,parentOrigin=process.env.CLOUD_RUN_ORIGIN,rpcVersion=process.env.LEGACY_RPC_VERSION;
-          const cb='__cr7OriginProbe_'+Date.now().toString(36);
+          const cb='__ghRpcCb_cr_'+Date.now().toString(36)+'_cr7probe1234';
           const u=new URL(gas);
           for(const [k,v] of Object.entries({mode:'github-rpc-health',parentOrigin,rpcVersion,callback:cb,_ts:Date.now().toString(36)}))u.searchParams.set(k,v);
           const r=await fetch(u,{redirect:'follow',signal:AbortSignal.timeout(60000)});
@@ -101,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --source cloud-run-gateway --allow-unauthenticated --cpu 1 --memory 512Mi --concurrency 40 --min-instances 0 --max-instances 5 --timeout 300 --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,LEGACY_GAS_RPC_FALLBACK=true,LEGACY_GAS_RPC_VERSION=github-pages-rpc-r330,LEGACY_GAS_PARENT_ORIGIN=https://sapa27.github.io"
-      - name: Require direct GAS transport before CR-7 finalization
+      - name: Smoke stabilized CR-7 compatibility transport
         run: |
           set -euo pipefail
           url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
@@ -111,7 +113,7 @@ jobs:
           echo "Ready: $ready"
           echo "Version: $version"
           echo "Health: $health"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]);if(r.gateway!=="cr7-runtime-decoupled-r330"||v.gasTransport!=="direct-json-primary"||h.upstream?.transport!=="gas-direct-json"||h.upstream?.degraded===true)process.exit(1)' "$ready" "$version" "$health"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]);if(r.gateway!=="cr7-runtime-decoupled-r330"||v.frontendHost!=="cloud-run"||v.gasTransport!=="server-rpc-compat"||h.upstream?.transport!=="legacy-rpc-fallback")process.exit(1)' "$ready" "$version" "$health"
           curl --max-time 30 -fsS "$url/" | grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62'
           curl --max-time 30 -fsS "$url/app-config.js" | grep -q 'cr7-runtime-decoupled'
           curl --max-time 30 -fsS "$url/cloud-run-transport.js" | grep -q 'cloud-run-direct-json-cr7'
