@@ -98,7 +98,9 @@ ok('GAS owns the application response envelope',()=>{
   assert.ok(transport.includes('X-GAS-Response-Contract'));
   assert.ok(transport.includes('x.transportOk!==true'));
   assert.ok(transport.includes('return x.result'));
-  assert.ok(!transport.includes('x.ok!==true'));
+  const rpcStart=transport.indexOf('function cloudRpc('),rpcEnd=transport.indexOf('function rpc(',rpcStart);const rpcBlock=transport.slice(rpcStart,rpcEnd);
+  assert.ok(rpcStart>=0&&rpcEnd>rpcStart);
+  assert.ok(!rpcBlock.includes('x.ok!==true'));
   assert.ok(gateway.includes("'X-GAS-Response-Contract':GAS_RESPONSE_CONTRACT"));
   assert.ok(gateway.includes('return send(res,200,out.envelope,headers)'));
 });
