@@ -1,62 +1,35 @@
-# sapa27 Cloud Run Gateway
+# sapa27 Cloud Run Production Service
 
-CR-1 prepares the new transport path:
+CR-4 makes Cloud Run the single production web surface:
 
-`GitHub Pages -> Cloud Run -> Google Apps Script`
+`Browser -> Cloud Run (frontend + API) -> Google Apps Script`
 
-The production frontend remains at `https://sapa27.github.io/main/` until live gateway smoke tests pass.
+The previous GitHub Pages URL is no longer the production entry point. The `github-pages/` directory remains only as the canonical frontend source that is bundled into the Cloud Run image during deployment.
+
+## Production URL
+
+`https://sapa27-gateway-asxuzzwspa-eu.a.run.app/`
 
 ## Endpoints
 
-- `GET /ready` — process/readiness plus upstream configuration marker
-- `GET /version` — gateway and RPC version
-- `GET /health` — live Cloud Run -> GAS RPC health check
-- `POST /api/router` — canonical JSON API entry point
+- `GET /` — production frontend
+- `GET /ready` — readiness plus bundled-frontend marker
+- `GET /version` — gateway/RPC version
+- `GET /health` — live Cloud Run -> GAS RPC health
+- `POST /api/router` — canonical API entry point
 
-The allowed browser origin defaults to `https://sapa27.github.io`.
+Browser login, session, reads, and writes all use Cloud Run. The browser no longer requires direct access to `script.google.com`.
 
-## Initial Cloud Run target
+## Deployment
 
-- Service: `sapa27-gateway`
-- Region: `asia-southeast3` (Bangkok)
-- CPU: 1 vCPU
-- Memory: 512 MiB
-- Concurrency: 40
-- Min instances: 0
-- Max instances: 5
+Service: `sapa27-gateway`  
+Region: `asia-southeast3`  
+CPU: 1 vCPU  
+Memory: 512 MiB  
+Concurrency: 40  
+Min instances: 0  
+Max instances: 5
 
-## GitHub deployment variables
+The GitHub workflow stages `github-pages/` into `cloud-run-gateway/public/`, validates the gateway, deploys the unified service, and smoke-tests the frontend, configuration, transport, readiness, and GAS health.
 
-Configure repository variables `GCP_PROJECT_ID`, `GCP_REGION`, `CLOUD_RUN_SERVICE`, `GCP_WIF_PROVIDER`, and `GCP_SERVICE_ACCOUNT`.
-
-The workflow reads the canonical GAS `/exec` URL and RPC version from `github-pages/app-config.js`; it does not maintain a second production endpoint.
-
-Use Workload Identity Federation rather than a long-lived service-account JSON key.
-
-For browser access, grant `roles/run.invoker` to `allUsers` once during Cloud Run bootstrap and let later deployments preserve that IAM policy. CR-1 does not switch the frontend to Cloud Run; direct GAS remains the rollback path until authenticated read/write smoke tests pass.
-
-
-## CR-2 Google Cloud bootstrap
-
-The deployment workflow requires three account-specific values that cannot be derived safely from the repository: `GCP_PROJECT_ID`, `GCP_WIF_PROVIDER`, and `GCP_SERVICE_ACCOUNT`.
-
-Run from an authenticated Google Cloud Shell:
-
-```bash
-bash cloud-run-gateway/bootstrap-gcp.sh YOUR_PROJECT_ID
-```
-
-The script enables the required APIs, creates a GitHub-only Workload Identity Federation provider for `sapa27/main`, creates the deployer service account, grants the current Cloud Run source-deploy roles, and prints the exact GitHub repository variable values.
-
-CR-2 intentionally leaves the GitHub Pages frontend on direct GAS until the deployed gateway passes live `/ready` and `/health` checks.
-
-
-### Recommended CR-2 bootstrap for project sapa27
-
-If the project still needs billing linkage, pass the billing account ID as the second argument:
-
-```bash
-bash cloud-run-gateway/bootstrap-gcp.sh sapa27 YOUR_BILLING_ACCOUNT_ID
-```
-
-The billing ID is used only by `gcloud billing projects link`; it is not written into the repository or application configuration. The script verifies that billing is active before enabling Cloud Run services.
+The gateway continues to read the canonical GAS `/exec` URL and RPC version from `github-pages/app-config.js` during deployment. Workload Identity Federation is used instead of a long-lived service-account key.
