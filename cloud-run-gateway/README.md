@@ -49,3 +49,14 @@ bash cloud-run-gateway/bootstrap-gcp.sh YOUR_PROJECT_ID
 The script enables the required APIs, creates a GitHub-only Workload Identity Federation provider for `sapa27/main`, creates the deployer service account, grants the current Cloud Run source-deploy roles, and prints the exact GitHub repository variable values.
 
 CR-2 intentionally leaves the GitHub Pages frontend on direct GAS until the deployed gateway passes live `/ready` and `/health` checks.
+
+
+### Recommended CR-2 bootstrap for project sapa27
+
+If the project still needs billing linkage, pass the billing account ID as the second argument:
+
+```bash
+bash cloud-run-gateway/bootstrap-gcp.sh sapa27 YOUR_BILLING_ACCOUNT_ID
+```
+
+The billing ID is used only by `gcloud billing projects link`; it is not written into the repository or application configuration. The script verifies that billing is active before enabling Cloud Run services.

@@ -9,16 +9,29 @@ PROVIDER_ID="${WIF_PROVIDER_ID:-sapa27-main}"
 DEPLOYER_NAME="${DEPLOYER_SA_NAME:-github-cloud-run-deployer}"
 
 PROJECT_ID="${1:-${GCP_PROJECT_ID:-}}"
+BILLING_ACCOUNT_ID="${2:-${GCP_BILLING_ACCOUNT_ID:-}}"
 if [ -z "$PROJECT_ID" ]; then
   PROJECT_ID="$(gcloud config get-value project 2>/dev/null || true)"
 fi
 if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "(unset)" ]; then
-  echo "Usage: bash cloud-run-gateway/bootstrap-gcp.sh YOUR_PROJECT_ID" >&2
+  echo "Usage: bash cloud-run-gateway/bootstrap-gcp.sh YOUR_PROJECT_ID [BILLING_ACCOUNT_ID]" >&2
   exit 2
 fi
 
 echo "==> Project: $PROJECT_ID"
 gcloud config set project "$PROJECT_ID" >/dev/null
+
+if [ -n "$BILLING_ACCOUNT_ID" ]; then
+  echo "==> Link billing account"
+  gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT_ID" >/dev/null
+fi
+
+echo "==> Verify active billing"
+BILLING_ENABLED="$(gcloud billing projects describe "$PROJECT_ID" --format='value(billingEnabled)' 2>/dev/null || true)"
+if [ "$BILLING_ENABLED" != "True" ] && [ "$BILLING_ENABLED" != "true" ]; then
+  echo "Billing is not enabled for project $PROJECT_ID. Link an active billing account before continuing." >&2
+  exit 3
+fi
 
 echo "==> Enable required APIs"
 gcloud services enable   run.googleapis.com   cloudbuild.googleapis.com   artifactregistry.googleapis.com   iamcredentials.googleapis.com   sts.googleapis.com   serviceusage.googleapis.com
