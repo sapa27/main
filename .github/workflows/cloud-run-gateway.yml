@@ -57,12 +57,13 @@ jobs:
             let json=null; try{json=JSON.parse(text)}catch(_){}
             return {status:r.status,contract:r.headers.get('x-gas-response-contract')||'',requestId:r.headers.get('x-request-id')||'',json,text};
           }
-          function sourceOf(v){
-            if(typeof v==='string') return v;
-            if(!v||typeof v!=='object') return '';
-            for(const k of ['html','content','source','text','data','result']){
-              if(typeof v[k]==='string' && v[k].length>100) return v[k];
+          function sourceOf(v,depth=0){
+            if(typeof v==='string') return v.length>100?v:'';
+            if(!v||typeof v!=='object'||depth>5) return '';
+            for(const k of ['html','content','source','text','value','body','data','result','payload']){
+              if(Object.prototype.hasOwnProperty.call(v,k)){const hit=sourceOf(v[k],depth+1);if(hit)return hit;}
             }
+            for(const k of Object.keys(v)){const hit=sourceOf(v[k],depth+1);if(hit)return hit;}
             return '';
           }
           function clip(src,needle,radius=420){
@@ -77,6 +78,8 @@ jobs:
             console.log('DIAG_INCLUDE',JSON.stringify({
               name,status:out.status,contract:out.contract,transportOk:!!(out.json&&out.json.transportOk),
               resultType:Array.isArray(result)?'array':typeof result,
+              resultKeys:result&&typeof result==='object'?Object.keys(result).slice(0,40):[],
+              nestedKeys:result&&result.data&&typeof result.data==='object'?Object.keys(result.data).slice(0,40):[],
               sourceLength:src.length,sha256:src?crypto.createHash('sha256').update(src).digest('hex'):'',
               dashboardOwner:src.includes('dashboard-single-owner-production-current'),
               dashboardResponseOkGuard:src.includes('res && res.ok !== !0')||src.includes('res&&res.ok!==!0'),
@@ -102,6 +105,8 @@ jobs:
             appType:Array.isArray(app)?'array':typeof app,
             appOk:app&&typeof app==='object'?app.ok:null,
             appErrorCode:app&&typeof app==='object'?(app.errorCode||app.code||''):'',
+            gasErrorCode:dash.json&&dash.json.error?(dash.json.error.code||dash.json.error.errorCode||''):'',
+            gasMessage:dash.json&&dash.json.error?(dash.json.error.message||dash.json.error.error||''):'',
             appMessage:app&&typeof app==='object'?(app.error||app.message||app.msg||''):'',
             keys:data&&typeof data==='object'?Object.keys(data).slice(0,30):[]
           }));
