@@ -96,6 +96,25 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
   assert.ok(config.includes('CR-8.8 GAS Router Wire'));
   assert.ok(config.includes('current-quality-gate-r348'));
+  const wireStart=transport.indexOf('function invocation(fn,a)');
+  const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
+  assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
+  const ctx={t:v=>v==null?'':String(v)};
+  vm.runInNewContext(transport.slice(wireStart,wireEnd),ctx);
+  let I=ctx.invocation('apiGetDashboardBundle',{token:'t',forceFresh:true}),G=ctx.gasWire(I);
+  assert.equal(I.method,'apiGetDashboardBundle');
+  assert.equal(G.wire,'apiRouter');
+  assert.equal(G.routed,true);
+  assert.equal(G.wirePayload.method,'apiGetDashboardBundle');
+  assert.equal(G.wirePayload.payload.forceFresh,true);
+  I=ctx.invocation('apiLogin',{username:'u'});G=ctx.gasWire(I);
+  assert.equal(G.wire,'apiLogin');
+  assert.equal(G.routed,false);
+  I=ctx.invocation('apiRouter',{method:'apiSearchCasesLite',payload:{query:'x'}});G=ctx.gasWire(I);
+  assert.equal(I.method,'apiSearchCasesLite');
+  assert.equal(G.wire,'apiRouter');
+  assert.equal(G.routed,false);
+  assert.equal(G.wirePayload.method,'apiSearchCasesLite');
 });
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
