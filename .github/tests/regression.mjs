@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.5-dashboard-data-recovery-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.6-dashboard-controller-contract-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -116,7 +116,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.5-dashboard-data-recovery'"));
+  assert.ok(workflow.includes("grep -q 'cr8.6-dashboard-controller-contract'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -208,6 +208,20 @@ ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   const op=index.slice(opStart,opEnd);
   assert.ok(!op.includes('initMeetingPage'),'operational check must still have one lifecycle owner');
   assert.ok(!op.includes('meetingPageInitialized'),'DOM must not become an independent lifecycle owner');
+});
+
+ok('Dashboard controller accepts canonical unwrapped data',()=>{
+  assert.ok(index.includes('function patchDashboardControllerContractCurrent(n,h)'));
+  assert.ok(index.includes('dashboard-controller-contract-r346'));
+  assert.ok(index.includes('Object.prototype.hasOwnProperty.call(res,"ok")'));
+  assert.ok(index.includes('dashboard.controller.contract.notMatched'));
+  const fetchStart=index.indexOf('function fetchPartialHtml(n)');
+  const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
+  const fetchBlock=index.slice(fetchStart,fetchEnd);
+  assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
+  assert.ok(config.includes('CR-8.6 Dashboard Controller Contract'));
+  assert.ok(config.includes('current-quality-gate-r346'));
+  assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
 ok('Dashboard controller and data recovery are bounded after login',()=>{
