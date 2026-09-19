@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.6-dashboard-controller-contract-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.7-dashboard-critical-first-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -116,7 +116,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.6-dashboard-controller-contract'"));
+  assert.ok(workflow.includes("grep -q 'cr8.7-dashboard-critical-first'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -210,17 +210,18 @@ ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   assert.ok(!op.includes('meetingPageInitialized'),'DOM must not become an independent lifecycle owner');
 });
 
-ok('Dashboard controller accepts canonical unwrapped data',()=>{
+ok('Dashboard critical-first controller accepts canonical data before Core',()=>{
   assert.ok(index.includes('function patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(index.includes('dashboard-controller-contract-r346'));
+  assert.ok(index.includes('dashboard-critical-first-r347'));
   assert.ok(index.includes('Object.prototype.hasOwnProperty.call(res,"ok")'));
+  assert.ok(index.includes('root.AppApi&&__appIsFn(root.AppApi.call)?root.AppApi.call(method,payload'));
   assert.ok(index.includes('dashboard.controller.contract.notMatched'));
   const fetchStart=index.indexOf('function fetchPartialHtml(n)');
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.6 Dashboard Controller Contract'));
-  assert.ok(config.includes('current-quality-gate-r346'));
+  assert.ok(config.includes('CR-8.7 Dashboard Critical First'));
+  assert.ok(config.includes('current-quality-gate-r347'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
@@ -231,18 +232,31 @@ ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(index.includes('dashboard-runtime-recovery-r345'));
   assert.ok(index.includes('dashboard-data-recovery-r345'));
   assert.ok(index.includes('dashboard.dataRecovery.current'));
+  assert.ok(index.includes('dashboard.dataRecovery.criticalFirst'));
   assert.ok(index.includes('DASHBOARD_CONTROLLER_NOT_READY'));
   assert.ok(index.includes('var delays=[0,1200,3500,7000]'));
   assert.ok(index.includes('var state=root2.__APP_DASHBOARD_DATA_RECOVERY_CURRENT__,delays=[1600,4000,9000]'));
   assert.ok(index.includes('state.attempt>=delays.length'));
-  assert.ok(index.includes('L.reload("dashboard",{forceFresh:!0,noCache:!0,bypassCache:!0'));
   const loadStart=index.indexOf('function loadPage(p)');
   const loadEnd=index.indexOf('function assertExternalAsset',loadStart);
   const loadBlock=index.slice(loadStart,loadEnd);
-  assert.ok(loadBlock.includes('if(n==="dashboard")return ensureCore().then(function(){return safePartial("Scripts_Page_Dashboard")}'));
-  const dashboardPos=loadBlock.indexOf('if(n==="dashboard")return ensureCore()');
+  const dashboardStart=loadBlock.indexOf('if(n==="dashboard")');
   const genericPos=loadBlock.indexOf('return Promise.all([ensureCore()');
-  assert.ok(dashboardPos>=0&&genericPos>dashboardPos,'Dashboard must use sequential controller load before generic parallel prefetch');
+  const dashboardBlock=loadBlock.slice(dashboardStart,genericPos);
+  assert.ok(dashboardStart>=0&&genericPos>dashboardStart,'Dashboard critical-first branch missing');
+  assert.ok(dashboardBlock.includes('safePartial("Scripts_Page_Dashboard")'));
+  assert.ok(!dashboardBlock.includes('ensureCore()'),'Dashboard controller must not wait for Core');
+  const authStart=index.indexOf('function loadAuthenticatedRuntimeCrit(reason)');
+  const authEnd=index.indexOf('function activateRecoveredDashboardCrit',authStart);
+  const authBlock=index.slice(authStart,authEnd);
+  assert.ok(authBlock.includes('safePartial("Scripts_Page_Dashboard")'));
+  assert.ok(!authBlock.includes('ensureCore()'),'login Dashboard runtime must not block on Core');
+  const activateStart=index.indexOf('function activateRecoveredDashboardCrit(reason)');
+  const activateEnd=index.indexOf('function recoverDashboardRuntimeCrit',activateStart);
+  const activateBlock=index.slice(activateStart,activateEnd);
+  assert.ok(activateBlock.includes('P.get("dashboard")'));
+  assert.ok(activateBlock.includes('a.mount({source:reason||"dashboard-critical-first-r347"'));
+  assert.ok(activateBlock.includes('directMount:!0'));
   assert.ok(!index.includes('setInterval(function(){recoverDashboardRuntimeCrit'),'Dashboard recovery must not poll forever');
 });
 
