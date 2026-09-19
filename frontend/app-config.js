@@ -3,10 +3,10 @@ var CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app",
 R="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62",
 AV="asset-manifest-r331-v62-reliability",
 SF="cloud-run-single-source-r331-v62",
-BN="V1.2 Cloud Run + GAS Canonical Response CR-8.7 Dashboard Critical First",
+BN="V1.2 Cloud Run + GAS Canonical Response CR-8.8 GAS Router Wire",
 RD="2026-09-19",FR="r331-v62",
-HA="cloud-run-canonical-frontend-r331-v62-cr8.7-dashboard-critical-first-20260919",
-QG="current-quality-gate-r347",TV="gas-direct-json-v1",
+HA="cloud-run-canonical-frontend-r331-v62-cr8.8-gas-router-wire-20260919",
+QG="current-quality-gate-r348",TV="gas-direct-json-v1",
 LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg",
 P=Object.freeze({releaseStamp:R,assetStamp:AV,sourceFingerprint:SF,buildName:BN,releaseDate:RD,frontendRevision:FR,hostArtifact:HA,qualityGate:QG,transportProtocolVersion:TV,rpcProtocolVersion:TV});
 r.APP_BUILD_PROVENANCE=P;
