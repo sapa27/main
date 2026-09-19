@@ -50,3 +50,7 @@ Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> fina
 ## CR-8.11 Runtime Recovery Diagnostics
 
 The early warning owner now reports once instead of recursing into itself. Reports contain only a topic, validated error code, asset name, and a recognized JavaScript identifier hint; request payloads and credentials are excluded. Deferred assets expose fetch/execute status and byte counts on the document element, making a failed controller distinguishable from an empty dataset. Structured GAS error codes remain available to session recovery.
+
+## CR-8.12 Deferred Loader Scope Fix
+
+The static Meeting asset helpers now live in the critical runtime function scope. Their previous declarations were inside a strict-mode initialization block, making them invisible to the deferred loader and stopping every page load with `isStaticMeetingPartial is not defined`. The regression suite executes the actual strict-mode closure to verify both GAS deferred assets and the Cloud Run Meeting controller, including cache invalidation.

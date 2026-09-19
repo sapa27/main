@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.11-runtime-recovery-diagnostics-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.12-deferred-loader-scope-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -94,8 +94,8 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.ok(transport.includes('function appResultCacheable(v)'));
   assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
   assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
-  assert.ok(config.includes('CR-8.11 Runtime Recovery Diagnostics'));
-  assert.ok(config.includes('current-quality-gate-r351'));
+  assert.ok(config.includes('CR-8.12 Deferred Loader Scope Fix'));
+  assert.ok(config.includes('current-quality-gate-r352'));
   const wireStart=transport.indexOf('function invocation(fn,a)');
   const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
   assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
@@ -166,7 +166,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.11-runtime-recovery-diagnostics'"));
+  assert.ok(workflow.includes("grep -q 'cr8.12-deferred-loader-scope'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -270,8 +270,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.11 Runtime Recovery Diagnostics'));
-  assert.ok(config.includes('current-quality-gate-r351'));
+  assert.ok(config.includes('CR-8.12 Deferred Loader Scope Fix'));
+  assert.ok(config.includes('current-quality-gate-r352'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
@@ -371,6 +371,29 @@ ok('frontend performance cache policy remains bounded',()=>{
     assert.deepEqual(Object.keys(ctx.inflight),[]);
     assert.throws(()=>ctx.deferredHtmlCurrent({ok:false,data:{code:'ASSET_DENIED'}},'fixture'),e=>e.code==='ASSET_DENIED');
     assert.equal(ctx.deferredHtmlCurrent({result:{data:{html:'<script>/* nested */</script>'}}},'fixture'),'<script>/* nested */</script>');
+  });
+}
+
+// Keep the real strict-mode closure: extracting helper declarations on their own
+// would hide a helper accidentally scoped inside the initialization block.
+{
+  const calls=[];
+  const w={
+    __APP_CRITICAL_LOGIN_RUNTIME_READY__:true,
+    AppRuntime:{recordWarning(){}},
+    AppApi:{call:async(method,payload)=>{calls.push([method,payload.name]);return {html:'<script>/* dashboard fixture */</script>'}}},
+    fetch:async url=>{calls.push(['static',url]);return {ok:true,text:async()=>'<script>window.initMeetingPage=function(){};AppPages.register("meeting",{});</script>'}},
+    document:{documentElement:{setAttribute(){}}}
+  };
+  const critical=scripts(index).find(s=>s.includes('function fetchPartialHtml(n)'));
+  const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
+  vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function'});
+  assert.equal(await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* dashboard fixture */</script>');
+  assert.ok((await w.scopeTest.fetchPartialHtml('Scripts_Page_Meeting::meeting')).includes('window.initMeetingPage'));
+  w.scopeTest.invalidatePartial('Scripts_Page_Dashboard');
+  await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard');
+  ok('strict-mode deferred loader can access both asset transports and invalidate its cache',()=>{
+    assert.deepEqual(calls.map(c=>c[0]),['getDeferredInclude','static','getDeferredInclude']);
   });
 }
 
