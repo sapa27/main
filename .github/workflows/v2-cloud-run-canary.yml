@@ -44,6 +44,57 @@ jobs:
         run: |
           docker build -t sapa27-v2:canary cloud-run-gateway
 
+      - name: Diagnose current production deferred Dashboard path
+        env:
+          PROD_URL: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+        run: |
+          node <<'NODE'
+          (async()=>{
+            const base=process.env.PROD_URL;
+            async function rpc(method,payload,timeoutMs=45000){
+              const r=await fetch(base+"/api/router",{
+                method:"POST",
+                headers:{"Content-Type":"application/json","Origin":base,"X-Request-ID":"v2-canary-prod-diag"},
+                body:JSON.stringify({method,payload,timeoutMs})
+              });
+              const text=await r.text();
+              let json=null; try{json=JSON.parse(text)}catch{}
+              return {status:r.status,contract:r.headers.get("x-gas-response-contract")||"",json,text};
+            }
+            function htmlOf(v,depth=0){
+              if(typeof v==="string")return v;
+              if(!v||typeof v!=="object"||depth>6)return "";
+              for(const k of ["html","data","result","payload","content","text","value"]){
+                if(Object.prototype.hasOwnProperty.call(v,k)){const h=htmlOf(v[k],depth+1);if(h)return h;}
+              }
+              return "";
+            }
+            const inc=await rpc("getDeferredInclude",{name:"Scripts_Page_Dashboard",forceFresh:true,assetStamp:"prod-diag-r352"},60000);
+            const html=htmlOf(inc.json&&inc.json.result);
+            console.log("PROD_DASH_INCLUDE",JSON.stringify({
+              status:inc.status,contract:inc.contract,transportOk:!!(inc.json&&inc.json.transportOk),
+              bytes:html.length,
+              hasRegister:/AppPages\.register\(["']dashboard["']/.test(html),
+              hasBundle:/apiGetDashboardBundle/.test(html),
+              hasSingleOwner:/dashboard-single-owner-production-current/.test(html)
+            }));
+            if(inc.status!==200||inc.contract!=="gas-direct-json-v1"||!inc.json||inc.json.transportOk!==true||html.length<1000||!/apiGetDashboardBundle/.test(html)){
+              throw new Error("PROD_DASHBOARD_DEFERRED_INCLUDE_NOT_READY");
+            }
+            const app=await rpc("apiRouter",{method:"apiGetDashboardBundle",payload:{source:"unauth-prod-diag"}},70000);
+            const result=app.json&&app.json.result;
+            console.log("PROD_DASH_ROUTE",JSON.stringify({
+              status:app.status,contract:app.contract,transportOk:!!(app.json&&app.json.transportOk),
+              resultType:Array.isArray(result)?"array":typeof result,
+              appOk:result&&typeof result==="object"&&Object.prototype.hasOwnProperty.call(result,"ok")?result.ok:null,
+              appCode:result&&typeof result==="object"?(result.errorCode||result.code||result.data&&result.data.code||""):""
+            }));
+            if(app.status!==200||app.contract!=="gas-direct-json-v1"||!app.json||app.json.transportOk!==true){
+              throw new Error("PROD_DASHBOARD_ROUTER_TRANSPORT_NOT_READY");
+            }
+          })().catch(err=>{console.error("PROD_DIAG_FATAL",err&&err.stack||err);process.exit(1)});
+          NODE
+
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
