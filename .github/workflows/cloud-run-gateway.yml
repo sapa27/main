@@ -39,6 +39,72 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Diagnose live Dashboard controller contract
+        env:
+          LIVE_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+        run: |
+          node <<'NODE'
+          const crypto=require('node:crypto');
+          const base=process.env.LIVE_ORIGIN;
+          async function rpc(method,payload,timeoutMs=45000){
+            const r=await fetch(base+'/api/router',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Origin':base,'X-Request-ID':'dashboard-live-contract-diagnostic'},
+              body:JSON.stringify({method,payload,timeoutMs})
+            });
+            const text=await r.text();
+            let json=null; try{json=JSON.parse(text)}catch(_){}
+            return {status:r.status,contract:r.headers.get('x-gas-response-contract')||'',requestId:r.headers.get('x-request-id')||'',json,text};
+          }
+          function sourceOf(v){
+            if(typeof v==='string') return v;
+            if(!v||typeof v!=='object') return '';
+            for(const k of ['html','content','source','text','data','result']){
+              if(typeof v[k]==='string' && v[k].length>100) return v[k];
+            }
+            return '';
+          }
+          function clip(src,needle,radius=420){
+            const i=src.indexOf(needle);
+            if(i<0)return '(not found)';
+            return src.slice(Math.max(0,i-radius),Math.min(src.length,i+needle.length+radius)).replace(/\s+/g,' ').slice(0,1200);
+          }
+          for(const name of ['Scripts_Page_Dashboard','Scripts_Core_Runtime']){
+            const out=await rpc('getDeferredInclude',{name,forceFresh:true,assetStamp:'live-contract-diag-20260919'});
+            const result=out.json&&out.json.result;
+            const src=sourceOf(result);
+            console.log('DIAG_INCLUDE',JSON.stringify({
+              name,status:out.status,contract:out.contract,transportOk:!!(out.json&&out.json.transportOk),
+              resultType:Array.isArray(result)?'array':typeof result,
+              sourceLength:src.length,sha256:src?crypto.createHash('sha256').update(src).digest('hex'):'',
+              dashboardOwner:src.includes('dashboard-single-owner-production-current'),
+              dashboardResponseOkGuard:src.includes('res && res.ok !== !0')||src.includes('res&&res.ok!==!0'),
+              apiRunner:src.includes('AppPageKit.apiRunner'),
+              preserveEnvelope:src.includes('preserveEnvelope'),
+              envData:src.includes('env.data')
+            }));
+            if(name==='Scripts_Page_Dashboard') console.log('DIAG_DASH_GUARD',clip(src,'responseCode'));
+            if(name==='Scripts_Core_Runtime') {
+              console.log('DIAG_CORE_RESPONSE',clip(src,'preserveEnvelope'));
+              console.log('DIAG_CORE_APIRUNNER',clip(src,'apiRunner'));
+            }
+          }
+          const dash=await rpc('apiGetDashboardBundle',{
+            forceFresh:true,noCache:true,bypassCache:true,includeBudget:true,includeCases:false,
+            includeWorkflow:true,phase1FirstPaint:false,phase1LazyHydration:false,dashboardSingleCompletePath:true,
+            source:'unauth-live-contract-diagnostic'
+          },35000);
+          const app=dash.json&&dash.json.result;
+          const data=app&&typeof app==='object'?(app.data&&typeof app.data==='object'?app.data:app):{};
+          console.log('DIAG_UNAUTH_DASHBOARD',JSON.stringify({
+            status:dash.status,contract:dash.contract,transportOk:!!(dash.json&&dash.json.transportOk),
+            appType:Array.isArray(app)?'array':typeof app,
+            appOk:app&&typeof app==='object'?app.ok:null,
+            appErrorCode:app&&typeof app==='object'?(app.errorCode||app.code||''):'',
+            appMessage:app&&typeof app==='object'?(app.error||app.message||app.msg||''):'',
+            keys:data&&typeof data==='object'?Object.keys(data).slice(0,30):[]
+          }));
+          NODE
       - name: Validate CR-8 frontend and gateway
         run: |
           set -euo pipefail
