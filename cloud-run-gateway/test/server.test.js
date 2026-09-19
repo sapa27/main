@@ -28,7 +28,8 @@ test('CR-7 configuration is direct-only',()=>{
   assert.equal(allowed('https://example.invalid',c),false);
   assert.equal(isWrite('apiSaveCase'),true);
   assert.equal(isWrite('apiGetDashboardBundle'),false);
-  assert.equal(timeout('apiGetDashboardBundle',999999,c),45000);
+  assert.equal(timeout('apiGetDashboardBundle',999999,c),75000);
+  assert.equal(timeout('apiRouter',70000,c),70000);
   assert.equal(Object.prototype.hasOwnProperty.call(c,'rpc'),false);
   assert.equal(Object.prototype.hasOwnProperty.call(c,'parent'),false);
 });
@@ -101,17 +102,18 @@ test('directRpc posts JSON to GAS and preserves canonical GAS envelope',async()=
     return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{rows:[{id:1}]}}})};
   };
   try{
-    const out=await directRpc('apiGetDashboardBundle',{scope:'main'},35000,cfg(ENV));
+    const routed={method:'apiGetDashboardBundle',payload:{scope:'main'}};
+    const out=await directRpc('apiRouter',routed,70000,cfg(ENV));
     assert.equal(out.envelope.transportOk,true);
     assert.equal(out.envelope.result.ok,true);
     assert.deepEqual(out.envelope.result.data.rows,[{id:1}]);
     assert.equal(out.meta.transport,'gas-direct-json');
     assert.equal(out.meta.responseContract,'gas-direct-json-v1');
-    assert.equal(out.meta.method,'apiGetDashboardBundle');
+    assert.equal(out.meta.method,'apiRouter');
     assert.equal(call.url,ENV.GAS_WEB_APP_URL);
     assert.equal(call.opt.method,'POST');
     assert.equal(call.opt.headers['Content-Type'],'application/json;charset=UTF-8');
-    assert.deepEqual(JSON.parse(call.opt.body),{method:'apiGetDashboardBundle',payload:{scope:'main'}});
+    assert.deepEqual(JSON.parse(call.opt.body),{method:'apiRouter',payload:{method:'apiGetDashboardBundle',payload:{scope:'main'}}});
   }finally{global.fetch=original}
 });
 
@@ -131,7 +133,7 @@ test('api/router passes GAS envelope through without business re-wrapping',async
   };
   try{
     await withServer(async base=>{
-      const r=await fetch(base+'/api/router',{method:'POST',headers:{Origin:ORIGIN,'Content-Type':'application/json'},body:JSON.stringify({method:'apiGetDashboardBundle',payload:{}})});
+      const r=await fetch(base+'/api/router',{method:'POST',headers:{Origin:ORIGIN,'Content-Type':'application/json'},body:JSON.stringify({method:'apiRouter',payload:{method:'apiGetDashboardBundle',payload:{}}})});
       const j=await r.json();
       assert.equal(r.status,200);
       assert.deepEqual(j,{transportOk:true,result:{ok:true,data:{value:7}}});
