@@ -2,6 +2,9 @@ name: V2 Cloud Run Canary
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - v2-live-canary-verify-20260920
 
 permissions:
   contents: read
