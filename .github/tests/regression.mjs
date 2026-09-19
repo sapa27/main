@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.4-meeting-static-first-20260918'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.5-dashboard-data-recovery-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -116,7 +116,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.4-meeting-static-first'"));
+  assert.ok(workflow.includes("grep -q 'cr8.5-dashboard-data-recovery'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -208,6 +208,28 @@ ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   const op=index.slice(opStart,opEnd);
   assert.ok(!op.includes('initMeetingPage'),'operational check must still have one lifecycle owner');
   assert.ok(!op.includes('meetingPageInitialized'),'DOM must not become an independent lifecycle owner');
+});
+
+ok('Dashboard controller and data recovery are bounded after login',()=>{
+  assert.ok(index.includes('function dashboardControllerReadyCrit()'));
+  assert.ok(index.includes('function waitDashboardAuthTokenCrit(timeoutMs)'));
+  assert.ok(index.includes('function recoverDashboardRuntimeCrit(reason)'));
+  assert.ok(index.includes('dashboard-runtime-recovery-r345'));
+  assert.ok(index.includes('dashboard-data-recovery-r345'));
+  assert.ok(index.includes('dashboard.dataRecovery.current'));
+  assert.ok(index.includes('DASHBOARD_CONTROLLER_NOT_READY'));
+  assert.ok(index.includes('var delays=[0,1200,3500,7000]'));
+  assert.ok(index.includes('var state=root2.__APP_DASHBOARD_DATA_RECOVERY_CURRENT__,delays=[1600,4000,9000]'));
+  assert.ok(index.includes('state.attempt>=delays.length'));
+  assert.ok(index.includes('L.reload("dashboard",{forceFresh:!0,noCache:!0,bypassCache:!0'));
+  const loadStart=index.indexOf('function loadPage(p)');
+  const loadEnd=index.indexOf('function assertExternalAsset',loadStart);
+  const loadBlock=index.slice(loadStart,loadEnd);
+  assert.ok(loadBlock.includes('if(n==="dashboard")return ensureCore().then(function(){return safePartial("Scripts_Page_Dashboard")}'));
+  const dashboardPos=loadBlock.indexOf('if(n==="dashboard")return ensureCore()');
+  const genericPos=loadBlock.indexOf('return Promise.all([ensureCore()');
+  assert.ok(dashboardPos>=0&&genericPos>dashboardPos,'Dashboard must use sequential controller load before generic parallel prefetch');
+  assert.ok(!index.includes('setInterval(function(){recoverDashboardRuntimeCrit'),'Dashboard recovery must not poll forever');
 });
 
 ok('interaction paths avoid blocking work on tap',()=>{
