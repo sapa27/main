@@ -444,9 +444,10 @@ ok('frontend performance cache policy remains bounded',()=>{
 }
 
 {
-  const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},RT:{recordWarning(){}},deferredStatusCurrent(){},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h};
+  const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},RT:{recordWarning(){}},deferredStatusCurrent(){},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h,__appObserve(){}};
   let attempts=0;
-  ctx.root2={AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
+  ctx.store={get:(k,d)=>k==='auth.token'?'fixture-token':d};
+  ctx.root2={__APP_ASSET_STAMP__:'fixture-r353',AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
   const start=index.indexOf('function deferredHtmlCurrent('),end=index.indexOf('function prefetchPartial(',start);
   vm.runInNewContext(index.slice(start,end),ctx);
   await assert.rejects(ctx.fetchPartialHtml('Scripts_Page_Dashboard'),e=>e.code==='DEFERRED_INCLUDE_INVALID_HTML');
@@ -471,8 +472,8 @@ ok('frontend performance cache policy remains bounded',()=>{
     document:{documentElement:{setAttribute(){}}}
   };
   const critical=scripts(index).find(s=>s.includes('function fetchPartialHtml(n)'));
-  const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
-  vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function'});
+  const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;store={get:function(k,d){return k==="auth.token"?"fixture-token":d}};root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
+  vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function',__appObserve(){}});
   assert.equal(await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* dashboard fixture */</script>');
   assert.ok((await w.scopeTest.fetchPartialHtml('Scripts_Page_Meeting::meeting')).includes('window.initMeetingPage'));
   w.scopeTest.invalidatePartial('Scripts_Page_Dashboard');
