@@ -236,8 +236,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.7 Dashboard Critical First'));
-  assert.ok(config.includes('current-quality-gate-r347'));
+  assert.ok(config.includes('CR-8.8 GAS Router Wire'));
+  assert.ok(config.includes('current-quality-gate-r348'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
