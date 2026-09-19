@@ -38,3 +38,11 @@ Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> fina
 - Shared Date/Table deferred assets are warmed in the background and cannot block controller registration or first route activation.
 - Shared-runtime warmup failures are recorded as degraded support assets; they do not recreate the controller-not-found failure.
 - Meeting data remains server-driven through Cloud Run -> GAS Direct JSON.
+
+## CR-8.10 Deferred Runtime Wire
+
+- The critical API facade wraps calls in `apiRouter`. The transport now unwraps known direct GAS functions (including authenticated `getDeferredInclude`) before sending them, while business methods remain on `apiRouter`.
+- Deferred content must contain an HTML string. An error or unexpected object cannot be recorded as a loaded page controller, and failed parsing clears the pending request so a later retry can run.
+- Each Cloud Run host uses its own origin, including canary hosts. The configured URL is the fallback for other hosts.
+- Gateway deadlines use the nested business method for router requests, preserving write and AI time budgets without changing the GAS request or response envelope.
+- Regression tests exercise the real browser transport entry point with mocked GAS responses and verify malformed-asset recovery. They do not contain production credentials.

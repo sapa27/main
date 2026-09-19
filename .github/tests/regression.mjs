@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.9-direct-bootstrap-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.10-deferred-runtime-wire-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -89,13 +89,13 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.ok(transport.includes('var I=invocation(f,a),G=gasWire(I)'));
   assert.ok(transport.includes('method:G.wire,payload:G.wirePayload'));
   assert.ok(transport.includes('routedThroughApiRouter:G.routed'));
-  assert.ok(transport.includes('__APP_GAS_ROUTER_WIRE_CURRENT__="gas-router-wire-r348"'));
+  assert.ok(transport.includes('__APP_GAS_ROUTER_WIRE_CURRENT__="gas-router-wire-r350"'));
   for(const direct of ['apiRouter','apiLogin','apiSessionResume','apiSessionCheck','apiLogout','getDeferredInclude'])assert.ok(transport.includes(direct),'missing direct GAS transport function '+direct);
   assert.ok(transport.includes('function appResultCacheable(v)'));
   assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
   assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
-  assert.ok(config.includes('CR-8.9 Direct Bootstrap'));
-  assert.ok(config.includes('current-quality-gate-r349'));
+  assert.ok(config.includes('CR-8.10 Deferred Runtime Wire'));
+  assert.ok(config.includes('current-quality-gate-r350'));
   const wireStart=transport.indexOf('function invocation(fn,a)');
   const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
   assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
@@ -166,7 +166,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.9-direct-bootstrap'"));
+  assert.ok(workflow.includes("grep -q 'cr8.10-deferred-runtime-wire'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -270,8 +270,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.9 Direct Bootstrap'));
-  assert.ok(config.includes('current-quality-gate-r349'));
+  assert.ok(config.includes('CR-8.10 Deferred Runtime Wire'));
+  assert.ok(config.includes('current-quality-gate-r350'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
@@ -325,5 +325,53 @@ ok('interaction paths avoid blocking work on tap',()=>{
 ok('frontend performance cache policy remains bounded',()=>{
   for(const token of ['REQUEST_TIMEOUT_MS:60000','WRITE_REQUEST_TIMEOUT_MS:120000','AI_DOCUMENT_TIMEOUT_MS:300000','RPC_READ_CACHE_MAX_ENTRIES:96','apiGetDashboardBundle:70000','apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000'])assert.ok(config.includes(token),token);
 });
+
+// Exercise the public transport entry point used by the critical/runtime API facades.
+{
+  const calls=[];
+  const w={
+    location:{origin:'https://test-canary.run.app'},
+    APP_RUNTIME_CONFIG:{CLOUD_RUN_GATEWAY_URL:'https://test-production.run.app/'},
+    setTimeout,clearTimeout,
+    fetch:async(url,options)=>{
+      calls.push({url,body:JSON.parse(options.body)});
+      return {ok:true,headers:{get:()=> 'gas-direct-json-v1'},text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{html:'<script>/* fixture */</script>'}}})};
+    }
+  };
+  vm.runInNewContext(transport,{window:w,document:{dispatchEvent(){}},CustomEvent:function(){},Promise,Date});
+  await w.AppTransport.run('apiRouter',{method:'getDeferredInclude',payload:{name:'Scripts_Page_Dashboard',token:'fixture-only'}});
+  ok('wrapped deferred assets reach the direct GAS function on the current Cloud Run origin',()=>{
+    assert.equal(calls[0].url,'https://test-canary.run.app/api/router');
+    assert.deepEqual(calls[0].body.payload,{name:'Scripts_Page_Dashboard',token:'fixture-only'});
+    assert.equal(calls[0].body.method,'getDeferredInclude');
+  });
+  await w.AppTransport.run('apiRouter',{method:'apiSessionCheck',payload:{token:'fixture-only'}});
+  await w.AppTransport.run('apiGetDashboardBundle',{token:'fixture-only'});
+  await w.AppTransport.run('apiRouter',{method:'apiSaveCase',payload:{caseNo:'fixture-only',token:'fixture-only'}});
+  ok('auth calls remain direct and business reads/writes preserve the GAS router payload',()=>{
+    assert.equal(calls[1].body.method,'apiSessionCheck');
+    assert.equal(calls[2].body.method,'apiRouter');
+    assert.equal(calls[2].body.payload.method,'apiGetDashboardBundle');
+    assert.equal(calls[3].body.method,'apiRouter');
+    assert.equal(calls[3].body.payload.method,'apiSaveCase');
+    assert.equal(calls[3].body.timeoutMs,120000);
+  });
+}
+
+{
+  const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h};
+  let attempts=0;
+  ctx.root2={AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
+  const start=index.indexOf('function deferredHtmlCurrent('),end=index.indexOf('function prefetchPartial(',start);
+  vm.runInNewContext(index.slice(start,end),ctx);
+  await assert.rejects(ctx.fetchPartialHtml('Scripts_Page_Dashboard'),e=>e.code==='DEFERRED_INCLUDE_INVALID_HTML');
+  assert.equal(await ctx.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* recovered */</script>');
+  ok('invalid deferred responses cannot mark a controller loaded or poison its retry',()=>{
+    assert.equal(attempts,2);
+    assert.deepEqual(Object.keys(ctx.inflight),[]);
+    assert.throws(()=>ctx.deferredHtmlCurrent({ok:false,data:{code:'ASSET_DENIED'}},'fixture'),e=>e.code==='ASSET_DENIED');
+    assert.equal(ctx.deferredHtmlCurrent({result:{data:{html:'<script>/* nested */</script>'}}},'fixture'),'<script>/* nested */</script>');
+  });
+}
 
 console.log('# '+passed+' CR-7 regression groups passed');

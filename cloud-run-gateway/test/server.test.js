@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,GAS_RESPONSE_CONTRACT,cfg,gasUrl,allowed,isWrite,timeout,validateGasEnvelope,directRpc,createServer}=require('../server');
+const {REV,GAS_RESPONSE_CONTRACT,cfg,gasUrl,allowed,isWrite,effectiveMethod,timeout,validateGasEnvelope,directRpc,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
@@ -32,6 +32,14 @@ test('CR-7 configuration is direct-only',()=>{
   assert.equal(timeout('apiRouter',70000,c),70000);
   assert.equal(Object.prototype.hasOwnProperty.call(c,'rpc'),false);
   assert.equal(Object.prototype.hasOwnProperty.call(c,'parent'),false);
+});
+
+test('GAS router wrappers retain read, write, and AI deadline budgets',()=>{
+  const c=cfg(ENV);
+  assert.equal(timeout(effectiveMethod('apiRouter',{method:'apiSaveCase'}),120000,c),120000);
+  assert.equal(timeout(effectiveMethod('apiRouter',{method:'apiExtractDocumentPdf'}),300000,c),300000);
+  assert.equal(timeout(effectiveMethod('apiRouter',{method:'apiGetDashboardBundle'}),35000,c),35000);
+  assert.equal(effectiveMethod('getDeferredInclude',{method:'apiSaveCase'}),'getDeferredInclude');
 });
 
 test('readiness and version expose direct-only CR-7 contract',async()=>withServer(async base=>{
