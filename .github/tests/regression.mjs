@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.12-deferred-loader-scope-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.13-authenticated-deferred-handoff-20260920'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -94,8 +94,8 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.ok(transport.includes('function appResultCacheable(v)'));
   assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
   assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
-  assert.ok(config.includes('CR-8.12 Deferred Loader Scope Fix'));
-  assert.ok(config.includes('current-quality-gate-r352'));
+  assert.ok(config.includes('CR-8.13 Authenticated Deferred Handoff'));
+  assert.ok(config.includes('current-quality-gate-r353'));
   const wireStart=transport.indexOf('function invocation(fn,a)');
   const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
   assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
@@ -117,6 +117,87 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.equal(G.wirePayload.method,'apiSearchCasesLite');
 });
 
+{
+  const state=Object.create(null);
+  const store={
+    get:(k,d)=>Object.prototype.hasOwnProperty.call(state,k)?state[k]:d,
+    set:(k,v)=>(state[k]=v,v),
+    assign:map=>(Object.assign(state,map),Object.assign({},state))
+  };
+  const root2={
+    AppSecurity:{setSessionTokens(token,csrf){store.set('auth.token',String(token||''));store.set('auth.csrfToken',String(csrf||''));return {token:!!token,csrf:!!csrf}}},
+    __APP_ASSET_STAMP__:'fixture-r353'
+  };
+  const doc={documentElement:{classList:{remove(){}},setAttribute(){}},body:{classList:{add(){}}},dispatchEvent(){}};
+  const commitStart=index.indexOf('function commitLoginSuccessCrit(data2)');
+  const commitEnd=index.indexOf('function hydrateContractAfterLoginCrit',commitStart);
+  assert.ok(commitStart>=0&&commitEnd>commitStart,'login commit function missing');
+  const loginCtx={
+    root2,store,doc,
+    txt:v=>v==null?'':String(v),
+    unlockLoginLocksCrit(){},
+    normRoleCrit:v=>String(v||'Viewer'),
+    saveResume(){return true},
+    updateRoleBadgeCrit(){},
+    id(){return null},
+    shell(){},
+    __appObserve(){},
+    CustomEvent:function(name,init){this.type=name;this.detail=init&&init.detail}
+  };
+  vm.runInNewContext(index.slice(commitStart,commitEnd),loginCtx);
+  loginCtx.commitLoginSuccessCrit({token:'fixture-login-token',csrfToken:'fixture-csrf',user:{role:'Admin',name:'Fixture'}});
+  assert.equal(store.get('auth.token',''),'fixture-login-token');
+  assert.equal(store.get('auth.csrfToken',''),'fixture-csrf');
+
+  const reqStart=index.indexOf('function deferredRequestPayloadCurrent(name)');
+  const reqEnd=index.indexOf('function fetchPartialHtml(n)',reqStart);
+  assert.ok(reqStart>=0&&reqEnd>reqStart,'deferred authenticated request helper missing');
+  const reqCtx={root2,store,txt:v=>v==null?'':String(v),__appObserve(){}};
+  vm.runInNewContext(index.slice(reqStart,reqEnd),reqCtx);
+  const deferred=reqCtx.deferredRequestPayloadCurrent('Scripts_Page_Dashboard');
+  assert.equal(deferred.token,'fixture-login-token');
+  assert.equal(deferred._token,'fixture-login-token');
+  assert.equal(deferred.authToken,'fixture-login-token');
+  assert.equal(deferred.csrfToken,'fixture-csrf');
+
+  const raw=[];
+  const apiRoot={
+    __authToken:'',
+    __csrfToken:'',
+    AppSessionResume:null
+  };
+  const apiCtx={
+    root2:apiRoot,store,
+    txt:v=>v==null?'':String(v),
+    data:p=>p==null?{}:Array.isArray(p)?p.slice():typeof p==='object'?Object.assign({},p):{value:p},
+    ctx:()=>({fixture:true}),
+    __appIsFn:v=>typeof v==='function',
+    RT:{rawRun:async(method,payload)=>{raw.push({method,payload});return {ok:true,data:{}}}},
+    Promise,Object,Array
+  };
+  const baseStart=index.indexOf('function base(m,p,options)');
+  const baseEnd=index.indexOf('function saveResume',baseStart);
+  assert.ok(baseStart>=0&&baseEnd>baseStart,'critical API base missing');
+  vm.runInNewContext(index.slice(baseStart,baseEnd),apiCtx);
+  await apiCtx.base('getDeferredInclude',{name:'Scripts_Page_Dashboard'});
+  await apiCtx.base('apiGetDashboardBundle',{source:'fixture-r353'});
+  ok('login token is committed before Dashboard asset and business requests',()=>{
+    assert.equal(raw[0].method,'getDeferredInclude');
+    assert.equal(raw[0].payload.token,'fixture-login-token');
+    assert.equal(raw[1].method,'apiRouter');
+    assert.equal(raw[1].payload.method,'apiGetDashboardBundle');
+    assert.equal(raw[1].payload.payload.token,'fixture-login-token');
+  });
+
+  store.set('auth.token','');
+  store.set('auth.csrfToken','');
+  assert.throws(()=>reqCtx.deferredRequestPayloadCurrent('Scripts_Page_Dashboard'),e=>e.code==='DASHBOARD_AUTH_TOKEN_NOT_READY');
+  ok('Dashboard deferred asset fails fast before GAS when auth token is not ready',()=>{
+    assert.equal(root2.__APP_DEFERRED_AUTH_HANDOFF_CURRENT__.tokenReady,false);
+    assert.equal(root2.__APP_DEFERRED_AUTH_HANDOFF_CURRENT__.dashboard,true);
+  });
+}
+
 ok('auth session and deferred assets bypass the application router',()=>{
   assert.ok(index.includes('__APP_DIRECT_BOOTSTRAP_TRANSPORT_CURRENT__="direct-bootstrap-r349"'));
   assert.ok(index.includes('directTransportMethod=/^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|getDeferredInclude)$/i.test(a)'));
@@ -127,6 +208,10 @@ ok('auth session and deferred assets bypass the application router',()=>{
   assert.ok(baseBlock.includes('directTransportMethod?RT.rawRun(a,q,options)'));
   assert.ok(baseBlock.includes('RT.rawRun("apiRouter",{method:a,payload:q},options)'));
   assert.ok(baseBlock.includes('q.token=t'),'direct deferred load must receive authenticated token');
+  assert.ok(index.includes('function deferredRequestPayloadCurrent(name)'));
+  assert.ok(index.includes('deferred-auth-handoff-r353'));
+  assert.ok(index.includes('DASHBOARD_AUTH_TOKEN_NOT_READY'));
+  assert.ok(index.includes('root2.AppApi.call("getDeferredInclude",requestPayload)'));
   assert.ok(gateway.includes('read:+env.GAS_READ_TIMEOUT_MS||75000'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:60000'));
   assert.ok(config.includes('apiGetDashboardBundle:70000'));
@@ -166,7 +251,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.12-deferred-loader-scope'"));
+  assert.ok(workflow.includes("grep -q 'cr8.13-authenticated-deferred-handoff'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -270,8 +355,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.12 Deferred Loader Scope Fix'));
-  assert.ok(config.includes('current-quality-gate-r352'));
+  assert.ok(config.includes('CR-8.13 Authenticated Deferred Handoff'));
+  assert.ok(config.includes('current-quality-gate-r353'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
@@ -359,9 +444,10 @@ ok('frontend performance cache policy remains bounded',()=>{
 }
 
 {
-  const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},RT:{recordWarning(){}},deferredStatusCurrent(){},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h};
+  const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},RT:{recordWarning(){}},deferredStatusCurrent(){},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h,__appObserve(){}};
   let attempts=0;
-  ctx.root2={AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
+  ctx.store={get:(k,d)=>k==='auth.token'?'fixture-token':d};
+  ctx.root2={__APP_ASSET_STAMP__:'fixture-r353',AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
   const start=index.indexOf('function deferredHtmlCurrent('),end=index.indexOf('function prefetchPartial(',start);
   vm.runInNewContext(index.slice(start,end),ctx);
   await assert.rejects(ctx.fetchPartialHtml('Scripts_Page_Dashboard'),e=>e.code==='DEFERRED_INCLUDE_INVALID_HTML');
@@ -386,8 +472,8 @@ ok('frontend performance cache policy remains bounded',()=>{
     document:{documentElement:{setAttribute(){}}}
   };
   const critical=scripts(index).find(s=>s.includes('function fetchPartialHtml(n)'));
-  const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
-  vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function'});
+  const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;store={get:function(k,d){return k==="auth.token"?"fixture-token":d}};root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
+  vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function',__appObserve(){}});
   assert.equal(await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* dashboard fixture */</script>');
   assert.ok((await w.scopeTest.fetchPartialHtml('Scripts_Page_Meeting::meeting')).includes('window.initMeetingPage'));
   w.scopeTest.invalidatePartial('Scripts_Page_Dashboard');
