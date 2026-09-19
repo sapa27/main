@@ -59,7 +59,10 @@ jobs:
               resultType:Array.isArray(result)?'array':typeof result,
               resultOk:result&&typeof result==='object'?result.ok:null,
               resultCode:result&&typeof result==='object'?String(result.errorCode||result.code||result.error&&result.error.code||''):'',
-              resultMsg:result&&typeof result==='object'?String(result.msg||result.message||result.error&&result.error.message||'').slice(0,300):''
+              resultMsg:result&&typeof result==='object'?String(result.msg||result.message||result.error&&result.error.message||'').slice(0,300):'',
+              gatewayCode:json&&json.error?String(json.error.code||''):'',
+              gatewayMsg:json&&json.error?String(json.error.message||'').slice(0,300):'',
+              raw:raw.slice(0,1000)
             }));
             if(r.status!==200) process.exit(2);
             if(json.transportOk!==true) process.exit(3);
