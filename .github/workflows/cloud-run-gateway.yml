@@ -34,40 +34,33 @@ jobs:
           node <<'NODE'
           (async()=>{
             const base=process.env.LIVE_ORIGIN;
-            const body={
-              method:'apiRouter',
-              payload:{
-                method:'apiGetDashboardBundle',
-                payload:{source:'cr8.8-live-router-diagnostic',forceFresh:true,noCache:true,bypassCache:true}
-              },
-              timeoutMs:35000
-            };
-            const r=await fetch(base+'/api/router',{
-              method:'POST',
-              headers:{'Content-Type':'application/json','Origin':base,'X-Request-ID':'cr88-live-router-diag'},
-              body:JSON.stringify(body)
-            });
-            const text=await r.text();
-            let json={}; try{json=JSON.parse(text)}catch(_){}
-            const raw=JSON.stringify(json);
-            const result=json&&json.result;
-            console.log('DIAG_CR88_ROUTER',JSON.stringify({
-              http:r.status,
-              contract:r.headers.get('x-gas-response-contract')||'',
-              transportOk:json.transportOk===true,
-              denied:raw.includes('CLOUD_RUN_DIRECT_JSON_FUNCTION_DENIED'),
-              resultType:Array.isArray(result)?'array':typeof result,
-              resultOk:result&&typeof result==='object'?result.ok:null,
-              resultCode:result&&typeof result==='object'?String(result.errorCode||result.code||result.error&&result.error.code||''):'',
-              resultMsg:result&&typeof result==='object'?String(result.msg||result.message||result.error&&result.error.message||'').slice(0,300):'',
-              gatewayCode:json&&json.error?String(json.error.code||''):'',
-              gatewayMsg:json&&json.error?String(json.error.message||'').slice(0,300):'',
-              raw:raw.slice(0,1000)
-            }));
-            if(r.status!==200) process.exit(2);
-            if(json.transportOk!==true) process.exit(3);
-            if(raw.includes('CLOUD_RUN_DIRECT_JSON_FUNCTION_DENIED')) process.exit(4);
-          })().catch(e=>{console.error('DIAG_FATAL',e&&e.stack||e);process.exit(5)});
+            async function probe(method,payload){
+              const body={method:'apiRouter',payload:{method,payload:payload||{}},timeoutMs:35000};
+              const r=await fetch(base+'/api/router',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Origin':base,'X-Request-ID':'cr88-live-router-'+method},
+                body:JSON.stringify(body)
+              });
+              const text=await r.text();
+              let json={}; try{json=JSON.parse(text)}catch(_){}
+              const raw=JSON.stringify(json), result=json&&json.result;
+              const row={
+                method,http:r.status,contract:r.headers.get('x-gas-response-contract')||'',
+                transportOk:json.transportOk===true,denied:raw.includes('CLOUD_RUN_DIRECT_JSON_FUNCTION_DENIED'),
+                resultType:Array.isArray(result)?'array':typeof result,
+                resultOk:result&&typeof result==='object'?result.ok:null,
+                resultCode:result&&typeof result==='object'?String(result.errorCode||result.code||result.error&&result.error.code||''):'',
+                gatewayCode:json&&json.error?String(json.error.code||''):'',
+                gatewayMsg:json&&json.error?String(json.error.message||'').slice(0,240):''
+              };
+              console.log('DIAG_CR88_ROUTER',JSON.stringify(row));
+              return row;
+            }
+            const session=await probe('apiSessionCheck',{});
+            const dash=await probe('apiGetDashboardBundle',{source:'cr8.8-live-router-diagnostic',forceFresh:true,noCache:true,bypassCache:true});
+            if(session.denied||dash.denied) process.exit(4);
+            if(session.http!==200||session.transportOk!==true) process.exit(5);
+          })().catch(e=>{console.error('DIAG_FATAL',e&&e.stack||e);process.exit(6)});
           NODE
 
       - name: Stage production frontend
