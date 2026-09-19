@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.8-gas-router-wire-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.9-direct-bootstrap-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -94,8 +94,8 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.ok(transport.includes('function appResultCacheable(v)'));
   assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
   assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
-  assert.ok(config.includes('CR-8.8 GAS Router Wire'));
-  assert.ok(config.includes('current-quality-gate-r348'));
+  assert.ok(config.includes('CR-8.9 Direct Bootstrap'));
+  assert.ok(config.includes('current-quality-gate-r349'));
   const wireStart=transport.indexOf('function invocation(fn,a)');
   const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
   assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
@@ -115,6 +115,21 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.equal(G.wire,'apiRouter');
   assert.equal(G.routed,false);
   assert.equal(G.wirePayload.method,'apiSearchCasesLite');
+});
+
+ok('auth session and deferred assets bypass the application router',()=>{
+  assert.ok(index.includes('__APP_DIRECT_BOOTSTRAP_TRANSPORT_CURRENT__="direct-bootstrap-r349"'));
+  assert.ok(index.includes('directTransportMethod=/^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|getDeferredInclude)$/i.test(a)'));
+  const baseStart=index.indexOf('function base(m,p,options)');
+  const baseEnd=index.indexOf('function saveResume',baseStart);
+  assert.ok(baseStart>=0&&baseEnd>baseStart,'critical API base missing');
+  const baseBlock=index.slice(baseStart,baseEnd);
+  assert.ok(baseBlock.includes('directTransportMethod?RT.rawRun(a,q,options)'));
+  assert.ok(baseBlock.includes('RT.rawRun("apiRouter",{method:a,payload:q},options)'));
+  assert.ok(baseBlock.includes('q.token=t'),'direct deferred load must receive authenticated token');
+  assert.ok(gateway.includes('read:+env.GAS_READ_TIMEOUT_MS||75000'));
+  assert.ok(config.includes('REQUEST_TIMEOUT_MS:60000'));
+  assert.ok(config.includes('apiGetDashboardBundle:70000'));
 });
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
@@ -151,7 +166,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.8-gas-router-wire'"));
+  assert.ok(workflow.includes("grep -q 'cr8.9-direct-bootstrap'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -255,8 +270,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.8 GAS Router Wire'));
-  assert.ok(config.includes('current-quality-gate-r348'));
+  assert.ok(config.includes('CR-8.9 Direct Bootstrap'));
+  assert.ok(config.includes('current-quality-gate-r349'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
@@ -308,7 +323,7 @@ ok('interaction paths avoid blocking work on tap',()=>{
 });
 
 ok('frontend performance cache policy remains bounded',()=>{
-  for(const token of ['REQUEST_TIMEOUT_MS:45000','WRITE_REQUEST_TIMEOUT_MS:120000','AI_DOCUMENT_TIMEOUT_MS:300000','RPC_READ_CACHE_MAX_ENTRIES:96','apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000'])assert.ok(config.includes(token),token);
+  for(const token of ['REQUEST_TIMEOUT_MS:60000','WRITE_REQUEST_TIMEOUT_MS:120000','AI_DOCUMENT_TIMEOUT_MS:300000','RPC_READ_CACHE_MAX_ENTRIES:96','apiGetDashboardBundle:70000','apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000'])assert.ok(config.includes(token),token);
 });
 
 console.log('# '+passed+' CR-7 regression groups passed');

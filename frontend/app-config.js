@@ -3,17 +3,17 @@ var CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app",
 R="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62",
 AV="asset-manifest-r331-v62-reliability",
 SF="cloud-run-single-source-r331-v62",
-BN="V1.2 Cloud Run + GAS Canonical Response CR-8.8 GAS Router Wire",
+BN="V1.2 Cloud Run + GAS Canonical Response CR-8.9 Direct Bootstrap",
 RD="2026-09-19",FR="r331-v62",
-HA="cloud-run-canonical-frontend-r331-v62-cr8.8-gas-router-wire-20260919",
-QG="current-quality-gate-r348",TV="gas-direct-json-v1",
+HA="cloud-run-canonical-frontend-r331-v62-cr8.9-direct-bootstrap-20260919",
+QG="current-quality-gate-r349",TV="gas-direct-json-v1",
 LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg",
 P=Object.freeze({releaseStamp:R,assetStamp:AV,sourceFingerprint:SF,buildName:BN,releaseDate:RD,frontendRevision:FR,hostArtifact:HA,qualityGate:QG,transportProtocolVersion:TV,rpcProtocolVersion:TV});
 r.APP_BUILD_PROVENANCE=P;
 r.APP_RUNTIME_CONFIG={
  CLOUD_RUN_GATEWAY_URL:CR_URL,CLOUD_RUN_ALL_PRIMARY:!0,
- REQUEST_TIMEOUT_MS:45000,WRITE_REQUEST_TIMEOUT_MS:120000,AI_DOCUMENT_TIMEOUT_MS:300000,
- RPC_READ_TIMEOUT_BY_METHOD_MS:{apiSessionResume:30000,apiSessionCheck:30000,apiGetDashboardBundle:35000,apiSearchCasesLite:35000,apiGetTracking:35000,apiGetCommitteeMeetingSystem:35000,apiBudgetGetSummary:35000},
+ REQUEST_TIMEOUT_MS:60000,WRITE_REQUEST_TIMEOUT_MS:120000,AI_DOCUMENT_TIMEOUT_MS:300000,
+ RPC_READ_TIMEOUT_BY_METHOD_MS:{apiSessionResume:30000,apiSessionCheck:30000,apiGetDashboardBundle:70000,apiSearchCasesLite:45000,apiGetTracking:45000,apiGetCommitteeMeetingSystem:45000,apiBudgetGetSummary:45000},
  RPC_READ_CACHE_TTL_MS:60000,RPC_READ_STALE_TTL_MS:600000,RPC_READ_CACHE_MAX_ENTRIES:96,
  RPC_READ_CACHE_TTL_BY_METHOD_MS:{apiGetDashboardBundle:180000,apiGetTracking:300000,apiGetPeoplePageBundle:180000,apiGetPetitioners:180000,apiSearchCasesLite:180000,apiGetMeetingLookupOptions:300000,apiGetMeetingHistory:120000,apiGetLetters:120000,apiGetCanonicalCaseBundle:120000,apiListCommitteeMeetings:120000,apiGetCommitteeMeetingSystem:120000}
 };
