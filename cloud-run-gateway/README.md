@@ -46,3 +46,7 @@ Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> fina
 - Each Cloud Run host uses its own origin, including canary hosts. The configured URL is the fallback for other hosts.
 - Gateway deadlines use the nested business method for router requests, preserving write and AI time budgets without changing the GAS request or response envelope.
 - Regression tests exercise the real browser transport entry point with mocked GAS responses and verify malformed-asset recovery. They do not contain production credentials.
+
+## CR-8.11 Runtime Recovery Diagnostics
+
+The early warning owner now reports once instead of recursing into itself. Reports contain only a topic, validated error code, asset name, and a recognized JavaScript identifier hint; request payloads and credentials are excluded. Deferred assets expose fetch/execute status and byte counts on the document element, making a failed controller distinguishable from an empty dataset. Structured GAS error codes remain available to session recovery.
