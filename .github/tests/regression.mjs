@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.7-dashboard-critical-first-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.8-gas-router-wire-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -82,6 +82,41 @@ ok('browser transport is Cloud Run only',()=>{
   assert.ok(!transport.includes('rpcVersion'));
 });
 
+ok('application APIs use canonical GAS apiRouter wire',()=>{
+  assert.ok(transport.includes('function directGasFunction(fn)'));
+  assert.ok(transport.includes('function gasWire(I)'));
+  assert.ok(transport.includes('wire:"apiRouter",wirePayload:{method:I.method,payload:I.payload==null?{}:I.payload},routed:true'));
+  assert.ok(transport.includes('var I=invocation(f,a),G=gasWire(I)'));
+  assert.ok(transport.includes('method:G.wire,payload:G.wirePayload'));
+  assert.ok(transport.includes('routedThroughApiRouter:G.routed'));
+  assert.ok(transport.includes('__APP_GAS_ROUTER_WIRE_CURRENT__="gas-router-wire-r348"'));
+  for(const direct of ['apiRouter','apiLogin','apiSessionResume','apiSessionCheck','apiLogout','getDeferredInclude'])assert.ok(transport.includes(direct),'missing direct GAS transport function '+direct);
+  assert.ok(transport.includes('function appResultCacheable(v)'));
+  assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
+  assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
+  assert.ok(config.includes('CR-8.8 GAS Router Wire'));
+  assert.ok(config.includes('current-quality-gate-r348'));
+  const wireStart=transport.indexOf('function invocation(fn,a)');
+  const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
+  assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
+  const ctx={t:v=>v==null?'':String(v)};
+  vm.runInNewContext(transport.slice(wireStart,wireEnd),ctx);
+  let I=ctx.invocation('apiGetDashboardBundle',{token:'t',forceFresh:true}),G=ctx.gasWire(I);
+  assert.equal(I.method,'apiGetDashboardBundle');
+  assert.equal(G.wire,'apiRouter');
+  assert.equal(G.routed,true);
+  assert.equal(G.wirePayload.method,'apiGetDashboardBundle');
+  assert.equal(G.wirePayload.payload.forceFresh,true);
+  I=ctx.invocation('apiLogin',{username:'u'});G=ctx.gasWire(I);
+  assert.equal(G.wire,'apiLogin');
+  assert.equal(G.routed,false);
+  I=ctx.invocation('apiRouter',{method:'apiSearchCasesLite',payload:{query:'x'}});G=ctx.gasWire(I);
+  assert.equal(I.method,'apiSearchCasesLite');
+  assert.equal(G.wire,'apiRouter');
+  assert.equal(G.routed,false);
+  assert.equal(G.wirePayload.method,'apiSearchCasesLite');
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8-gas-canonical-response-r340'"));
@@ -116,7 +151,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.7-dashboard-critical-first'"));
+  assert.ok(workflow.includes("grep -q 'cr8.8-gas-router-wire'"));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -220,8 +255,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.7 Dashboard Critical First'));
-  assert.ok(config.includes('current-quality-gate-r347'));
+  assert.ok(config.includes('CR-8.8 GAS Router Wire'));
+  assert.ok(config.includes('current-quality-gate-r348'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
