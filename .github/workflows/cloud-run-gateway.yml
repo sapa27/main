@@ -27,6 +27,51 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - name: Diagnose live Dashboard deferred source
+        env:
+          LIVE_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+        run: |
+          node <<'NODE'
+          (async()=>{
+            const base=process.env.LIVE_ORIGIN;
+            const r=await fetch(base+'/api/router',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Origin':base,'X-Request-ID':'cr87-dashboard-source-diag'},
+              body:JSON.stringify({method:'getDeferredInclude',payload:{name:'Scripts_Page_Dashboard',forceFresh:true,assetStamp:'cr87-live-source-diag'}})
+            });
+            const text=await r.text();
+            let json={}; try{json=JSON.parse(text)}catch(_){}
+            function strings(v,out=[],depth=0){
+              if(depth>8||v==null)return out;
+              if(typeof v==='string'){if(v.length>100)out.push(v);return out}
+              if(typeof v==='object')for(const k of Object.keys(v))strings(v[k],out,depth+1);
+              return out;
+            }
+            const candidates=strings(json.result||json).sort((a,b)=>b.length-a.length);
+            const src=candidates[0]||'';
+            const exactRunner='root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner) ? root.AppPageKit.apiRunner(method, payload, "Dashboard", dashboardConfig("dashboardApiTimeoutMs", 3e4)) : Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))';
+            const responseRe=/res\s*&&\s*res\.ok\s*!==\s*(?:!0|true)\s*\?\s*dashboardErrorCodeFrom\s*\(/;
+            console.log('DIAG_CR87_DASH',JSON.stringify({
+              http:r.status,
+              transportOk:json.transportOk,
+              resultType:Array.isArray(json.result)?'array':typeof json.result,
+              resultKeys:json.result&&typeof json.result==='object'?Object.keys(json.result).slice(0,30):[],
+              candidateCount:candidates.length,
+              sourceLength:src.length,
+              hasRegister:src.includes('AppPages.register("dashboard"')||src.includes("AppPages.register('dashboard'"),
+              hasApiRunner:src.includes('AppPageKit.apiRunner'),
+              exactRunnerMatch:src.includes(exactRunner),
+              responseGuardMatch:responseRe.test(src),
+              alreadyResponseSafe:src.includes('Object.prototype.hasOwnProperty.call(res,"ok")'),
+              hasApiGetDashboardBundle:src.includes('apiGetDashboardBundle')
+            }));
+            for(const needle of ['AppPageKit.apiRunner','apiGetDashboardBundle','responseCode']){
+              const i=src.indexOf(needle);
+              if(i>=0) console.log('DIAG_SNIP_'+needle.replace(/[^A-Za-z0-9]/g,'_'),src.slice(Math.max(0,i-500),i+1000).replace(/\s+/g,' ').slice(0,1800));
+            }
+          })().catch(e=>{console.error('DIAG_FATAL',e&&e.stack||e);process.exitCode=1});
+          NODE
+
       - name: Stage production frontend
         run: |
           set -euo pipefail
