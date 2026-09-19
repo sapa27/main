@@ -45,6 +45,7 @@ jobs:
         run: |
           node <<'NODE'
           const crypto=require('node:crypto');
+          (async()=>{
           const base=process.env.LIVE_ORIGIN;
           async function rpc(method,payload,timeoutMs=45000){
             const r=await fetch(base+'/api/router',{
@@ -104,6 +105,7 @@ jobs:
             appMessage:app&&typeof app==='object'?(app.error||app.message||app.msg||''):'',
             keys:data&&typeof data==='object'?Object.keys(data).slice(0,30):[]
           }));
+          })().catch(err=>{console.error('DIAG_FATAL',err&&err.stack||err);process.exitCode=1});
           NODE
       - name: Validate CR-8 frontend and gateway
         run: |
