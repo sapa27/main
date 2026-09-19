@@ -37,7 +37,7 @@ ok('Cloud Run frontend identity is canonical',()=>{
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.5-dashboard-data-recovery-20260919'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.6-dashboard-response-contract-20260919'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -208,6 +208,19 @@ ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   const op=index.slice(opStart,opEnd);
   assert.ok(!op.includes('initMeetingPage'),'operational check must still have one lifecycle owner');
   assert.ok(!op.includes('meetingPageInitialized'),'DOM must not become an independent lifecycle owner');
+});
+
+ok('Dashboard response contract survives canonical API unwrap',()=>{
+  assert.ok(transport.includes('function dashboardResponseCompat(I,v)'));
+  assert.ok(transport.includes('I.method!=="apiGetDashboardBundle"'));
+  assert.ok(transport.includes('data.ok=true'));
+  assert.ok(transport.includes('__dashboardResponseContract="dashboard-response-contract-r346"'));
+  assert.ok(transport.includes('__APP_DASHBOARD_RESPONSE_CONTRACT_CURRENT__="dashboard-response-contract-r346"'));
+  assert.ok(transport.includes('function appResultCacheable(v)'));
+  assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
+  assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
+  assert.ok(config.includes('CR-8.6 Dashboard Response Contract'));
+  assert.ok(config.includes('current-quality-gate-r346'));
 });
 
 ok('Dashboard controller and data recovery are bounded after login',()=>{
