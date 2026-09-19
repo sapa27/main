@@ -27,6 +27,46 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+      - name: Diagnose live CR-8.8 GAS router wire
+        env:
+          LIVE_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+        run: |
+          node <<'NODE'
+          (async()=>{
+            const base=process.env.LIVE_ORIGIN;
+            const body={
+              method:'apiRouter',
+              payload:{
+                method:'apiGetDashboardBundle',
+                payload:{source:'cr8.8-live-router-diagnostic',forceFresh:true,noCache:true,bypassCache:true}
+              },
+              timeoutMs:35000
+            };
+            const r=await fetch(base+'/api/router',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Origin':base,'X-Request-ID':'cr88-live-router-diag'},
+              body:JSON.stringify(body)
+            });
+            const text=await r.text();
+            let json={}; try{json=JSON.parse(text)}catch(_){}
+            const raw=JSON.stringify(json);
+            const result=json&&json.result;
+            console.log('DIAG_CR88_ROUTER',JSON.stringify({
+              http:r.status,
+              contract:r.headers.get('x-gas-response-contract')||'',
+              transportOk:json.transportOk===true,
+              denied:raw.includes('CLOUD_RUN_DIRECT_JSON_FUNCTION_DENIED'),
+              resultType:Array.isArray(result)?'array':typeof result,
+              resultOk:result&&typeof result==='object'?result.ok:null,
+              resultCode:result&&typeof result==='object'?String(result.errorCode||result.code||result.error&&result.error.code||''):'',
+              resultMsg:result&&typeof result==='object'?String(result.msg||result.message||result.error&&result.error.message||'').slice(0,300):''
+            }));
+            if(r.status!==200) process.exit(2);
+            if(json.transportOk!==true) process.exit(3);
+            if(raw.includes('CLOUD_RUN_DIRECT_JSON_FUNCTION_DENIED')) process.exit(4);
+          })().catch(e=>{console.error('DIAG_FATAL',e&&e.stack||e);process.exit(5)});
+          NODE
+
       - name: Stage production frontend
         run: |
           set -euo pipefail
