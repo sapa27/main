@@ -3,7 +3,7 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const NAME='sapa27-cloud-run-gateway',REV='cr8-gas-canonical-response-r340',GAS_RESPONSE_CONTRACT='gas-direct-json-v1',PUBLIC_DIR=path.join(__dirname,'public');
 const txt=v=>v==null?'':String(v);
 function sourceSha(env=process.env){return txt(env.APP_SOURCE_SHA).trim()}
-function cfg(env=process.env){return{port:+env.PORT||8080,gas:txt(env.GAS_WEB_APP_URL),origins:txt(env.GATEWAY_ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean),read:+env.GAS_READ_TIMEOUT_MS||45000,write:+env.GAS_WRITE_TIMEOUT_MS||120000,ai:+env.GAS_AI_TIMEOUT_MS||300000,maxBody:+env.MAX_BODY_BYTES||8388608}}
+function cfg(env=process.env){return{port:+env.PORT||8080,gas:txt(env.GAS_WEB_APP_URL),origins:txt(env.GATEWAY_ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean),read:+env.GAS_READ_TIMEOUT_MS||75000,write:+env.GAS_WRITE_TIMEOUT_MS||120000,ai:+env.GAS_AI_TIMEOUT_MS||300000,maxBody:+env.MAX_BODY_BYTES||8388608}}
 function gasUrl(v){try{const u=new URL(v);if(u.protocol!=='https:'||u.hostname!=='script.google.com'||!/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.pathname))return'';return u.origin+u.pathname}catch(_){return''}}
 function requestHost(req){return txt(req.headers['x-forwarded-host']||req.headers.host).split(',')[0].trim().toLowerCase()}
 function sameOrigin(req,o){if(!o)return false;try{return new URL(o).host.toLowerCase()===requestHost(req)}catch(_){return false}}
