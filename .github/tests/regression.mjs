@@ -263,7 +263,8 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('for attempt in 1 2 3; do'));
   assert.ok(workflow.includes('Production upstream health failed after 3 attempts'));
   assert.ok(!workflow.includes('upstream health degraded'));
-  assert.ok(!workflow.includes('sapa27.github.io'));
+  assert.ok(workflow.includes('ANTI_PUBLIC_ORIGIN: https://sapa27.github.io'));
+  assert.ok(workflow.includes('ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec'));
   assert.ok(!workflow.includes('github-pages-rpc'));
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
 });
