@@ -219,8 +219,9 @@ ok('auth session and deferred assets bypass the application router',()=>{
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
-  assert.ok(gateway.includes("REV='cr8-gas-canonical-response-r340'"));
+  assert.ok(gateway.includes("REV='cr8.14-anti-public-gateway'"));
   assert.ok(gateway.includes("GAS_RESPONSE_CONTRACT='gas-direct-json-v1'"));
+  assert.ok(gateway.includes("ANTI_RESPONSE_CONTRACT='anti-public-json-v1'"));
   assert.ok(gateway.includes("transport:'gas-direct-json'"));
   assert.ok(gateway.includes('validateGasEnvelope'));
   assert.ok(gateway.includes('out.envelope'));
@@ -229,6 +230,8 @@ ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   assert.ok(gateway.includes('responseContract:GAS_RESPONSE_CONTRACT'));
   assert.ok(gateway.includes('legacyFallbackEnabled:false'));
   assert.ok(gateway.includes('sourceSha:sourceSha(env)'));
+  assert.ok(gateway.includes("u.pathname==='/api/anti'"));
+  assert.ok(gateway.includes("action!=='dashboard'&&action!=='search'"));
   for(const token of ['sapa27.github.io','github-pages-rpc','GAS_PARENT_ORIGIN','legacyRpc','legacyJsonp','github-rpc'])assert.ok(!gateway.includes(token),'retired gateway token: '+token);
 });
 
