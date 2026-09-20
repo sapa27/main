@@ -65,7 +65,9 @@ jobs:
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
       DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
       GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+      ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec
       CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+      ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
     steps:
       - uses: actions/checkout@v4
       - name: Stage production frontend
@@ -76,7 +78,7 @@ jobs:
       - name: Validate deployment variables
         run: |
           set -euo pipefail
-          for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL CLOUD_RUN_ORIGIN; do
+          for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN; do
             test -n "${!name:-}" || { echo "Missing $name" >&2; exit 1; }
           done
       - uses: google-github-actions/auth@v3
@@ -90,7 +92,7 @@ jobs:
       - name: Deploy CR-8 GAS-canonical canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN\,$ANTI_PUBLIC_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
           canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
 
@@ -113,7 +115,7 @@ jobs:
           echo "Canary version: $version"
           echo "Canary health: $health"
           echo "Canary upstream: $upstream"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8-gas-canonical-response-r340"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.14-anti-public-gateway"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$CANARY_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
@@ -145,7 +147,7 @@ jobs:
       - name: Promote CR-8 GAS-canonical to production
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN\,$ANTI_PUBLIC_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
 
       - name: Smoke final CR-8 production
         run: |
@@ -167,7 +169,7 @@ jobs:
           echo "Version: $version"
           echo "Health: $health"
           echo "Upstream: $upstream"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8-gas-canonical-response-r340"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="cloud-run"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.14-anti-public-gateway"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="cloud-run"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$url/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
