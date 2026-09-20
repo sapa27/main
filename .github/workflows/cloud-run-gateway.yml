@@ -92,7 +92,7 @@ jobs:
       - name: Deploy CR-8 GAS-canonical canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN\,$ANTI_PUBLIC_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
           canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
 
@@ -147,7 +147,7 @@ jobs:
       - name: Promote CR-8 GAS-canonical to production
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "GAS_WEB_APP_URL=$GAS_WEB_APP_URL,ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL,GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN\,$ANTI_PUBLIC_ORIGIN,APP_SOURCE_SHA=$GITHUB_SHA"
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
 
       - name: Smoke final CR-8 production
         run: |
