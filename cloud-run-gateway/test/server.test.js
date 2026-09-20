@@ -2,12 +2,13 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,GAS_RESPONSE_CONTRACT,cfg,gasUrl,allowed,isWrite,effectiveMethod,timeout,validateGasEnvelope,directRpc,createServer}=require('../server');
+const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,cfg,gasUrl,allowed,isWrite,effectiveMethod,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
   GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec',
-  GATEWAY_ALLOWED_ORIGINS:ORIGIN,
+  ANTI_GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec',
+  GATEWAY_ALLOWED_ORIGINS:ORIGIN+',https://sapa27.github.io',
   APP_SOURCE_SHA:'test-source-sha'
 };
 
@@ -21,8 +22,9 @@ async function withServer(fn,env=ENV){
 
 test('CR-7 configuration is direct-only',()=>{
   const c=cfg(ENV);
-  assert.equal(REV,'cr8-gas-canonical-response-r340');
+  assert.equal(REV,'cr8.14-anti-public-gateway');
   assert.equal(GAS_RESPONSE_CONTRACT,'gas-direct-json-v1');
+  assert.equal(ANTI_RESPONSE_CONTRACT,'anti-public-json-v1');
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(allowed(ORIGIN,c),true);
   assert.equal(allowed('https://example.invalid',c),false);
@@ -46,11 +48,13 @@ test('readiness and version expose direct-only CR-7 contract',async()=>withServe
   const ready=await (await fetch(base+'/ready')).json();
   const version=await (await fetch(base+'/version')).json();
   assert.equal(ready.ok,true);
-  assert.equal(ready.gateway,'cr8-gas-canonical-response-r340');
+  assert.equal(ready.gateway,'cr8.14-anti-public-gateway');
   assert.equal(ready.gasTransport,'direct-json-primary');
   assert.equal(ready.responseContract,'gas-direct-json-v1');
   assert.equal(ready.legacyFallbackEnabled,false);
   assert.equal(ready.sourceSha,'test-source-sha');
+  assert.equal(ready.antiPublic.configured,true);
+  assert.equal(ready.antiPublic.path,'/api/anti');
   assert.equal(version.frontendHost,'cloud-run');
   assert.equal(version.gasTransport,'direct-json-primary');
   assert.equal(version.responseContract,'gas-direct-json-v1');
@@ -170,5 +174,56 @@ test('directRpc rejects non-canonical GAS envelopes',async()=>{
       directRpc('apiSessionCheck',{},30000,cfg(ENV)),
       e=>e&&e.code==='GAS_RESPONSE_CONTRACT_MISMATCH'
     );
+  }finally{global.fetch=original}
+});
+
+test('anti public request validation is allowlist-only',()=>{
+  assert.deepEqual(validateAntiRequest({action:'dashboard',payload:{visitorId:'visitor-1'}}),{action:'dashboard',payload:{visitorId:'visitor-1'}});
+  assert.deepEqual(validateAntiRequest({action:'search',payload:{recNo:'1111/2569',clientToken:'token-1'}}),{action:'search',payload:{recNo:'1111/2569',clientToken:'token-1'}});
+  assert.throws(()=>validateAntiRequest({action:'delete',payload:{}}),e=>e&&e.code==='ANTI_ACTION_NOT_ALLOWED');
+  assert.throws(()=>validateAntiRequest({action:'search',payload:{recNo:''}}),e=>e&&e.code==='ANTI_REC_NO_INVALID');
+});
+
+test('anti public response contract is strict',()=>{
+  assert.equal(validateAntiEnvelope({apiVersion:'1',ok:true,data:{counts:{total:84}}},'dashboard').ok,true);
+  assert.equal(validateAntiEnvelope({apiVersion:'1',ok:true,found:false},'search').found,false);
+  assert.throws(()=>validateAntiEnvelope({apiVersion:'1',ok:true,data:{}},'dashboard'),e=>e&&e.code==='ANTI_RESPONSE_CONTRACT_MISMATCH');
+  assert.throws(()=>validateAntiEnvelope({apiVersion:'2',ok:true,found:false},'search'),e=>e&&e.code==='ANTI_RESPONSE_CONTRACT_MISMATCH');
+});
+
+test('directAnti posts JSON to the isolated anti GAS endpoint',async()=>{
+  const original=global.fetch;
+  let call=null;
+  global.fetch=async(url,opt={})=>{
+    call={url:String(url),opt};
+    return {ok:true,status:200,text:async()=>JSON.stringify({apiVersion:'1',ok:true,data:{counts:{total:84,new:2,inProgress:44,completed:38,users:1}}})};
+  };
+  try{
+    const out=await directAnti('dashboard',{visitorId:'visitor-1'},30000,cfg(ENV));
+    assert.equal(out.envelope.data.counts.total,84);
+    assert.equal(out.meta.responseContract,'anti-public-json-v1');
+    assert.equal(call.url,ENV.ANTI_GAS_WEB_APP_URL);
+    assert.deepEqual(JSON.parse(call.opt.body),{action:'dashboard',payload:{visitorId:'visitor-1'}});
+  }finally{global.fetch=original}
+});
+
+test('api/anti permits GitHub Pages and rejects non-public actions before GAS',async()=>{
+  const original=global.fetch;
+  global.fetch=async(url,opt={})=>{
+    if(String(url).startsWith('http://127.0.0.1:'))return original(url,opt);
+    return {ok:true,status:200,text:async()=>JSON.stringify({apiVersion:'1',ok:true,found:true,data:{recNo:'1111/2569'}})};
+  };
+  try{
+    await withServer(async base=>{
+      const ok=await fetch(base+'/api/anti',{method:'POST',headers:{Origin:'https://sapa27.github.io','Content-Type':'application/json'},body:JSON.stringify({action:'search',payload:{recNo:'1111/2569'}})});
+      const value=await ok.json();
+      assert.equal(ok.status,200);
+      assert.equal(ok.headers.get('access-control-allow-origin'),'https://sapa27.github.io');
+      assert.equal(ok.headers.get('x-gas-response-contract'),'anti-public-json-v1');
+      assert.equal(value.found,true);
+      const denied=await fetch(base+'/api/anti',{method:'POST',headers:{Origin:'https://sapa27.github.io','Content-Type':'application/json'},body:JSON.stringify({action:'delete',payload:{}})});
+      assert.equal(denied.status,403);
+      assert.equal((await denied.json()).error.code,'ANTI_ACTION_NOT_ALLOWED');
+    });
   }finally{global.fetch=original}
 });
