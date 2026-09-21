@@ -502,4 +502,23 @@ ok('early warning reporting terminates and excludes request secrets',()=>{
   assert.equal(messages.length,3,'observe fallback must also be non-recursive');
 });
 
+ok('Meeting canonical adapter is registered with the active lifecycle owner',()=>{
+  const source=index.slice(index.indexOf('function ensureCanonicalPageControllerCurrent(id){'),index.indexOf('function pageControllerReadyCurrent(id)'));
+  const adapter={__canonicalLifecycle:true,mount(){return true},reload(){return true},dispose(){return true}};
+  let active=null,registrations=0;
+  const window={AppPages:{get:()=>adapter},AppLifecycle:{getPage:()=>active,registerPage(id,value){assert.equal(id,'meeting');registrations++;return active=value}}};
+  const ctx={window,canonicalPageId:id=>id,__appIsFn:v=>typeof v==='function',__appObserve(){}};
+  vm.runInNewContext(source,ctx);
+  assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),adapter);
+  assert.equal(active,adapter,'canonical AppPages adapter must not bypass lifecycle registration');
+  ctx.ensureCanonicalPageControllerCurrent('meeting');
+  assert.equal(registrations,1,'do not remount or register an active adapter twice');
+  active=null;
+  ctx.ensureCanonicalPageControllerCurrent('meeting');
+  assert.equal(registrations,2,'recover after lifecycle registry replacement');
+  window.AppLifecycle.registerPage=()=>null;
+  active=null;
+  assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),null,'do not report readiness when lifecycle registration fails');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');

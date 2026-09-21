@@ -3454,11 +3454,16 @@ function routeTimeoutPromise(ms,label){return new Promise(function(resolve){try{
 function ensureCanonicalPageControllerCurrent(id){
 id=canonicalPageId(id);
 try{
-var L=window.AppLifecycle,P=window.AppPages,adapter=L&&__appIsFn(L.getPage)?L.getPage(id):null;
+var L=window.AppLifecycle,P=window.AppPages,lifecycleAdapter=L&&__appIsFn(L.getPage)?L.getPage(id):null,adapter=lifecycleAdapter;
 if(!adapter&&P&&__appIsFn(P.get))adapter=P.get(id);
 if(!adapter)return null;
 var canonical=!!(adapter.__canonicalLifecycle&&__appIsFn(adapter.mount)&&__appIsFn(adapter.reload)&&__appIsFn(adapter.dispose));
-if(!canonical&&L&&__appIsFn(L.registerPage))adapter=L.registerPage(id,adapter)||adapter;
+/* A canonical AppPages adapter is not necessarily in the active lifecycle registry. */
+if((!lifecycleAdapter||!canonical)&&L&&__appIsFn(L.registerPage)){
+L.registerPage(id,adapter);
+adapter=__appIsFn(L.getPage)?L.getPage(id):null;
+}
+if(!L||!__appIsFn(L.getPage)||L.getPage(id)!==adapter)return null;
 canonical=!!(adapter&&adapter.__canonicalLifecycle&&__appIsFn(adapter.mount)&&__appIsFn(adapter.reload)&&__appIsFn(adapter.dispose));
 return canonical?adapter:null
 }catch(_controllerBridgeErr){return __appObserve(_controllerBridgeErr,"route.controller.canonicalize"),null}
