@@ -521,4 +521,49 @@ ok('Meeting canonical adapter is registered with the active lifecycle owner',()=
   assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),null,'do not report readiness when lifecycle registration fails');
 });
 
+ok('Meeting tab changes retain the correct save target without runtime errors',()=>{
+  // Execute the entire strict-mode owner so block-scope regressions are observable.
+  const source=meetingController.match(/<script id="meeting-page-runtime-owner-p3"[^>]*>([\s\S]*?)<\/script>/)[1];
+  const state={},nodes=new Map(),tabs=[],panes=[],warnings=[];
+  function node(id){
+    const attrs={},classes=new Set();
+    return {id,dataset:{},style:{},value:'',textContent:'',
+      classList:{add(...xs){xs.forEach(x=>classes.add(x))},remove(...xs){xs.forEach(x=>classes.delete(x))},contains:x=>classes.has(x),toggle(x,on){if(on===undefined)on=!classes.has(x);on?classes.add(x):classes.delete(x);return on}},
+      getAttribute:k=>attrs[k]??null,setAttribute(k,v){attrs[k]=String(v)},removeAttribute(k){delete attrs[k]},
+      addEventListener(){},querySelectorAll(){return []},appendChild(){}
+    };
+  }
+  for(const name of ['case-data','meeting-history','letter-tracking']){
+    const tab=node('tab-'+name),pane=node('content-'+name);
+    tab.setAttribute('data-bs-target','#'+pane.id);
+    nodes.set(tab.id,tab);nodes.set(pane.id,pane);tabs.push(tab);panes.push(pane);
+  }
+  nodes.set('meeting-uiux-stability-style',node('meeting-uiux-stability-style'));
+  const document={readyState:'loading',documentElement:node('html'),getElementById:id=>nodes.get(id)||null,
+    querySelector:s=>s.startsWith('#')?nodes.get(s.slice(1))||null:null,
+    querySelectorAll:s=>s==='#meeting-tabs .nav-link'?tabs:s.includes('.tab-pane')?panes:[],
+    addEventListener(){},dispatchEvent(){},createElement:node
+  };
+  const kit={byId:document.getElementById,text:v=>v==null?'':String(v),esc:v=>String(v),storeGet:(k,d)=>state[k]??d,storeSet:(k,v)=>(state[k]=v),
+    apiRunner(){throw new Error('tab selection must not write or request unrelated data')},setHtml(){},clearNode(){},createEl:node,createBadge:node
+  };
+  const window={document,AppRuntimeModules:{requirePageKit:()=>kit},AppStore:{get:kit.storeGet,set:kit.storeSet},isAuthenticated:()=>true};
+  vm.runInNewContext(source,{window,document,Promise,setTimeout(){},__appIsFn:x=>typeof x==='function',__appObserve:(err,topic)=>warnings.push({topic,message:err.message})});
+  for(const [mode,position] of [['case',0],['history',1],['letter',2],['case',0],['letter',2]]){
+    window.meetingSetMode(mode);
+    assert.deepEqual(warnings,[],'tab switching must not swallow a missing-helper exception');
+    const target='#'+panes[position].id;
+    assert.equal(document.documentElement.getAttribute('data-meeting-save-target'),target);
+    assert.equal(window.__meetingActiveSaveTarget,target);
+    assert.equal(window.__meetingActiveSaveMode,mode);
+    assert.equal(state.meeting.mode,mode);
+    for(let i=0;i<panes.length;i++){
+      assert.equal(panes[i].getAttribute('aria-hidden'),i===position?'false':'true');
+      assert.equal(panes[i].style.display,i===position?'':'none');
+      assert.equal(tabs[i].getAttribute('aria-selected'),i===position?'true':'false');
+    }
+  }
+  assert.equal(window.meetingRememberSaveTarget_,undefined,'the helper must remain private to the Meeting owner');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');

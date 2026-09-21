@@ -1955,7 +1955,8 @@
           ? target
           : "";
       }
-      function meetingRememberSaveTarget_(target) {
+      // The tab controller outside this block shares the same private owner scope.
+      var meetingRememberSaveTarget_ = function (target) {
         target = meetingNormalizeSaveTarget_(target) || "#content-case-data";
         try {
           window.__meetingActiveSaveTarget = target;
@@ -1978,7 +1979,7 @@
           __appObserve(_stateErr, "meeting.phase2.saveTarget.state");
         }
         return target;
-      }
+      };
       function meetingResolveActiveSaveTarget(ev) {
         var btn =
           ev &&
