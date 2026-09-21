@@ -149,6 +149,14 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.equal(store.get('auth.token',''),'fixture-login-token');
   assert.equal(store.get('auth.csrfToken',''),'fixture-csrf');
 
+  store.set('auth.token','');
+  store.set('auth.csrfToken','');
+  loginCtx.commitLoginSuccessCrit({data:{sessionToken:'fixture-session-token',csrf:'fixture-csrf-session',user:{role:'Admin',name:'Fixture Session'}}});
+  assert.equal(store.get('auth.token',''),'fixture-session-token');
+  assert.equal(store.get('auth.csrfToken',''),'fixture-csrf-session');
+
+  loginCtx.commitLoginSuccessCrit({token:'fixture-login-token',csrfToken:'fixture-csrf',user:{role:'Admin',name:'Fixture'}});
+
   const reqStart=index.indexOf('function deferredRequestPayloadCurrent(name)');
   const reqEnd=index.indexOf('function fetchPartialHtml(n)',reqStart);
   assert.ok(reqStart>=0&&reqEnd>reqStart,'deferred authenticated request helper missing');
