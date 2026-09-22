@@ -89,10 +89,15 @@ jobs:
       - name: Resolve P0-F-B1 workers.dev origin
         run: |
           set -euo pipefail
-          desired_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"
+          preferred_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"
+          candidate_subdomains=("$preferred_subdomain" "anti27" "sapa27-anti" "anti-sapa27")
 
           [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
-          [[ "$desired_subdomain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
+          for candidate in "${candidate_subdomains[@]}"; do
+            [[ "$candidate" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN candidate" >&2; exit 1; }
+          done
+
+          selected_subdomain="$preferred_subdomain"
 
           if [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
             cf_subdomain_tmp="$(mktemp)"
@@ -107,8 +112,17 @@ jobs:
               exit 1
             fi
 
-            if [ "$current_subdomain" != "$desired_subdomain" ]; then
-              echo "Changing Cloudflare workers.dev account subdomain to neutral value: $desired_subdomain"
+            current_is_neutral=false
+            for candidate in "${candidate_subdomains[@]}"; do
+              if [ "$current_subdomain" = "$candidate" ]; then
+                selected_subdomain="$current_subdomain"
+                current_is_neutral=true
+                break
+              fi
+            done
+
+            if [ "$current_is_neutral" != "true" ]; then
+              echo "Replacing personal workers.dev account subdomain with a neutral value"
 
               if [ -n "$current_subdomain" ]; then
                 delete_tmp="$(mktemp)"
@@ -123,38 +137,49 @@ jobs:
                 esac
               fi
 
-              change_tmp="$(mktemp)"
-              change_status="$(curl --max-time 30 -sS -o "$change_tmp" -w '%{http_code}'                 -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Content-Type: application/json"                 --data "$(printf '{"subdomain":"%s"}' "$desired_subdomain")")"
+              selected_subdomain=""
+              for candidate in "${candidate_subdomains[@]}"; do
+                candidate_tmp="$(mktemp)"
+                candidate_status="$(curl --max-time 30 -sS -o "$candidate_tmp" -w '%{http_code}'                   -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                   -H "Content-Type: application/json"                   --data "$(printf '{"subdomain":"%s"}' "$candidate")")"
 
-              if [ "$change_status" != "200" ]; then
-                echo "Cloudflare rejected requested workers.dev subdomain $desired_subdomain (HTTP $change_status)" >&2
-                cat "$change_tmp" >&2
+                if [ "$candidate_status" = "200" ]; then
+                  node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$candidate_tmp" "$candidate"
+                  selected_subdomain="$candidate"
+                  echo "Selected neutral workers.dev subdomain: $selected_subdomain"
+                  break
+                fi
 
+                if [ "$candidate_status" != "403" ] && [ "$candidate_status" != "409" ]; then
+                  echo "Unexpected Cloudflare response while selecting neutral workers.dev subdomain (HTTP $candidate_status)" >&2
+                  cat "$candidate_tmp" >&2
+                  break
+                fi
+              done
+
+              if [ -z "$selected_subdomain" ]; then
                 if [ -n "$current_subdomain" ]; then
-                  echo "Attempting rollback to previous workers.dev subdomain"
+                  echo "No neutral workers.dev candidate was available; attempting rollback"
                   rollback_tmp="$(mktemp)"
                   rollback_status="$(curl --max-time 30 -sS -o "$rollback_tmp" -w '%{http_code}'                     -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                     -H "Content-Type: application/json"                     --data "$(printf '{"subdomain":"%s"}' "$current_subdomain")")"
-                  if [ "$rollback_status" != "200" ]; then
-                    echo "Rollback of workers.dev subdomain also failed (HTTP $rollback_status)" >&2
-                    cat "$rollback_tmp" >&2
-                  else
+                  if [ "$rollback_status" = "200" ]; then
                     echo "Rollback restored previous workers.dev subdomain"
+                  else
+                    echo "Rollback of workers.dev subdomain failed (HTTP $rollback_status)" >&2
+                    cat "$rollback_tmp" >&2
                   fi
                 fi
                 exit 1
               fi
-
-              node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$change_tmp" "$desired_subdomain"
             fi
           fi
 
-          edge_origin="https://${CF_WORKER_NAME}.${desired_subdomain}.workers.dev"
+          edge_origin="https://${CF_WORKER_NAME}.${selected_subdomain}.workers.dev"
           if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
             echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
             exit 1
           fi
 
-          echo "CF_WORKERS_SUBDOMAIN=$desired_subdomain" >> "$GITHUB_ENV"
+          echo "CF_WORKERS_SUBDOMAIN=$selected_subdomain" >> "$GITHUB_ENV"
           echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
           echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
       - uses: google-github-actions/auth@v3
