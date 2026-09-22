@@ -480,16 +480,16 @@ ok('frontend performance cache policy remains bounded',()=>{
   ok('auth calls remain direct and business reads/writes preserve the GAS router payload',()=>{
     assert.equal(calls[1].body.method,'apiSessionCheck');
     assert.equal(calls[2].body.method,'apiRouter');
-    assert.equal(calls[2].body.payload.method,
+    assert.equal(calls[2].body.payload.method,'apiGetDashboardBundle');
+    assert.equal(calls[3].body.method,'apiRouter');
+    assert.equal(calls[3].body.payload.method,'apiSaveCase');
+    assert.equal(calls[3].body.timeoutMs,120000);
+  });
   const net=await w.AppTransport.diagnoseNetwork();
   ok('P0-F browser diagnostics use same-origin network-health',()=>{
     assert.equal(w.AppTransport.networkAccessGate,'P0-F');
     assert.equal(net.ok,true);
-  });
-'apiGetDashboardBundle');
-    assert.equal(calls[3].body.method,'apiRouter');
-    assert.equal(calls[3].body.payload.method,'apiSaveCase');
-    assert.equal(calls[3].body.timeoutMs,120000);
+    assert.equal(net.network.gate,'P0-F');
   });
 }
 
