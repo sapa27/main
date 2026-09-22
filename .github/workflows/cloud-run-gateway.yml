@@ -67,6 +67,7 @@ jobs:
       GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
       ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec
       CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+      PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
       ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +93,7 @@ jobs:
       - name: Deploy CR-8 GAS-canonical canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
           canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
 
@@ -102,6 +103,7 @@ jobs:
           ready="$(curl --max-time 30 -fsS "$CANARY_URL/ready")"
           version="$(curl --max-time 30 -fsS "$CANARY_URL/version")"
           health="$(curl --max-time 30 -fsS "$CANARY_URL/health")"
+          network="$(curl --max-time 30 -fsS "$CANARY_URL/network-health")"
           upstream=""
           for attempt in 1 2 3; do
             if candidate="$(curl --max-time 45 -fsS "$CANARY_URL/upstream-health")"; then
@@ -114,15 +116,19 @@ jobs:
           echo "Canary ready: $ready"
           echo "Canary version: $version"
           echo "Canary health: $health"
+          echo "Canary network: $network"
           echo "Canary upstream: $upstream"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.14-anti-public-gateway"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$CANARY_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
           curl --max-time 30 -fsS "$CANARY_URL/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
           curl --max-time 30 -fsS "$CANARY_URL/meeting-controller.html" -o "$tmp_dir/meeting-controller.html"
           grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
-          grep -q 'cr8.13-authenticated-deferred-handoff' "$tmp_dir/app-config.js"
+          grep -q 'p0-f-edge-ready-20260922' "$tmp_dir/app-config.js"
+          grep -q 'p0-f-network-access-compatibility-r354' "$tmp_dir/app-config.js"
+          if grep -q '\.run\.app' "$tmp_dir/app-config.js"; then echo "P0-F failed: browser config contains run.app" >&2; exit 1; fi
           grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
           grep -q 'gas-router-wire-r350' "$tmp_dir/cloud-run-transport.js"
           grep -q 'function gasWire(I)' "$tmp_dir/cloud-run-transport.js"
@@ -147,7 +153,7 @@ jobs:
       - name: Promote CR-8 GAS-canonical to production
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
 
       - name: Smoke final CR-8 production
         run: |
@@ -156,6 +162,7 @@ jobs:
           ready="$(curl --max-time 30 -fsS "$url/ready")"
           version="$(curl --max-time 30 -fsS "$url/version")"
           health="$(curl --max-time 30 -fsS "$url/health")"
+          network="$(curl --max-time 30 -fsS "$url/network-health")"
           upstream=""
           for attempt in 1 2 3; do
             if candidate="$(curl --max-time 45 -fsS "$url/upstream-health")"; then
@@ -168,15 +175,19 @@ jobs:
           echo "Ready: $ready"
           echo "Version: $version"
           echo "Health: $health"
+          echo "Network: $network"
           echo "Upstream: $upstream"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.14-anti-public-gateway"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="cloud-run"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="same-origin"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$url/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
           curl --max-time 30 -fsS "$url/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
           curl --max-time 30 -fsS "$url/meeting-controller.html" -o "$tmp_dir/meeting-controller.html"
           grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
-          grep -q 'cr8.13-authenticated-deferred-handoff' "$tmp_dir/app-config.js"
+          grep -q 'p0-f-edge-ready-20260922' "$tmp_dir/app-config.js"
+          grep -q 'p0-f-network-access-compatibility-r354' "$tmp_dir/app-config.js"
+          if grep -q '\.run\.app' "$tmp_dir/app-config.js"; then echo "P0-F failed: browser config contains run.app" >&2; exit 1; fi
           grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
           grep -q 'gas-router-wire-r350' "$tmp_dir/cloud-run-transport.js"
           grep -q 'function gasWire(I)' "$tmp_dir/cloud-run-transport.js"
@@ -199,7 +210,16 @@ jobs:
           grep -q 'AppPages.register("meeting"' "$tmp_dir/meeting-controller.html"
           echo "### CR-8 GAS Canonical Response" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Browser runtime: Cloud Run only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser runtime: same-origin (P0-F edge-ready)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P0-F-A Network Access Compatibility: PASS" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$PUBLIC_APP_ORIGIN" ]; then
+            edge_network="$(curl --max-time 30 -fsS "$PUBLIC_APP_ORIGIN/network-health")"
+            node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true)process.exit(1)' "$edge_network"
+            echo "- Public edge origin: $PUBLIC_APP_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
+            echo "- P0-F-B Public Edge Domain: PASS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- P0-F-B Public Edge Domain: pending PUBLIC_APP_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "- Frontend source: frontend/" >> "$GITHUB_STEP_SUMMARY"
           echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- Response owner: GAS (gas-direct-json-v1)" >> "$GITHUB_STEP_SUMMARY"
