@@ -21,7 +21,7 @@ const v2CanaryWorkflow=file('.github/workflows/v2-canary.yml');
 const v2CloudCanaryWorkflow=file('.github/workflows/v2-cloud-run-canary.yml');
 const v2PromoteWorkflow=file('.github/workflows/v2-promote-production.yml');
 
-ok('CR-7 repository layout is Cloud Run source-only',()=>{
+ok('P0-F repository layout remains Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
   assert.ok(!fs.existsSync(path.join(ROOT,'github-pages')));
   assert.deepEqual(fs.readdirSync(path.join(ROOT,'frontend')).sort(),['app-config.js','cloud-run-transport.js','index.html','meeting-controller.html']);
@@ -29,15 +29,18 @@ ok('CR-7 repository layout is Cloud Run source-only',()=>{
 
 ok('frontend runtime has no retired GitHub/GAS browser dependency',()=>{
   const all=index+'\n'+config+'\n'+transport+'\n'+meetingController;
-  for(const token of ['sapa27.github.io','github-pages','github-gas-transport','APP_GITHUB_CONFIG','GAS_WEB_APP_URL','script.google.com','GAS_PARENT_ORIGIN'])assert.ok(!all.includes(token),'retired frontend token: '+token);
+  for(const token of ['sapa27.github.io','github-pages','github-gas-transport','APP_GITHUB_CONFIG','GAS_WEB_APP_URL','script.google.com','GAS_PARENT_ORIGIN','.run.app'])assert.ok(!all.includes(token),'retired frontend token: '+token);
 });
 
-ok('Cloud Run frontend identity is canonical',()=>{
+ok('P0-F frontend identity is canonical and edge-ready',()=>{
   assert.ok(index.includes('CANONICAL CLOUD RUN FRONTEND r331-v62'));
   assert.ok(index.includes('TRANSPORT gas-direct-json-v1'));
   assert.ok(index.includes('"hostMode":"cloud-run"'));
   assert.ok(index.includes('./cloud-run-transport.js?v=r331-v62-cloudrun-cr8-20260918'));
-  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-cr8.13-authenticated-deferred-handoff-20260920'));
+  assert.ok(config.includes('cloud-run-canonical-frontend-r331-v62-p0-f-edge-ready-20260922'));
+  assert.ok(config.includes('p0-f-network-access-compatibility-r354'));
+  assert.ok(config.includes('SAME_ORIGIN_TRANSPORT:!0'));
+  assert.ok(!config.includes('.run.app'));
   assert.ok(config.includes('APP_RUNTIME_CONFIG'));
   assert.ok(config.includes('gas-direct-json-v1'));
 });
@@ -72,8 +75,11 @@ ok('CR-6 data-loading fixes remain',()=>{
   assert.ok(transport.includes('stale-while-revalidate'));
 });
 
-ok('browser transport is Cloud Run only',()=>{
+ok('browser transport is same-origin and edge-ready',()=>{
   assert.ok(transport.includes('gas-direct-json-v1'));
+  assert.ok(transport.includes('return current||configured'));
+  assert.ok(transport.includes('NETWORK_EDGE_UNREACHABLE'));
+  assert.ok(transport.includes('diagnoseNetwork'));
   assert.ok(transport.includes('u+"/api/router"'));
   assert.ok(transport.includes('credentials:"omit"'));
   assert.ok(transport.includes('cache:"no-store"'));
@@ -94,8 +100,8 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.ok(transport.includes('function appResultCacheable(v)'));
   assert.ok(transport.includes('epoch===EPOCH&&appResultCacheable(v)'));
   assert.ok(transport.includes('read&&key&&epoch===EPOCH&&appResultCacheable(v)'));
-  assert.ok(config.includes('CR-8.13 Authenticated Deferred Handoff'));
-  assert.ok(config.includes('current-quality-gate-r353'));
+  assert.ok(config.includes('P0-F Network Access Compatibility'));
+  assert.ok(config.includes('p0-f-network-access-compatibility-r354'));
   const wireStart=transport.indexOf('function invocation(fn,a)');
   const wireEnd=transport.indexOf('function isReadMethod(fn)',wireStart);
   assert.ok(wireStart>=0&&wireEnd>wireStart,'router wire helpers missing');
@@ -227,7 +233,7 @@ ok('auth session and deferred assets bypass the application router',()=>{
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
-  assert.ok(gateway.includes("REV='cr8.14-anti-public-gateway'"));
+  assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
   assert.ok(gateway.includes("GAS_RESPONSE_CONTRACT='gas-direct-json-v1'"));
   assert.ok(gateway.includes("ANTI_RESPONSE_CONTRACT='anti-public-json-v1'"));
   assert.ok(gateway.includes("transport:'gas-direct-json'"));
@@ -235,6 +241,10 @@ ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   assert.ok(gateway.includes('out.envelope'));
   assert.ok(!gateway.includes('return{ok:true,result:value'));
   assert.ok(gateway.includes("gasTransport:'direct-json-primary'"));
+  assert.ok(gateway.includes("u.pathname==='/network-health'"));
+  assert.ok(gateway.includes("gate:'P0-F'"));
+  assert.ok(gateway.includes("sameOriginBrowser:true"));
+  assert.ok(gateway.includes('PUBLIC_APP_ORIGIN'));
   assert.ok(gateway.includes('responseContract:GAS_RESPONSE_CONTRACT'));
   assert.ok(gateway.includes('legacyFallbackEnabled:false'));
   assert.ok(gateway.includes('sourceSha:sourceSha(env)'));
@@ -262,7 +272,12 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
-  assert.ok(workflow.includes("grep -q 'cr8.13-authenticated-deferred-handoff'"));
+  assert.ok(workflow.includes("grep -q 'p0-f-edge-ready-20260922'"));
+  assert.ok(workflow.includes("grep -q 'p0-f-network-access-compatibility-r354'"));
+  assert.ok(workflow.includes('/network-health'));
+  assert.ok(workflow.includes('PUBLIC_APP_ORIGIN'));
+  assert.ok(workflow.includes('P0-F-A Network Access Compatibility: PASS'));
+  assert.ok(workflow.includes('P0-F-B Public Edge Domain'));
   assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
   assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
   assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
@@ -383,8 +398,8 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
-  assert.ok(config.includes('CR-8.13 Authenticated Deferred Handoff'));
-  assert.ok(config.includes('current-quality-gate-r353'));
+  assert.ok(config.includes('P0-F Network Access Compatibility'));
+  assert.ok(config.includes('p0-f-network-access-compatibility-r354'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
 });
 
@@ -443,18 +458,19 @@ ok('frontend performance cache policy remains bounded',()=>{
 {
   const calls=[];
   const w={
-    location:{origin:'https://test-canary.run.app'},
-    APP_RUNTIME_CONFIG:{CLOUD_RUN_GATEWAY_URL:'https://test-production.run.app/'},
+    location:{origin:'https://app.example.test'},
+    APP_RUNTIME_CONFIG:{CLOUD_RUN_GATEWAY_URL:'https://should-not-be-used.run.app/'},
     setTimeout,clearTimeout,
-    fetch:async(url,options)=>{
+    fetch:async(url,options={})=>{
+      if(String(url).endsWith('/network-health'))return {ok:true,status:200,json:async()=>({ok:true,status:'reachable',network:{gate:'P0-F',sameOriginBrowser:true},upstream:{checked:false}})};
       calls.push({url,body:JSON.parse(options.body)});
       return {ok:true,headers:{get:()=> 'gas-direct-json-v1'},text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{html:'<script>/* fixture */</script>'}}})};
     }
   };
   vm.runInNewContext(transport,{window:w,document:{dispatchEvent(){}},CustomEvent:function(){},Promise,Date});
   await w.AppTransport.run('apiRouter',{method:'getDeferredInclude',payload:{name:'Scripts_Page_Dashboard',token:'fixture-only'}});
-  ok('wrapped deferred assets reach the direct GAS function on the current Cloud Run origin',()=>{
-    assert.equal(calls[0].url,'https://test-canary.run.app/api/router');
+  ok('wrapped deferred assets stay on the current public origin',()=>{
+    assert.equal(calls[0].url,'https://app.example.test/api/router');
     assert.deepEqual(calls[0].body.payload,{name:'Scripts_Page_Dashboard',token:'fixture-only'});
     assert.equal(calls[0].body.method,'getDeferredInclude');
   });
@@ -464,7 +480,13 @@ ok('frontend performance cache policy remains bounded',()=>{
   ok('auth calls remain direct and business reads/writes preserve the GAS router payload',()=>{
     assert.equal(calls[1].body.method,'apiSessionCheck');
     assert.equal(calls[2].body.method,'apiRouter');
-    assert.equal(calls[2].body.payload.method,'apiGetDashboardBundle');
+    assert.equal(calls[2].body.payload.method,
+  const net=await w.AppTransport.diagnoseNetwork();
+  ok('P0-F browser diagnostics use same-origin network-health',()=>{
+    assert.equal(w.AppTransport.networkAccessGate,'P0-F');
+    assert.equal(net.ok,true);
+  });
+'apiGetDashboardBundle');
     assert.equal(calls[3].body.method,'apiRouter');
     assert.equal(calls[3].body.payload.method,'apiSaveCase');
     assert.equal(calls[3].body.timeoutMs,120000);
