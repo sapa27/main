@@ -49,6 +49,204 @@ jobs:
       - name: Validate container build
         run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
 
+      - name: Diagnose committee deferred partial contract
+        env:
+          PROD_GATEWAY_URL: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+        run: |
+          set -euo pipefail
+          probe_partial() {
+            local name="$1"
+            local payload response status body
+            payload="$(node -e 'process.stdout.write(JSON.stringify({method:"getDeferredInclude",payload:{name:process.argv[1],forceFresh:true,assetStamp:"diagnostic-committee-20260922"}}))' "$name")"
+            response="$(curl --max-time 45 -sS -w 
+  deploy:
+    needs: validate
+    if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'sapa27' }}
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast3' }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'sapa27-gateway' }}
+      CANARY_SERVICE: sapa27-gateway-cr8-canary
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
+      GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+      ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec
+      CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
+      ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage production frontend
+        run: |
+          set -euo pipefail
+          rm -rf cloud-run-gateway/public
+          cp -R frontend cloud-run-gateway/public
+      - name: Validate deployment variables
+        run: |
+          set -euo pipefail
+          for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN; do
+            test -n "${!name:-}" || { echo "Missing $name" >&2; exit 1; }
+          done
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy CR-8 GAS-canonical canary
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
+          canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
+
+      - name: Require direct GAS transport on canary
+        run: |
+          set -euo pipefail
+          ready="$(curl --max-time 30 -fsS "$CANARY_URL/ready")"
+          version="$(curl --max-time 30 -fsS "$CANARY_URL/version")"
+          health="$(curl --max-time 30 -fsS "$CANARY_URL/health")"
+          upstream=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 45 -fsS "$CANARY_URL/upstream-health")"; then
+              upstream="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 4
+          done
+          test -n "$upstream" || { echo "Canary upstream health failed after 3 attempts" >&2; exit 1; }
+          echo "Canary ready: $ready"
+          echo "Canary version: $version"
+          echo "Canary health: $health"
+          echo "Canary upstream: $upstream"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.14-anti-public-gateway"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          tmp_dir="$(mktemp -d)"
+          curl --max-time 30 -fsS "$CANARY_URL/" -o "$tmp_dir/index.html"
+          curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
+          curl --max-time 30 -fsS "$CANARY_URL/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
+          curl --max-time 30 -fsS "$CANARY_URL/meeting-controller.html" -o "$tmp_dir/meeting-controller.html"
+          grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
+          grep -q 'cr8.13-authenticated-deferred-handoff' "$tmp_dir/app-config.js"
+          grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'gas-router-wire-r350' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'function gasWire(I)' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'repairMeetingCanonicalMountCurrent' "$tmp_dir/index.html"
+          grep -q 'ensureCanonicalPageControllerCurrent' "$tmp_dir/index.html"
+          grep -q 'force:id===\"meeting\"' "$tmp_dir/index.html"
+          grep -q 'fetchStaticMeetingController' "$tmp_dir/index.html"
+          grep -q 'warmMeetingSharedAssets' "$tmp_dir/index.html"
+          grep -q 'page.meeting.staticController' "$tmp_dir/index.html"
+          grep -q 'recoverDashboardRuntimeCrit' "$tmp_dir/index.html"
+          grep -q 'dashboard.dataRecovery.current' "$tmp_dir/index.html"
+          grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
+          grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
+          grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
+          grep -q 'deferred-auth-handoff-r353' "$tmp_dir/index.html"
+          grep -q 'DASHBOARD_AUTH_TOKEN_NOT_READY' "$tmp_dir/index.html"
+          grep -q 'direct-bootstrap-r349' "$tmp_dir/index.html"
+          grep -q 'CR-8.3 Cloud Run static Meeting controller' "$tmp_dir/meeting-controller.html"
+          grep -q 'window.initMeetingPage' "$tmp_dir/meeting-controller.html"
+          grep -q 'AppPages.register("meeting"' "$tmp_dir/meeting-controller.html"
+
+      - name: Promote CR-8 GAS-canonical to production
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
+
+      - name: Smoke final CR-8 production
+        run: |
+          set -euo pipefail
+          url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          ready="$(curl --max-time 30 -fsS "$url/ready")"
+          version="$(curl --max-time 30 -fsS "$url/version")"
+          health="$(curl --max-time 30 -fsS "$url/health")"
+          upstream=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 45 -fsS "$url/upstream-health")"; then
+              upstream="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 4
+          done
+          test -n "$upstream" || { echo "Production upstream health failed after 3 attempts" >&2; exit 1; }
+          echo "Ready: $ready"
+          echo "Version: $version"
+          echo "Health: $health"
+          echo "Upstream: $upstream"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.14-anti-public-gateway"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="cloud-run"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          tmp_dir="$(mktemp -d)"
+          curl --max-time 30 -fsS "$url/" -o "$tmp_dir/index.html"
+          curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
+          curl --max-time 30 -fsS "$url/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
+          curl --max-time 30 -fsS "$url/meeting-controller.html" -o "$tmp_dir/meeting-controller.html"
+          grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
+          grep -q 'cr8.13-authenticated-deferred-handoff' "$tmp_dir/app-config.js"
+          grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'gas-router-wire-r350' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'function gasWire(I)' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'repairMeetingCanonicalMountCurrent' "$tmp_dir/index.html"
+          grep -q 'ensureCanonicalPageControllerCurrent' "$tmp_dir/index.html"
+          grep -q 'force:id===\"meeting\"' "$tmp_dir/index.html"
+          grep -q 'fetchStaticMeetingController' "$tmp_dir/index.html"
+          grep -q 'warmMeetingSharedAssets' "$tmp_dir/index.html"
+          grep -q 'page.meeting.staticController' "$tmp_dir/index.html"
+          grep -q 'recoverDashboardRuntimeCrit' "$tmp_dir/index.html"
+          grep -q 'dashboard.dataRecovery.current' "$tmp_dir/index.html"
+          grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
+          grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
+          grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
+          grep -q 'deferred-auth-handoff-r353' "$tmp_dir/index.html"
+          grep -q 'DASHBOARD_AUTH_TOKEN_NOT_READY' "$tmp_dir/index.html"
+          grep -q 'direct-bootstrap-r349' "$tmp_dir/index.html"
+          grep -q 'CR-8.3 Cloud Run static Meeting controller' "$tmp_dir/meeting-controller.html"
+          grep -q 'window.initMeetingPage' "$tmp_dir/meeting-controller.html"
+          grep -q 'AppPages.register("meeting"' "$tmp_dir/meeting-controller.html"
+          echo "### CR-8 GAS Canonical Response" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser runtime: Cloud Run only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend source: frontend/" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Response owner: GAS (gas-direct-json-v1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Legacy parent-origin RPC: removed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove retired transport environment variables
+        run: |
+          gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION"             --remove-env-vars "GAS_RPC_VERSION,GAS_PARENT_ORIGIN,LEGACY_GAS_RPC_FALLBACK,LEGACY_GAS_RPC_VERSION,LEGACY_GAS_PARENT_ORIGIN" || true
+
+      - name: Remove CR-8 canary
+        if: always()
+        run: |
+          gcloud run services delete "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --quiet || true
+\\n%{http_code}' -H 'Content-Type: application/json' -H 'Origin: https://sapa27-gateway-asxuzzwspa-eu.a.run.app' --data "$payload" "$PROD_GATEWAY_URL/api/router")"
+            status="$(printf '%s' "$response" | tail -n1)"
+            body="$(printf '%s' "$response" | sed '$d')"
+            echo "partial=$name http=$status"
+            BODY="$body" node <<'NODE'
+          const raw=process.env.BODY||'';
+          let x={};try{x=JSON.parse(raw)}catch(e){console.log(JSON.stringify({json:false,bytes:Buffer.byteLength(raw)}));process.exit(0)}
+          const result=x&&x.result;
+          const html=typeof result==='string'?result:(result&&typeof result.html==='string'?result.html:(result&&result.data&&typeof result.data.html==='string'?result.data.html:''));
+          console.log(JSON.stringify({
+            transportOk:x&&x.transportOk,
+            errorCode:x&&x.error&&x.error.code||'',
+            errorMessage:String(x&&x.error&&x.error.message||'').slice(0,160),
+            resultType:Array.isArray(result)?'array':typeof result,
+            htmlBytes:Buffer.byteLength(html||''),
+            hasCommitteeFragment:/data-app-fragment=["']committee["']/.test(html||''),
+            hasCommitteeAdapter:/AppPages\.register\(["']committee-meeting["']/.test(html||''),
+            hasMeetingAdapter:/AppPages\.register\(["']meeting["']/.test(html||'')
+          }));
+          NODE
+          }
+          probe_partial 'Scripts_Page_Meeting::committee'
+          probe_partial 'Scripts_Page_Meeting'
+
   deploy:
     needs: validate
     if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
