@@ -366,10 +366,14 @@ ok('Committee Meeting qualified fragment falls back to the legacy base asset wit
   assert.ok(start>=0&&end>start,'Committee Meeting loader helpers missing');
   const block=index.slice(start,end);
   assert.ok(block.includes('safePartial("Scripts_Page_Meeting::meeting-common")'));
-  assert.ok(block.includes('safePartial(qualified).catch'));
+  assert.ok(block.includes('safePartial(qualified).then'));
+  assert.ok(block.includes('qualifiedLoadedButAdapterMissing'));
+  assert.ok(block.includes('COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED_AFTER_QUALIFIED_FRAGMENT'));
+  assert.ok(block.includes('function fallbackToBase(reason)'));
   assert.ok(block.includes('return loadPartial(base).then'));
-  assert.ok(block.includes('if(committeeMeetingAuthFailureCurrent(fragmentErr))throw fragmentErr'),'auth errors must fail closed');
-  assert.ok(block.indexOf('committeeMeetingAuthFailureCurrent(fragmentErr)')<block.indexOf('loadPartial(base)'),'authorization decision must precede fallback');
+  assert.ok(block.includes('if(committeeMeetingAuthFailureCurrent(reason))throw reason'),'auth errors must fail closed');
+  assert.ok(block.indexOf('committeeMeetingAuthFailureCurrent(reason)')<block.indexOf('loadPartial(base)'),'authorization decision must precede fallback');
+  assert.ok(block.indexOf('committeeMeetingControllerReadyCurrent()')<block.lastIndexOf('loadPartial(base)'),'qualified success must verify adapter before accepting the fragment');
   assert.ok(index.includes('if(n==="committee-meeting")return loadCommitteeMeetingPageCurrent(list)'));
 });
 
