@@ -56,9 +56,15 @@ jobs:
           set -euo pipefail
           probe_partial() {
             local name="$1"
-            local payload response status body
+            local payload status
             payload="$(node -e 'process.stdout.write(JSON.stringify({method:"getDeferredInclude",payload:{name:process.argv[1],forceFresh:true,assetStamp:"diagnostic-committee-20260922"}}))' "$name")"
-            response="$(curl --max-time 45 -sS -w 
+            status="$(curl --max-time 45 -sS -o /tmp/committee-probe.json -w "%{http_code}" -H 'Content-Type: application/json' -H 'Origin: https://sapa27-gateway-asxuzzwspa-eu.a.run.app' --data "$payload" "$PROD_GATEWAY_URL/api/router")"
+            echo "partial=$name http=$status"
+            node -e 'const fs=require("fs");const raw=fs.readFileSync("/tmp/committee-probe.json","utf8");let x={};try{x=JSON.parse(raw)}catch(e){console.log(JSON.stringify({json:false,bytes:Buffer.byteLength(raw)}));process.exit(0)}const result=x&&x.result;const html=typeof result==="string"?result:(result&&typeof result.html==="string"?result.html:(result&&result.data&&typeof result.data.html==="string"?result.data.html:""));console.log(JSON.stringify({transportOk:x&&x.transportOk,errorCode:x&&x.error&&x.error.code||"",errorMessage:String(x&&x.error&&x.error.message||"").slice(0,160),resultType:Array.isArray(result)?"array":typeof result,htmlBytes:Buffer.byteLength(html||""),hasCommitteeFragment:/data-app-fragment=["'"'"']committee["'"'"']/.test(html||""),hasCommitteeAdapter:/AppPages\.register\(["'"'"']committee-meeting["'"'"']/.test(html||""),hasMeetingAdapter:/AppPages\.register\(["'"'"']meeting["'"'"']/.test(html||"")}));'
+          }
+          probe_partial 'Scripts_Page_Meeting::committee'
+          probe_partial 'Scripts_Page_Meeting'
+
   deploy:
     needs: validate
     if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
