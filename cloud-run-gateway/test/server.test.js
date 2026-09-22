@@ -2,13 +2,14 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,cfg,gasUrl,allowed,isWrite,effectiveMethod,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
+const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,cfg,gasUrl,allowed,networkProfile,isWrite,effectiveMethod,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
   GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec',
   ANTI_GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec',
   GATEWAY_ALLOWED_ORIGINS:ORIGIN+',https://sapa27.github.io',
+  PUBLIC_APP_ORIGIN:'https://app.example.test',
   APP_SOURCE_SHA:'test-source-sha'
 };
 
@@ -22,11 +23,13 @@ async function withServer(fn,env=ENV){
 
 test('CR-7 configuration is direct-only',()=>{
   const c=cfg(ENV);
-  assert.equal(REV,'cr8.14-anti-public-gateway');
+  assert.equal(REV,'cr8.15-p0f-network-gate');
   assert.equal(GAS_RESPONSE_CONTRACT,'gas-direct-json-v1');
   assert.equal(ANTI_RESPONSE_CONTRACT,'anti-public-json-v1');
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(allowed(ORIGIN,c),true);
+  assert.equal(allowed('https://app.example.test',c),true);
+  assert.equal(c.publicOrigin,'https://app.example.test');
   assert.equal(allowed('https://example.invalid',c),false);
   assert.equal(isWrite('apiSaveCase'),true);
   assert.equal(isWrite('apiGetDashboardBundle'),false);
@@ -48,14 +51,18 @@ test('readiness and version expose direct-only CR-7 contract',async()=>withServe
   const ready=await (await fetch(base+'/ready')).json();
   const version=await (await fetch(base+'/version')).json();
   assert.equal(ready.ok,true);
-  assert.equal(ready.gateway,'cr8.14-anti-public-gateway');
+  assert.equal(ready.gateway,'cr8.15-p0f-network-gate');
   assert.equal(ready.gasTransport,'direct-json-primary');
   assert.equal(ready.responseContract,'gas-direct-json-v1');
+  assert.equal(ready.networkAccess.gate,'P0-F');
+  assert.equal(ready.networkAccess.sameOriginBrowser,true);
+  assert.equal(ready.networkAccess.publicOriginConfigured,true);
   assert.equal(ready.legacyFallbackEnabled,false);
   assert.equal(ready.sourceSha,'test-source-sha');
   assert.equal(ready.antiPublic.configured,true);
   assert.equal(ready.antiPublic.path,'/api/anti');
-  assert.equal(version.frontendHost,'cloud-run');
+  assert.equal(version.frontendHost,'same-origin');
+  assert.equal(version.networkAccess.gate,'P0-F');
   assert.equal(version.gasTransport,'direct-json-primary');
   assert.equal(version.responseContract,'gas-direct-json-v1');
   assert.equal(version.legacyFallbackEnabled,false);
@@ -71,6 +78,23 @@ test('local health is fast and does not depend on GAS',async()=>withServer(async
   assert.equal(j.upstream.checked,false);
   assert.equal(j.upstream.transport,'gas-direct-json');
 },{...ENV,GAS_WEB_APP_URL:''}));
+
+test('P0-F network health is local-only and recognizes forwarded Cloudflare edge host',async()=>withServer(async base=>{
+  const r=await fetch(base+'/network-health',{headers:{Origin:'https://app.example.test','X-Forwarded-Host':'app.example.test','X-Forwarded-Proto':'https','CF-Ray':'fixture-SIN'}});
+  const j=await r.json();
+  assert.equal(r.status,200);
+  assert.equal(r.headers.get('x-p0f-network-gate'),'ready');
+  assert.equal(j.ok,true);
+  assert.equal(j.status,'reachable');
+  assert.equal(j.upstream.checked,false);
+  assert.equal(j.network.gate,'P0-F');
+  assert.equal(j.network.sameOriginBrowser,true);
+  assert.equal(j.network.publicOriginConfigured,true);
+  assert.equal(j.network.originMode,'public-edge');
+  assert.equal(j.network.edge.detected,true);
+  assert.equal(j.network.edge.provider,'cloudflare');
+}));
+
 
 test('upstream health probes GAS separately',async()=>{
   const original=global.fetch;
