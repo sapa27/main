@@ -280,6 +280,360 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Resolve P0-F-B1 workers.dev origin'));
   assert.ok(workflow.includes('Deploy P0-F-B1 Cloudflare workers.dev edge'));
   assert.ok(workflow.includes('CF_WORKER_NAME'));
+  assert.ok(workflow.includes('^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?  assert.ok(workflow.includes('CF_WORKERS_SUBDOMAIN'));
+  assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'apa27'"));
+  assert.ok(workflow.includes("vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173'"));
+  assert.ok(workflow.includes('edge_subdomain="sapa27-${CLOUDFLARE_ACCOUNT_ID:0:8}"'));
+  assert.ok(workflow.includes('auto-generated if omitted'));
+  assert.ok(workflow.includes('CLOUDFLARE_ACCOUNT_ID'));
+  assert.ok(workflow.includes('CLOUDFLARE_API_TOKEN'));
+  assert.ok(workflow.includes('workers/subdomain'));
+  assert.ok(workflow.includes('wrangler@4.136.1'));
+  assert.ok(workflow.includes('workers_dev:true'));
+  assert.ok(workflow.includes('preview_urls:false'));
+  assert.ok(workflow.includes('X-Forwarded-Host'));
+  assert.ok(workflow.includes('X-Edge-Provider'));
+  assert.ok(workflow.includes('cloudflare-workers-dev'));
+  assert.ok(workflow.includes('network?.originMode!=="public-edge"'));
+  assert.ok(workflow.includes('network?.edge?.provider!=="cloudflare"'));
+  assert.ok(workflow.includes('P0-F-B1 Cloudflare Edge'));
+  assert.ok(workflow.includes("grep -q 'repairMeetingCanonicalMountCurrent'"));
+  assert.ok(workflow.includes('test -f cloud-run-gateway/public/meeting-controller.html'));
+  assert.ok(workflow.includes('meeting-controller.html" -o "$tmp_dir/meeting-controller.html"'));
+  assert.ok(workflow.includes("grep -q 'CR-8.3 Cloud Run static Meeting controller'"));
+  assert.ok(workflow.includes("grep -q 'fetchStaticMeetingController'"));
+  assert.ok(workflow.includes('for attempt in 1 2 3; do'));
+  assert.ok(workflow.includes('Production upstream health failed after 3 attempts'));
+  assert.ok(!workflow.includes('upstream health degraded'));
+  assert.ok(workflow.includes('ANTI_PUBLIC_ORIGIN: https://sapa27.github.io'));
+  assert.ok(workflow.includes('ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec'));
+  assert.ok(!workflow.includes('github-pages-rpc'));
+  assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
+});
+
+ok('all deployment gates require live GAS upstream',()=>{
+  for(const [name,wf] of [['cr7',workflow],['v2-canary',v2CanaryWorkflow],['v2-cloud-canary',v2CloudCanaryWorkflow],['v2-promote',v2PromoteWorkflow]]){
+    assert.ok(wf.includes('/upstream-health'),name+' missing upstream probe');
+    assert.ok(wf.includes('APP_SOURCE_SHA='),name+' missing source SHA deployment attestation');
+    assert.ok(wf.includes('sourceSha'),name+' missing source SHA verification');
+    assert.ok(wf.includes('u.upstream?.checked!==true'),name+' missing checked=true gate');
+    assert.ok(wf.includes('u.upstream?.ok!==true'),name+' missing upstream ok gate');
+    assert.ok(wf.includes('u.upstream?.transport!==\"gas-direct-json\"'),name+' missing direct-json transport gate');
+    assert.ok(!/upstream-health[^\n]*\|\|\s*echo/.test(wf),name+' upstream probe must fail closed');
+  }
+});
+
+ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
+  assert.ok(meetingController.includes('CR-8.3 Cloud Run static Meeting controller'));
+  assert.ok(meetingController.includes('window.initMeetingPage'));
+  assert.ok(meetingController.includes('AppPages.register("meeting"'));
+  assert.ok(!meetingController.includes('data-app-fragment="committee"'));
+  for(const token of ['script.google.com','google.script.run','parentOrigin','getDeferredInclude'])assert.ok(!meetingController.includes(token),'retired/static controller dependency '+token);
+  assert.ok(index.includes('function isStaticMeetingPartial(n)'));
+  assert.ok(index.includes('function fetchStaticMeetingController()'));
+  assert.ok(index.includes('./meeting-controller.html?v='));
+  assert.ok(index.includes('loaded[STATIC_MEETING_KEY]'));
+  const fetchStart=index.indexOf('function fetchPartialHtml(n)');
+  const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
+  const fetchBlock=index.slice(fetchStart,fetchEnd);
+  assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')>=0);
+  assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')<fetchBlock.indexOf('AppApi.call("getDeferredInclude"'),'Meeting must resolve locally before GAS deferred include');
+});
+
+ok('Meeting controller opens before shared deferred runtime',()=>{
+  assert.ok(index.includes('function warmMeetingSharedAssets(list)'));
+  const loadStart=index.indexOf('function loadPage(p)');
+  const loadEnd=index.indexOf('function assertExternalAsset',loadStart);
+  const loadBlock=index.slice(loadStart,loadEnd);
+  assert.ok(loadBlock.includes('if(n==="meeting")return ensureCore()'));
+  assert.ok(loadBlock.includes('safePartial("Scripts_Page_Meeting::meeting-common")'));
+  assert.ok(loadBlock.includes('warmMeetingSharedAssets(list);return!0'));
+  assert.ok(loadBlock.indexOf('safePartial("Scripts_Page_Meeting::meeting-common")')<loadBlock.indexOf('warmMeetingSharedAssets(list)'));
+  assert.ok(index.includes('meeting.shared.load.degraded'));
+});
+
+ok('Committee Meeting qualified fragment falls back to the legacy base asset without bypassing auth',()=>{
+  assert.ok(index.includes('function loadCommitteeMeetingPageCurrent(list)'));
+  assert.ok(index.includes('page.committeeMeeting.qualifiedFallback'));
+  assert.ok(index.includes('COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED'));
+  const start=index.indexOf('function committeeMeetingAuthFailureCurrent(err)');
+  const end=index.indexOf('function loadPage(p)',start);
+  assert.ok(start>=0&&end>start,'Committee Meeting loader helpers missing');
+  const block=index.slice(start,end);
+  assert.ok(block.includes('safePartial("Scripts_Page_Meeting::meeting-common")'));
+  assert.ok(block.includes('safePartial(qualified).catch'));
+  assert.ok(block.includes('return loadPartial(base).then'));
+  assert.ok(block.includes('if(committeeMeetingAuthFailureCurrent(fragmentErr))throw fragmentErr'),'auth errors must fail closed');
+  assert.ok(block.indexOf('committeeMeetingAuthFailureCurrent(fragmentErr)')<block.indexOf('loadPartial(base)'),'authorization decision must precede fallback');
+  assert.ok(index.includes('if(n==="committee-meeting")return loadCommitteeMeetingPageCurrent(list)'));
+});
+
+ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
+  assert.ok(index.includes('critical-bootstrap-lifecycle-compatible-r342'));
+  assert.ok(index.includes('a.__canonicalLifecycle=!0'));
+  assert.ok(index.includes('function ensureCanonicalPageControllerCurrent(id)'));
+  assert.ok(index.includes('function meetingInteractiveReadyCurrent(id)'));
+  assert.ok(index.includes('function repairMeetingCanonicalMountCurrent(id,generation)'));
+  assert.ok(index.includes('router-meeting-canonical-recovery'));
+  assert.ok(index.includes('var adapter=ensureCanonicalPageControllerCurrent(id)'));
+  assert.ok(index.includes('force:id==="meeting"'));
+  assert.ok(index.includes('reload:id==="meeting"?!1:void 0'));
+  assert.ok(index.includes('meetingPageInitialized==="1"'));
+  assert.ok(index.includes('result===!1&&id==="meeting"&&!isPageOperational(id)?repairMeetingCanonicalMountCurrent(id,generation)'));
+  const bridgeStart=index.indexOf('function ensureCanonicalPageControllerCurrent(id)');
+  const bridgeEnd=index.indexOf('function pageControllerReadyCurrent',bridgeStart);
+  assert.ok(bridgeStart>=0&&bridgeEnd>bridgeStart,'canonical controller bridge missing');
+  const bridge=index.slice(bridgeStart,bridgeEnd);
+  const adapter={mount(){return true},reload(){return true},dispose(){return true}};
+  const ctx={
+    canonicalPageId:v=>String(v||''),
+    __appIsFn:v=>typeof v==='function',
+    __appObserve:()=>false,
+    window:{
+      AppPages:{get:()=>adapter},
+      AppLifecycle:{
+        getPage:()=>adapter,
+        registerPage:(id,a)=>{a.__canonicalLifecycle=true;return a}
+      }
+    }
+  };
+  vm.runInNewContext(bridge,ctx);
+  assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),adapter);
+  assert.equal(adapter.__canonicalLifecycle,true,'legacy/bootstrap Meeting adapter must be promoted into canonical lifecycle');
+  const opStart=index.indexOf('function isPageOperational(id)');
+  const opEnd=index.indexOf('function waitForPageOperational',opStart);
+  const op=index.slice(opStart,opEnd);
+  assert.ok(!op.includes('initMeetingPage'),'operational check must still have one lifecycle owner');
+  assert.ok(!op.includes('meetingPageInitialized'),'DOM must not become an independent lifecycle owner');
+});
+
+ok('Dashboard critical-first controller accepts canonical data before Core',()=>{
+  assert.ok(index.includes('function patchDashboardControllerContractCurrent(n,h)'));
+  assert.ok(index.includes('dashboard-critical-first-r347'));
+  assert.ok(index.includes('Object.prototype.hasOwnProperty.call(res,"ok")'));
+  assert.ok(index.includes('root.AppApi&&__appIsFn(root.AppApi.call)?root.AppApi.call(method,payload'));
+  assert.ok(index.includes('dashboard.controller.contract.notMatched'));
+  const fetchStart=index.indexOf('function fetchPartialHtml(n)');
+  const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
+  const fetchBlock=index.slice(fetchStart,fetchEnd);
+  assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
+  assert.ok(config.includes('P0-F Network Access Compatibility'));
+  assert.ok(config.includes('p0-f-network-access-compatibility-r354'));
+  assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
+});
+
+ok('Dashboard controller and data recovery are bounded after login',()=>{
+  assert.ok(index.includes('function dashboardControllerReadyCrit()'));
+  assert.ok(index.includes('function waitDashboardAuthTokenCrit(timeoutMs)'));
+  assert.ok(index.includes('function recoverDashboardRuntimeCrit(reason)'));
+  assert.ok(index.includes('dashboard-runtime-recovery-r345'));
+  assert.ok(index.includes('dashboard-data-recovery-r345'));
+  assert.ok(index.includes('dashboard.dataRecovery.current'));
+  assert.ok(index.includes('dashboard.dataRecovery.criticalFirst'));
+  assert.ok(index.includes('DASHBOARD_CONTROLLER_NOT_READY'));
+  assert.ok(index.includes('var delays=[0,1200,3500,7000]'));
+  assert.ok(index.includes('var state=root2.__APP_DASHBOARD_DATA_RECOVERY_CURRENT__,delays=[1600,4000,9000]'));
+  assert.ok(index.includes('state.attempt>=delays.length'));
+  const loadStart=index.indexOf('function loadPage(p)');
+  const loadEnd=index.indexOf('function assertExternalAsset',loadStart);
+  const loadBlock=index.slice(loadStart,loadEnd);
+  const dashboardStart=loadBlock.indexOf('if(n==="dashboard")');
+  const genericPos=loadBlock.indexOf('return Promise.all([ensureCore()');
+  const dashboardBlock=loadBlock.slice(dashboardStart,genericPos);
+  assert.ok(dashboardStart>=0&&genericPos>dashboardStart,'Dashboard critical-first branch missing');
+  assert.ok(dashboardBlock.includes('safePartial("Scripts_Page_Dashboard")'));
+  assert.ok(!dashboardBlock.includes('ensureCore()'),'Dashboard controller must not wait for Core');
+  const authStart=index.indexOf('function loadAuthenticatedRuntimeCrit(reason)');
+  const authEnd=index.indexOf('function activateRecoveredDashboardCrit',authStart);
+  const authBlock=index.slice(authStart,authEnd);
+  assert.ok(authBlock.includes('safePartial("Scripts_Page_Dashboard")'));
+  assert.ok(!authBlock.includes('ensureCore()'),'login Dashboard runtime must not block on Core');
+  const activateStart=index.indexOf('function activateRecoveredDashboardCrit(reason)');
+  const activateEnd=index.indexOf('function recoverDashboardRuntimeCrit',activateStart);
+  const activateBlock=index.slice(activateStart,activateEnd);
+  assert.ok(activateBlock.includes('P.get("dashboard")'));
+  assert.ok(activateBlock.includes('a.mount({source:reason||"dashboard-critical-first-r347"'));
+  assert.ok(activateBlock.includes('directMount:!0'));
+  assert.ok(!index.includes('setInterval(function(){recoverDashboardRuntimeCrit'),'Dashboard recovery must not poll forever');
+});
+
+ok('interaction paths avoid blocking work on tap',()=>{
+  assert.ok(index.includes('function scheduleRoutePrefetchCurrent(el)'));
+  assert.ok(index.includes('requestIdleCallback'));
+  assert.ok(!index.includes('document.addEventListener("pointerdown",function(ev){prefetchRouteFromElementCurrent'));
+  assert.ok(index.includes('data-app-thai-date-ready'));
+  assert.ok(index.includes('input.setAttribute("inputmode", "numeric")'));
+  assert.ok(index.includes('var registeredNow=callRegistered(targetPage)'));
+  assert.ok(index.includes('var directNow=callGlobal()'));
+  assert.ok(index.includes('feedbackObserver = null'));
+  assert.ok(index.includes('stopFeedbackObserver()'));
+});
+
+ok('frontend performance cache policy remains bounded',()=>{
+  for(const token of ['REQUEST_TIMEOUT_MS:60000','WRITE_REQUEST_TIMEOUT_MS:120000','AI_DOCUMENT_TIMEOUT_MS:300000','RPC_READ_CACHE_MAX_ENTRIES:96','apiGetDashboardBundle:70000','apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000'])assert.ok(config.includes(token),token);
+});
+
+// Exercise the public transport entry point used by the critical/runtime API facades.
+{
+  const calls=[];
+  const w={
+    location:{origin:'https://app.example.test'},
+    APP_RUNTIME_CONFIG:{CLOUD_RUN_GATEWAY_URL:'https://should-not-be-used.run.app/'},
+    setTimeout,clearTimeout,
+    fetch:async(url,options={})=>{
+      if(String(url).endsWith('/network-health'))return {ok:true,status:200,json:async()=>({ok:true,status:'reachable',network:{gate:'P0-F',sameOriginBrowser:true},upstream:{checked:false}})};
+      calls.push({url,body:JSON.parse(options.body)});
+      return {ok:true,headers:{get:()=> 'gas-direct-json-v1'},text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{html:'<script>/* fixture */</script>'}}})};
+    }
+  };
+  vm.runInNewContext(transport,{window:w,document:{dispatchEvent(){}},CustomEvent:function(){},Promise,Date});
+  await w.AppTransport.run('apiRouter',{method:'getDeferredInclude',payload:{name:'Scripts_Page_Dashboard',token:'fixture-only'}});
+  ok('wrapped deferred assets stay on the current public origin',()=>{
+    assert.equal(calls[0].url,'https://app.example.test/api/router');
+    assert.deepEqual(calls[0].body.payload,{name:'Scripts_Page_Dashboard',token:'fixture-only'});
+    assert.equal(calls[0].body.method,'getDeferredInclude');
+  });
+  await w.AppTransport.run('apiRouter',{method:'apiSessionCheck',payload:{token:'fixture-only'}});
+  await w.AppTransport.run('apiGetDashboardBundle',{token:'fixture-only'});
+  await w.AppTransport.run('apiRouter',{method:'apiSaveCase',payload:{caseNo:'fixture-only',token:'fixture-only'}});
+  ok('auth calls remain direct and business reads/writes preserve the GAS router payload',()=>{
+    assert.equal(calls[1].body.method,'apiSessionCheck');
+    assert.equal(calls[2].body.method,'apiRouter');
+    assert.equal(calls[2].body.payload.method,'apiGetDashboardBundle');
+    assert.equal(calls[3].body.method,'apiRouter');
+    assert.equal(calls[3].body.payload.method,'apiSaveCase');
+    assert.equal(calls[3].body.timeoutMs,120000);
+  });
+  const net=await w.AppTransport.diagnoseNetwork();
+  ok('P0-F browser diagnostics use same-origin network-health',()=>{
+    assert.equal(w.AppTransport.networkAccessGate,'P0-F');
+    assert.equal(net.ok,true);
+    assert.equal(net.network.gate,'P0-F');
+  });
+}
+
+{
+  const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},RT:{recordWarning(){}},deferredStatusCurrent(){},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h,__appObserve(){}};
+  let attempts=0;
+  ctx.store={get:(k,d)=>k==='auth.token'?'fixture-token':d};
+  ctx.root2={__APP_ASSET_STAMP__:'fixture-r353',AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
+  const start=index.indexOf('function deferredHtmlCurrent('),end=index.indexOf('function prefetchPartial(',start);
+  vm.runInNewContext(index.slice(start,end),ctx);
+  await assert.rejects(ctx.fetchPartialHtml('Scripts_Page_Dashboard'),e=>e.code==='DEFERRED_INCLUDE_INVALID_HTML');
+  assert.equal(await ctx.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* recovered */</script>');
+  ok('invalid deferred responses cannot mark a controller loaded or poison its retry',()=>{
+    assert.equal(attempts,2);
+    assert.deepEqual(Object.keys(ctx.inflight),[]);
+    assert.throws(()=>ctx.deferredHtmlCurrent({ok:false,data:{code:'ASSET_DENIED'}},'fixture'),e=>e.code==='ASSET_DENIED');
+    assert.equal(ctx.deferredHtmlCurrent({result:{data:{html:'<script>/* nested */</script>'}}},'fixture'),'<script>/* nested */</script>');
+  });
+}
+
+// Keep the real strict-mode closure: extracting helper declarations on their own
+// would hide a helper accidentally scoped inside the initialization block.
+{
+  const calls=[];
+  const w={
+    __APP_CRITICAL_LOGIN_RUNTIME_READY__:true,
+    AppRuntime:{recordWarning(){}},
+    AppApi:{call:async(method,payload)=>{calls.push([method,payload.name]);return {html:'<script>/* dashboard fixture */</script>'}}},
+    fetch:async url=>{calls.push(['static',url]);return {ok:true,text:async()=>'<script>window.initMeetingPage=function(){};AppPages.register("meeting",{});</script>'}},
+    document:{documentElement:{setAttribute(){}}}
+  };
+  const critical=scripts(index).find(s=>s.includes('function fetchPartialHtml(n)'));
+  const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;store={get:function(k,d){return k==="auth.token"?"fixture-token":d}};root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
+  vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function',__appObserve(){}});
+  assert.equal(await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* dashboard fixture */</script>');
+  assert.ok((await w.scopeTest.fetchPartialHtml('Scripts_Page_Meeting::meeting')).includes('window.initMeetingPage'));
+  w.scopeTest.invalidatePartial('Scripts_Page_Dashboard');
+  await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard');
+  ok('strict-mode deferred loader can access both asset transports and invalidate its cache',()=>{
+    assert.deepEqual(calls.map(c=>c[0]),['getDeferredInclude','static','getDeferredInclude']);
+  });
+}
+
+ok('early warning reporting terminates and excludes request secrets',()=>{
+  const messages=[],attrs={};
+  const root={console:{warn:(...args)=>messages.push(args)},document:{documentElement:{setAttribute:(k,v)=>{attrs[k]=v}}}};
+  const context={root,window:root};
+  vm.runInNewContext(scripts(index)[0],context);
+  root.AppRuntime.recordWarning('deferred.fetch',{code:'GAS_UPSTREAM_TIMEOUT',message:'fixture-private-value'},{partial:'Scripts_Page_Dashboard',token:'fixture-private-value'});
+  root.__appObserve(new ReferenceError('missingController is not defined'),'deferred.execute');
+  assert.equal(messages.length,2,'one report per warning, without recursive calls');
+  assert.equal(JSON.parse(attrs['data-app-runtime-warning']).hint,'missingController is not defined');
+  assert.ok(!JSON.stringify(messages).includes('fixture-private-value'));
+  root.AppRuntime.recordWarning=root.__appObserve;
+  root.__appObserve(new Error('DASHBOARD_CONTROLLER_NOT_READY'),'dashboard.runtime.recovery');
+  assert.equal(messages.length,3,'observe fallback must also be non-recursive');
+});
+
+ok('Meeting canonical adapter is registered with the active lifecycle owner',()=>{
+  const source=index.slice(index.indexOf('function ensureCanonicalPageControllerCurrent(id){'),index.indexOf('function pageControllerReadyCurrent(id)'));
+  const adapter={__canonicalLifecycle:true,mount(){return true},reload(){return true},dispose(){return true}};
+  let active=null,registrations=0;
+  const window={AppPages:{get:()=>adapter},AppLifecycle:{getPage:()=>active,registerPage(id,value){assert.equal(id,'meeting');registrations++;return active=value}}};
+  const ctx={window,canonicalPageId:id=>id,__appIsFn:v=>typeof v==='function',__appObserve(){}};
+  vm.runInNewContext(source,ctx);
+  assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),adapter);
+  assert.equal(active,adapter,'canonical AppPages adapter must not bypass lifecycle registration');
+  ctx.ensureCanonicalPageControllerCurrent('meeting');
+  assert.equal(registrations,1,'do not remount or register an active adapter twice');
+  active=null;
+  ctx.ensureCanonicalPageControllerCurrent('meeting');
+  assert.equal(registrations,2,'recover after lifecycle registry replacement');
+  window.AppLifecycle.registerPage=()=>null;
+  active=null;
+  assert.equal(ctx.ensureCanonicalPageControllerCurrent('meeting'),null,'do not report readiness when lifecycle registration fails');
+});
+
+ok('Meeting tab changes retain the correct save target without runtime errors',()=>{
+  // Execute the entire strict-mode owner so block-scope regressions are observable.
+  const source=meetingController.match(/<script id="meeting-page-runtime-owner-p3"[^>]*>([\s\S]*?)<\/script>/)[1];
+  const state={},nodes=new Map(),tabs=[],panes=[],warnings=[];
+  function node(id){
+    const attrs={},classes=new Set();
+    return {id,dataset:{},style:{},value:'',textContent:'',
+      classList:{add(...xs){xs.forEach(x=>classes.add(x))},remove(...xs){xs.forEach(x=>classes.delete(x))},contains:x=>classes.has(x),toggle(x,on){if(on===undefined)on=!classes.has(x);on?classes.add(x):classes.delete(x);return on}},
+      getAttribute:k=>attrs[k]??null,setAttribute(k,v){attrs[k]=String(v)},removeAttribute(k){delete attrs[k]},
+      addEventListener(){},querySelectorAll(){return []},appendChild(){}
+    };
+  }
+  for(const name of ['case-data','meeting-history','letter-tracking']){
+    const tab=node('tab-'+name),pane=node('content-'+name);
+    tab.setAttribute('data-bs-target','#'+pane.id);
+    nodes.set(tab.id,tab);nodes.set(pane.id,pane);tabs.push(tab);panes.push(pane);
+  }
+  nodes.set('meeting-uiux-stability-style',node('meeting-uiux-stability-style'));
+  const document={readyState:'loading',documentElement:node('html'),getElementById:id=>nodes.get(id)||null,
+    querySelector:s=>s.startsWith('#')?nodes.get(s.slice(1))||null:null,
+    querySelectorAll:s=>s==='#meeting-tabs .nav-link'?tabs:s.includes('.tab-pane')?panes:[],
+    addEventListener(){},dispatchEvent(){},createElement:node
+  };
+  const kit={byId:document.getElementById,text:v=>v==null?'':String(v),esc:v=>String(v),storeGet:(k,d)=>state[k]??d,storeSet:(k,v)=>(state[k]=v),
+    apiRunner(){throw new Error('tab selection must not write or request unrelated data')},setHtml(){},clearNode(){},createEl:node,createBadge:node
+  };
+  const window={document,AppRuntimeModules:{requirePageKit:()=>kit},AppStore:{get:kit.storeGet,set:kit.storeSet},isAuthenticated:()=>true};
+  vm.runInNewContext(source,{window,document,Promise,setTimeout(){},__appIsFn:x=>typeof x==='function',__appObserve:(err,topic)=>warnings.push({topic,message:err.message})});
+  for(const [mode,position] of [['case',0],['history',1],['letter',2],['case',0],['letter',2]]){
+    window.meetingSetMode(mode);
+    assert.deepEqual(warnings,[],'tab switching must not swallow a missing-helper exception');
+    const target='#'+panes[position].id;
+    assert.equal(document.documentElement.getAttribute('data-meeting-save-target'),target);
+    assert.equal(window.__meetingActiveSaveTarget,target);
+    assert.equal(window.__meetingActiveSaveMode,mode);
+    assert.equal(state.meeting.mode,mode);
+    for(let i=0;i<panes.length;i++){
+      assert.equal(panes[i].getAttribute('aria-hidden'),i===position?'false':'true');
+      assert.equal(panes[i].style.display,i===position?'':'none');
+      assert.equal(tabs[i].getAttribute('aria-selected'),i===position?'true':'false');
+    }
+  }
+  assert.equal(window.meetingRememberSaveTarget_,undefined,'the helper must remain private to the Meeting owner');
+});
+
+console.log('# '+passed+' CR-7 regression groups passed');
+));
+  assert.ok(!workflow.includes('(?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])'));
   assert.ok(workflow.includes('CF_WORKERS_SUBDOMAIN'));
   assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'apa27'"));
   assert.ok(workflow.includes("vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173'"));

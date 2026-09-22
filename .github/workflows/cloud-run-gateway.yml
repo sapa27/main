@@ -95,8 +95,8 @@ jobs:
             echo "CF_WORKERS_SUBDOMAIN=$edge_subdomain" >> "$GITHUB_ENV"
           fi
           if [ -n "$edge_subdomain" ]; then
-            [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
-            [[ "$edge_subdomain" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
+            [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
+            [[ "$edge_subdomain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
             edge_origin="https://${CF_WORKER_NAME}.${edge_subdomain}.workers.dev"
             if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
               echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
