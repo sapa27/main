@@ -2776,16 +2776,25 @@ try{return!!(root2.AppPages&&__appIsFn(root2.AppPages.get)&&root2.AppPages.get("
 }
 function loadCommitteeMeetingPageCurrent(list){
 var qualified="Scripts_Page_Meeting::committee",base="Scripts_Page_Meeting";
-return ensureCore().then(function(){return safePartial("Scripts_Page_Meeting::meeting-common")}).then(function(){
-return safePartial(qualified).catch(function(fragmentErr){
-if(committeeMeetingAuthFailureCurrent(fragmentErr))throw fragmentErr;
+function fallbackToBase(reason){
+if(committeeMeetingAuthFailureCurrent(reason))throw reason;
 try{invalidatePartial(qualified);invalidatePartial(base)}catch(_invalidateErr){__appObserve(_invalidateErr,"committee.controller.invalidate")}
-try{RT.recordWarning&&RT.recordWarning("page.committeeMeeting.qualifiedFallback",fragmentErr,{partial:qualified,fallback:base})}catch(_warn){__appObserve(_warn,"committee.controller.fallback.warn")}
+try{RT.recordWarning&&RT.recordWarning("page.committeeMeeting.qualifiedFallback",reason,{partial:qualified,fallback:base})}catch(_warn){__appObserve(_warn,"committee.controller.fallback.warn")}
 return loadPartial(base).then(function(){
 if(!committeeMeetingControllerReadyCurrent()){var e=new Error("COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED_AFTER_BASE_FALLBACK");e.code="COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED";throw e}
 loaded[qualified]=!0;
 return!0
 })
+}
+return ensureCore().then(function(){return safePartial("Scripts_Page_Meeting::meeting-common")}).then(function(){
+return safePartial(qualified).then(function(){
+if(committeeMeetingControllerReadyCurrent())return!0;
+var missing=new Error("COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED_AFTER_QUALIFIED_FRAGMENT");
+missing.code="COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED";
+try{RT.recordWarning&&RT.recordWarning("page.committeeMeeting.qualifiedLoadedButAdapterMissing",missing,{partial:qualified,fallback:base})}catch(_missingWarn){__appObserve(_missingWarn,"committee.controller.missingAdapter.warn")}
+return fallbackToBase(missing)
+},function(fragmentErr){
+return fallbackToBase(fragmentErr)
 })
 }).then(function(){
 if(!committeeMeetingControllerReadyCurrent()){var e=new Error("COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED");e.code="COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED";throw e}
