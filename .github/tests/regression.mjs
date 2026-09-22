@@ -283,10 +283,12 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('CF_WORKERS_SUBDOMAIN'));
   assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'anti'"));
   assert.ok(workflow.includes("vars.CF_WORKER_NAME || 'sapa27'"));
-  assert.ok(workflow.includes('Changing Cloudflare workers.dev account subdomain to neutral value'));
-  assert.ok(workflow.includes('Cloudflare rejected requested workers.dev subdomain'));
+  assert.ok(workflow.includes('Replacing personal workers.dev account subdomain with a neutral value'));
+  assert.ok(workflow.includes('Selected neutral workers.dev subdomain'));
+  assert.ok(workflow.includes('No neutral workers.dev candidate was available; attempting rollback'));
   assert.ok(workflow.includes("vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173'"));
-  assert.ok(workflow.includes('desired_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"'));
+  assert.ok(workflow.includes('preferred_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"'));
+  assert.ok(workflow.includes('candidate_subdomains=("$preferred_subdomain" "anti27" "sapa27-anti" "anti-sapa27")'));
   assert.ok(workflow.includes('auto-generated if omitted'));
   assert.ok(workflow.includes('CLOUDFLARE_ACCOUNT_ID'));
   assert.ok(workflow.includes('CLOUDFLARE_API_TOKEN'));
