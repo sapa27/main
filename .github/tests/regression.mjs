@@ -318,6 +318,22 @@ ok('Meeting controller opens before shared deferred runtime',()=>{
   assert.ok(index.includes('meeting.shared.load.degraded'));
 });
 
+ok('Committee Meeting qualified fragment falls back to the legacy base asset without bypassing auth',()=>{
+  assert.ok(index.includes('function loadCommitteeMeetingPageCurrent(list)'));
+  assert.ok(index.includes('page.committeeMeeting.qualifiedFallback'));
+  assert.ok(index.includes('COMMITTEE_MEETING_ADAPTER_NOT_REGISTERED'));
+  const start=index.indexOf('function committeeMeetingAuthFailureCurrent(err)');
+  const end=index.indexOf('function loadPage(p)',start);
+  assert.ok(start>=0&&end>start,'Committee Meeting loader helpers missing');
+  const block=index.slice(start,end);
+  assert.ok(block.includes('safePartial("Scripts_Page_Meeting::meeting-common")'));
+  assert.ok(block.includes('safePartial(qualified).catch'));
+  assert.ok(block.includes('return loadPartial(base).then'));
+  assert.ok(block.includes('if(committeeMeetingAuthFailureCurrent(fragmentErr))throw fragmentErr'),'auth errors must fail closed');
+  assert.ok(block.indexOf('committeeMeetingAuthFailureCurrent(fragmentErr)')<block.indexOf('loadPartial(base)'),'authorization decision must precede fallback');
+  assert.ok(index.includes('if(n==="committee-meeting")return loadCommitteeMeetingPageCurrent(list)'));
+});
+
 ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   assert.ok(index.includes('critical-bootstrap-lifecycle-compatible-r342'));
   assert.ok(index.includes('a.__canonicalLifecycle=!0'));
