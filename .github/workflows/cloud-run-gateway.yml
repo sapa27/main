@@ -69,8 +69,8 @@ jobs:
       CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
       PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
       CF_WORKER_NAME: ${{ vars.CF_WORKER_NAME || 'sapa27-public-edge' }}
-      CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN || 'apa27' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
     steps:
