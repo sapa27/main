@@ -68,8 +68,8 @@ jobs:
       ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec
       CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
       PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
-      CF_WORKER_NAME: ${{ vars.CF_WORKER_NAME || 'sapa27-public-edge' }}
-      CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN || 'apa27' }}
+      CF_WORKER_NAME: ${{ vars.CF_WORKER_NAME || 'sapa27' }}
+      CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN || 'anti' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
@@ -89,41 +89,46 @@ jobs:
       - name: Resolve P0-F-B1 workers.dev origin
         run: |
           set -euo pipefail
-          edge_subdomain="${CF_WORKERS_SUBDOMAIN:-}"
+          desired_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"
+
+          [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
+          [[ "$desired_subdomain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
 
           if [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
             cf_subdomain_tmp="$(mktemp)"
             cf_subdomain_status="$(curl --max-time 30 -sS -o "$cf_subdomain_tmp" -w '%{http_code}'               -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json")"
 
+            current_subdomain=""
             if [ "$cf_subdomain_status" = "200" ]; then
-              detected_subdomain="$(node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||!x.result?.subdomain)process.exit(1);process.stdout.write(x.result.subdomain)' "$cf_subdomain_tmp")"
-              if [ -n "$edge_subdomain" ] && [ "$edge_subdomain" != "$detected_subdomain" ]; then
-                echo "Configured workers.dev subdomain $edge_subdomain differs from Cloudflare account; using $detected_subdomain"
-              fi
-              edge_subdomain="$detected_subdomain"
+              current_subdomain="$(node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||!x.result?.subdomain)process.exit(1);process.stdout.write(x.result.subdomain)' "$cf_subdomain_tmp")"
             elif [ "$cf_subdomain_status" != "404" ]; then
-              echo "Unable to resolve Cloudflare workers.dev subdomain (HTTP $cf_subdomain_status)" >&2
+              echo "Unable to read Cloudflare workers.dev subdomain (HTTP $cf_subdomain_status)" >&2
               cat "$cf_subdomain_tmp" >&2
               exit 1
             fi
-          fi
 
-          if [ -z "$edge_subdomain" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-            edge_subdomain="sapa27-${CLOUDFLARE_ACCOUNT_ID:0:8}"
-          fi
-
-          if [ -n "$edge_subdomain" ]; then
-            [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
-            [[ "$edge_subdomain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
-            edge_origin="https://${CF_WORKER_NAME}.${edge_subdomain}.workers.dev"
-            if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
-              echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
-              exit 1
+            if [ "$current_subdomain" != "$desired_subdomain" ]; then
+              echo "Changing Cloudflare workers.dev account subdomain to neutral value: $desired_subdomain"
+              change_tmp="$(mktemp)"
+              change_status="$(curl --max-time 30 -sS -o "$change_tmp" -w '%{http_code}'                 -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Content-Type: application/json"                 --data "$(printf '{"subdomain":"%s"}' "$desired_subdomain")")"
+              if [ "$change_status" != "200" ]; then
+                echo "Cloudflare rejected requested workers.dev subdomain $desired_subdomain (HTTP $change_status)" >&2
+                cat "$change_tmp" >&2
+                exit 1
+              fi
+              node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$change_tmp" "$desired_subdomain"
             fi
-            echo "CF_WORKERS_SUBDOMAIN=$edge_subdomain" >> "$GITHUB_ENV"
-            echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
-            echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
           fi
+
+          edge_origin="https://${CF_WORKER_NAME}.${desired_subdomain}.workers.dev"
+          if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
+            echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
+            exit 1
+          fi
+
+          echo "CF_WORKERS_SUBDOMAIN=$desired_subdomain" >> "$GITHUB_ENV"
+          echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
+          echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
