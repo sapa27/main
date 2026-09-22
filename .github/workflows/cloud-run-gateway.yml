@@ -109,13 +109,41 @@ jobs:
 
             if [ "$current_subdomain" != "$desired_subdomain" ]; then
               echo "Changing Cloudflare workers.dev account subdomain to neutral value: $desired_subdomain"
+
+              if [ -n "$current_subdomain" ]; then
+                delete_tmp="$(mktemp)"
+                delete_status="$(curl --max-time 30 -sS -o "$delete_tmp" -w '%{http_code}'                   -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+                case "$delete_status" in
+                  200|204) ;;
+                  *)
+                    echo "Unable to remove existing Cloudflare workers.dev subdomain (HTTP $delete_status)" >&2
+                    cat "$delete_tmp" >&2
+                    exit 1
+                    ;;
+                esac
+              fi
+
               change_tmp="$(mktemp)"
               change_status="$(curl --max-time 30 -sS -o "$change_tmp" -w '%{http_code}'                 -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Content-Type: application/json"                 --data "$(printf '{"subdomain":"%s"}' "$desired_subdomain")")"
+
               if [ "$change_status" != "200" ]; then
                 echo "Cloudflare rejected requested workers.dev subdomain $desired_subdomain (HTTP $change_status)" >&2
                 cat "$change_tmp" >&2
+
+                if [ -n "$current_subdomain" ]; then
+                  echo "Attempting rollback to previous workers.dev subdomain"
+                  rollback_tmp="$(mktemp)"
+                  rollback_status="$(curl --max-time 30 -sS -o "$rollback_tmp" -w '%{http_code}'                     -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                     -H "Content-Type: application/json"                     --data "$(printf '{"subdomain":"%s"}' "$current_subdomain")")"
+                  if [ "$rollback_status" != "200" ]; then
+                    echo "Rollback of workers.dev subdomain also failed (HTTP $rollback_status)" >&2
+                    cat "$rollback_tmp" >&2
+                  else
+                    echo "Rollback restored previous workers.dev subdomain"
+                  fi
+                fi
                 exit 1
               fi
+
               node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$change_tmp" "$desired_subdomain"
             fi
           fi
