@@ -8,7 +8,7 @@ const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
   GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbwXIRMjP4yKRRlS7loJFiAmVCLxKq_uie6rUPsaKw17wtzWQOkjjaH2ah8gIqsHA6_G/exec',
   ANTI_GAS_WEB_APP_URL:'https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec',
-  GATEWAY_ALLOWED_ORIGINS:ORIGIN+',https://sapa27.anti27.workers.dev',
+  GATEWAY_ALLOWED_ORIGINS:ORIGIN+',https://sapa27.github.io',
   PUBLIC_APP_ORIGIN:'https://app.example.test',
   APP_SOURCE_SHA:'test-source-sha'
 };
@@ -239,13 +239,13 @@ test('api/anti permits GitHub Pages and rejects non-public actions before GAS',a
   };
   try{
     await withServer(async base=>{
-      const ok=await fetch(base+'/api/anti',{method:'POST',headers:{Origin:'https://sapa27.anti27.workers.dev','Content-Type':'application/json'},body:JSON.stringify({action:'search',payload:{recNo:'1111/2569'}})});
+      const ok=await fetch(base+'/api/anti',{method:'POST',headers:{Origin:'https://sapa27.github.io','Content-Type':'application/json'},body:JSON.stringify({action:'search',payload:{recNo:'1111/2569'}})});
       const value=await ok.json();
       assert.equal(ok.status,200);
-      assert.equal(ok.headers.get('access-control-allow-origin'),'https://sapa27.anti27.workers.dev');
+      assert.equal(ok.headers.get('access-control-allow-origin'),'https://sapa27.github.io');
       assert.equal(ok.headers.get('x-gas-response-contract'),'anti-public-json-v1');
       assert.equal(value.found,true);
-      const denied=await fetch(base+'/api/anti',{method:'POST',headers:{Origin:'https://sapa27.anti27.workers.dev','Content-Type':'application/json'},body:JSON.stringify({action:'delete',payload:{}})});
+      const denied=await fetch(base+'/api/anti',{method:'POST',headers:{Origin:'https://sapa27.github.io','Content-Type':'application/json'},body:JSON.stringify({action:'delete',payload:{}})});
       assert.equal(denied.status,403);
       assert.equal((await denied.json()).error.code,'ANTI_ACTION_NOT_ALLOWED');
     });
