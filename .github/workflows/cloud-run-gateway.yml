@@ -405,7 +405,7 @@ jobs:
                     redirectUrl.host = incoming.host;
                     responseHeaders.set("Location", redirectUrl.toString());
                   } else if (!isGateway && redirectUrl.origin === antiSiteBase.origin) {
-                    const basePath = antiSiteBase.pathname.replace(/\\/$/, "");
+                    const basePath = antiSiteBase.pathname.endsWith("/") ? antiSiteBase.pathname.slice(0,-1) : antiSiteBase.pathname;
                     redirectUrl.protocol = incoming.protocol;
                     redirectUrl.host = incoming.host;
                     redirectUrl.pathname = redirectUrl.pathname.startsWith(basePath)
