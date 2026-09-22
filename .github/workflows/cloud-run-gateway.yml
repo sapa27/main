@@ -53,7 +53,7 @@ jobs:
     needs: validate
     if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     permissions:
       contents: read
       id-token: write
@@ -68,6 +68,10 @@ jobs:
       ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec
       CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
       PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+      CF_WORKER_NAME: ${{ vars.CF_WORKER_NAME || 'sapa27-public-edge' }}
+      CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +86,20 @@ jobs:
           for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN; do
             test -n "${!name:-}" || { echo "Missing $name" >&2; exit 1; }
           done
+      - name: Resolve P0-F-B1 workers.dev origin
+        run: |
+          set -euo pipefail
+          if [ -n "${CF_WORKERS_SUBDOMAIN:-}" ]; then
+            [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
+            [[ "$CF_WORKERS_SUBDOMAIN" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
+            edge_origin="https://${CF_WORKER_NAME}.${CF_WORKERS_SUBDOMAIN}.workers.dev"
+            if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
+              echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
+              exit 1
+            fi
+            echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
+            echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
+          fi
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
@@ -212,18 +230,111 @@ jobs:
           echo "- Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
           echo "- Browser runtime: same-origin (P0-F edge-ready)" >> "$GITHUB_STEP_SUMMARY"
           echo "- P0-F-A Network Access Compatibility: PASS" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$PUBLIC_APP_ORIGIN" ]; then
-            edge_network="$(curl --max-time 30 -fsS "$PUBLIC_APP_ORIGIN/network-health")"
-            node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true)process.exit(1)' "$edge_network"
-            echo "- Public edge origin: $PUBLIC_APP_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
-            echo "- P0-F-B Public Edge Domain: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "- P0-F-B Public Edge Domain: pending PUBLIC_APP_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "- P0-F-B1 workers.dev edge: deployment gate follows production smoke" >> "$GITHUB_STEP_SUMMARY"
           echo "- Frontend source: frontend/" >> "$GITHUB_STEP_SUMMARY"
           echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- Response owner: GAS (gas-direct-json-v1)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Legacy parent-origin RPC: removed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy P0-F-B1 Cloudflare workers.dev edge
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          set -euo pipefail
+          if [ -z "${CF_WORKERS_SUBDOMAIN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Status: PENDING" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required: CF_WORKERS_SUBDOMAIN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          edge_origin="https://${CF_WORKER_NAME}.${CF_WORKERS_SUBDOMAIN}.workers.dev"
+          test "${PUBLIC_APP_ORIGIN:-}" = "$edge_origin"
+
+          subdomain_payload="$(printf '{"subdomain":"%s"}' "$CF_WORKERS_SUBDOMAIN")"
+          subdomain_result="$(curl --max-time 30 -fsS             -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Content-Type: application/json"             --data "$subdomain_payload")"
+          node -e 'const x=JSON.parse(process.argv[1]);if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$subdomain_result" "$CF_WORKERS_SUBDOMAIN"
+
+          tmp_edge="$(mktemp -d)"
+          cat > "$tmp_edge/worker.mjs" <<'EDGE_WORKER'
+          export default {
+            async fetch(request, env) {
+              const incoming = new URL(request.url);
+              const upstreamBase = new URL(env.CLOUD_RUN_ORIGIN);
+              const target = new URL(incoming.pathname + incoming.search, upstreamBase);
+              const headers = new Headers(request.headers);
+              headers.delete("host");
+              headers.delete("content-length");
+              headers.set("X-Forwarded-Host", incoming.host);
+              headers.set("X-Forwarded-Proto", "https");
+              headers.set("X-Edge-Provider", "cloudflare");
+
+              const init = {
+                method: request.method,
+                headers,
+                redirect: "manual"
+              };
+              if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+
+              const upstream = await fetch(target.toString(), init);
+              const responseHeaders = new Headers(upstream.headers);
+              responseHeaders.set("X-P0F-Edge", "cloudflare-workers-dev");
+
+              const location = responseHeaders.get("Location");
+              if (location) {
+                try {
+                  const redirectUrl = new URL(location);
+                  if (redirectUrl.origin === upstreamBase.origin) {
+                    redirectUrl.protocol = incoming.protocol;
+                    redirectUrl.host = incoming.host;
+                    responseHeaders.set("Location", redirectUrl.toString());
+                  }
+                } catch (_) {}
+              }
+
+              return new Response(upstream.body, {
+                status: upstream.status,
+                statusText: upstream.statusText,
+                headers: responseHeaders
+              });
+            }
+          };
+          EDGE_WORKER
+
+          node -e 'const fs=require("fs");const p=process.argv[1],name=process.argv[2],origin=process.argv[3];fs.writeFileSync(p,JSON.stringify({name,main:"./worker.mjs",compatibility_date:"2026-09-22",workers_dev:true,preview_urls:false,vars:{CLOUD_RUN_ORIGIN:origin}},null,2))'             "$tmp_edge/wrangler.jsonc" "$CF_WORKER_NAME" "$CLOUD_RUN_ORIGIN"
+
+          node --check "$tmp_edge/worker.mjs"
+          npx --yes wrangler@4.136.1 deploy --config "$tmp_edge/wrangler.jsonc"
+
+          script_subdomain="$(curl --max-time 30 -fsS             -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$CF_WORKER_NAME/subdomain"             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Content-Type: application/json"             --data '{"enabled":true,"previews_enabled":false}')"
+          node -e 'const x=JSON.parse(process.argv[1]);if(x.success!==true||x.result?.enabled!==true||x.result?.previews_enabled!==false)process.exit(1)' "$script_subdomain"
+
+          edge_network=""
+          for attempt in 1 2 3 4 5; do
+            if candidate="$(curl --max-time 30 -fsS "$edge_origin/network-health")"; then
+              edge_network="$candidate"
+              break
+            fi
+            test "$attempt" -lt 5 && sleep 3
+          done
+          test -n "$edge_network" || { echo "P0-F-B1 edge network-health unavailable" >&2; exit 1; }
+          node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true||n.network?.originMode!=="public-edge"||n.network?.edge?.detected!==true||n.network?.edge?.provider!=="cloudflare"||n.upstream?.checked!==false)process.exit(1)' "$edge_network"
+
+          edge_upstream="$(curl --max-time 45 -fsS "$edge_origin/upstream-health")"
+          node -e 'const u=JSON.parse(process.argv[1]);if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$edge_upstream"
+
+          edge_config="$(curl --max-time 30 -fsS "$edge_origin/app-config.js")"
+          printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
+          if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
+            echo "P0-F-B1 failed: public browser config exposes run.app" >&2
+            exit 1
+          fi
+
+          echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public URL: $edge_origin" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser → Cloudflare → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove retired transport environment variables
         run: |
