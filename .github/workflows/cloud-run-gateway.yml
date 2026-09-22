@@ -89,10 +89,15 @@ jobs:
       - name: Resolve P0-F-B1 workers.dev origin
         run: |
           set -euo pipefail
-          if [ -n "${CF_WORKERS_SUBDOMAIN:-}" ]; then
+          edge_subdomain="${CF_WORKERS_SUBDOMAIN:-}"
+          if [ -z "$edge_subdomain" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            edge_subdomain="sapa27-${CLOUDFLARE_ACCOUNT_ID:0:8}"
+            echo "CF_WORKERS_SUBDOMAIN=$edge_subdomain" >> "$GITHUB_ENV"
+          fi
+          if [ -n "$edge_subdomain" ]; then
             [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
-            [[ "$CF_WORKERS_SUBDOMAIN" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
-            edge_origin="https://${CF_WORKER_NAME}.${CF_WORKERS_SUBDOMAIN}.workers.dev"
+            [[ "$edge_subdomain" =~ ^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
+            edge_origin="https://${CF_WORKER_NAME}.${edge_subdomain}.workers.dev"
             if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
               echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
               exit 1
@@ -241,10 +246,11 @@ jobs:
           WRANGLER_SEND_METRICS: "false"
         run: |
           set -euo pipefail
-          if [ -z "${CF_WORKERS_SUBDOMAIN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
             echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
             echo "- Status: PENDING" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Required: CF_WORKERS_SUBDOMAIN, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Optional: CF_WORKERS_SUBDOMAIN (auto-generated if omitted)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
