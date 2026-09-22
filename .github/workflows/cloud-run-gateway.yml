@@ -257,9 +257,26 @@ jobs:
           edge_origin="https://${CF_WORKER_NAME}.${CF_WORKERS_SUBDOMAIN}.workers.dev"
           test "${PUBLIC_APP_ORIGIN:-}" = "$edge_origin"
 
-          subdomain_payload="$(printf '{"subdomain":"%s"}' "$CF_WORKERS_SUBDOMAIN")"
-          subdomain_result="$(curl --max-time 30 -fsS             -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Content-Type: application/json"             --data "$subdomain_payload")"
-          node -e 'const x=JSON.parse(process.argv[1]);if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$subdomain_result" "$CF_WORKERS_SUBDOMAIN"
+          subdomain_tmp="$(mktemp)"
+          subdomain_status="$(curl --max-time 30 -sS -o "$subdomain_tmp" -w '%{http_code}'             -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Content-Type: application/json")"
+
+          if [ "$subdomain_status" = "200" ]; then
+            node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$subdomain_tmp" "$CF_WORKERS_SUBDOMAIN" || {
+              echo "Existing workers.dev subdomain differs from expected $CF_WORKERS_SUBDOMAIN" >&2
+              cat "$subdomain_tmp" >&2
+              exit 1
+            }
+            echo "Using existing workers.dev subdomain: $CF_WORKERS_SUBDOMAIN"
+          elif [ "$subdomain_status" = "404" ]; then
+            subdomain_payload="$(printf '{"subdomain":"%s"}' "$CF_WORKERS_SUBDOMAIN")"
+            subdomain_result="$(curl --max-time 30 -fsS               -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$subdomain_payload")"
+            node -e 'const x=JSON.parse(process.argv[1]);if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$subdomain_result" "$CF_WORKERS_SUBDOMAIN"
+            echo "Created workers.dev subdomain: $CF_WORKERS_SUBDOMAIN"
+          else
+            echo "Unable to read Cloudflare workers.dev subdomain (HTTP $subdomain_status)" >&2
+            cat "$subdomain_tmp" >&2
+            exit 1
+          fi
 
           tmp_edge="$(mktemp -d)"
           cat > "$tmp_edge/worker.mjs" <<'EDGE_WORKER'
