@@ -281,7 +281,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Deploy P0-F-B1 Cloudflare workers.dev edge'));
   assert.ok(workflow.includes('CF_WORKER_NAME'));
   assert.ok(workflow.includes('CF_WORKERS_SUBDOMAIN'));
-  assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'anti'"));
+  assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'anti27'"));
   assert.ok(workflow.includes("vars.CF_WORKER_NAME || 'sapa27'"));
   assert.ok(workflow.includes('Replacing personal workers.dev account subdomain with a neutral value'));
   assert.ok(workflow.includes('Selected neutral workers.dev subdomain'));
@@ -310,7 +310,11 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('for attempt in 1 2 3; do'));
   assert.ok(workflow.includes('Production upstream health failed after 3 attempts'));
   assert.ok(!workflow.includes('upstream health degraded'));
-  assert.ok(workflow.includes('ANTI_PUBLIC_ORIGIN: https://sapa27.github.io'));
+  assert.ok(workflow.includes('ANTI_PUBLIC_ORIGIN: https://sapa27.anti27.workers.dev'));
+  assert.ok(workflow.includes('ANTI_SITE_ORIGIN:site'));
+  assert.ok(workflow.includes('"https://sapa27.github.io/anti/"'));
+  assert.ok(workflow.includes('P0-F-C Public Anti Edge'));
+  assert.ok(workflow.includes("apiUrl: '/api/anti'"));
   assert.ok(workflow.includes('ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec'));
   assert.ok(!workflow.includes('github-pages-rpc'));
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
