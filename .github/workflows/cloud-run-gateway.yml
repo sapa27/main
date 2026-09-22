@@ -90,10 +90,28 @@ jobs:
         run: |
           set -euo pipefail
           edge_subdomain="${CF_WORKERS_SUBDOMAIN:-}"
+
+          if [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            cf_subdomain_tmp="$(mktemp)"
+            cf_subdomain_status="$(curl --max-time 30 -sS -o "$cf_subdomain_tmp" -w '%{http_code}'               -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json")"
+
+            if [ "$cf_subdomain_status" = "200" ]; then
+              detected_subdomain="$(node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||!x.result?.subdomain)process.exit(1);process.stdout.write(x.result.subdomain)' "$cf_subdomain_tmp")"
+              if [ -n "$edge_subdomain" ] && [ "$edge_subdomain" != "$detected_subdomain" ]; then
+                echo "Configured workers.dev subdomain $edge_subdomain differs from Cloudflare account; using $detected_subdomain"
+              fi
+              edge_subdomain="$detected_subdomain"
+            elif [ "$cf_subdomain_status" != "404" ]; then
+              echo "Unable to resolve Cloudflare workers.dev subdomain (HTTP $cf_subdomain_status)" >&2
+              cat "$cf_subdomain_tmp" >&2
+              exit 1
+            fi
+          fi
+
           if [ -z "$edge_subdomain" ] && [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
             edge_subdomain="sapa27-${CLOUDFLARE_ACCOUNT_ID:0:8}"
-            echo "CF_WORKERS_SUBDOMAIN=$edge_subdomain" >> "$GITHUB_ENV"
           fi
+
           if [ -n "$edge_subdomain" ]; then
             [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
             [[ "$edge_subdomain" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN" >&2; exit 1; }
@@ -102,6 +120,7 @@ jobs:
               echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
               exit 1
             fi
+            echo "CF_WORKERS_SUBDOMAIN=$edge_subdomain" >> "$GITHUB_ENV"
             echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
             echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
           fi
