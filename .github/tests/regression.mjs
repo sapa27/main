@@ -281,6 +281,8 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('Deploy P0-F-B1 Cloudflare workers.dev edge'));
   assert.ok(workflow.includes('CF_WORKER_NAME'));
   assert.ok(workflow.includes('CF_WORKERS_SUBDOMAIN'));
+  assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'apa27'"));
+  assert.ok(workflow.includes("vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173'"));
   assert.ok(workflow.includes('edge_subdomain="sapa27-${CLOUDFLARE_ACCOUNT_ID:0:8}"'));
   assert.ok(workflow.includes('auto-generated if omitted'));
   assert.ok(workflow.includes('CLOUDFLARE_ACCOUNT_ID'));
