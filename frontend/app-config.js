@@ -1,17 +1,17 @@
 (function(r){"use strict";
-var CR_URL="https://sapa27-gateway-asxuzzwspa-eu.a.run.app",
+var CR_URL="",
 R="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62",
 AV="asset-manifest-r331-v62-reliability",
 SF="cloud-run-single-source-r331-v62",
-BN="V1.2 Cloud Run + GAS Canonical Response CR-8.13 Authenticated Deferred Handoff",
-RD="2026-09-19",FR="r331-v62",
-HA="cloud-run-canonical-frontend-r331-v62-cr8.13-authenticated-deferred-handoff-20260920",
-QG="current-quality-gate-r353",TV="gas-direct-json-v1",
+BN="V1.2 Cloud Run + GAS Canonical Response P0-F Network Access Compatibility",
+RD="2026-09-22",FR="r331-v62",
+HA="cloud-run-canonical-frontend-r331-v62-p0-f-edge-ready-20260922",
+QG="p0-f-network-access-compatibility-r354",TV="gas-direct-json-v1",
 LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg",
 P=Object.freeze({releaseStamp:R,assetStamp:AV,sourceFingerprint:SF,buildName:BN,releaseDate:RD,frontendRevision:FR,hostArtifact:HA,qualityGate:QG,transportProtocolVersion:TV,rpcProtocolVersion:TV});
 r.APP_BUILD_PROVENANCE=P;
 r.APP_RUNTIME_CONFIG={
- CLOUD_RUN_GATEWAY_URL:CR_URL,CLOUD_RUN_ALL_PRIMARY:!0,
+ CLOUD_RUN_GATEWAY_URL:CR_URL,CLOUD_RUN_ALL_PRIMARY:!0,NETWORK_ACCESS_GATE:"P0-F",SAME_ORIGIN_TRANSPORT:!0,
  REQUEST_TIMEOUT_MS:60000,WRITE_REQUEST_TIMEOUT_MS:120000,AI_DOCUMENT_TIMEOUT_MS:300000,
  RPC_READ_TIMEOUT_BY_METHOD_MS:{apiSessionResume:30000,apiSessionCheck:30000,apiGetDashboardBundle:70000,apiSearchCasesLite:45000,apiGetTracking:45000,apiGetCommitteeMeetingSystem:45000,apiBudgetGetSummary:45000},
  RPC_READ_CACHE_TTL_MS:60000,RPC_READ_STALE_TTL_MS:600000,RPC_READ_CACHE_MAX_ENTRIES:96,
