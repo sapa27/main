@@ -72,7 +72,7 @@ jobs:
       CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN || 'anti27' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      ANTI_PUBLIC_ORIGIN: https://sapa27.anti27.workers.dev
+      ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
     steps:
       - uses: actions/checkout@v4
       - name: Stage production frontend
@@ -357,60 +357,36 @@ jobs:
 
           tmp_edge="$(mktemp -d)"
           cat > "$tmp_edge/worker.mjs" <<'EDGE_WORKER'
-          const GATEWAY_PATHS = new Set(["/api/anti","/network-health","/upstream-health","/health","/ready","/version"]);
-
           export default {
             async fetch(request, env) {
               const incoming = new URL(request.url);
-              const isGateway = GATEWAY_PATHS.has(incoming.pathname);
-              const cloudRunBase = new URL(env.CLOUD_RUN_ORIGIN);
-              const antiSiteBase = new URL(env.ANTI_SITE_ORIGIN);
-
-              if (!isGateway && request.method !== "GET" && request.method !== "HEAD") {
-                return new Response("Method Not Allowed", { status: 405, headers: { "Allow": "GET, HEAD" } });
-              }
-
-              const publicPath = incoming.pathname.startsWith("/") ? incoming.pathname.slice(1) : incoming.pathname;
-              const target = isGateway
-                ? new URL(incoming.pathname + incoming.search, cloudRunBase)
-                : new URL(publicPath + incoming.search, antiSiteBase);
-
+              const upstreamBase = new URL(env.CLOUD_RUN_ORIGIN);
+              const target = new URL(incoming.pathname + incoming.search, upstreamBase);
               const headers = new Headers(request.headers);
               headers.delete("host");
               headers.delete("content-length");
+              headers.set("X-Forwarded-Host", incoming.host);
+              headers.set("X-Forwarded-Proto", "https");
+              headers.set("X-Edge-Provider", "cloudflare");
 
-              if (isGateway) {
-                headers.set("X-Forwarded-Host", incoming.host);
-                headers.set("X-Forwarded-Proto", "https");
-                headers.set("X-Edge-Provider", "cloudflare");
-              } else {
-                headers.delete("origin");
-                headers.delete("referer");
-              }
-
-              const init = { method: request.method, headers, redirect: "manual" };
-              if (isGateway && request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+              const init = {
+                method: request.method,
+                headers,
+                redirect: "manual"
+              };
+              if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
 
               const upstream = await fetch(target.toString(), init);
               const responseHeaders = new Headers(upstream.headers);
               responseHeaders.set("X-P0F-Edge", "cloudflare-workers-dev");
-              responseHeaders.set("X-P0F-Public-Site", isGateway ? "cloud-run" : "anti-github-origin");
 
               const location = responseHeaders.get("Location");
               if (location) {
                 try {
                   const redirectUrl = new URL(location);
-                  if (isGateway && redirectUrl.origin === cloudRunBase.origin) {
+                  if (redirectUrl.origin === upstreamBase.origin) {
                     redirectUrl.protocol = incoming.protocol;
                     redirectUrl.host = incoming.host;
-                    responseHeaders.set("Location", redirectUrl.toString());
-                  } else if (!isGateway && redirectUrl.origin === antiSiteBase.origin) {
-                    const basePath = antiSiteBase.pathname.endsWith("/") ? antiSiteBase.pathname.slice(0,-1) : antiSiteBase.pathname;
-                    redirectUrl.protocol = incoming.protocol;
-                    redirectUrl.host = incoming.host;
-                    redirectUrl.pathname = redirectUrl.pathname.startsWith(basePath)
-                      ? (redirectUrl.pathname.slice(basePath.length) || "/")
-                      : redirectUrl.pathname;
                     responseHeaders.set("Location", redirectUrl.toString());
                   }
                 } catch (_) {}
@@ -425,7 +401,7 @@ jobs:
           };
           EDGE_WORKER
 
-          node -e 'const fs=require("fs");const p=process.argv[1],name=process.argv[2],origin=process.argv[3],site=process.argv[4];fs.writeFileSync(p,JSON.stringify({name,main:"./worker.mjs",compatibility_date:"2026-09-22",workers_dev:true,preview_urls:false,vars:{CLOUD_RUN_ORIGIN:origin,ANTI_SITE_ORIGIN:site}},null,2))'             "$tmp_edge/wrangler.jsonc" "$CF_WORKER_NAME" "$CLOUD_RUN_ORIGIN" "https://sapa27.github.io/anti/"
+          node -e 'const fs=require("fs");const p=process.argv[1],name=process.argv[2],origin=process.argv[3];fs.writeFileSync(p,JSON.stringify({name,main:"./worker.mjs",compatibility_date:"2026-09-22",workers_dev:true,preview_urls:false,vars:{CLOUD_RUN_ORIGIN:origin}},null,2))'             "$tmp_edge/wrangler.jsonc" "$CF_WORKER_NAME" "$CLOUD_RUN_ORIGIN"
 
           node --check "$tmp_edge/worker.mjs"
           npx --yes wrangler@4.136.1 deploy --config "$tmp_edge/wrangler.jsonc"
@@ -447,24 +423,17 @@ jobs:
           edge_upstream="$(curl --max-time 45 -fsS "$edge_origin/upstream-health")"
           node -e 'const u=JSON.parse(process.argv[1]);if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$edge_upstream"
 
-          edge_public="$(curl --max-time 30 -fsS "$edge_origin/")"
-          printf '%s' "$edge_public" | grep -q 'anti-public-json-v1'
-          printf '%s' "$edge_public" | grep -q 'anti-20260922-cloudflare-edge-v35'
-          printf '%s' "$edge_public" | grep -q "apiUrl: '/api/anti'"
-          if printf '%s' "$edge_public" | grep -q 'sapa27-gateway-asxuzzwspa-eu\.a\.run\.app/api/anti'; then
-            echo "P0-F-C failed: public Anti page exposes direct run.app API" >&2
+          edge_config="$(curl --max-time 30 -fsS "$edge_origin/app-config.js")"
+          printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
+          if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
+            echo "P0-F-B1 failed: public browser config exposes run.app" >&2
             exit 1
           fi
 
-          edge_anti="$(curl --max-time 45 -fsS             -H 'Content-Type: application/json'             -H "Origin: $edge_origin"             --data '{"action":"dashboard","payload":{"visitorId":"p0-f-c-smoke"}}'             "$edge_origin/api/anti")"
-          node -e 'const x=JSON.parse(process.argv[1]);if(!x||typeof x!=="object"||String(x.apiVersion||"")!=="1")process.exit(1)' "$edge_anti"
-
-          echo "### P0-F-C Public Anti Edge" >> "$GITHUB_STEP_SUMMARY"
+          echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
           echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Public URL: $edge_origin" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Browser → Cloudflare → Public Anti UI" >> "$GITHUB_STEP_SUMMARY"
-          echo "- /api/anti → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Browser direct dependency on github.io/run.app API: removed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser → Cloudflare → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove retired transport environment variables
