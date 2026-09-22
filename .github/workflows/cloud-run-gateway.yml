@@ -370,9 +370,10 @@ jobs:
                 return new Response("Method Not Allowed", { status: 405, headers: { "Allow": "GET, HEAD" } });
               }
 
+              const publicPath = incoming.pathname.startsWith("/") ? incoming.pathname.slice(1) : incoming.pathname;
               const target = isGateway
                 ? new URL(incoming.pathname + incoming.search, cloudRunBase)
-                : new URL(incoming.pathname.replace(/^\\/+/, "") + incoming.search, antiSiteBase);
+                : new URL(publicPath + incoming.search, antiSiteBase);
 
               const headers = new Headers(request.headers);
               headers.delete("host");
