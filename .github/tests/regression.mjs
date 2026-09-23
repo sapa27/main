@@ -354,6 +354,55 @@ ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
   assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')<fetchBlock.indexOf('AppApi.call("getDeferredInclude"'),'Meeting must resolve locally before GAS deferred include');
 });
 
+ok('Meeting integrity tools visibility follows canonical role and late auth hydration',()=>{
+  const start=meetingController.indexOf('function meetingCurrentRoleCanonical_()');
+  const end=meetingController.indexOf('function bindMeetingIntegrityVisibilityCurrent_()',start);
+  assert.ok(start>=0&&end>start,'Meeting integrity role helpers missing');
+  const state=Object.create(null);
+  let hidden=true;
+  const toolsEl={
+    classList:{toggle(name,on){if(name==='d-none')hidden=!!on}},
+    setAttribute(){}
+  };
+  const meetingRoot={
+    currentUser:null,currentUserRole:'',userRole:'',currentRole:'',
+    AppPermissionMatrix:{normalizeRole:v=>String(v||'Viewer')}
+  };
+  const ctx={
+    meetingRoot,
+    meetingStoreGet:(k,d)=>Object.prototype.hasOwnProperty.call(state,k)?state[k]:d,
+    meetingText:v=>v==null?'':String(v),
+    meetingById:id=>id==='meeting-integrity-tools'?toolsEl:null,
+    __appIsFn:v=>typeof v==='function',
+    __appObserve(){}
+  };
+  vm.runInNewContext(meetingController.slice(start,end),ctx);
+
+  state['auth.user']={role:'Admin'};
+  state['auth.role']='Admin';
+  assert.equal(ctx.updateMeetingIntegrityToolsVisibility_(),true);
+  assert.equal(hidden,false,'Admin must see Meeting integrity tools');
+
+  state['auth.user']={role:'Staff'};
+  state['auth.role']='Staff';
+  assert.equal(ctx.updateMeetingIntegrityToolsVisibility_(),false);
+  assert.equal(hidden,true,'Staff must not see Admin integrity tools');
+
+  state['auth.user']={role:'Viewer'};
+  state['auth.role']='Viewer';
+  assert.equal(ctx.updateMeetingIntegrityToolsVisibility_(),false);
+  assert.equal(hidden,true,'Viewer must not see Admin integrity tools');
+
+  state['auth.user']=null;
+  state['auth.role']='';
+  assert.equal(ctx.updateMeetingIntegrityToolsVisibility_(),false);
+  assert.equal(hidden,true,'Unknown role must fail closed');
+
+  state['auth.role']='Admin';
+  assert.equal(ctx.updateMeetingIntegrityToolsVisibility_(),true);
+  assert.equal(hidden,false,'Late Admin role hydration must reveal the tools');
+});
+
 ok('Meeting controller opens before shared deferred runtime',()=>{
   assert.ok(index.includes('function warmMeetingSharedAssets(list)'));
   const loadStart=index.indexOf('function loadPage(p)');
