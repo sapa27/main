@@ -20,6 +20,7 @@ const frontWorkflow=file('.github/workflows/frontend-validation.yml');
 const v2CanaryWorkflow=file('.github/workflows/v2-canary.yml');
 const v2CloudCanaryWorkflow=file('.github/workflows/v2-cloud-run-canary.yml');
 const v2PromoteWorkflow=file('.github/workflows/v2-promote-production.yml');
+const CANONICAL_GAS_WEB_APP_URL='https://script.google.com/macros/s/AKfycbwqSbRql8u8qM_HiHcmYLiIVG-tCsqQtZGBNLAor-A0phnsstDm81_tjwnjJENXtZHT/exec';
 
 ok('P0-F repository layout remains Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
@@ -318,6 +319,7 @@ ok('production deploy is gated by direct-only canary',()=>{
 
 ok('all deployment gates require live GAS upstream',()=>{
   for(const [name,wf] of [['cr7',workflow],['v2-canary',v2CanaryWorkflow],['v2-cloud-canary',v2CloudCanaryWorkflow],['v2-promote',v2PromoteWorkflow]]){
+    assert.ok(wf.includes('GAS_WEB_APP_URL: '+CANONICAL_GAS_WEB_APP_URL),name+' points to stale GAS production endpoint');
     assert.ok(wf.includes('/upstream-health'),name+' missing upstream probe');
     assert.ok(wf.includes('APP_SOURCE_SHA='),name+' missing source SHA deployment attestation');
     assert.ok(wf.includes('sourceSha'),name+' missing source SHA verification');
