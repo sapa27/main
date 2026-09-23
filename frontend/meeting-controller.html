@@ -2955,9 +2955,17 @@
             (function () {
               var t = meetingById("meeting-integrity-tools");
               if (t) {
-                var n = meetingStoreGet("session.user", {}) || {},
+                var n =
+                    meetingStoreGet("auth.user", null) ||
+                    meetingStoreGet("session.user", {}) ||
+                    {},
                   i = meetingText(
-                    n.role || n.userRole || meetingRoot.currentRole || "",
+                    n.role ||
+                      n.userRole ||
+                      meetingStoreGet("auth.role", "") ||
+                      meetingRoot.currentUserRole ||
+                      meetingRoot.currentRole ||
+                      "",
                   ).toLowerCase();
                 t.classList.toggle("d-none", "admin" !== i);
               }
