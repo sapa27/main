@@ -330,6 +330,11 @@ ok('all deployment gates require live GAS upstream',()=>{
 
 ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
   assert.ok(meetingController.includes('CR-8.3 Cloud Run static Meeting controller'));
+  const integrityStart=meetingController.indexOf('meeting-integrity-tools');
+  const integrityBlock=meetingController.slice(integrityStart,integrityStart+1200);
+  assert.ok(integrityStart>=0,'Meeting integrity tools runtime missing');
+  assert.ok(integrityBlock.includes('auth.user'),'Meeting integrity tools must resolve canonical auth.user');
+  assert.ok(integrityBlock.includes('auth.role'),'Meeting integrity tools must resolve canonical auth.role');
   assert.ok(meetingController.includes('window.initMeetingPage'));
   assert.ok(meetingController.includes('AppPages.register("meeting"'));
   assert.ok(meetingController.includes('function meetingAuthReadyCanonical_()'));
