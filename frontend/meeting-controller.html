@@ -111,6 +111,88 @@
         meetingStoreGet = meetingKit.storeGet,
         meetingStoreSet = meetingKit.storeSet,
         meetingText = meetingKit.text;
+
+      function meetingCurrentRoleCanonical_() {
+        try {
+          var user = null, rawRole = "";
+          try {
+            if (
+              meetingRoot.AppCoreAuth &&
+              __appIsFn(meetingRoot.AppCoreAuth.getCanonicalAuthUser)
+            )
+              user = meetingRoot.AppCoreAuth.getCanonicalAuthUser() || null;
+          } catch (_meetingCoreUserErr) {
+            __appObserve(_meetingCoreUserErr, "meeting.integrityRole.coreUser");
+          }
+          user =
+            user ||
+            meetingStoreGet("auth.user", null) ||
+            meetingStoreGet("session.user", null) ||
+            meetingRoot.currentUser ||
+            {};
+          rawRole = meetingText(
+            (user && (user.role || user.userRole || user.accessRole)) ||
+              meetingStoreGet("auth.role", "") ||
+              meetingRoot.currentUserRole ||
+              meetingRoot.userRole ||
+              meetingRoot.currentRole ||
+              "",
+          );
+          if (
+            meetingRoot.AppPermissionMatrix &&
+            __appIsFn(meetingRoot.AppPermissionMatrix.normalizeRole)
+          )
+            return meetingRoot.AppPermissionMatrix.normalizeRole(rawRole || "Viewer");
+          return rawRole || "Viewer";
+        } catch (_meetingIntegrityRoleErr) {
+          __appObserve(_meetingIntegrityRoleErr, "meeting.integrityRole.resolve");
+          return "Viewer";
+        }
+      }
+
+      function updateMeetingIntegrityToolsVisibility_() {
+        var tools = meetingById("meeting-integrity-tools");
+        if (!tools) return !1;
+        var role = meetingText(meetingCurrentRoleCanonical_()).toLowerCase(),
+          allowed = role === "admin";
+        tools.classList.toggle("d-none", !allowed);
+        tools.setAttribute("aria-hidden", allowed ? "false" : "true");
+        tools.setAttribute("data-role-allowed", allowed ? "1" : "0");
+        return allowed;
+      }
+
+      function bindMeetingIntegrityVisibilityCurrent_() {
+        if (
+          !meetingRoot.document ||
+          meetingRoot.__MEETING_INTEGRITY_VISIBILITY_BOUND_CURRENT__
+        )
+          return !0;
+        meetingRoot.__MEETING_INTEGRITY_VISIBILITY_BOUND_CURRENT__ = !0;
+        meetingRoot.updateMeetingIntegrityToolsVisibility_ =
+          updateMeetingIntegrityToolsVisibility_;
+        document.addEventListener("app:user-changed", function () {
+          updateMeetingIntegrityToolsVisibility_();
+        });
+        document.addEventListener("app:state-changed", function (evt) {
+          var path = meetingText(evt && evt.detail && evt.detail.path);
+          if (
+            path === "auth.user" ||
+            path === "auth.role" ||
+            path === "auth.status" ||
+            path === "auth.loginOk" ||
+            path === "auth.bootstrapOk"
+          )
+            updateMeetingIntegrityToolsVisibility_();
+        });
+        document.addEventListener("app:page-activated", function (evt) {
+          var detail = (evt && evt.detail) || {},
+            pageId = meetingText(detail.pageId || detail.id).toLowerCase();
+          if (pageId === "meeting") updateMeetingIntegrityToolsVisibility_();
+        });
+        return !0;
+      }
+      bindMeetingIntegrityVisibilityCurrent_();
+
       meetingState.meeting.caseEditSeeds = meetingState.meeting.caseEditSeeds || {};
       try {
         meetingRoot.AppPageController &&
@@ -2952,24 +3034,7 @@
           (document.documentElement &&
             (document.documentElement.dataset.meetingPageInitialized = "1"),
             ze(),
-            (function () {
-              var t = meetingById("meeting-integrity-tools");
-              if (t) {
-                var n =
-                    meetingStoreGet("auth.user", null) ||
-                    meetingStoreGet("session.user", {}) ||
-                    {},
-                  i = meetingText(
-                    n.role ||
-                      n.userRole ||
-                      meetingStoreGet("auth.role", "") ||
-                      meetingRoot.currentUserRole ||
-                      meetingRoot.currentRole ||
-                      "",
-                  ).toLowerCase();
-                t.classList.toggle("d-none", "admin" !== i);
-              }
-            })(),
+            updateMeetingIntegrityToolsVisibility_(),
             !searchEditFastPath &&
               S(
                 "page:meeting.lookup-options",
@@ -6942,9 +7007,15 @@
       },
       mod = {
         mount: function (o) {
-          return (
-            !__appIsFn(fn("initMeetingPage")) || fn("initMeetingPage")(o || {})
-          );
+          var ok =
+            !__appIsFn(fn("initMeetingPage")) || fn("initMeetingPage")(o || {});
+          try {
+            __appIsFn(fn("updateMeetingIntegrityToolsVisibility_")) &&
+              fn("updateMeetingIntegrityToolsVisibility_")();
+          } catch (e) {
+            w.__appObserve && w.__appObserve(e, "meeting.integrityRole.mount");
+          }
+          return ok;
         },
         dispose: function () {
           try {
@@ -6977,10 +7048,16 @@
           );
         },
         reload: function () {
-          return (
+          var ok =
             !__appIsFn(fn("initMeetingPage")) ||
-            fn("initMeetingPage")({ force: !0 })
-          );
+            fn("initMeetingPage")({ force: !0 });
+          try {
+            __appIsFn(fn("updateMeetingIntegrityToolsVisibility_")) &&
+              fn("updateMeetingIntegrityToolsVisibility_")();
+          } catch (e) {
+            w.__appObserve && w.__appObserve(e, "meeting.integrityRole.reload");
+          }
+          return ok;
         },
       };
     w.AppPages.register("meeting", mod);
