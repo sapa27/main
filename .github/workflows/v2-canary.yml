@@ -74,7 +74,7 @@ jobs:
       SERVICE: sapa27-v2-canary
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
       DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
-      GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+      GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbwqSbRql8u8qM_HiHcmYLiIVG-tCsqQtZGBNLAor-A0phnsstDm81_tjwnjJENXtZHT/exec
     steps:
       - uses: actions/checkout@v4
       - name: Stage V2
