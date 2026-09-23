@@ -2905,9 +2905,25 @@
           !0,
           "meetingLookupDirectBoundR330",
         ),
+        function meetingAuthReadyCanonical_() {
+          try {
+            var token = meetingText(meetingStoreGet("auth.token", "")),
+              status = meetingText(meetingStoreGet("auth.status", "")).toLowerCase(),
+              loginOk = meetingStoreGet("auth.loginOk", !1) === !0,
+              bootstrapOk = meetingStoreGet("auth.bootstrapOk", !1) === !0;
+            return !!token || status === "authenticated" || loginOk || bootstrapOk;
+          } catch (_meetingAuthReadyErr) {
+            __appObserve(_meetingAuthReadyErr, "meeting.authReadyCanonical");
+            try {
+              return !!(meetingRoot.isAuthenticated && meetingRoot.isAuthenticated());
+            } catch (_meetingAuthFallbackErr) {
+              __appObserve(_meetingAuthFallbackErr, "meeting.authReadyCanonical.fallback");
+              return !1;
+            }
+          }
+        }
         (window.initMeetingPage = function (t) {
-          if (((t = t || {}), !meetingRoot.isAuthenticated || !meetingRoot.isAuthenticated()))
-            return !1;
+          if (((t = t || {}), !meetingAuthReadyCanonical_())) return !1;
           var searchEditFastSeed = meetingSearchEditFastPathSeed_(t),
             searchEditFastPath = !!searchEditFastSeed;
           try {
