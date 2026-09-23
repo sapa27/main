@@ -332,6 +332,10 @@ ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
   assert.ok(meetingController.includes('CR-8.3 Cloud Run static Meeting controller'));
   assert.ok(meetingController.includes('window.initMeetingPage'));
   assert.ok(meetingController.includes('AppPages.register("meeting"'));
+  assert.ok(meetingController.includes('function meetingAuthReadyCanonical_()'));
+  assert.ok(meetingController.includes('auth.status'));
+  assert.ok(meetingController.includes('auth.loginOk'));
+  assert.ok(meetingController.includes('auth.bootstrapOk'));
   assert.ok(!meetingController.includes('data-app-fragment="committee"'));
   for(const token of ['script.google.com','google.script.run','parentOrigin','getDeferredInclude'])assert.ok(!meetingController.includes(token),'retired/static controller dependency '+token);
   assert.ok(index.includes('function isStaticMeetingPartial(n)'));
