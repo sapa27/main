@@ -64,7 +64,7 @@ jobs:
       CANARY_SERVICE: sapa27-gateway-cr8-canary
       WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
       DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
-      GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec
+      GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbwqSbRql8u8qM_HiHcmYLiIVG-tCsqQtZGBNLAor-A0phnsstDm81_tjwnjJENXtZHT/exec
       ANTI_GAS_WEB_APP_URL: https://script.google.com/macros/s/AKfycbz2X5BGdO5Up1f2wcTp_Joy_R4zXbhn8CpSWLnN74VayxaiVr8jiAqrHnaoNpd-jHvc9Q/exec
       CLOUD_RUN_ORIGIN: https://sapa27-gateway-asxuzzwspa-eu.a.run.app
       PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
@@ -420,15 +420,44 @@ jobs:
           test -n "$edge_network" || { echo "P0-F-B1 edge network-health unavailable" >&2; exit 1; }
           node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true||n.network?.originMode!=="public-edge"||n.network?.edge?.detected!==true||n.network?.edge?.provider!=="cloudflare"||n.upstream?.checked!==false)process.exit(1)' "$edge_network"
 
-          edge_upstream="$(curl --max-time 45 -fsS "$edge_origin/upstream-health")"
+          edge_upstream=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/upstream-health")"; then
+              edge_upstream="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 3
+          done
+          test -n "$edge_upstream" || { echo "P0-F-B1 edge upstream-health unavailable" >&2; exit 1; }
           node -e 'const u=JSON.parse(process.argv[1]);if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$edge_upstream"
 
-          edge_config="$(curl --max-time 30 -fsS "$edge_origin/app-config.js")"
+          edge_config=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 30 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/app-config.js")"; then
+              edge_config="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 2
+          done
+          test -n "$edge_config" || { echo "P0-F-B1 edge app-config unavailable" >&2; exit 1; }
           printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
           if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
             echo "P0-F-B1 failed: public browser config exposes run.app" >&2
             exit 1
           fi
+
+          edge_meeting_tmp="$(mktemp)"
+          edge_meeting_ok=false
+          for attempt in 1 2 3 4 5; do
+            if curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/meeting-controller.html" -o "$edge_meeting_tmp" \
+              && grep -q 'window.initMeetingPage' "$edge_meeting_tmp" \
+              && grep -q 'AppPages.register("meeting"' "$edge_meeting_tmp"; then
+              edge_meeting_ok=true
+              break
+            fi
+            test "$attempt" -lt 5 && sleep 3
+          done
+          test "$edge_meeting_ok" = "true" || { echo "P0-F-B1 Meeting controller unavailable or invalid at edge" >&2; exit 1; }
 
           echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
           echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
