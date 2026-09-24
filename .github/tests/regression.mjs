@@ -407,6 +407,17 @@ ok('Meeting integrity tools visibility follows canonical role and late auth hydr
   assert.equal(hidden,false,'Late Admin role hydration must reveal the tools');
 });
 
+ok('all production error UI surfaces redact technical details',()=>{
+  assert.ok(index.includes('function publicErrorTextEarly(v)'),'early SweetAlert error sanitizer missing');
+  assert.ok(index.includes('ui.swal.hiddenErrorDetail'),'SweetAlert must preserve hidden diagnostics');
+  assert.ok(index.includes('ui.banner.hiddenErrorDetail'),'danger banner must preserve hidden diagnostics');
+  assert.ok(index.includes('RT.installVisibleErrorSanitizer'),'DOM error-surface sanitizer missing');
+  assert.ok(index.includes('ui.dom.hiddenErrorDetail'),'DOM sanitizer must preserve hidden diagnostics');
+  assert.ok(index.includes('MutationObserver'),'DOM error sanitizer must cover late-rendered errors');
+  assert.ok(meetingController.includes('meeting.ui.hiddenErrorDetail'),'Meeting notices must sanitize errors before rendering');
+  assert.ok(meetingController.includes('visibleNotice'),'Meeting notice helper must render sanitized text');
+});
+
 ok('production UI hides technical error details while preserving diagnostics',()=>{
   assert.ok(index.includes('RT.publicErrorMessage=RT.publicErrorMessage||function'),'central public error sanitizer missing');
   assert.ok(index.includes('technicalHidden:raw!==x'),'technical error diagnostics must remain recorded');
