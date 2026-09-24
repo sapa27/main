@@ -407,6 +407,18 @@ ok('Meeting integrity tools visibility follows canonical role and late auth hydr
   assert.equal(hidden,false,'Late Admin role hydration must reveal the tools');
 });
 
+ok('production UI hides technical error details while preserving diagnostics',()=>{
+  assert.ok(index.includes('RT.publicErrorMessage=RT.publicErrorMessage||function'),'central public error sanitizer missing');
+  assert.ok(index.includes('technicalHidden:raw!==x'),'technical error diagnostics must remain recorded');
+  assert.ok(index.includes('ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'),'generic runtime error message missing');
+  assert.ok(index.includes('message.textContent="ไม่สามารถเปิดหน้านี้ได้ กรุณากด “โหลดหน้านี้อีกครั้ง”"'),'route failure must not expose raw error');
+  const routeStart=index.indexOf('function showPageActivationFailure(id,error){');
+  const routeEnd=index.indexOf('function routeTimeoutPromise',routeStart);
+  const routeBlock=index.slice(routeStart,routeEnd);
+  assert.ok(routeBlock.includes('route.pageFailure.hiddenDetail'),'route failure must preserve diagnostic logging');
+  assert.ok(!routeBlock.includes('message.textContent=String(error&&error.message'),'route failure must not render raw error.message');
+});
+
 ok('Meeting adapter retries bounded lifecycle timing races and preserves the root failure',()=>{
   const start=meetingController.indexOf('meetingSurfaceReadyCurrent_ = function ()');
   const end=meetingController.indexOf('w.AppPages.register("meeting", mod)',start);
