@@ -2789,13 +2789,8 @@
           window.__meetingSharedSaveInFlight = !1;
           G({ isSaving: !1 });
           re(btn, !1, "บันทึกข้อมูล", "fas fa-floppy-disk");
-          var msg = meetingText(
-            (err && (err.msg || err.message || err.error)) || "",
-          ).trim();
-          oe(
-            "error",
-            msg ? "บันทึกข้อมูลไม่สำเร็จ : " + msg : "บันทึกข้อมูลไม่สำเร็จ",
-          );
+          meetingPublicErrorText_(err, "บันทึกข้อมูลไม่สำเร็จ");
+          oe("error", "บันทึกข้อมูลไม่สำเร็จ");
           throw err;
         }
         var target = meetingResolveActiveSaveTarget(ev);
@@ -2945,16 +2940,12 @@
                     return (oe("success", "ลบประวัติการประชุมแล้ว"), Fe(), !0);
                   })
                   .catch(function (err) {
-                    return (
-                      oe(
-                        "error",
-                        "ลบประวัติการประชุมไม่สำเร็จ: " +
-                          (err && err.message
-                            ? err.message
-                            : String(err || "")),
-                      ),
-                      !1
+                    meetingPublicErrorText_(
+                      err,
+                      "ลบประวัติการประชุมไม่สำเร็จ",
                     );
+                    oe("error", "ลบประวัติการประชุมไม่สำเร็จ");
+                    return !1;
                   })
               : (oe("warning", "ไม่พบรหัสประวัติการประชุมสำหรับลบ"),
                 Promise.resolve(!1));
@@ -4248,6 +4239,34 @@
         c
       );
     }
+    function meetingPublicErrorText_(err, fallback) {
+      var safe = meetingText(
+        fallback || "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
+      ).trim();
+      var raw = "";
+      try {
+        raw = meetingText(
+          (err && (err.msg || err.message || err.error)) || err || "",
+        ).trim();
+        meetingRoot.AppRuntime &&
+          meetingRoot.AppRuntime.recordWarning &&
+          meetingRoot.AppRuntime.recordWarning(
+            "meeting.ui.hiddenErrorDetail",
+            err || raw || null,
+            {
+              message: raw,
+              publicMessage: safe,
+              technicalHidden: !!raw,
+            },
+          );
+      } catch (_meetingPublicErrorTextErr) {
+        __appObserve(
+          _meetingPublicErrorTextErr,
+          "meeting.ui.hiddenErrorDetail.helper",
+        );
+      }
+      return safe;
+    }
     function oe(t, n) {
       var rawNotice = String(n || ""),
         visibleNotice = rawNotice;
@@ -4704,7 +4723,7 @@
               return fire({
                 icon: "error",
                 title: "โหลดคณะอนุกรรมาธิการไม่สำเร็จ",
-                text: err && err.message ? err.message : String(err || ""),
+                text: meetingPublicErrorText_(err, "กรุณาลองใหม่อีกครั้ง"),
                 confirmButtonText: "ตกลง",
               }).then(function () {
                 return null;
@@ -6696,7 +6715,7 @@
             : meetingRoot.appSwalFire &&
               meetingRoot.appSwalFire(
                 "ผิดพลาด",
-                meetingText(err && err.message ? err.message : err),
+                meetingPublicErrorText_(err),
                 "error",
               );
           return !1;
