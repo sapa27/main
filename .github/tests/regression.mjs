@@ -407,6 +407,14 @@ ok('Meeting integrity tools visibility follows canonical role and late auth hydr
   assert.equal(hidden,false,'Late Admin role hydration must reveal the tools');
 });
 
+ok('Meeting UI never renders raw exception messages',()=>{
+  assert.ok(meetingController.includes('function meetingPublicErrorText_(err, fallback)'),'Meeting public error helper missing');
+  assert.ok(!meetingController.includes('text: err && err.message ? err.message : String(err || "")'),'Meeting SweetAlert must not render err.message directly');
+  assert.ok(!meetingController.includes('meetingText(err && err.message ? err.message : err)'),'Meeting fallback popup must not render err.message directly');
+  assert.ok(!meetingController.includes('"ลบประวัติการประชุมไม่สำเร็จ: " +'),'Meeting delete notice must not concatenate exception details');
+  assert.ok(!meetingController.includes('msg ? "บันทึกข้อมูลไม่สำเร็จ : " + msg'),'Meeting save notice must not concatenate exception details');
+});
+
 ok('all production error UI surfaces redact technical details',()=>{
   assert.ok(index.includes('function publicErrorTextEarly(v)'),'early SweetAlert error sanitizer missing');
   assert.ok(index.includes('ui.swal.hiddenErrorDetail'),'SweetAlert must preserve hidden diagnostics');
