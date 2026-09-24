@@ -7005,17 +7005,77 @@
           n && n.getAttribute ? n.getAttribute(a) : ""
         );
       },
+      meetingSurfaceReadyCurrent_ = function () {
+        try {
+          var page = d.getElementById("p-meeting");
+          return !!(
+            page &&
+            page.querySelector("#meeting-tabs") &&
+            page.querySelector("#meeting-case-form") &&
+            page.querySelector("#meeting-workspace")
+          );
+        } catch (e) {
+          w.__appObserve && w.__appObserve(e, "meeting.mount.surfaceReady");
+          return !1;
+        }
+      },
+      meetingMountCurrent_ = function (o) {
+        o = Object.assign({}, o || {}, { force: !0 });
+        var attempt = 0,
+          maxAttempts = 12,
+          lastError = null;
+        w.__APP_MEETING_LAST_MOUNT_ERROR__ = "";
+        return new Promise(function (resolve, reject) {
+          function finishVisibility_() {
+            try {
+              __appIsFn(fn("updateMeetingIntegrityToolsVisibility_")) &&
+                fn("updateMeetingIntegrityToolsVisibility_")();
+            } catch (e) {
+              w.__appObserve &&
+                w.__appObserve(e, "meeting.integrityRole.mount");
+            }
+          }
+          function run_() {
+            if (w.__APP_LOGOUT_IN_PROGRESS__ || w.__APP_LOGGED_OUT_LOCK__)
+              return resolve(!1);
+            attempt += 1;
+            try {
+              var init = fn("initMeetingPage");
+              if (!__appIsFn(init))
+                throw new Error("MEETING_INIT_FUNCTION_MISSING");
+              var result = init(o);
+              if (result !== !1 && meetingSurfaceReadyCurrent_()) {
+                finishVisibility_();
+                w.__APP_MEETING_LAST_MOUNT_ERROR__ = "";
+                return resolve(!0);
+              }
+              lastError = new Error(
+                result === !1
+                  ? "MEETING_INIT_NOT_READY"
+                  : "MEETING_SURFACE_NOT_READY",
+              );
+            } catch (e) {
+              lastError = e;
+              w.__appObserve &&
+                w.__appObserve(e, "meeting.mount.retry." + attempt);
+            }
+            if (attempt < maxAttempts)
+              return w.setTimeout(run_, Math.min(420, 90 + attempt * 30));
+            var message =
+              lastError && lastError.message
+                ? String(lastError.message)
+                : "MEETING_MOUNT_NOT_READY";
+            w.__APP_MEETING_LAST_MOUNT_ERROR__ = message;
+            w.__appObserve &&
+              w.__appObserve(lastError || new Error(message), "meeting.mount.exhausted");
+            return reject(lastError || new Error(message));
+          }
+          run_();
+        });
+      },
       mod = {
         mount: function (o) {
-          var ok =
-            !__appIsFn(fn("initMeetingPage")) || fn("initMeetingPage")(o || {});
-          try {
-            __appIsFn(fn("updateMeetingIntegrityToolsVisibility_")) &&
-              fn("updateMeetingIntegrityToolsVisibility_")();
-          } catch (e) {
-            w.__appObserve && w.__appObserve(e, "meeting.integrityRole.mount");
-          }
-          return ok;
+          return meetingMountCurrent_(o);
         },
         dispose: function () {
           try {
@@ -7047,17 +7107,10 @@
             __appIsFn(fn("meetingDeleteLetter")) && fn("meetingDeleteLetter")(e)
           );
         },
-        reload: function () {
-          var ok =
-            !__appIsFn(fn("initMeetingPage")) ||
-            fn("initMeetingPage")({ force: !0 });
-          try {
-            __appIsFn(fn("updateMeetingIntegrityToolsVisibility_")) &&
-              fn("updateMeetingIntegrityToolsVisibility_")();
-          } catch (e) {
-            w.__appObserve && w.__appObserve(e, "meeting.integrityRole.reload");
-          }
-          return ok;
+        reload: function (o) {
+          return meetingMountCurrent_(
+            Object.assign({}, o || {}, { force: !0, reload: !0 }),
+          );
         },
       };
     w.AppPages.register("meeting", mod);
