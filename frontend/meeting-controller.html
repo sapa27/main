@@ -4249,22 +4249,50 @@
       );
     }
     function oe(t, n) {
-      var i = String(t || "") + "|" + String(n || ""),
+      var rawNotice = String(n || ""),
+        visibleNotice = rawNotice;
+      if ("success" !== t) {
+        try {
+          visibleNotice =
+            meetingRoot.AppRuntime &&
+            __appIsFn(meetingRoot.AppRuntime.publicErrorMessage)
+              ? meetingRoot.AppRuntime.publicErrorMessage(null, rawNotice)
+              : "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง";
+          meetingRoot.AppRuntime &&
+            meetingRoot.AppRuntime.recordWarning &&
+            meetingRoot.AppRuntime.recordWarning(
+              "meeting.ui.hiddenErrorDetail",
+              null,
+              { message: rawNotice, publicMessage: visibleNotice },
+            );
+        } catch (_meetingNoticeSanitizeErr) {
+          __appObserve(
+            _meetingNoticeSanitizeErr,
+            "meeting.ui.hiddenErrorDetail",
+          );
+          visibleNotice =
+            "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง";
+        }
+      }
+      var i = String(t || "") + "|" + visibleNotice,
         r = Date.now(),
         a = B().lastNotice || null;
       if (!(a && a.signature === i && r - Number(a.at || 0) < 2200)) {
         if ((G({ lastNotice: { signature: i, at: r } }), meetingRoot.Swal))
           return appSwalFire({
             icon: "success" === t ? "success" : "error",
-            title: n,
+            title: visibleNotice,
             timer: 1800,
             showConfirmButton: !1,
           });
         if (meetingRoot.AppRuntime && __appIsFn(meetingRoot.AppRuntime.showBanner))
-          meetingRoot.AppRuntime.showBanner("success" === t ? "success" : "danger", n);
+          meetingRoot.AppRuntime.showBanner(
+            "success" === t ? "success" : "danger",
+            visibleNotice,
+          );
         else
           try {
-            alert(n);
+            alert(visibleNotice);
           } catch (e) {
             __appObserve(e, "ec");
           }
