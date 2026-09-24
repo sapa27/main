@@ -206,8 +206,13 @@ jobs:
           health="$(curl --max-time 30 -fsS "$CANARY_URL/health")"
           network="$(curl --max-time 30 -fsS "$CANARY_URL/network-health")"
           upstream=""
+          upstream_diag="$(mktemp)"
           for attempt in 1 2 3; do
-            if candidate="$(curl --max-time 45 -fsS "$CANARY_URL/upstream-health")"; then
+            http_code="$(curl --max-time 45 -sS -o "$upstream_diag" -w '%{http_code}' "$CANARY_URL/upstream-health" || true)"
+            candidate="$(cat "$upstream_diag" 2>/dev/null || true)"
+            echo "Canary upstream attempt $attempt HTTP $http_code"
+            test -n "$candidate" && echo "Canary upstream response: $candidate"
+            if test "$http_code" = "200"; then
               upstream="$candidate"
               break
             fi
