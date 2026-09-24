@@ -20,7 +20,8 @@ const frontWorkflow=file('.github/workflows/frontend-validation.yml');
 const v2CanaryWorkflow=file('.github/workflows/v2-canary.yml');
 const v2CloudCanaryWorkflow=file('.github/workflows/v2-cloud-run-canary.yml');
 const v2PromoteWorkflow=file('.github/workflows/v2-promote-production.yml');
-const CANONICAL_GAS_WEB_APP_URL='https://script.google.com/macros/s/AKfycbwqSbRql8u8qM_HiHcmYLiIVG-tCsqQtZGBNLAor-A0phnsstDm81_tjwnjJENXtZHT/exec';
+const CANONICAL_GAS_WEB_APP_URL='https://script.google.com/macros/s/AKfycbz73ISkoejp_JJOPEC1OfPenrej427rA897CL_-8wsM9oMm1zM-hHUZH3NjYuIfWF-d/exec';
+const CANDIDATE_GAS_WEB_APP_URL='https://script.google.com/macros/s/AKfycbwqSbRql8u8qM_HiHcmYLiIVG-tCsqQtZGBNLAor-A0phnsstDm81_tjwnjJENXtZHT/exec';
 
 ok('P0-F repository layout remains Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
@@ -270,6 +271,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes("'frontend/**'"));
   assert.ok(!workflow.includes("'github-pages/**'"));
   assert.ok(workflow.includes('Deploy CR-8 GAS-canonical canary'));
+  assert.ok(workflow.includes('GAS_CANDIDATE_WEB_APP_URL: '+CANDIDATE_GAS_WEB_APP_URL),'latest GAS candidate must remain recorded until it passes direct JSON');
   assert.ok(workflow.includes('Require direct GAS transport on canary'));
   assert.ok(workflow.includes('Promote CR-8 GAS-canonical to production'));
   assert.ok(workflow.includes('Remove CR-8 canary'));
@@ -403,6 +405,20 @@ ok('Meeting integrity tools visibility follows canonical role and late auth hydr
   state['auth.role']='Admin';
   assert.equal(ctx.updateMeetingIntegrityToolsVisibility_(),true);
   assert.equal(hidden,false,'Late Admin role hydration must reveal the tools');
+});
+
+ok('Meeting adapter retries bounded lifecycle timing races and preserves the root failure',()=>{
+  const start=meetingController.indexOf('meetingSurfaceReadyCurrent_ = function ()');
+  const end=meetingController.indexOf('w.AppPages.register("meeting", mod)',start);
+  assert.ok(start>=0&&end>start,'Meeting resilient mount helper missing');
+  const adapterBlock=meetingController.slice(start,end);
+  assert.ok(adapterBlock.includes('maxAttempts = 12'),'Meeting mount retry must be bounded');
+  assert.ok(adapterBlock.includes('MEETING_INIT_NOT_READY'),'Meeting mount must classify transient init readiness');
+  assert.ok(adapterBlock.includes('MEETING_SURFACE_NOT_READY'),'Meeting mount must verify canonical DOM surface');
+  assert.ok(adapterBlock.includes('__APP_MEETING_LAST_MOUNT_ERROR__'),'Meeting mount must preserve the root failure');
+  assert.ok(adapterBlock.includes('Object.assign({}, o || {}, { force: !0 })'),'Meeting mount must force canonical initialization');
+  assert.ok(index.includes('เปิดหน้า meeting ไม่สำเร็จ: '),'router must surface the preserved Meeting failure');
+  assert.ok(index.includes('__APP_MEETING_LAST_MOUNT_ERROR__'),'router must read the Meeting root failure');
 });
 
 ok('Meeting controller opens before shared deferred runtime',()=>{
