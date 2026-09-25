@@ -426,6 +426,15 @@ ok('all production error UI surfaces redact technical details',()=>{
   assert.ok(meetingController.includes('visibleNotice'),'Meeting notice helper must render sanitized text');
 });
 
+ok('Login UI never renders raw exception messages',()=>{
+  assert.ok(index.includes('#login-error-msg,.swal2-popup'),'DOM sanitizer must include the login error surface');
+  assert.ok(index.includes('visibleLoginErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,m)'),'apiLogin failure must sanitize before DOM render');
+  assert.ok(index.includes('visibleBootErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,bootMsg)'),'dashboard boot failure must sanitize before DOM render');
+  assert.ok(index.includes('visibleLoginRecoveryErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,m)'),'login recovery failure must sanitize before DOM render');
+  assert.ok(!index.includes('err.textContent=bootMsg'),'raw dashboard boot error must not be shown');
+  assert.ok(!index.includes('err.textContent=m,err.style.display="block"'),'raw login exception must not be shown');
+});
+
 ok('production UI hides technical error details while preserving diagnostics',()=>{
   assert.ok(index.includes('RT.publicErrorMessage=RT.publicErrorMessage||function'),'central public error sanitizer missing');
   assert.ok(index.includes('technicalHidden:raw!==x'),'technical error diagnostics must remain recorded');
