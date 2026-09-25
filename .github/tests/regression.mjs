@@ -436,6 +436,21 @@ ok('Login ERR surfaces are hidden and never render raw exception messages',()=>{
   assert.ok(!index.includes('err.textContent=m,err.style.display="block"'),'raw login exception must not be shown');
 });
 
+ok('danger banners and Meeting error notices are log-only',()=>{
+  assert.ok(index.includes('ui.errorBanner.suppressed'),'danger banner suppression owner missing');
+  const showBannerStart=index.indexOf('RT.showBanner=function(type,msg,ms){');
+  const showBannerEnd=index.indexOf('RT.publicErrorMessage=',showBannerStart);
+  const showBannerBlock=index.slice(showBannerStart,showBannerEnd);
+  assert.ok(showBannerBlock.includes('kind==="danger"||kind==="error"'),'danger/error banners must be blocked');
+  assert.ok(showBannerBlock.includes('return!1'),'blocked danger banner must return without rendering');
+  const noticeStart=meetingController.indexOf('function oe(t, n) {');
+  const noticeEnd=meetingController.indexOf('function se()',noticeStart);
+  const noticeBlock=meetingController.slice(noticeStart,noticeEnd);
+  assert.ok(noticeBlock.includes('meeting.ui.errorNotice.suppressed'),'Meeting error notice must remain logged');
+  assert.ok(noticeBlock.includes('return Promise.resolve(!1);'),'Meeting error notice must stop before popup/banner fallback');
+  assert.ok(noticeBlock.indexOf('return Promise.resolve(!1);')<noticeBlock.indexOf('appSwalFire({'),'Meeting error branch must exit before SweetAlert');
+});
+
 ok('runtime and route failures are log-only with no ERR box creation',()=>{
   assert.ok(index.includes('RT.handleError=function(e,m){'),'central runtime error handler missing');
   assert.ok(index.includes('runtime.handleError.suppressed'),'runtime errors must remain logged');
