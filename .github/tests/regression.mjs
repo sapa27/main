@@ -415,36 +415,41 @@ ok('Meeting UI never renders raw exception messages',()=>{
   assert.ok(!meetingController.includes('msg ? "บันทึกข้อมูลไม่สำเร็จ : " + msg'),'Meeting save notice must not concatenate exception details');
 });
 
-ok('all production error UI surfaces redact technical details',()=>{
-  assert.ok(index.includes('function publicErrorTextEarly(v)'),'early SweetAlert error sanitizer missing');
-  assert.ok(index.includes('ui.swal.hiddenErrorDetail'),'SweetAlert must preserve hidden diagnostics');
-  assert.ok(index.includes('ui.banner.hiddenErrorDetail'),'danger banner must preserve hidden diagnostics');
-  assert.ok(index.includes('RT.installVisibleErrorSanitizer'),'DOM error-surface sanitizer missing');
-  assert.ok(index.includes('ui.dom.hiddenErrorDetail'),'DOM sanitizer must preserve hidden diagnostics');
-  assert.ok(index.includes('MutationObserver'),'DOM error sanitizer must cover late-rendered errors');
-  assert.ok(meetingController.includes('meeting.ui.hiddenErrorDetail'),'Meeting notices must sanitize errors before rendering');
-  assert.ok(meetingController.includes('visibleNotice'),'Meeting notice helper must render sanitized text');
+ok('all production ERR message boxes are suppressed while diagnostics remain',()=>{
+  assert.ok(index.includes('function isErrorSwalArgsEarly(args)'),'early SweetAlert ERR detector missing');
+  assert.ok(index.includes('suppressErrorSwalEarly(arguments,"Swal.fire")'),'direct Swal.fire errors must be suppressed before render');
+  assert.ok(index.includes('suppressErrorSwalEarly(arguments,"appSwalFire")'),'appSwalFire errors must be suppressed before render');
+  assert.ok(index.includes('RT.installErrorPopupSuppression'),'runtime ERR suppression owner missing');
+  assert.ok(index.includes('ui.errorPopup.suppressed'),'suppressed popup diagnostics must remain recorded');
+  assert.ok(index.includes('ui.errorBox.suppressed'),'late-rendered error box diagnostics must remain recorded');
+  assert.ok(index.includes('MutationObserver'),'late-rendered ERR boxes must be removed');
+  assert.ok(index.includes('#login-error-msg,.app-page-load-failure,.app-banner.alert-danger,.alert.alert-danger'),'fail-closed ERR CSS missing');
+  assert.ok(meetingController.includes('meeting.ui.hiddenErrorDetail'),'Meeting diagnostics must remain sanitized even when central ERR UI is suppressed');
 });
 
-ok('Login UI never renders raw exception messages',()=>{
-  assert.ok(index.includes('#login-error-msg,.swal2-popup'),'DOM sanitizer must include the login error surface');
-  assert.ok(index.includes('visibleLoginErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,m)'),'apiLogin failure must sanitize before DOM render');
-  assert.ok(index.includes('visibleBootErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,bootMsg)'),'dashboard boot failure must sanitize before DOM render');
-  assert.ok(index.includes('visibleLoginRecoveryErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,m)'),'login recovery failure must sanitize before DOM render');
+ok('Login ERR surfaces are hidden and never render raw exception messages',()=>{
+  assert.ok(index.includes('#login-error-msg,.app-page-load-failure'),'fail-closed login ERR suppression missing');
+  assert.ok(index.includes('visibleLoginErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,m)'),'apiLogin failure must still sanitize diagnostics');
+  assert.ok(index.includes('visibleBootErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,bootMsg)'),'dashboard boot failure must still sanitize diagnostics');
+  assert.ok(index.includes('visibleLoginRecoveryErr=RT&&__appIsFn(RT.publicErrorMessage)?RT.publicErrorMessage(e,m)'),'login recovery failure must still sanitize diagnostics');
   assert.ok(!index.includes('err.textContent=bootMsg'),'raw dashboard boot error must not be shown');
   assert.ok(!index.includes('err.textContent=m,err.style.display="block"'),'raw login exception must not be shown');
 });
 
-ok('production UI hides technical error details while preserving diagnostics',()=>{
-  assert.ok(index.includes('RT.publicErrorMessage=RT.publicErrorMessage||function'),'central public error sanitizer missing');
-  assert.ok(index.includes('technicalHidden:raw!==x'),'technical error diagnostics must remain recorded');
-  assert.ok(index.includes('ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง'),'generic runtime error message missing');
-  assert.ok(index.includes('message.textContent="ไม่สามารถเปิดหน้านี้ได้ กรุณากด “โหลดหน้านี้อีกครั้ง”"'),'route failure must not expose raw error');
+ok('runtime and route failures are log-only with no ERR box creation',()=>{
+  assert.ok(index.includes('RT.handleError=function(e,m){'),'central runtime error handler missing');
+  assert.ok(index.includes('runtime.handleError.suppressed'),'runtime errors must remain logged');
+  const handleStart=index.indexOf('RT.handleError=function(e,m){');
+  const handleEnd=index.indexOf('root2.AppUi=',handleStart);
+  const handleBlock=index.slice(handleStart,handleEnd);
+  assert.ok(!handleBlock.includes('appSwalFire('),'runtime error handler must not create SweetAlert ERR');
+  assert.ok(!handleBlock.includes('banner("danger"'),'runtime error handler must not create danger banner');
   const routeStart=index.indexOf('function showPageActivationFailure(id,error){');
   const routeEnd=index.indexOf('function routeTimeoutPromise',routeStart);
   const routeBlock=index.slice(routeStart,routeEnd);
-  assert.ok(routeBlock.includes('route.pageFailure.hiddenDetail'),'route failure must preserve diagnostic logging');
-  assert.ok(!routeBlock.includes('message.textContent=String(error&&error.message'),'route failure must not render raw error.message');
+  assert.ok(routeBlock.includes('route.pageFailure.suppressed'),'route failure must remain logged');
+  assert.ok(!routeBlock.includes('document.createElement("section")'),'route failure must not create an ERR box');
+  assert.ok(!routeBlock.includes('app-page-load-failure__message'),'route failure must not render an ERR message');
 });
 
 ok('Meeting adapter retries bounded lifecycle timing races and preserves the root failure',()=>{
@@ -457,8 +462,12 @@ ok('Meeting adapter retries bounded lifecycle timing races and preserves the roo
   assert.ok(adapterBlock.includes('MEETING_SURFACE_NOT_READY'),'Meeting mount must verify canonical DOM surface');
   assert.ok(adapterBlock.includes('__APP_MEETING_LAST_MOUNT_ERROR__'),'Meeting mount must preserve the root failure');
   assert.ok(adapterBlock.includes('Object.assign({}, o || {}, { force: !0 })'),'Meeting mount must force canonical initialization');
-  assert.ok(index.includes('เปิดหน้า meeting ไม่สำเร็จ: '),'router must surface the preserved Meeting failure');
-  assert.ok(index.includes('__APP_MEETING_LAST_MOUNT_ERROR__'),'router must read the Meeting root failure');
+  assert.ok(index.includes('เปิดหน้า meeting ไม่สำเร็จ: '),'router may preserve the Meeting failure internally for diagnostics');
+  assert.ok(index.includes('__APP_MEETING_LAST_MOUNT_ERROR__'),'router must retain the Meeting root failure for diagnostics');
+  const routeStart=index.indexOf('function showPageActivationFailure(id,error){');
+  const routeEnd=index.indexOf('function routeTimeoutPromise',routeStart);
+  const routeBlock=index.slice(routeStart,routeEnd);
+  assert.ok(!routeBlock.includes('เปิดหน้า meeting ไม่สำเร็จ'),'Meeting root failure must not be rendered in the ERR UI');
 });
 
 ok('Meeting controller opens before shared deferred runtime',()=>{
