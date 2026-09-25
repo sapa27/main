@@ -4272,26 +4272,20 @@
         visibleNotice = rawNotice;
       if ("success" !== t) {
         try {
-          visibleNotice =
-            meetingRoot.AppRuntime &&
-            __appIsFn(meetingRoot.AppRuntime.publicErrorMessage)
-              ? meetingRoot.AppRuntime.publicErrorMessage(null, rawNotice)
-              : "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง";
           meetingRoot.AppRuntime &&
             meetingRoot.AppRuntime.recordWarning &&
             meetingRoot.AppRuntime.recordWarning(
-              "meeting.ui.hiddenErrorDetail",
+              "meeting.ui.errorNotice.suppressed",
               null,
-              { message: rawNotice, publicMessage: visibleNotice },
+              { message: rawNotice, uiSuppressed: !0 },
             );
-        } catch (_meetingNoticeSanitizeErr) {
+        } catch (_meetingNoticeSuppressErr) {
           __appObserve(
-            _meetingNoticeSanitizeErr,
-            "meeting.ui.hiddenErrorDetail",
+            _meetingNoticeSuppressErr,
+            "meeting.ui.errorNotice.suppressed",
           );
-          visibleNotice =
-            "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง";
         }
+        return Promise.resolve(!1);
       }
       var i = String(t || "") + "|" + visibleNotice,
         r = Date.now(),
