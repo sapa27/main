@@ -1,5 +1,5 @@
 name: Cloud Run Production
-# meeting-raw-error-redaction-20260924
+# login-error-ui-sanitizer-20260925
 on:
   push:
     paths:
