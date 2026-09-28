@@ -667,15 +667,21 @@ ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(!index.includes('waitDashboardAuthTokenCrit(2600)'),'retired 2.6s auth-token race wait must not return');
   assert.ok(index.includes('function recoverDashboardRuntimeCrit(reason)'));
   assert.ok(index.includes('dashboard-runtime-recovery-r345'));
-  assert.ok(index.includes('dashboard-data-recovery-r345'));
+  assert.ok(index.includes('dashboard-data-recovery-p5'));
   assert.ok(index.includes('dashboard.dataRecovery.current'));
   assert.ok(index.includes('dashboard.dataRecovery.criticalFirst'));
+  assert.ok(index.includes('inflight:null,generation:0,lastIncompleteAt:0'),'P5 recovery owner must expose one in-flight slot and generation');
+  assert.ok(index.includes('if(state.timer||state.inflight||state.attempt>=delays.length)return'),'P5 must reject duplicate queued/in-flight Dashboard reloads');
+  assert.ok(index.includes('generation!==state.generation'),'P5 stale recovery work must be ignored after a new bootstrap generation');
+  assert.ok(index.includes('recoveryState.reset("login-dashboard-bootstrap")'),'every authenticated Dashboard bootstrap must reset the bounded recovery owner');
   assert.ok(index.includes('__APP_DASHBOARD_COMPLETE_DATA_READY__=!0'),'complete Dashboard data must set the canonical global readiness flag');
   assert.ok(index.includes('dataReadySource:"app:dashboard-load-settled"'),'settled-event owner must publish canonical data readiness state');
   assert.ok(index.includes('DASHBOARD_CONTROLLER_NOT_READY'));
   assert.ok(index.includes('var delays=[0,1200,3500,7000]'));
   assert.ok(index.includes('var state=root2.__APP_DASHBOARD_DATA_RECOVERY_CURRENT__,delays=[1600,4000,9000]'));
   assert.ok(index.includes('state.attempt>=delays.length'));
+  assert.ok(index.includes('Object.assign(root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__||{},{stamp:"dashboard-critical-first-r347",controllerLoaded:!0'),'controller recovery must preserve existing Dashboard data readiness state');
+  assert.ok(!index.includes('root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__={stamp:"dashboard-critical-first-r347",controllerLoaded:!0'),'controller recovery must not replace the canonical readiness object');
   const loadStart=index.indexOf('function loadPage(p)');
   const loadEnd=index.indexOf('function assertExternalAsset',loadStart);
   const loadBlock=index.slice(loadStart,loadEnd);
@@ -697,6 +703,20 @@ ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(activateBlock.includes('a.mount({source:reason||"dashboard-critical-first-r347"'));
   assert.ok(activateBlock.includes('directMount:!0'));
   assert.ok(!index.includes('setInterval(function(){recoverDashboardRuntimeCrit'),'Dashboard recovery must not poll forever');
+});
+
+ok('P5 Dashboard recovery owner is single-flight and generation bounded',()=>{
+  const start=index.indexOf('function installDashboardDataRecoveryCrit()');
+  const end=index.indexOf('installDashboardDataRecoveryCrit();',start);
+  assert.ok(start>=0&&end>start,'P5 recovery owner missing');
+  const block=index.slice(start,end);
+  assert.ok(block.includes('state.timer||state.inflight'),'duplicate recovery guard missing');
+  assert.ok(block.includes('state.inflight=Promise.resolve(task)'),'recovery promise must have one canonical in-flight owner');
+  assert.ok(block.includes('generation=state.generation'),'recovery attempt must capture its bootstrap generation');
+  assert.ok(block.includes('if(generation===state.generation)state.inflight=null'),'stale generation must not clear a newer recovery');
+  assert.ok(block.includes('root2.__APP_DASHBOARD_COMPLETE_DATA_READY__===!0'),'recovery must stop after complete data readiness');
+  assert.ok(block.includes('state.reset=reset'),'recovery reset owner missing');
+  assert.ok(!block.includes('if(state.timer)clearTimeout(state.timer);state.timer=setTimeout'),'old rescheduling pattern must not return');
 });
 
 ok('P4 login and session resume complete only after Dashboard controller and first complete data settle',async()=>{
