@@ -466,20 +466,20 @@ jobs:
             test "$http_code" = "200" || { echo "P2 $label POST failed (HTTP $http_code)" >&2; exit 1; }
 
             P2_BODY_FILE="$body_file" P2_HEADER_FILE="$header_file" node <<'NODE'
-const fs=require('fs');
-const body=JSON.parse(fs.readFileSync(process.env.P2_BODY_FILE,'utf8'));
-const headers=fs.readFileSync(process.env.P2_HEADER_FILE,'utf8').split(/\r?\n/);
-const get=name=>{
-  const prefix=name.toLowerCase()+':';
-  const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
-  return line?line.slice(line.indexOf(':')+1).trim():'';
-};
-if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
-if(get('x-gas-response-contract')!=='gas-direct-json-v1') process.exit(1);
-if(get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-const requestId=get('x-request-id');
-if(!/^[A-Za-z0-9_.:-]{6,128}$/.test(requestId)) process.exit(1);
-NODE
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.P2_BODY_FILE,'utf8'));
+          const headers=fs.readFileSync(process.env.P2_HEADER_FILE,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1') process.exit(1);
+          if(get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          const requestId=get('x-request-id');
+          if(!/^[A-Za-z0-9_.:-]{6,128}$/.test(requestId)) process.exit(1);
+          NODE
           }
 
           p2_post_rpc "direct-session-check" '{"method":"apiSessionCheck","payload":{},"timeoutMs":30000}'
@@ -502,21 +502,21 @@ NODE
             auth_dir="$(mktemp -d)"
             AUTH_REQ_FILE="$auth_dir/login.request.json" \
             E2E_SMOKE_USERNAME="$E2E_SMOKE_USERNAME" E2E_SMOKE_PASSWORD="$E2E_SMOKE_PASSWORD" node <<'NODE'
-const fs=require('fs');
-const username=process.env.E2E_SMOKE_USERNAME||'';
-const password=process.env.E2E_SMOKE_PASSWORD||'';
-if(!username||!password) process.exit(1);
-fs.writeFileSync(process.env.AUTH_REQ_FILE,JSON.stringify({
-  method:'apiLogin',
-  payload:{
-    username,
-    email:username,
-    password,
-    clientContext:{source:'github-actions-p2-e2e',headless:true}
-  },
-  timeoutMs:45000
-}));
-NODE
+          const fs=require('fs');
+          const username=process.env.E2E_SMOKE_USERNAME||'';
+          const password=process.env.E2E_SMOKE_PASSWORD||'';
+          if(!username||!password) process.exit(1);
+          fs.writeFileSync(process.env.AUTH_REQ_FILE,JSON.stringify({
+            method:'apiLogin',
+            payload:{
+              username,
+              email:username,
+              password,
+              clientContext:{source:'github-actions-p2-e2e',headless:true}
+            },
+            timeoutMs:45000
+          }));
+          NODE
 
             login_code="$(curl --max-time 60 --retry 1 --retry-delay 2 --retry-all-errors -sS \
               -D "$auth_dir/login.headers.txt" -o "$auth_dir/login.body.json" -w '%{http_code}' \
@@ -526,29 +526,29 @@ NODE
             test "$login_code" = "200" || { echo "P2 authenticated apiLogin failed (HTTP $login_code)" >&2; exit 1; }
 
             AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" node <<'NODE'
-const fs=require('fs');
-const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
-const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
-const get=name=>{
-  const prefix=name.toLowerCase()+':';
-  const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
-  return line?line.slice(line.indexOf(':')+1).trim():'';
-};
-if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-if(body?.transportOk!==true) process.exit(1);
-const candidates=[body.result,body.result?.result,body.result?.data,body.result?.data?.data];
-const auth=candidates.find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.token||x.nextToken||x.sessionToken));
-if(!auth) process.exit(1);
-const token=String(auth.token||auth.nextToken||auth.sessionToken||'');
-const csrf=String(auth.csrfToken||auth.csrf||'');
-const user=auth.user||auth.account;
-if(!token||!user||typeof user!=='object') process.exit(1);
-fs.writeFileSync(process.env.AUTH_SESSION_REQ,JSON.stringify({
-  method:'apiSessionCheck',
-  payload:{token,csrfToken:csrf,csrf,_csrf:csrf},
-  timeoutMs:30000
-}));
-NODE
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(body?.transportOk!==true) process.exit(1);
+          const candidates=[body.result,body.result?.result,body.result?.data,body.result?.data?.data];
+          const auth=candidates.find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.token||x.nextToken||x.sessionToken));
+          if(!auth) process.exit(1);
+          const token=String(auth.token||auth.nextToken||auth.sessionToken||'');
+          const csrf=String(auth.csrfToken||auth.csrf||'');
+          const user=auth.user||auth.account;
+          if(!token||!user||typeof user!=='object') process.exit(1);
+          fs.writeFileSync(process.env.AUTH_SESSION_REQ,JSON.stringify({
+            method:'apiSessionCheck',
+            payload:{token,csrfToken:csrf,csrf,_csrf:csrf},
+            timeoutMs:30000
+          }));
+          NODE
 
             session_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -sS \
               -D "$auth_dir/session.headers.txt" -o "$auth_dir/session.body.json" -w '%{http_code}' \
@@ -558,17 +558,17 @@ NODE
             test "$session_code" = "200" || { echo "P2 authenticated apiSessionCheck failed (HTTP $session_code)" >&2; exit 1; }
 
             AUTH_SESSION_BODY="$auth_dir/session.body.json" AUTH_SESSION_HEADERS="$auth_dir/session.headers.txt" node <<'NODE'
-const fs=require('fs');
-const body=JSON.parse(fs.readFileSync(process.env.AUTH_SESSION_BODY,'utf8'));
-const headers=fs.readFileSync(process.env.AUTH_SESSION_HEADERS,'utf8').split(/\r?\n/);
-const get=name=>{
-  const prefix=name.toLowerCase()+':';
-  const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
-  return line?line.slice(line.indexOf(':')+1).trim():'';
-};
-if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
-NODE
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_SESSION_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_SESSION_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          NODE
             rm -rf "$auth_dir"
             echo "- Authenticated apiLogin → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
           else
