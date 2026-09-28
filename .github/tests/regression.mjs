@@ -357,6 +357,20 @@ ok('P6 rotated session auth remains stable across sequential and strict writes',
   assert.equal(resumeCount,0);
 });
 
+ok('P7 read-data pipeline uses the production baseline contract',()=>{
+  assert.ok(index.includes('readMethods: Object.freeze(["apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiBudgetGetSummary"])'),'P7 canonical read probe list missing');
+  assert.ok(index.includes('function baselinePayload(method)'),'P7 production baseline payload owner missing');
+  assert.ok(index.includes('apiGetDashboardBundle: { phase1FirstPaint: false, hotPathMode: "performance-baseline-complete", includeBudgetSummary: true }'),'Dashboard baseline payload drifted');
+  assert.ok(index.includes('apiSearchCasesLite: { page: 1, limit: 20, compactReadModel: true, includeMeetingHistory: false }'),'case-search baseline payload drifted');
+  assert.ok(index.includes('apiGetCommitteeMeetingSystem: { page: 1, limit: 20 }'),'committee-meeting baseline payload drifted');
+  assert.ok(index.includes('apiGetTracking: { page: 1, limit: 20 }'),'tracking baseline payload drifted');
+  assert.ok(index.includes('apiBudgetGetSummary: { page: 1, limit: 100, pageSize: 100 }'),'budget-summary baseline payload drifted');
+  assert.ok(index.includes('source: "m10-dependency-performance-baseline-r330"'),'P7 baseline source marker missing');
+  assert.ok(index.includes('return root.AppApi.call(method, payload, { moduleName: "ProductionMeasurementCurrent", preserveEnvelope: true'),'P7 read probes must use canonical AppApi');
+  assert.ok(index.includes('payload.forceFresh = true; payload.noCache = true; payload.bypassCache = true; payload.cacheTtlSeconds = 0'),'cold P7 verification must bypass client/cache layers');
+  assert.ok(index.includes('noPayloadLogging: true, noCredentialLogging: true'),'P7 evidence must never log payloads or credentials');
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
