@@ -87,7 +87,7 @@ ok('browser transport is same-origin and edge-ready',()=>{
   assert.ok(transport.includes('cache:"no-store"'));
   assert.ok(transport.includes('e.requestId=requestId'),'transport errors must carry the gateway request id');
   assert.ok(transport.includes('resultState:"response"'),'transport must record response trace before validating the envelope');
-  for(const state of ['bad-json','http-error','contract-error','gas-error','fetch-error'])assert.ok(transport.includes('resultState:"'+state+'"'),'missing failure trace state '+state);
+  for(const state of ['bad-json','http-error','contract-error','gas-error','fetch-error'])assert.ok(transport.includes('resultState="'+state+'"')||transport.includes('resultState:"'+state+'"'),'missing failure trace state '+state);
   assert.ok(transport.includes('getLastRpcTrace'),'transport trace getter must remain available');
   assert.ok(!transport.includes('parentOrigin'));
   assert.ok(!transport.includes('rpcToken'));
