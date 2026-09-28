@@ -329,6 +329,30 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
 });
 
+ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gated',()=>{
+  assert.ok(workflow.includes('E2E_SMOKE_USERNAME: ${{ secrets.E2E_SMOKE_USERNAME }}'),'P2 username must come from GitHub Secrets');
+  assert.ok(workflow.includes('E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}'),'P2 password must come from GitHub Secrets');
+  assert.ok(workflow.includes('p2_post_rpc()'),'P2 POST helper missing');
+  assert.ok(workflow.includes('p2_post_rpc "direct-session-check"'),'direct apiSessionCheck edge gate missing');
+  assert.ok(workflow.includes('p2_post_rpc "nested-router-session-check"'),'nested apiRouter edge gate missing');
+  assert.ok(workflow.includes('{"method":"apiSessionCheck","payload":{},"timeoutMs":30000}'),'direct edge payload missing');
+  assert.ok(workflow.includes('{"method":"apiRouter","payload":{"method":"apiSessionCheck","payload":{}},"timeoutMs":30000}'),'nested router edge payload missing');
+  assert.ok(workflow.includes("get('x-gas-response-contract')!=='gas-direct-json-v1'"),'P2 must verify canonical GAS response contract');
+  assert.ok(workflow.includes("get('x-p0f-edge')!=='cloudflare-workers-dev'"),'P2 must verify the public Cloudflare edge');
+  assert.ok(workflow.includes("get('x-request-id')"),'P2 must capture requestId');
+  assert.ok(workflow.includes('test "$http_code" = "200" || { echo "P2 $label POST failed'),'P2 public POST must fail closed');
+  assert.ok(workflow.includes("method:'apiLogin'"),'secret-gated apiLogin smoke missing');
+  assert.ok(workflow.includes("method:'apiSessionCheck'"),'authenticated apiSessionCheck smoke missing');
+  assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: PASS'),'authenticated success summary missing');
+  assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED'),'explicit unconfigured auth state missing');
+  assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
+  assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
+  const edgeDeploy=workflow.indexOf('Deploy P0-F-B1 Cloudflare workers.dev edge');
+  const p2Gate=workflow.indexOf('# P2 mandatory E2E POST gate');
+  const edgeConfig=workflow.indexOf('edge_config=""',p2Gate);
+  assert.ok(edgeDeploy>=0&&p2Gate>edgeDeploy&&edgeConfig>p2Gate,'P2 POST gate must run inside the public edge verification step');
+});
+
 ok('all deployment gates require live GAS upstream',()=>{
   for(const [name,wf] of [['cr7',workflow],['v2-canary',v2CanaryWorkflow],['v2-cloud-canary',v2CloudCanaryWorkflow],['v2-promote',v2PromoteWorkflow]]){
     assert.ok(wf.includes('GAS_WEB_APP_URL: '+CANONICAL_GAS_WEB_APP_URL),name+' points to stale GAS production endpoint');
