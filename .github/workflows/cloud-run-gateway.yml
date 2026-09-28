@@ -568,10 +568,17 @@ jobs:
           };
           if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
           if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          const result=body.result;
+          if(result&&typeof result==='object'&&result.ok===false) process.exit(1);
+          const candidates=[result,result?.result,result?.data,result?.data?.data].filter(x=>x&&typeof x==='object'&&!Array.isArray(x));
+          const session=candidates.find(x=>x.user||x.account||x.role||x.authenticated===true||x.valid===true);
+          if(!session) process.exit(1);
           NODE
             rm -rf "$auth_dir"
+            echo "P2 auth smoke: PASS"
             echo "- Authenticated apiLogin → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
           else
+            echo "P2 auth smoke: NOT CONFIGURED"
             echo "- Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED (set E2E_SMOKE_USERNAME/E2E_SMOKE_PASSWORD secrets)" >> "$GITHUB_STEP_SUMMARY"
           fi
 
