@@ -19,6 +19,7 @@ GitHub Actions is CI/CD only: it validates, builds, deploys and smoke-tests Clou
 - Gateway diagnostics such as request id and upstream duration are returned as HTTP headers.
 - Browser has no GAS URL, JSONP, iframe bridge, GitHub Pages transport, or direct browser-to-GAS fallback.
 - `/upstream-health` is a fail-closed live GAS contract probe used before promotion.
+- `/network-health` exposes the deployed `sourceSha` plus Cloud Run service/revision so the public Workers edge can be matched back to the exact Git deployment without exposing credentials.
 - `APP_SOURCE_SHA` must be present in Canary and Production and must match the deployed Git commit.
 
 Deployment gate: Canary -> live GAS contract -> source SHA -> Production -> final smoke.
