@@ -1,0 +1,123 @@
+name: P0 Production Runtime Attestation
+
+on:
+  workflow_run:
+    workflows:
+      - Cloud Run Production
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: p0-production-runtime-attestation
+  cancel-in-progress: true
+
+jobs:
+  attest:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      EDGE_ORIGIN: https://sapa27.anti27.workers.dev
+      EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+      UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+      UPSTREAM_REPO: ${{ github.repository }}
+    steps:
+      - name: Confirm upstream run actually deployed production
+        run: |
+          set -euo pipefail
+          jobs_tmp="$(mktemp)"
+          curl --max-time 30 -fsS             -H 'Accept: application/vnd.github+json'             -H 'User-Agent: sapa27-p0-attestation'             "https://api.github.com/repos/$UPSTREAM_REPO/actions/runs/$UPSTREAM_RUN_ID/jobs?per_page=100"             -o "$jobs_tmp"
+          deploy_state="$(node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));const jobs=Array.isArray(x.jobs)?x.jobs:[];const d=jobs.find(j=>j.name==="deploy");process.stdout.write(d?String(d.conclusion||d.status||""):"missing")' "$jobs_tmp")"
+          if [ "$deploy_state" != "success" ]; then
+            echo "No successful production deploy job in upstream run; runtime attestation not applicable."
+            exit 0
+          fi
+          echo "P0_ATTEST_DEPLOYED=true" >> "$GITHUB_ENV"
+
+      - name: Attest Workers edge to deployed source SHA
+        if: env.P0_ATTEST_DEPLOYED == 'true'
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+
+          fetch_json() {
+            local path="$1"
+            local out="$2"
+            local headers="$3"
+            for attempt in 1 2 3 4 5; do
+              if curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -fsS                 -D "$headers" "$EDGE_ORIGIN$path" -o "$out"; then
+                return 0
+              fi
+              test "$attempt" -lt 5 && sleep 3
+            done
+            return 1
+          }
+
+          fetch_json /ready "$tmp/ready.json" "$tmp/ready.headers"
+          fetch_json /version "$tmp/version.json" "$tmp/version.headers"
+          fetch_json /network-health "$tmp/network.json" "$tmp/network.headers"
+          fetch_json /upstream-health "$tmp/upstream.json" "$tmp/upstream.headers"
+
+          P0_DIR="$tmp" P0_EXPECTED_SHA="$EXPECTED_SHA" P0_EDGE_ORIGIN="$EDGE_ORIGIN" node <<'NODE'
+          const fs=require('fs');
+          const path=require('path');
+          const dir=process.env.P0_DIR;
+          const expected=String(process.env.P0_EXPECTED_SHA||'').trim();
+          if(!/^[0-9a-f]{40}$/.test(expected)) throw new Error('invalid expected SHA');
+          const read=name=>JSON.parse(fs.readFileSync(path.join(dir,name+'.json'),'utf8'));
+          const header=(name,key)=>{
+            const lines=fs.readFileSync(path.join(dir,name+'.headers'),'utf8').split(/?
+/);
+            const prefix=key.toLowerCase()+':';
+            const line=lines.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+
+          const ready=read('ready');
+          const version=read('version');
+          const network=read('network');
+          const upstream=read('upstream');
+
+          if(ready?.ok!==true) throw new Error('ready not ok');
+          if(ready?.gateway!=='cr8.15-p0f-network-gate') throw new Error('gateway revision mismatch');
+          if(ready?.sourceSha!==expected) throw new Error('ready source SHA mismatch');
+          if(ready?.gasTransport!=='direct-json-primary') throw new Error('ready transport mismatch');
+          if(ready?.responseContract!=='gas-direct-json-v1') throw new Error('ready response contract mismatch');
+          if(ready?.legacyFallbackEnabled!==false) throw new Error('legacy fallback unexpectedly enabled');
+
+          if(version?.ok!==true) throw new Error('version not ok');
+          if(version?.sourceSha!==expected) throw new Error('version source SHA mismatch');
+          if(version?.frontendHost!=='same-origin') throw new Error('frontend host mismatch');
+          if(version?.gasTransport!=='direct-json-primary') throw new Error('version transport mismatch');
+          if(version?.responseContract!=='gas-direct-json-v1') throw new Error('version response contract mismatch');
+          if(version?.networkAccess?.gate!=='P0-F'||version?.networkAccess?.sameOriginBrowser!==true) throw new Error('version network gate mismatch');
+
+          if(network?.ok!==true||network?.status!=='reachable') throw new Error('network health not reachable');
+          if(network?.sourceSha!==expected) throw new Error('network source SHA mismatch');
+          if(network?.network?.gate!=='P0-F') throw new Error('network gate mismatch');
+          if(network?.network?.originMode!=='public-edge') throw new Error('network origin mode mismatch');
+          if(network?.network?.edge?.detected!==true||network?.network?.edge?.provider!=='cloudflare') throw new Error('cloudflare edge not detected');
+          if(!network?.cloudRun?.service||!network?.cloudRun?.revision) throw new Error('cloud run revision attestation missing');
+
+          if(upstream?.ok!==true) throw new Error('upstream health not ok');
+          if(upstream?.responseContract!=='gas-direct-json-v1') throw new Error('upstream response contract mismatch');
+          if(upstream?.upstream?.checked!==true||upstream?.upstream?.ok!==true||upstream?.upstream?.transport!=='gas-direct-json') throw new Error('upstream transport mismatch');
+
+          for(const name of ['ready','version','network','upstream']){
+            if(header(name,'x-p0f-edge')!=='cloudflare-workers-dev') throw new Error(name+' edge marker mismatch');
+          }
+          NODE
+
+          echo "### P0 Production Runtime Attestation" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Expected source SHA: $EXPECTED_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public edge: $EDGE_ORIGIN" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gateway: cr8.15-p0f-network-gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Response contract: gas-direct-json-v1" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workers → Cloud Run source SHA: MATCH" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloud Run revision attestation: PRESENT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GAS upstream: PASS" >> "$GITHUB_STEP_SUMMARY"
