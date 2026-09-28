@@ -16,6 +16,7 @@ const transport=file('frontend/cloud-run-transport.js');
 const meetingController=file('frontend/meeting-controller.html');
 const gateway=file('cloud-run-gateway/server.js');
 const workflow=file('.github/workflows/cloud-run-gateway.yml');
+const p0AttestationWorkflow=file('.github/workflows/p0-production-runtime-attestation.yml');
 const frontWorkflow=file('.github/workflows/frontend-validation.yml');
 const v2CanaryWorkflow=file('.github/workflows/v2-canary.yml');
 const v2CloudCanaryWorkflow=file('.github/workflows/v2-cloud-run-canary.yml');
@@ -647,6 +648,24 @@ ok('P2 public edge POST gate and authenticated smoke are mandatory for productio
   const p2Gate=workflow.indexOf('# P2 mandatory E2E POST gate');
   const edgeConfig=workflow.indexOf('edge_config=""',p2Gate);
   assert.ok(edgeDeploy>=0&&p2Gate>edgeDeploy&&edgeConfig>p2Gate,'P2 POST gate must run inside the public edge verification step');
+});
+
+ok('P0 runtime attestation locks public edge to deployed source SHA',()=>{
+  assert.ok(p0AttestationWorkflow.includes('workflow_run:'));
+  assert.ok(p0AttestationWorkflow.includes('Cloud Run Production'));
+  assert.ok(p0AttestationWorkflow.includes('j.name==="deploy"'));
+  assert.ok(p0AttestationWorkflow.includes('fetch_json /ready'));
+  assert.ok(p0AttestationWorkflow.includes('fetch_json /version'));
+  assert.ok(p0AttestationWorkflow.includes('fetch_json /network-health'));
+  assert.ok(p0AttestationWorkflow.includes('fetch_json /upstream-health'));
+  assert.ok(p0AttestationWorkflow.includes('ready?.sourceSha!==expected'));
+  assert.ok(p0AttestationWorkflow.includes('version?.sourceSha!==expected'));
+  assert.ok(p0AttestationWorkflow.includes('network?.sourceSha!==expected'));
+  assert.ok(p0AttestationWorkflow.includes('network?.cloudRun?.revision'));
+  assert.ok(p0AttestationWorkflow.includes('cloudflare-workers-dev'));
+  assert.ok(p0AttestationWorkflow.includes('gas-direct-json-v1'));
+  assert.ok(!p0AttestationWorkflow.includes('CLOUDFLARE_API_TOKEN'));
+  assert.ok(!p0AttestationWorkflow.includes('E2E_SMOKE_PASSWORD'));
 });
 
 ok('all deployment gates require live GAS upstream',()=>{
