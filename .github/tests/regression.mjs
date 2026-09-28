@@ -593,7 +593,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes("vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173'"));
   assert.ok(workflow.includes('preferred_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"'));
   assert.ok(workflow.includes('candidate_subdomains=("$preferred_subdomain" "anti27" "sapa27-anti" "anti-sapa27")'));
-  assert.ok(workflow.includes('auto-generated if omitted'));
+  assert.ok(workflow.includes('P11 production gate failed: CLOUDFLARE_API_TOKEN is required'),'Cloudflare credentials must be required before production deploy');
   assert.ok(workflow.includes('CLOUDFLARE_ACCOUNT_ID'));
   assert.ok(workflow.includes('CLOUDFLARE_API_TOKEN'));
   assert.ok(workflow.includes('workers/subdomain'));
@@ -620,7 +620,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
 });
 
-ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gated',()=>{
+ok('P2 public edge POST gate and authenticated smoke are mandatory for production',()=>{
   assert.ok(workflow.includes('E2E_SMOKE_USERNAME: ${{ secrets.E2E_SMOKE_USERNAME }}'),'P2 username must come from GitHub Secrets');
   assert.ok(workflow.includes('E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}'),'P2 password must come from GitHub Secrets');
   assert.ok(workflow.includes('p2_post_rpc()'),'P2 POST helper missing');
@@ -634,13 +634,13 @@ ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gate
   assert.ok(workflow.includes("get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN"),'P2 must verify CORS reflects the public edge origin');
   assert.ok(workflow.includes("get('x-request-id')"),'P2 must capture requestId');
   assert.ok(workflow.includes('test "$http_code" = "200" || { echo "P2 $label POST failed'),'P2 public POST must fail closed');
-  assert.ok(workflow.includes("method:'apiLogin'"),'secret-gated apiLogin smoke missing');
+  assert.ok(workflow.includes("method:'apiLogin'"),'mandatory apiLogin smoke missing');
   assert.ok(workflow.includes("method:'apiSessionCheck'"),'authenticated apiSessionCheck smoke missing');
   assert.ok(workflow.includes("const session=candidates.find(x=>x.user||x.account||x.role||x.authenticated===true||x.valid===true)"),'authenticated session validity assertion missing');
   assert.ok(workflow.includes('P2 auth smoke: PASS'),'authenticated success log marker missing');
-  assert.ok(workflow.includes('P2 auth smoke: NOT CONFIGURED'),'explicit unconfigured auth log marker missing');
+  assert.ok(!workflow.includes('P2 auth smoke: NOT CONFIGURED'),'P2 authenticated smoke must not soft-pass when unconfigured');
   assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: PASS'),'authenticated success summary missing');
-  assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED'),'explicit unconfigured auth state missing');
+  assert.ok(!workflow.includes('Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED'),'authenticated P2 chain must not have an unconfigured success state');
   assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
   assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
   const edgeDeploy=workflow.indexOf('Deploy P0-F-B1 Cloudflare workers.dev edge');
@@ -1110,7 +1110,7 @@ ok('P3 authenticated edge gate reaches session, Dashboard controller, and Dashbo
   assert.ok(workflow.includes("name:'Scripts_Page_Dashboard'"),'P3 must fetch the canonical Dashboard controller');
   assert.ok(workflow.includes("method:'apiGetDashboardBundle'"),'P3 authenticated Dashboard data fetch missing');
   assert.ok(workflow.includes("P3 login/session/Dashboard contract: PASS"),'P3 success marker missing');
-  assert.ok(workflow.includes("P3 login/session/Dashboard contract: NOT CONFIGURED"),'P3 unconfigured marker missing');
+  assert.ok(!workflow.includes("P3 login/session/Dashboard contract: NOT CONFIGURED"),'P3 must fail closed instead of reporting unconfigured');
   assert.ok(workflow.includes("Scripts_Page_Dashboard authenticated controller fetch: PASS"),'P3 controller summary missing');
   assert.ok(workflow.includes("apiGetDashboardBundle authenticated data fetch: PASS"),'P3 data summary missing');
   assert.ok(workflow.includes("P3 Dashboard controller fetch failed"),'P3 controller gate must fail closed');
