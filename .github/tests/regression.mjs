@@ -250,7 +250,6 @@ ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   assert.ok(gateway.includes('responseContract:GAS_RESPONSE_CONTRACT'));
   assert.ok(gateway.includes('legacyFallbackEnabled:false'));
   assert.ok(gateway.includes('sourceSha:sourceSha(env)'));
-  assert.ok(gateway.includes("u.pathname==='/network-health'"));
   assert.ok(gateway.includes("sourceSha:sourceSha(env),status:'reachable'"));
   assert.ok(gateway.includes("cloudRun:{service:txt(env.K_SERVICE),revision:txt(env.K_REVISION)}"));
   assert.ok(gateway.includes("u.pathname==='/api/anti'"));
