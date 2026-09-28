@@ -357,6 +357,84 @@ ok('P6 rotated session auth remains stable across sequential and strict writes',
   assert.equal(resumeCount,0);
 });
 
+ok('P7 data pipeline hydration is independent from route readiness and session-scoped',async()=>{
+  const start=index.indexOf('function dataPipelineContractReadyCrit()');
+  const end=index.indexOf('function createDashboardInitialDataGateCrit',start);
+  assert.ok(start>=0&&end>start,'P7 data pipeline contract owner missing');
+  const block=index.slice(start,end);
+  assert.ok(block.includes('p7-data-pipeline-contract'),'P7 contract stamp missing');
+  assert.ok(block.includes('"phase1.fieldMap":fieldMap'),'field map must have its own canonical store slot');
+  assert.ok(block.includes('"phase1.statusMap":statusMap'),'status map must have its own canonical store slot');
+  assert.ok(block.includes('"data.contract":dataContract'),'data contract canonical store slot missing');
+  assert.ok(block.includes('"app.routeContract":routeContract'),'route contract canonical store slot missing');
+  assert.ok(block.includes('"auth.dataContractReady":!0'),'data contract readiness flag missing');
+  assert.ok(!block.includes('if(root2.AppRouteContract&&root2.AppRouteContract.loaded&&root2.AppRouteContract.routes)return Promise.resolve(!0)'),'route readiness must not short-circuit data hydration');
+
+  const state={'auth.token':'fixture-token'},events=[];
+  const store={
+    get:(k,d)=>Object.prototype.hasOwnProperty.call(state,k)?state[k]:d,
+    set:(k,v)=>(state[k]=v,v),
+    assign:o=>(Object.assign(state,o),o)
+  };
+  let calls=0,epoch=7,routeAbsorb=0,dataAbsorb=0,seeds=0;
+  const fixture={
+    routeContract:{routes:{dashboard:true,search:true}},
+    dataContract:{version:'fixture-data'},
+    phase1SingleSourceContract:{owner:'fixture-phase1'},
+    fieldMap:{cases:{status:'fixture-status-field',recDate:'fixture-rec-date-field'}},
+    statusMap:{source:'fixture-status-map'}
+  };
+  const root2={
+    __authToken:'',
+    __APP_DASHBOARD_COMPLETE_DATA_READY__:true,
+    AppRouteContract:{loaded:true,routes:{dashboard:true},absorb(){routeAbsorb++}},
+    AppDataContractOwner:{absorb(){dataAbsorb++}},
+    AppData:{seed(){seeds++}},
+    AppApi:{call:async(method,payload)=>{
+      assert.equal(method,'apiGetClientDataContract');
+      assert.equal(payload.token,'fixture-token');
+      calls++;
+      return fixture;
+    }},
+    setTimeout,clearTimeout
+  };
+  const doc={
+    dispatchEvent:e=>(events.push(e),true),
+    addEventListener(){},
+    removeEventListener(){}
+  };
+  const ctx={
+    root2,store,doc,
+    txt:v=>v==null?'':String(v),
+    authEpochCrit:()=>epoch,
+    __appObserve(){},
+    RT:{recordWarning(){}},
+    CustomEvent:function(type,init){this.type=type;this.detail=init&&init.detail||{}},
+    Promise,Object,Array,Number,Date,Error,setTimeout,clearTimeout
+  };
+  vm.runInNewContext(block,ctx);
+  assert.equal(await ctx.hydrateContractAfterLoginCrit({immediate:true}),true);
+  assert.equal(calls,1,'route contract already loaded must not suppress data contract hydration');
+  assert.equal(state['auth.dataContractReady'],true);
+  assert.equal(state['data.contract'].version,'fixture-data');
+  assert.equal(state['phase1.contract'].owner,'fixture-phase1');
+  assert.equal(state['phase1.fieldMap'].cases.status,'fixture-status-field');
+  assert.equal(state['phase1.fieldMap'].cases.recDate,'fixture-rec-date-field');
+  assert.equal(state['phase1.statusMap'].source,'fixture-status-map');
+  assert.notEqual(state['phase1.fieldMap'],state['phase1.statusMap'],'field and status maps must remain distinct objects');
+  assert.equal(root2.__APP_DATA_PIPELINE_CONTRACT_CURRENT__.loaded,true);
+  assert.equal(root2.__APP_DATA_PIPELINE_CONTRACT_CURRENT__.authEpoch,7);
+  assert.equal(routeAbsorb,1);assert.equal(dataAbsorb,1);assert.equal(seeds,1);
+  assert.ok(events.some(e=>e.type==='app:data-pipeline-contract-ready'));
+
+  assert.equal(await ctx.hydrateContractAfterLoginCrit({immediate:true}),true);
+  assert.equal(calls,1,'same authenticated epoch must reuse the hydrated data contract');
+  epoch=8;
+  assert.equal(await ctx.hydrateContractAfterLoginCrit({immediate:true}),true);
+  assert.equal(calls,2,'new auth epoch must rehydrate rather than reuse another session contract');
+  assert.equal(root2.__APP_DATA_PIPELINE_CONTRACT_CURRENT__.authEpoch,8);
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
