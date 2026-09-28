@@ -704,7 +704,9 @@ ok('P3 explicit login completes only after Dashboard runtime readiness',async()=
   assert.ok(block.includes('__APP_AUTH_RUNTIME_WARMUP_PROMISE__'),'login completion must await the canonical Dashboard warmup promise');
   assert.ok(block.includes('DASHBOARD_BOOT_PROMISE_MISSING'),'missing Dashboard warmup owner must fail closed');
   assert.ok(block.includes('DASHBOARD_BOOT_FAILED'),'false Dashboard warmup result must fail closed');
-  assert.ok(block.includes('dashboardControllerReadyCrit()'),'Dashboard controller readiness must be re-verified before login completion');
+  assert.ok(block.includes('__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__'),'Dashboard readiness must be verified through the canonical runtime state owner');
+  assert.ok(block.includes('dashboardState.controllerLoaded!==!0'),'Dashboard controller must be loaded before login completion');
+  assert.ok(!block.includes('dashboardControllerReadyCrit()'),'P3 must not reach into the private bootMainUi helper scope');
   assert.ok(block.includes('"auth.uiReady":!0'),'auth.uiReady must be committed only after Dashboard readiness');
   assert.ok(block.includes('"auth.dashboardReady":!0'),'Dashboard readiness must have an explicit store contract');
   assert.ok(block.includes('app:auth-dashboard-ready'),'P3 success event missing');
@@ -724,6 +726,7 @@ ok('P3 explicit login completes only after Dashboard runtime readiness',async()=
     const root2={__APP_AUTH_RUNTIME_WARMUP_PROMISE__:null};
     const RT={
       bootMainUi(){
+        root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__={controllerLoaded:warmupValue===true};
         root2.__APP_AUTH_RUNTIME_WARMUP_PROMISE__=Promise.resolve(warmupValue);
         return Promise.resolve({ok:true,shellShown:true,warmupPending:true});
       },
@@ -739,7 +742,6 @@ ok('P3 explicit login completes only after Dashboard runtime readiness',async()=
       __appObserve(){return false},
       __appIsFn:v=>typeof v==='function',
       txt:v=>v==null?'':String(v),
-      dashboardControllerReadyCrit:()=>true,
       Promise,Date,Error,Object
     };
     vm.runInNewContext(block,ctx);
