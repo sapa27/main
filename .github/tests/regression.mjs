@@ -369,6 +369,11 @@ ok('P7 read-data pipeline uses the production baseline contract',()=>{
   assert.ok(index.includes('return root.AppApi.call(method, payload, { moduleName: "ProductionMeasurementCurrent", preserveEnvelope: true'),'P7 read probes must use canonical AppApi');
   assert.ok(index.includes('payload.forceFresh = true; payload.noCache = true; payload.bypassCache = true; payload.cacheTtlSeconds = 0'),'cold P7 verification must bypass client/cache layers');
   assert.ok(index.includes('noPayloadLogging: true, noCredentialLogging: true'),'P7 evidence must never log payloads or credentials');
+  assert.ok(workflow.includes('### P7 Read Data Pipeline Gate'),'P7 live read gate missing from production workflow');
+  assert.ok(workflow.includes('for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiBudgetGetSummary; do'),'P7 live read method set drifted');
+  assert.ok(workflow.includes("source:'github-actions-p7-data-pipeline'"),'P7 live read source marker missing');
+  assert.ok(workflow.includes('P7 $p7_method read failed'),'P7 live read gate must fail closed');
+  assert.ok(workflow.includes('Public edge → Cloud Run → GAS read contract: PASS'),'P7 deployment summary marker missing');
 });
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
