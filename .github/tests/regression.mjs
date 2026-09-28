@@ -399,7 +399,14 @@ ok('P8 write path classification timeout cache and retry contract is consistent'
   assert.ok(config.includes('WRITE_REQUEST_TIMEOUT_MS:120000'),'frontend write timeout must remain 120 seconds');
   assert.ok(gateway.includes('write:+env.GAS_WRITE_TIMEOUT_MS||120000'),'gateway write timeout must remain 120 seconds');
   assert.ok(transport.includes('var write=isWriteMethod(I.method),read=isReadMethod(I.method),key=write?"":cacheKey(I)'),'writes must never enter the read cache key path');
-  assert.ok(transport.includes('if(write)return p.then(function(v){EPOCH++;TTL=Object.create(null);F=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must invalidate client read cache');
+  assert.ok(transport.includes('W=Object.create(null)'),'P8 write single-flight registry missing');
+  assert.ok(transport.includes('function writeStableValue(v)'),'P8 stable write fingerprint owner missing');
+  assert.ok(transport.includes('function writeInflightKey(I)'),'P8 write fingerprint owner missing');
+  assert.ok(transport.includes('skip={token:1,sessionToken:1,authToken:1,_token:1,csrf:1,csrfToken:1,_csrf:1,actionToken:1}'),'P8 write fingerprint must ignore rotating auth/action credentials');
+  assert.ok(transport.includes('if(write&&writeKey&&W[writeKey]){emit("app:transport:write-deduped"'),'concurrent duplicate writes must share one in-flight request');
+  assert.ok(transport.includes('writeKey&&delete W[writeKey]'),'P8 write single-flight key must be released on settle');
+  assert.ok(transport.includes('writeInflight:Object.keys(W).length'),'P8 diagnostics must expose active write count without payload logging');
+  assert.ok(transport.includes('EPOCH++;TTL=Object.create(null);F=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must invalidate client read cache');
   assert.ok(!transport.includes('if(write&&cached)'),'writes must never be served from stale cache');
 
   const appStart=index.indexOf('Object.assign(appApi,{__criticalApi');
@@ -426,6 +433,83 @@ ok('P8 write path classification timeout cache and retry contract is consistent'
     if(!isDelete) assert.ok(strictBlock.includes(method.replace(/^api/,''))||strictBlock.includes('apiAdmin(?:Save|Delete)')||strictBlock.includes('apiBudget(?:Delete|AdminSave)')||strictBlock.includes('apiCleanup'),'strict action-token classifier drifted near '+method);
   }
 });
+
+{
+  let fetchCalls=0;
+  let pendingResolve=null;
+  const response=()=>({
+    ok:true,
+    status:200,
+    headers:{get(name){
+      name=String(name||'').toLowerCase();
+      if(name==='x-gas-response-contract') return 'gas-direct-json-v1';
+      if(name==='x-request-id') return 'p8-request-id';
+      if(name==='x-gateway-duration-ms') return '3';
+      return '';
+    }},
+    text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{saved:true}}})
+  });
+  const windowFixture={
+    APP_RUNTIME_CONFIG:{CLOUD_RUN_ALL_PRIMARY:true,WRITE_REQUEST_TIMEOUT_MS:120000,REQUEST_TIMEOUT_MS:60000},
+    APP_CONFIG:{},
+    location:{origin:'https://p8.example.test'},
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    fetch(){
+      fetchCalls++;
+      if(pendingResolve!==null) throw new Error('unexpected second pending fetch');
+      return new Promise(resolve=>{pendingResolve=()=>{pendingResolve=null;resolve(response())}});
+    }
+  };
+  const documentFixture={dispatchEvent(){}};
+  const transportCtx={
+    window:windowFixture,document:documentFixture,AbortController,setTimeout,clearTimeout,
+    CustomEvent:function(name,init){this.type=name;this.detail=init&&init.detail},
+    Promise,Object,Array,JSON,Date,Error,String,Number,RegExp
+  };
+  vm.runInNewContext(transport,transportCtx,{filename:'cloud-run-transport-p8.js'});
+
+  const first=windowFixture.AppTransport.run('apiSaveCase',{caseNo:'P8-1',title:'same',token:'token-a',csrfToken:'csrf-a'});
+  const duplicate=windowFixture.AppTransport.run('apiSaveCase',{title:'same',caseNo:'P8-1',token:'token-b',csrfToken:'csrf-b'});
+  assert.equal(fetchCalls,1,'same concurrent business write must issue exactly one POST even when auth tokens differ');
+  assert.equal(windowFixture.AppTransport.getClientCacheStats().writeInflight,1);
+  pendingResolve();
+  const [firstResult,duplicateResult]=await Promise.all([first,duplicate]);
+  assert.equal(firstResult.ok,true);
+  assert.equal(duplicateResult.ok,true);
+  assert.equal(windowFixture.AppTransport.getClientCacheStats().writeInflight,0,'write key must be released after success');
+
+  const again=windowFixture.AppTransport.run('apiSaveCase',{caseNo:'P8-1',title:'same',token:'token-c',csrfToken:'csrf-c'});
+  assert.equal(fetchCalls,2,'same write after prior settle must be allowed as a new operation');
+  pendingResolve();
+  await again;
+
+  const left=windowFixture.AppTransport.run('apiSaveCase',{caseNo:'P8-2',title:'left',token:'token-d'});
+  assert.equal(fetchCalls,3);
+  const leftResolve=pendingResolve;
+  pendingResolve=null;
+  const right=windowFixture.AppTransport.run('apiSaveCase',{caseNo:'P8-3',title:'right',token:'token-d'});
+  assert.equal(fetchCalls,4,'different concurrent business payloads must never be deduped');
+  const rightResolve=pendingResolve;
+  pendingResolve=null;
+  leftResolve();
+  rightResolve();
+  await Promise.all([left,right]);
+
+  let deleteResolveA=null;
+  windowFixture.fetch=function(){
+    fetchCalls++;
+    return new Promise(resolve=>{deleteResolveA=()=>resolve(response())});
+  };
+  const del1=windowFixture.AppTransport.run('apiDeleteCase',{caseId:'P8-delete',actionToken:'action-a',token:'token-a',csrfToken:'csrf-a'});
+  const del2=windowFixture.AppTransport.run('apiDeleteCase',{caseId:'P8-delete',actionToken:'action-b',token:'token-b',csrfToken:'csrf-b'});
+  assert.equal(fetchCalls,5,'strict delete must dedupe the same concurrent business delete despite rotated action/auth tokens');
+  deleteResolveA();
+  await Promise.all([del1,del2]);
+  assert.equal(windowFixture.AppTransport.getClientCacheStats().writeInflight,0);
+  ok('P8 concurrent write single-flight prevents duplicate Save/Delete POSTs without blocking later writes',()=>{});
+}
 
 ok('P9 performance measurement and cache owners remain bounded and single-source',()=>{
   assert.equal((index.match(/id="app-production-measurement-gate-current"/g)||[]).length,1,'production measurement owner must be unique');
