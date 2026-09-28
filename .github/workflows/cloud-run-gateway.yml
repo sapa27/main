@@ -7,6 +7,12 @@ on:
       - 'frontend/**'
       - '.github/tests/regression.mjs'
       - '.github/workflows/cloud-run-gateway.yml'
+  pull_request:
+    paths:
+      - 'cloud-run-gateway/**'
+      - 'frontend/**'
+      - '.github/tests/regression.mjs'
+      - '.github/workflows/cloud-run-gateway.yml'
   workflow_dispatch:
     inputs:
       deploy:
