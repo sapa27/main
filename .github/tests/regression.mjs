@@ -357,6 +357,174 @@ ok('P6 rotated session auth remains stable across sequential and strict writes',
   assert.equal(resumeCount,0);
 });
 
+ok('P7 read-data pipeline uses the production baseline contract',()=>{
+  assert.ok(index.includes('readMethods: Object.freeze(["apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiBudgetGetSummary"])'),'P7 canonical read probe list missing');
+  assert.ok(index.includes('function baselinePayload(method)'),'P7 production baseline payload owner missing');
+  assert.ok(index.includes('apiGetDashboardBundle: { phase1FirstPaint: false, hotPathMode: "performance-baseline-complete", includeBudgetSummary: true }'),'Dashboard baseline payload drifted');
+  assert.ok(index.includes('apiSearchCasesLite: { page: 1, limit: 20, compactReadModel: true, includeMeetingHistory: false }'),'case-search baseline payload drifted');
+  assert.ok(index.includes('apiGetCommitteeMeetingSystem: { page: 1, limit: 20 }'),'committee-meeting baseline payload drifted');
+  assert.ok(index.includes('apiGetTracking: { page: 1, limit: 20 }'),'tracking baseline payload drifted');
+  assert.ok(index.includes('apiBudgetGetSummary: { page: 1, limit: 100, pageSize: 100 }'),'budget-summary baseline payload drifted');
+  assert.ok(index.includes('source: "m10-dependency-performance-baseline-r330"'),'P7 baseline source marker missing');
+  assert.ok(index.includes('return root.AppApi.call(method, payload, { moduleName: "ProductionMeasurementCurrent", preserveEnvelope: true'),'P7 read probes must use canonical AppApi');
+  assert.ok(index.includes('payload.forceFresh = true; payload.noCache = true; payload.bypassCache = true; payload.cacheTtlSeconds = 0'),'cold P7 verification must bypass client/cache layers');
+  assert.ok(index.includes('noPayloadLogging: true, noCredentialLogging: true'),'P7 evidence must never log payloads or credentials');
+  assert.ok(workflow.includes('### P7 Read Data Pipeline Gate'),'P7 live read gate missing from production workflow');
+  assert.ok(workflow.includes('for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiBudgetGetSummary; do'),'P7 live read method set drifted');
+  assert.ok(workflow.includes("source:'github-actions-p7-data-pipeline'"),'P7 live read source marker missing');
+  assert.ok(workflow.includes('P7 $p7_method read failed'),'P7 live read gate must fail closed');
+  assert.ok(workflow.includes('Public edge → Cloud Run → GAS read contract: PASS'),'P7 deployment summary marker missing');
+});
+
+ok('P8 write path classification timeout cache and retry contract is consistent',()=>{
+  const writeMethods=[
+    'apiSaveCase','apiDeleteCase','apiSavePetitioner','apiDeletePetitioner',
+    'apiSavePersonnelComm','apiSavePersonnelOp','apiSavePersonnelStaff','apiSavePersonnelSubcommittee',
+    'apiDeletePersonnelComm','apiDeletePersonnelOp','apiDeletePersonnelStaff','apiDeletePersonnelSubcommittee',
+    'apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem','apiSaveSalarySettings',
+    'apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter','apiCleanupMeetingData',
+    'apiBudgetSaveImport','apiBudgetDeleteImport','apiAdminSaveUser','apiAdminDeleteUser',
+    'apiAdminSaveSubcommittee','apiAdminDeleteSubcommittee','apiBudgetAdminSaveYearSettingsRows'
+  ];
+  const declared=(index.match(/root2\.WRITE_API_METHODS=root2\.WRITE_API_METHODS\|\|\{([^}]+)\}/)||[])[1]||'';
+  for(const method of writeMethods) assert.ok(declared.includes(method+':!0'),'frontend write registry missing '+method);
+  assert.equal((declared.match(/:!0/g)||[]).length,writeMethods.length,'frontend write registry changed without updating the P8 contract');
+
+  const gatewayWrite=/^api(?:(?!Get|List|Search|Check).)*(Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup|Import)/;
+  for(const method of writeMethods) assert.ok(gatewayWrite.test(method),'gateway write classifier would miss '+method);
+  assert.ok(gateway.includes("const isWrite=m=>/^api(?:(?!Get|List|Search|Check).)*(Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup|Import)/.test(txt(m));"),'gateway write classifier drifted');
+
+  assert.ok(config.includes('WRITE_REQUEST_TIMEOUT_MS:120000'),'frontend write timeout must remain 120 seconds');
+  assert.ok(gateway.includes('write:+env.GAS_WRITE_TIMEOUT_MS||120000'),'gateway write timeout must remain 120 seconds');
+  assert.ok(transport.includes('var write=isWriteMethod(I.method),read=isReadMethod(I.method),key=write?"":cacheKey(I)'),'writes must never enter the read cache key path');
+  assert.ok(transport.includes('if(write)return p.then(function(v){EPOCH++;TTL=Object.create(null);F=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must invalidate client read cache');
+  assert.ok(!transport.includes('if(write&&cached)'),'writes must never be served from stale cache');
+
+  const appStart=index.indexOf('Object.assign(appApi,{__criticalApi');
+  const appEnd=index.indexOf('),root2.apiCall=root2.apiCall||function',appStart);
+  assert.ok(appStart>=0&&appEnd>appStart,'P8 AppApi write/retry owner missing');
+  const appBlock=index.slice(appStart,appEnd+1);
+  assert.ok(appBlock.includes('rotationRetry=/SESSION_TOKEN_ROTATED_RETRY/i'),'P8 rotation retry path missing');
+  assert.ok(appBlock.includes('if(rotationRetry&&!pub&&!q.__rotationRetried)'),'rotation replay must be bounded');
+  assert.ok(appBlock.includes('if(authFail&&!pub&&!q.__authRecovered'),'auth recovery replay must be bounded');
+  assert.ok(appBlock.includes('throw e}return n.data'),'non-auth write failures must fail closed instead of generic replay');
+
+  const strictMethods=[
+    'apiDeleteCase','apiDeletePetitioner','apiDeletePersonnelComm','apiDeletePersonnelOp',
+    'apiDeletePersonnelStaff','apiDeletePersonnelSubcommittee','apiDeleteCommitteeMeetingSystem',
+    'apiDeleteMeetingLog','apiDeleteLetter','apiCleanupMeetingData','apiBudgetDeleteImport',
+    'apiAdminSaveUser','apiAdminDeleteUser','apiAdminSaveSubcommittee','apiAdminDeleteSubcommittee',
+    'apiBudgetAdminSaveYearSettingsRows'
+  ];
+  const strictStart=index.indexOf('root2.requiresStrictActionToken=');
+  const strictEnd=index.indexOf('root2.isWriteApiMethod=',strictStart);
+  const strictBlock=index.slice(strictStart,strictEnd);
+  for(const method of strictMethods){
+    const isDelete=/^apiDelete/.test(method)||/^apiDeletePersonnel/.test(method)||method==='apiDeleteCommitteeMeetingSystem'||method==='apiDeleteMeetingLog'||method==='apiDeleteLetter';
+    if(!isDelete) assert.ok(strictBlock.includes(method.replace(/^api/,''))||strictBlock.includes('apiAdmin(?:Save|Delete)')||strictBlock.includes('apiBudget(?:Delete|AdminSave)')||strictBlock.includes('apiCleanup'),'strict action-token classifier drifted near '+method);
+  }
+});
+
+ok('P9 performance measurement and cache owners remain bounded and single-source',()=>{
+  assert.equal((index.match(/id="app-production-measurement-gate-current"/g)||[]).length,1,'production measurement owner must be unique');
+  assert.equal((index.match(/function runReadBaseline\(/g)||[]).length,1,'read-baseline runner must have one owner');
+  assert.equal((index.match(/function baselinePayload\(/g)||[]).length,1,'baseline payload builder must have one owner');
+  assert.ok(index.includes('apiLogin: Object.freeze({ cold: 3, warm: 5 })'),'login sample target drifted');
+  for(const method of ['apiGetDashboardBundle','apiSearchCasesLite','apiGetCommitteeMeetingSystem','apiGetTracking','apiBudgetGetSummary']){
+    assert.ok(index.includes(method+': Object.freeze({ cold: 10, warm: 20 })'),'read sample target drifted for '+method);
+  }
+  for(const budget of [
+    '"login-to-dashboard": 30000','"route-transition": 3000','"route-search": 5000',
+    '"case-editor-open": 12000','"route-track": 5000','"logout-to-login": 3000'
+  ]) assert.ok(index.includes(budget),'journey budget drifted: '+budget);
+  assert.ok(index.includes('minInpSamples: 20, inpP75Ms: 200'),'INP performance budget drifted');
+  assert.ok(index.includes('clickToFeedbackP95Ms: 200'),'click-to-feedback budget drifted');
+  assert.ok(index.includes('longTaskP95Ms: 200'),'long-task budget drifted');
+  assert.ok(index.includes('confirmation !== "RUN_PERFORMANCE_BASELINE"'),'performance baseline must remain explicit and non-automatic');
+  assert.ok(index.includes('noPayloadLogging: true, noCredentialLogging: true'),'performance evidence must not log credentials or payloads');
+
+  assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:60000'),'default read cache TTL drifted');
+  assert.ok(config.includes('RPC_READ_STALE_TTL_MS:600000'),'stale read TTL drifted');
+  assert.ok(config.includes('RPC_READ_CACHE_MAX_ENTRIES:96'),'read cache bound drifted');
+  assert.ok(transport.includes('if(dedupeKey&&F[dedupeKey])return F[dedupeKey]'),'read in-flight dedupe owner missing');
+  assert.ok(transport.includes('function pruneCache()'),'bounded cache pruning owner missing');
+  assert.ok(transport.includes('Math.max(24,Math.min(256,Number(c("RPC_READ_CACHE_MAX_ENTRIES",96))||96))'),'cache size must remain hard bounded');
+  assert.ok(transport.includes('meta.clientCache="stale-while-revalidate"'),'stale cache responses must remain explicitly marked');
+  assert.ok(transport.includes('EPOCH++'),'write epoch invalidation missing');
+});
+
+ok('P10 UI runtime keeps unique DOM ids and canonical interaction owners',()=>{
+  const templateMatches=[...index.matchAll(/<script\b[^>]*\bid="(tpl-page-[^"]+)"[^>]*>([\s\S]*?)<\/script\s*>/gi)];
+  assert.equal(templateMatches.length,10,'expected exactly ten canonical page templates');
+  const expectedTemplates=['dashboard','search','track','report','meeting','committee-meeting','people','petitioner','budget','admin'].map(x=>'tpl-page-'+x).sort();
+  assert.deepEqual(templateMatches.map(x=>x[1]).sort(),expectedTemplates);
+  for(const match of templateMatches){
+    const ids=[...match[2].matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
+    const seen=new Set(),duplicates=[];
+    ids.forEach(id=>seen.has(id)?duplicates.push(id):seen.add(id));
+    assert.deepEqual(duplicates,[],'duplicate DOM id(s) inside '+match[1]+': '+duplicates.join(','));
+  }
+
+  const activeMarkup=index
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi,'');
+  const activeIds=[...activeMarkup.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
+  const activeSeen=new Set(),activeDuplicates=[];
+  activeIds.forEach(id=>activeSeen.has(id)?activeDuplicates.push(id):activeSeen.add(id));
+  assert.deepEqual(activeDuplicates,[],'duplicate id(s) in active document markup: '+activeDuplicates.join(','));
+
+  assert.equal((index.match(/root2\.AppActionHub\.dispatch=function/g)||[]).length,1,'AppActionHub dispatch owner must be unique');
+  assert.ok(index.includes('__APP_SINGLE_EVENT_DELEGATION__'),'canonical click delegation owner missing');
+  assert.ok(index.includes('__APP_SINGLE_CHANGE_DELEGATION__'),'canonical change delegation owner missing');
+  assert.ok(index.includes('data-mobile-nav-owner'),'mobile navigation owner marker missing');
+  assert.ok(index.includes('__APP_SIDEBAR_NAV_CLICK_OWNER__'),'mobile/sidebar navigation click owner missing');
+  assert.equal((index.match(/root2\.AppUi=root2\.AppUi\|\|/g)||[]).length,1,'critical AppUi facade owner must be unique');
+  assert.ok(index.includes('AppPrint.printWithProfile'),'canonical print profile owner missing');
+  assert.equal((meetingController.match(/AppPages\.register\("meeting"/g)||[]).length,1,'Meeting page registration owner must be unique');
+  assert.equal((meetingController.match(/window\.initMeetingPage/g)||[]).length,1,'Meeting init owner must be unique');
+  assert.ok(!index.includes('#login-error-msg,.app-page-load-failure{display:none'),'visible error surfaces must not regress to hidden UI');
+  for(const marker of ['__APP_SINGLE_EVENT_DELEGATION__','__APP_SINGLE_CHANGE_DELEGATION__','data-mobile-nav-owner','__APP_SIDEBAR_NAV_CLICK_OWNER__','AppPrint.printWithProfile']){
+    assert.ok(workflow.includes("grep -q '"+marker+"' \"$edge_index_tmp\""),'P10 public-edge owner probe missing '+marker);
+  }
+  assert.ok(workflow.includes('P10 canonical action/mobile/print owners at public edge: PASS'),'P10 deployment summary marker missing');
+});
+
+ok('P11 production deployment quality gate fails closed',()=>{
+  for(const name of ['CLOUDFLARE_ACCOUNT_ID','CLOUDFLARE_API_TOKEN','CF_WORKER_NAME','CF_WORKERS_SUBDOMAIN','E2E_SMOKE_USERNAME','E2E_SMOKE_PASSWORD']){
+    assert.ok(workflow.includes(name),'required production gate variable missing '+name);
+  }
+  assert.ok(workflow.includes('Missing required production gate variable: $name'),'deployment prerequisite validation must fail closed');
+  assert.ok(workflow.includes('P11 production gate failed: CLOUDFLARE_API_TOKEN is required'),'Cloudflare edge credential must fail closed');
+  assert.ok(workflow.includes('P11 production gate failed: E2E_SMOKE_USERNAME is required'),'authenticated username must fail closed');
+  assert.ok(workflow.includes('P11 production gate failed: E2E_SMOKE_PASSWORD is required'),'authenticated password must fail closed');
+  assert.ok(!workflow.includes('Status: PENDING'),'production edge must never soft-pass as pending');
+  assert.ok(!workflow.includes('P2 auth smoke: NOT CONFIGURED'),'authenticated smoke must never soft-pass as not configured');
+  assert.ok(!workflow.includes('P3 login/session/Dashboard contract: NOT CONFIGURED'),'Dashboard contract gate must never soft-pass as not configured');
+  assert.ok(workflow.includes('pull_request:'),'P11 validation must run on pull requests');
+  assert.ok(workflow.includes("(github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))"),'deploy condition must remain restricted to explicit dispatch or deploy-marked push');
+  assert.ok(!workflow.includes("github.event_name == 'pull_request' && inputs.deploy"),'pull requests must never enter the deploy path');
+  assert.ok(workflow.includes('### P11 Production Deployment Quality Gate'),'P11 production summary missing');
+  assert.ok(workflow.includes('Login → session → Dashboard → P7 reads: PASS'),'P11 authenticated chain summary missing');
+  assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
+  assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
+});
+
+ok('P12 production cleanup removes retired browser transport fallback',()=>{
+  assert.ok(!index.includes('google.script.run'),'retired browser-to-GAS google.script.run fallback must be removed');
+  assert.ok(!index.includes('AppTransport.run=root2.AppTransport.run||'),'critical runtime must not recreate a second AppTransport owner');
+  assert.ok(index.includes('APP_CLOUD_RUN_TRANSPORT_REQUIRED'),'missing fail-closed Cloud Run transport ownership guard');
+  const transportAsset=index.indexOf('<script src="./cloud-run-transport.js');
+  const transportGuard=index.indexOf('APP_CLOUD_RUN_TRANSPORT_REQUIRED');
+  assert.ok(transportAsset>=0&&transportGuard>transportAsset,'canonical Cloud Run transport must load before the fail-closed consumer');
+  for(const token of ['script.google.com','github-pages','parentOrigin','rpcToken','rpcVersion','installErrorPopupSuppression','suppressVisibleErrorNode','app-login-dashboard-autostart-current']){
+    assert.ok(!index.includes(token),'retired production frontend token returned: '+token);
+  }
+  assert.ok(gateway.includes('legacyFallbackEnabled:false'),'gateway must remain direct-only');
+  assert.ok(workflow.includes("grep -q 'APP_CLOUD_RUN_TRANSPORT_REQUIRED' \"$edge_index_tmp\""),'P12 edge transport-owner guard missing');
+  assert.ok(workflow.includes("if grep -q 'google.script.run' \"$edge_index_tmp\""),'P12 edge must fail if browser GAS fallback returns');
+  assert.ok(workflow.includes('P12 direct-only frontend cleanup at public edge: PASS'),'P12 deployment summary marker missing');
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
@@ -425,7 +593,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes("vars.CLOUDFLARE_ACCOUNT_ID || '459f501f62a887961945801d9d27e173'"));
   assert.ok(workflow.includes('preferred_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"'));
   assert.ok(workflow.includes('candidate_subdomains=("$preferred_subdomain" "anti27" "sapa27-anti" "anti-sapa27")'));
-  assert.ok(workflow.includes('auto-generated if omitted'));
+  assert.ok(workflow.includes('P11 production gate failed: CLOUDFLARE_API_TOKEN is required'),'Cloudflare credentials must be required before production deploy');
   assert.ok(workflow.includes('CLOUDFLARE_ACCOUNT_ID'));
   assert.ok(workflow.includes('CLOUDFLARE_API_TOKEN'));
   assert.ok(workflow.includes('workers/subdomain'));
@@ -452,7 +620,7 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(frontWorkflow.includes('node .github/tests/regression.mjs --frontend-only'));
 });
 
-ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gated',()=>{
+ok('P2 public edge POST gate and authenticated smoke are mandatory for production',()=>{
   assert.ok(workflow.includes('E2E_SMOKE_USERNAME: ${{ secrets.E2E_SMOKE_USERNAME }}'),'P2 username must come from GitHub Secrets');
   assert.ok(workflow.includes('E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}'),'P2 password must come from GitHub Secrets');
   assert.ok(workflow.includes('p2_post_rpc()'),'P2 POST helper missing');
@@ -466,13 +634,13 @@ ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gate
   assert.ok(workflow.includes("get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN"),'P2 must verify CORS reflects the public edge origin');
   assert.ok(workflow.includes("get('x-request-id')"),'P2 must capture requestId');
   assert.ok(workflow.includes('test "$http_code" = "200" || { echo "P2 $label POST failed'),'P2 public POST must fail closed');
-  assert.ok(workflow.includes("method:'apiLogin'"),'secret-gated apiLogin smoke missing');
+  assert.ok(workflow.includes("method:'apiLogin'"),'mandatory apiLogin smoke missing');
   assert.ok(workflow.includes("method:'apiSessionCheck'"),'authenticated apiSessionCheck smoke missing');
   assert.ok(workflow.includes("const session=candidates.find(x=>x.user||x.account||x.role||x.authenticated===true||x.valid===true)"),'authenticated session validity assertion missing');
   assert.ok(workflow.includes('P2 auth smoke: PASS'),'authenticated success log marker missing');
-  assert.ok(workflow.includes('P2 auth smoke: NOT CONFIGURED'),'explicit unconfigured auth log marker missing');
+  assert.ok(!workflow.includes('P2 auth smoke: NOT CONFIGURED'),'P2 authenticated smoke must not soft-pass when unconfigured');
   assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: PASS'),'authenticated success summary missing');
-  assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED'),'explicit unconfigured auth state missing');
+  assert.ok(!workflow.includes('Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED'),'authenticated P2 chain must not have an unconfigured success state');
   assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
   assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
   const edgeDeploy=workflow.indexOf('Deploy P0-F-B1 Cloudflare workers.dev edge');
@@ -942,7 +1110,7 @@ ok('P3 authenticated edge gate reaches session, Dashboard controller, and Dashbo
   assert.ok(workflow.includes("name:'Scripts_Page_Dashboard'"),'P3 must fetch the canonical Dashboard controller');
   assert.ok(workflow.includes("method:'apiGetDashboardBundle'"),'P3 authenticated Dashboard data fetch missing');
   assert.ok(workflow.includes("P3 login/session/Dashboard contract: PASS"),'P3 success marker missing');
-  assert.ok(workflow.includes("P3 login/session/Dashboard contract: NOT CONFIGURED"),'P3 unconfigured marker missing');
+  assert.ok(!workflow.includes("P3 login/session/Dashboard contract: NOT CONFIGURED"),'P3 must fail closed instead of reporting unconfigured');
   assert.ok(workflow.includes("Scripts_Page_Dashboard authenticated controller fetch: PASS"),'P3 controller summary missing');
   assert.ok(workflow.includes("apiGetDashboardBundle authenticated data fetch: PASS"),'P3 data summary missing');
   assert.ok(workflow.includes("P3 Dashboard controller fetch failed"),'P3 controller gate must fail closed');
