@@ -483,6 +483,27 @@ ok('P10 UI runtime keeps unique DOM ids and canonical interaction owners',()=>{
   assert.equal((meetingController.match(/AppPages\.register\("meeting"/g)||[]).length,1,'Meeting page registration owner must be unique');
   assert.equal((meetingController.match(/window\.initMeetingPage/g)||[]).length,1,'Meeting init owner must be unique');
   assert.ok(!index.includes('#login-error-msg,.app-page-load-failure{display:none'),'visible error surfaces must not regress to hidden UI');
+  for(const marker of ['__APP_SINGLE_EVENT_DELEGATION__','__APP_SINGLE_CHANGE_DELEGATION__','data-mobile-nav-owner','__APP_SIDEBAR_NAV_CLICK_OWNER__','AppPrint.printWithProfile']){
+    assert.ok(workflow.includes("grep -q '"+marker+"' \"$edge_index_tmp\""),'P10 public-edge owner probe missing '+marker);
+  }
+  assert.ok(workflow.includes('P10 canonical action/mobile/print owners at public edge: PASS'),'P10 deployment summary marker missing');
+});
+
+ok('P11 production deployment quality gate fails closed',()=>{
+  for(const name of ['CLOUDFLARE_ACCOUNT_ID','CLOUDFLARE_API_TOKEN','CF_WORKER_NAME','CF_WORKERS_SUBDOMAIN','E2E_SMOKE_USERNAME','E2E_SMOKE_PASSWORD']){
+    assert.ok(workflow.includes(name),'required production gate variable missing '+name);
+  }
+  assert.ok(workflow.includes('Missing required production gate variable: $name'),'deployment prerequisite validation must fail closed');
+  assert.ok(workflow.includes('P11 production gate failed: CLOUDFLARE_API_TOKEN is required'),'Cloudflare edge credential must fail closed');
+  assert.ok(workflow.includes('P11 production gate failed: E2E_SMOKE_USERNAME is required'),'authenticated username must fail closed');
+  assert.ok(workflow.includes('P11 production gate failed: E2E_SMOKE_PASSWORD is required'),'authenticated password must fail closed');
+  assert.ok(!workflow.includes('Status: PENDING'),'production edge must never soft-pass as pending');
+  assert.ok(!workflow.includes('P2 auth smoke: NOT CONFIGURED'),'authenticated smoke must never soft-pass as not configured');
+  assert.ok(!workflow.includes('P3 login/session/Dashboard contract: NOT CONFIGURED'),'Dashboard contract gate must never soft-pass as not configured');
+  assert.ok(workflow.includes('### P11 Production Deployment Quality Gate'),'P11 production summary missing');
+  assert.ok(workflow.includes('Login → session → Dashboard → P7 reads: PASS'),'P11 authenticated chain summary missing');
+  assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
+  assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
 });
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
