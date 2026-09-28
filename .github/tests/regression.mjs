@@ -195,9 +195,13 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
     RT:{rawRun:async(method,payload)=>{raw.push({method,payload});return {ok:true,data:{}}}},
     Promise,Object,Array
   };
-  const baseStart=index.indexOf('function base(m,p,options)');
+  const baseStart=index.indexOf('function data(p)');
   const baseEnd=index.indexOf('function saveResume',baseStart);
-  assert.ok(baseStart>=0&&baseEnd>baseStart,'critical API base missing');
+  assert.ok(baseStart>=0&&baseEnd>baseStart,'critical API auth helper block missing');
+  apiCtx.saveResume=()=>true;
+  apiCtx.__appObserve=()=>false;
+  apiCtx.root2.AppSecurity={setSessionTokens(){}};
+  apiCtx.root2.AppRouteContract={absorb(){}};
   vm.runInNewContext(index.slice(baseStart,baseEnd),apiCtx);
   await apiCtx.base('getDeferredInclude',{name:'Scripts_Page_Dashboard'});
   await apiCtx.base('apiGetDashboardBundle',{source:'fixture-r353'});
