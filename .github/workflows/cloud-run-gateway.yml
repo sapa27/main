@@ -87,8 +87,8 @@ jobs:
       - name: Validate deployment variables
         run: |
           set -euo pipefail
-          for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN; do
-            test -n "${!name:-}" || { echo "Missing $name" >&2; exit 1; }
+          for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CF_WORKER_NAME CF_WORKERS_SUBDOMAIN E2E_SMOKE_USERNAME E2E_SMOKE_PASSWORD; do
+            test -n "${!name:-}" || { echo "Missing required production gate variable: $name" >&2; exit 1; }
           done
       - name: Resolve P0-F-B1 workers.dev origin
         run: |
@@ -371,13 +371,8 @@ jobs:
           WRANGLER_SEND_METRICS: "false"
         run: |
           set -euo pipefail
-          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ] || [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Status: PENDING" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Required: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Optional: CF_WORKERS_SUBDOMAIN (auto-generated if omitted)" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo "P11 production gate failed: CLOUDFLARE_ACCOUNT_ID is required" >&2; exit 1; }
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "P11 production gate failed: CLOUDFLARE_API_TOKEN is required" >&2; exit 1; }
 
           edge_origin="https://${CF_WORKER_NAME}.${CF_WORKERS_SUBDOMAIN}.workers.dev"
           test "${PUBLIC_APP_ORIGIN:-}" = "$edge_origin"
@@ -529,14 +524,11 @@ jobs:
           echo "- Contract: gas-direct-json-v1" >> "$GITHUB_STEP_SUMMARY"
           echo "- Edge marker: cloudflare-workers-dev" >> "$GITHUB_STEP_SUMMARY"
 
-          # P2 authenticated chain is secret-gated. Never echo request/response bodies or tokens.
-          if [ -n "${E2E_SMOKE_USERNAME:-}" ] || [ -n "${E2E_SMOKE_PASSWORD:-}" ]; then
-            if [ -z "${E2E_SMOKE_USERNAME:-}" ] || [ -z "${E2E_SMOKE_PASSWORD:-}" ]; then
-              echo "P2 auth smoke requires both E2E_SMOKE_USERNAME and E2E_SMOKE_PASSWORD" >&2
-              exit 1
-            fi
+          # P11 production gate: authenticated chain is mandatory. Never echo request/response bodies or tokens.
+          test -n "${E2E_SMOKE_USERNAME:-}" || { echo "P11 production gate failed: E2E_SMOKE_USERNAME is required" >&2; exit 1; }
+          test -n "${E2E_SMOKE_PASSWORD:-}" || { echo "P11 production gate failed: E2E_SMOKE_PASSWORD is required" >&2; exit 1; }
 
-            auth_dir="$(mktemp -d)"
+          auth_dir="$(mktemp -d)"
             AUTH_REQ_FILE="$auth_dir/login.request.json" \
             E2E_SMOKE_USERNAME="$E2E_SMOKE_USERNAME" E2E_SMOKE_PASSWORD="$E2E_SMOKE_PASSWORD" node <<'NODE'
           const fs=require('fs');
@@ -761,13 +753,10 @@ jobs:
             echo "- apiSessionCheck contract: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Scripts_Page_Dashboard authenticated controller fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- apiGetDashboardBundle authenticated data fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "P2 auth smoke: NOT CONFIGURED"
-            echo "P3 login/session/Dashboard contract: NOT CONFIGURED"
-            echo "- Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED (set E2E_SMOKE_USERNAME/E2E_SMOKE_PASSWORD secrets)" >> "$GITHUB_STEP_SUMMARY"
-            echo "### P3 Login / Session / Dashboard Boot Contract Gate" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Status: NOT CONFIGURED (set E2E_SMOKE_USERNAME/E2E_SMOKE_PASSWORD secrets)" >> "$GITHUB_STEP_SUMMARY"
-          fi
+            echo "### P11 Production Deployment Quality Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required Cloudflare credentials: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required authenticated E2E credentials: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Login → session → Dashboard → P7 reads: PASS" >> "$GITHUB_STEP_SUMMARY"
 
           rm -rf "$p2_rpc_dir"
 
