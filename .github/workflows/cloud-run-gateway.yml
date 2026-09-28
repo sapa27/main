@@ -792,6 +792,9 @@ jobs:
           grep -q 'function resetActionAuthCrit' "$edge_index_tmp"
           grep -q 'nextSessionToken' "$edge_index_tmp"
           grep -q 'nextCsrfToken' "$edge_index_tmp"
+          grep -q 'app-production-measurement-gate-current' "$edge_index_tmp"
+          grep -q 'RUN_PERFORMANCE_BASELINE' "$edge_index_tmp"
+          grep -q 'm10-dependency-performance-baseline-r330' "$edge_index_tmp"
           if grep -q 'app-login-dashboard-autostart-current' "$edge_index_tmp"; then echo "P4 edge failed: duplicate Dashboard autostart owner is still public" >&2; exit 1; fi
           printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
           if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
@@ -819,6 +822,8 @@ jobs:
           echo "- P4 Dashboard bootstrap source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P5 Dashboard recovery single-owner source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P6 rotated-session write stability source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P9 production measurement owner at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P9 performance baseline remains explicit/manual: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove CR-8 canary
