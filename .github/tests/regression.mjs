@@ -425,6 +425,39 @@ ok('Meeting UI never renders raw exception messages',()=>{
   assert.ok(!meetingController.includes('msg ? "บันทึกข้อมูลไม่สำเร็จ : " + msg'),'Meeting save notice must not concatenate exception details');
 });
 
+ok('P1 sanitizers redact technical detail and retain safe diagnostic ids',()=>{
+  const earlyStart=index.indexOf('function publicErrorTextEarly(v)');
+  const earlyEnd=index.indexOf('function sanitizeSwalOptions',earlyStart);
+  assert.ok(earlyStart>=0&&earlyEnd>earlyStart,'early public error sanitizer source missing');
+  const earlyCtx={};
+  vm.runInNewContext(index.slice(earlyStart,earlyEnd),earlyCtx);
+  assert.equal(earlyCtx.publicErrorTextEarly('TypeError: controller is not a function'),'ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
+  assert.equal(earlyCtx.publicErrorTextEarly('เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน'),'เข้าสู่ระบบไม่สำเร็จ กรุณาตรวจสอบชื่อผู้ใช้และรหัสผ่าน');
+  assert.equal(earlyCtx.publicErrorTextEarly('https://internal.example.test/stack'),'ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง');
+
+  const diagStart=index.indexOf('RT.errorDiagnostic=RT.errorDiagnostic||function');
+  const diagEnd=index.indexOf('RT.publicErrorNotice=',diagStart);
+  assert.ok(diagStart>=0&&diagEnd>diagStart,'runtime diagnostic helper source missing');
+  const diagCtx={RT:{},txt:v=>v==null?'':String(v)};
+  vm.runInNewContext(index.slice(diagStart,diagEnd),diagCtx);
+  const good=diagCtx.RT.errorDiagnostic({code:'GAS_DIRECT_FAILED',requestId:'http_abc123456'},'APP_RUNTIME_ERROR');
+  assert.equal(good.code,'GAS_DIRECT_FAILED');
+  assert.equal(good.requestId,'http_abc123456');
+  const unsafe=diagCtx.RT.errorDiagnostic({code:'<script>',requestId:'<script>alert(1)</script>'},'APP_RUNTIME_ERROR');
+  assert.equal(unsafe.code,'_SCRIPT_');
+  assert.equal(unsafe.requestId,'');
+
+  const errStart=transport.indexOf('function err(m,k,meta)');
+  const errEnd=transport.indexOf('function networkErrorCode',errStart);
+  assert.ok(errStart>=0&&errEnd>errStart,'transport error metadata helper missing');
+  const errCtx={t:v=>v==null?'':String(v),Error};
+  vm.runInNewContext(transport.slice(errStart,errEnd),errCtx);
+  const transportErr=errCtx.err('GAS failed','GAS_DIRECT_FAILED',{requestId:'http_req123456',httpStatus:502});
+  assert.equal(transportErr.code,'GAS_DIRECT_FAILED');
+  assert.equal(transportErr.requestId,'http_req123456');
+  assert.equal(transportErr.httpStatus,502);
+});
+
 ok('production error surfaces are sanitized, visible, and observable',()=>{
   assert.ok(index.includes('function publicErrorTextEarly(v)'),'early public error sanitizer missing');
   assert.ok(index.includes('function sanitizeSwalOptions(input)'),'SweetAlert option sanitizer missing');
