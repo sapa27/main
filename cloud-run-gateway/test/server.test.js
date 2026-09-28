@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,cfg,gasUrl,allowed,networkProfile,isWrite,effectiveMethod,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
+const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,UPSTREAM_HEALTH_TIMEOUT_MS,cfg,gasUrl,allowed,networkProfile,isWrite,effectiveMethod,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
@@ -26,6 +26,8 @@ test('CR-7 configuration is direct-only',()=>{
   assert.equal(REV,'cr8.15-p0f-network-gate');
   assert.equal(GAS_RESPONSE_CONTRACT,'gas-direct-json-v1');
   assert.equal(ANTI_RESPONSE_CONTRACT,'anti-public-json-v1');
+  assert.equal(UPSTREAM_HEALTH_TIMEOUT_MS,30000);
+  assert.equal(timeout('apiSessionCheck',UPSTREAM_HEALTH_TIMEOUT_MS,c),30000);
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(allowed(ORIGIN,c),true);
   assert.equal(allowed('https://app.example.test',c),true);
