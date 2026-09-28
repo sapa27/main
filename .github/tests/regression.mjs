@@ -129,6 +129,25 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   assert.equal(G.wirePayload.method,'apiSearchCasesLite');
 });
 
+ok('P6 API and DTO contract remains single-owner and rotation-safe',()=>{
+  assert.ok(index.includes('root2.AppRouteContract=root2.AppRouteContract||{}'),'canonical route-contract owner missing');
+  assert.ok(index.includes('c.validateApiMethod=function(m)'),'route-contract validation owner missing');
+  for(const method of ['getDeferredInclude','apiRouter','apiLogin','apiLogout','apiSessionResume','apiSessionCheck','apiBootstrap','apiGetRouteContract','apiGetClientDataContract','apiGetAppTerminology']){
+    assert.ok(index.includes(method+':!0'),'bootstrap API contract missing '+method);
+  }
+  for(const method of ['apiSaveCase','apiDeleteCase','apiSavePetitioner','apiDeletePetitioner','apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter','apiBudgetSaveImport','apiBudgetDeleteImport','apiAdminSaveUser','apiAdminDeleteUser']){
+    assert.ok(index.includes(method+':!0'),'write API contract missing '+method);
+  }
+  assert.ok(index.includes('function syncAuthPayloadCrit(q,preserveActionCsrf)'),'canonical auth-payload synchronizer missing');
+  assert.ok(index.includes('function resetActionAuthCrit(q)'),'canonical action-token reset owner missing');
+  assert.ok(index.includes('SESSION_TOKEN_ROTATED_RETRY'),'rotated-session retry contract missing');
+  assert.ok(index.includes('q.__rotationRetried=!0'),'rotated-session retry must be bounded to one replay');
+  assert.ok(index.includes('nextSessionToken'),'rotated session token extraction missing');
+  assert.ok(index.includes('nextCsrfToken'),'rotated CSRF token extraction missing');
+  assert.ok(index.includes('apiGetClientDataContract'),'client data/route contract hydration endpoint missing');
+  assert.ok(transport.includes('wire:"apiRouter",wirePayload:{method:I.method,payload:I.payload==null?{}:I.payload},routed:true'),'business APIs must retain the canonical nested apiRouter wire');
+});
+
 {
   const state=Object.create(null);
   const store={
