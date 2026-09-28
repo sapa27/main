@@ -343,6 +343,9 @@ ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gate
   assert.ok(workflow.includes('test "$http_code" = "200" || { echo "P2 $label POST failed'),'P2 public POST must fail closed');
   assert.ok(workflow.includes("method:'apiLogin'"),'secret-gated apiLogin smoke missing');
   assert.ok(workflow.includes("method:'apiSessionCheck'"),'authenticated apiSessionCheck smoke missing');
+  assert.ok(workflow.includes("const session=candidates.find(x=>x.user||x.account||x.role||x.authenticated===true||x.valid===true)"),'authenticated session validity assertion missing');
+  assert.ok(workflow.includes('P2 auth smoke: PASS'),'authenticated success log marker missing');
+  assert.ok(workflow.includes('P2 auth smoke: NOT CONFIGURED'),'explicit unconfigured auth log marker missing');
   assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: PASS'),'authenticated success summary missing');
   assert.ok(workflow.includes('Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED'),'explicit unconfigured auth state missing');
   assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
