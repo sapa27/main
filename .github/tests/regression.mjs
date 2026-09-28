@@ -358,19 +358,21 @@ ok('P6 rotated session auth remains stable across sequential and strict writes',
 });
 
 ok('P7 read-data pipeline uses the production baseline contract',()=>{
-  assert.ok(index.includes('readMethods: Object.freeze(["apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiBudgetGetSummary"])'),'P7 canonical read probe list missing');
+  assert.ok(index.includes('readMethods: Object.freeze(["apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiGetPeoplePageBundle", "apiGetPetitioners", "apiBudgetGetSummary"])'),'P7 canonical read probe list missing');
   assert.ok(index.includes('function baselinePayload(method)'),'P7 production baseline payload owner missing');
   assert.ok(index.includes('apiGetDashboardBundle: { phase1FirstPaint: false, hotPathMode: "performance-baseline-complete", includeBudgetSummary: true }'),'Dashboard baseline payload drifted');
   assert.ok(index.includes('apiSearchCasesLite: { page: 1, limit: 20, compactReadModel: true, includeMeetingHistory: false }'),'case-search baseline payload drifted');
   assert.ok(index.includes('apiGetCommitteeMeetingSystem: { page: 1, limit: 20 }'),'committee-meeting baseline payload drifted');
   assert.ok(index.includes('apiGetTracking: { page: 1, limit: 20 }'),'tracking baseline payload drifted');
+  assert.ok(index.includes('apiGetPeoplePageBundle: { page: 1, limit: 100 }'),'people baseline payload drifted');
+  assert.ok(index.includes('apiGetPetitioners: { page: 1, limit: 100 }'),'petitioner baseline payload drifted');
   assert.ok(index.includes('apiBudgetGetSummary: { page: 1, limit: 100, pageSize: 100 }'),'budget-summary baseline payload drifted');
   assert.ok(index.includes('source: "m10-dependency-performance-baseline-r330"'),'P7 baseline source marker missing');
   assert.ok(index.includes('return root.AppApi.call(method, payload, { moduleName: "ProductionMeasurementCurrent", preserveEnvelope: true'),'P7 read probes must use canonical AppApi');
   assert.ok(index.includes('payload.forceFresh = true; payload.noCache = true; payload.bypassCache = true; payload.cacheTtlSeconds = 0'),'cold P7 verification must bypass client/cache layers');
   assert.ok(index.includes('noPayloadLogging: true, noCredentialLogging: true'),'P7 evidence must never log payloads or credentials');
   assert.ok(workflow.includes('### P7 Read Data Pipeline Gate'),'P7 live read gate missing from production workflow');
-  assert.ok(workflow.includes('for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiBudgetGetSummary; do'),'P7 live read method set drifted');
+  assert.ok(workflow.includes('for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiGetPeoplePageBundle apiGetPetitioners apiBudgetGetSummary; do'),'P7 live read method set drifted');
   assert.ok(workflow.includes("source:'github-actions-p7-data-pipeline'"),'P7 live read source marker missing');
   assert.ok(workflow.includes('P7 $p7_method read failed'),'P7 live read gate must fail closed');
   assert.ok(workflow.includes('Public edge → Cloud Run → GAS read contract: PASS'),'P7 deployment summary marker missing');

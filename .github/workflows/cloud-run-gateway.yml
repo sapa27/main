@@ -705,6 +705,8 @@ jobs:
             apiSearchCasesLite:{page:1,limit:20,compactReadModel:true,includeMeetingHistory:false},
             apiGetCommitteeMeetingSystem:{page:1,limit:20},
             apiGetTracking:{page:1,limit:20},
+            apiGetPeoplePageBundle:{page:1,limit:100},
+            apiGetPetitioners:{page:1,limit:100},
             apiBudgetGetSummary:{page:1,limit:100,pageSize:100}
           };
           for(const [method,payload] of Object.entries(probes)){
@@ -716,7 +718,7 @@ jobs:
           }
           NODE
 
-            for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiBudgetGetSummary; do
+            for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiGetPeoplePageBundle apiGetPetitioners apiBudgetGetSummary; do
               p7_code="$(curl --max-time 105 --retry 1 --retry-delay 2 --retry-all-errors -sS \
                 -D "$auth_dir/p7/$p7_method.headers.txt" -o "$auth_dir/p7/$p7_method.body.json" -w '%{http_code}' \
                 -H 'Content-Type: application/json' \
@@ -748,6 +750,8 @@ jobs:
             echo "- Case search read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Committee meeting read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Tracking read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- People read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Petitioner read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Budget summary read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Public edge → Cloud Run → GAS read contract: PASS" >> "$GITHUB_STEP_SUMMARY"
 

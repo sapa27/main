@@ -2927,8 +2927,8 @@ return Promise.resolve(boot).then(function(){var warmup=root2.__APP_AUTH_RUNTIME
     }),
     journeyTargets: Object.freeze({ "login-to-dashboard": 3, "route-transition": 10, "route-search": 3, "case-editor-open": 3, "route-track": 3, "logout-to-login": 3 }),
     journeyBudgets: Object.freeze({ "login-to-dashboard": 30000, "route-transition": 3000, "route-search": 5000, "case-editor-open": 12000, "route-track": 5000, "logout-to-login": 3000 }),
-    readMethods: Object.freeze(["apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiBudgetGetSummary"]),
-    allMethods: Object.freeze(["apiLogin", "apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiBudgetGetSummary"]),
+    readMethods: Object.freeze(["apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiGetPeoplePageBundle", "apiGetPetitioners", "apiBudgetGetSummary"]),
+    allMethods: Object.freeze(["apiLogin", "apiGetDashboardBundle", "apiSearchCasesLite", "apiGetCommitteeMeetingSystem", "apiGetTracking", "apiGetPeoplePageBundle", "apiGetPetitioners", "apiBudgetGetSummary"]),
     uxBudgets: Object.freeze({ minInpSamples: 20, inpP75Ms: 200, minClickToFeedbackSamples: 20, clickToFeedbackP95Ms: 200, longTaskP95Ms: 200 })
   });
 
@@ -3094,7 +3094,7 @@ return Promise.resolve(boot).then(function(){var warmup=root2.__APP_AUTH_RUNTIME
     return { ok: true, owner: OWNER, stamp: STAMP, releaseFingerprint: RELEASE_FINGERPRINT, plan: PLAN, methods: methods, progress: progress, ready: PLAN.allMethods.every(function(method) { return progress[method].complete; }), totalSamples: apiRows.length, journeys: journeyRows.slice(0, 80), generatedAt: isoNow(), noPayloadLogging: true, noCredentialLogging: true };
   }
   function sleep(ms) { return new Promise(function(resolve) { root.setTimeout(resolve, Math.max(0, Number(ms || 0))); }); }
-  function baselinePayload(method) { var payloads = { apiGetDashboardBundle: { phase1FirstPaint: false, hotPathMode: "performance-baseline-complete", includeBudgetSummary: true }, apiSearchCasesLite: { page: 1, limit: 20, compactReadModel: true, includeMeetingHistory: false }, apiGetCommitteeMeetingSystem: { page: 1, limit: 20 }, apiGetTracking: { page: 1, limit: 20 }, apiBudgetGetSummary: { page: 1, limit: 100, pageSize: 100 } }; return Object.assign({ source: "m10-dependency-performance-baseline-r330" }, payloads[method] || {}); }
+  function baselinePayload(method) { var payloads = { apiGetDashboardBundle: { phase1FirstPaint: false, hotPathMode: "performance-baseline-complete", includeBudgetSummary: true }, apiSearchCasesLite: { page: 1, limit: 20, compactReadModel: true, includeMeetingHistory: false }, apiGetCommitteeMeetingSystem: { page: 1, limit: 20 }, apiGetTracking: { page: 1, limit: 20 }, apiGetPeoplePageBundle: { page: 1, limit: 100 }, apiGetPetitioners: { page: 1, limit: 100 }, apiBudgetGetSummary: { page: 1, limit: 100, pageSize: 100 } }; return Object.assign({ source: "m10-dependency-performance-baseline-r330" }, payloads[method] || {}); }
   function runReadBaseline(options) {
     options = options || {}; if (options.confirmation !== "RUN_PERFORMANCE_BASELINE") return Promise.reject(new Error("ต้องระบุ confirmation: RUN_PERFORMANCE_BASELINE")); if (!root.AppApi || !isFn(root.AppApi.call)) return Promise.reject(new Error("AppApi.call ไม่พร้อมใช้งาน"));
     var methods = Array.isArray(options.methods) && options.methods.length ? options.methods.filter(function(method) { return PLAN.readMethods.indexOf(method) >= 0; }) : PLAN.readMethods.slice(); var delayMs = Math.max(100, Math.min(Number(options.delayMs || 350), 3000)); var runId = safeText(options.runId || ("read-r330-" + Date.now().toString(36)), 80); var results = [];
