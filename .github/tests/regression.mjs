@@ -425,6 +425,34 @@ ok('P8 write path classification timeout cache and retry contract is consistent'
   }
 });
 
+ok('P9 performance measurement and cache owners remain bounded and single-source',()=>{
+  assert.equal((index.match(/id="app-production-measurement-gate-current"/g)||[]).length,1,'production measurement owner must be unique');
+  assert.equal((index.match(/function runReadBaseline\(/g)||[]).length,1,'read-baseline runner must have one owner');
+  assert.equal((index.match(/function baselinePayload\(/g)||[]).length,1,'baseline payload builder must have one owner');
+  assert.ok(index.includes('apiLogin: Object.freeze({ cold: 3, warm: 5 })'),'login sample target drifted');
+  for(const method of ['apiGetDashboardBundle','apiSearchCasesLite','apiGetCommitteeMeetingSystem','apiGetTracking','apiBudgetGetSummary']){
+    assert.ok(index.includes(method+': Object.freeze({ cold: 10, warm: 20 })'),'read sample target drifted for '+method);
+  }
+  for(const budget of [
+    '"login-to-dashboard": 30000','"route-transition": 3000','"route-search": 5000',
+    '"case-editor-open": 12000','"route-track": 5000','"logout-to-login": 3000'
+  ]) assert.ok(index.includes(budget),'journey budget drifted: '+budget);
+  assert.ok(index.includes('minInpSamples: 20, inpP75Ms: 200'),'INP performance budget drifted');
+  assert.ok(index.includes('clickToFeedbackP95Ms: 200'),'click-to-feedback budget drifted');
+  assert.ok(index.includes('longTaskP95Ms: 200'),'long-task budget drifted');
+  assert.ok(index.includes('confirmation !== "RUN_PERFORMANCE_BASELINE"'),'performance baseline must remain explicit and non-automatic');
+  assert.ok(index.includes('noPayloadLogging: true, noCredentialLogging: true'),'performance evidence must not log credentials or payloads');
+
+  assert.ok(config.includes('RPC_READ_CACHE_TTL_MS:60000'),'default read cache TTL drifted');
+  assert.ok(config.includes('RPC_READ_STALE_TTL_MS:600000'),'stale read TTL drifted');
+  assert.ok(config.includes('RPC_READ_CACHE_MAX_ENTRIES:96'),'read cache bound drifted');
+  assert.ok(transport.includes('if(dedupeKey&&F[dedupeKey])return F[dedupeKey]'),'read in-flight dedupe owner missing');
+  assert.ok(transport.includes('function pruneCache()'),'bounded cache pruning owner missing');
+  assert.ok(transport.includes('Math.max(24,Math.min(256,Number(c("RPC_READ_CACHE_MAX_ENTRIES",96))||96))'),'cache size must remain hard bounded');
+  assert.ok(transport.includes('meta.clientCache="stale-while-revalidate"'),'stale cache responses must remain explicitly marked');
+  assert.ok(transport.includes('EPOCH++'),'write epoch invalidation missing');
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
