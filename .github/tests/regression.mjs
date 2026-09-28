@@ -500,6 +500,9 @@ ok('P11 production deployment quality gate fails closed',()=>{
   assert.ok(!workflow.includes('Status: PENDING'),'production edge must never soft-pass as pending');
   assert.ok(!workflow.includes('P2 auth smoke: NOT CONFIGURED'),'authenticated smoke must never soft-pass as not configured');
   assert.ok(!workflow.includes('P3 login/session/Dashboard contract: NOT CONFIGURED'),'Dashboard contract gate must never soft-pass as not configured');
+  assert.ok(workflow.includes('pull_request:'),'P11 validation must run on pull requests');
+  assert.ok(workflow.includes("(github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))"),'deploy condition must remain restricted to explicit dispatch or deploy-marked push');
+  assert.ok(!workflow.includes("github.event_name == 'pull_request' && inputs.deploy"),'pull requests must never enter the deploy path');
   assert.ok(workflow.includes('### P11 Production Deployment Quality Gate'),'P11 production summary missing');
   assert.ok(workflow.includes('Login → session → Dashboard → P7 reads: PASS'),'P11 authenticated chain summary missing');
   assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
