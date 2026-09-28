@@ -467,7 +467,8 @@ jobs:
             test "$attempt" -lt 5 && sleep 3
           done
           test -n "$edge_network" || { echo "P0-F-B1 edge network-health unavailable" >&2; exit 1; }
-          node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true||n.network?.originMode!=="public-edge"||n.network?.edge?.detected!==true||n.network?.edge?.provider!=="cloudflare"||n.upstream?.checked!==false)process.exit(1)' "$edge_network"
+          node -e 'const n=JSON.parse(process.argv[1]),sha=process.argv[2];if(n.ok!==true||n.status!=="reachable"||n.sourceSha!==sha||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true||n.network?.originMode!=="public-edge"||n.network?.edge?.detected!==true||n.network?.edge?.provider!=="cloudflare"||n.upstream?.checked!==false||!n.cloudRun?.service||!n.cloudRun?.revision)process.exit(1)' "$edge_network" "$GITHUB_SHA"
+          echo "P0 public edge source SHA attested: $GITHUB_SHA"
 
           edge_upstream=""
           for attempt in 1 2 3; do
@@ -821,6 +822,8 @@ jobs:
           echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
           echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Public URL: $edge_origin" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workers → Cloud Run source SHA: $GITHUB_SHA (MATCH)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloud Run revision attestation: PRESENT" >> "$GITHUB_STEP_SUMMARY"
           echo "- Browser → Cloudflare → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- P4 Dashboard bootstrap source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P5 Dashboard recovery single-owner source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
