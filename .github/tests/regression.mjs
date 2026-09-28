@@ -444,7 +444,7 @@ ok('P1 sanitizers redact technical detail and retain safe diagnostic ids',()=>{
   assert.equal(good.code,'GAS_DIRECT_FAILED');
   assert.equal(good.requestId,'http_abc123456');
   const unsafe=diagCtx.RT.errorDiagnostic({code:'<script>',requestId:'<script>alert(1)</script>'},'APP_RUNTIME_ERROR');
-  assert.equal(unsafe.code,'_SCRIPT_');
+  assert.equal(unsafe.code,'APP_RUNTIME_ERROR');
   assert.equal(unsafe.requestId,'');
 
   const errStart=transport.indexOf('function err(m,k,meta)');
