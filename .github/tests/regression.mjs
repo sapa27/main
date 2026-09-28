@@ -433,7 +433,7 @@ ok('production error surfaces are sanitized, visible, and observable',()=>{
   assert.ok(index.includes('root.appSwalFire = function () { installSafeSwalGuard(); return (root.Swal && __appIsFn(root.Swal.fire) ? root.Swal.fire : safeAlertFire).apply(root.Swal || null, arguments); }'),'appSwalFire must delegate to the single guarded sanitizer owner');
   assert.ok(index.includes('RT.errorDiagnostic=RT.errorDiagnostic||function'),'central error diagnostic owner missing');
   assert.ok(index.includes('RT.publicErrorNotice=RT.publicErrorNotice||function'),'public error notice owner missing');
-  assert.ok(index.includes('root2.AppTransport.getLastRpcTrace()?root2.AppTransport.getLastRpcTrace():null')||index.includes('root2.AppTransport.getLastRpcTrace):null'),'business error path must read the last RPC trace');
+  assert.ok(index.includes('root2.AppTransport&&__appIsFn(root2.AppTransport.getLastRpcTrace)?root2.AppTransport.getLastRpcTrace():null'),'business error path must read the last RPC trace');
   assert.ok(index.includes('rpcTrace&&rpcTrace.requestId&&(e.requestId=txt(rpcTrace.requestId))'),'business error must preserve requestId');
   assert.ok(!index.includes('suppressErrorSwalEarly'),'early SweetAlert suppression must be removed');
   assert.ok(!index.includes('RT.installErrorPopupSuppression'),'runtime popup suppression owner must be removed');
