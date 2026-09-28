@@ -512,6 +512,7 @@ ok('Login failures are visible once, sanitized, and carry safe diagnostics',()=>
   assert.ok(!index.includes('#login-error-msg,.app-page-load-failure{display:none'),'login error surface must not be hidden');
   assert.ok(index.includes('visibleLoginErr=RT&&__appIsFn(RT.publicErrorNotice)?RT.publicErrorNotice(e,m,"LOGIN_FAILED")'),'apiLogin failure must use the public notice owner');
   assert.ok(index.includes('visibleBootErr=RT&&__appIsFn(RT.publicErrorNotice)?RT.publicErrorNotice(e,bootMsg,"DASHBOARD_BOOT_FAILED")'),'dashboard boot failure must use the public notice owner');
+  assert.ok(index.includes('RT.handleError&&RT.handleError(e,"เข้าสู่ระบบสำเร็จ แต่ไม่สามารถเปิดหน้าหลักได้ กรุณาลองใหม่อีกครั้ง",{source:"login.dashboard",code:"DASHBOARD_BOOT_FAILED"})'),'authenticated Dashboard boot failure must render through the central visible error owner');
   assert.ok(index.includes('visibleLoginRecoveryErr=RT&&__appIsFn(RT.publicErrorNotice)?RT.publicErrorNotice(e,m,"LOGIN_RECOVERY_FAILED")'),'login recovery failure must use the public notice owner');
   assert.ok(index.includes('RT.handleError(e,m,{render:!1,source:"login.api",code:"LOGIN_FAILED"})'),'login inline error must log centrally without a duplicate banner');
   assert.ok(index.includes('RT.handleError(e,m,{render:!1,source:"login.recovery",code:"LOGIN_RECOVERY_FAILED"})'),'login recovery inline error must log centrally without a duplicate banner');
@@ -660,7 +661,9 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
 
 ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(index.includes('function dashboardControllerReadyCrit()'));
-  assert.ok(index.includes('function waitDashboardAuthTokenCrit(timeoutMs)'));
+  assert.ok(index.includes('function dashboardAuthTokenReadyCrit()'));
+  assert.ok(!index.includes('function waitDashboardAuthTokenCrit(timeoutMs)'),'Dashboard boot must not poll for a token already committed synchronously');
+  assert.ok(!index.includes('waitDashboardAuthTokenCrit(2600)'),'retired 2.6s auth-token race wait must not return');
   assert.ok(index.includes('function recoverDashboardRuntimeCrit(reason)'));
   assert.ok(index.includes('dashboard-runtime-recovery-r345'));
   assert.ok(index.includes('dashboard-data-recovery-r345'));
@@ -691,6 +694,90 @@ ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(activateBlock.includes('a.mount({source:reason||"dashboard-critical-first-r347"'));
   assert.ok(activateBlock.includes('directMount:!0'));
   assert.ok(!index.includes('setInterval(function(){recoverDashboardRuntimeCrit'),'Dashboard recovery must not poll forever');
+});
+
+ok('P3 explicit login completes only after Dashboard runtime readiness',async()=>{
+  const start=index.indexOf('function bootAfterLoginCrit(user)');
+  const end=index.indexOf('function executeLogin(ev)',start);
+  assert.ok(start>=0&&end>start,'P3 bootAfterLogin contract missing');
+  const block=index.slice(start,end);
+  assert.ok(block.includes('__APP_AUTH_RUNTIME_WARMUP_PROMISE__'),'login completion must await the canonical Dashboard warmup promise');
+  assert.ok(block.includes('DASHBOARD_BOOT_PROMISE_MISSING'),'missing Dashboard warmup owner must fail closed');
+  assert.ok(block.includes('DASHBOARD_BOOT_FAILED'),'false Dashboard warmup result must fail closed');
+  assert.ok(block.includes('__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__'),'Dashboard readiness must be verified through the canonical runtime state owner');
+  assert.ok(block.includes('dashboardState.controllerLoaded!==!0'),'Dashboard controller must be loaded before login completion');
+  assert.ok(!block.includes('dashboardControllerReadyCrit()'),'P3 must not reach into the private bootMainUi helper scope');
+  assert.ok(block.includes('"auth.uiReady":!0'),'auth.uiReady must be committed only after Dashboard readiness');
+  assert.ok(block.includes('"auth.dashboardReady":!0'),'Dashboard readiness must have an explicit store contract');
+  assert.ok(block.includes('app:auth-dashboard-ready'),'P3 success event missing');
+  assert.ok(!block.includes('return Promise.resolve(!0)'),'login boot must not report success before Dashboard warmup settles');
+
+  const makeStore=()=>{
+    const m=new Map([['auth.token','fixture-token'],['auth.user',{role:'Admin',name:'Fixture'}]]);
+    return {
+      get:(k,d)=>m.has(k)?m.get(k):d,
+      set:(k,v)=>{m.set(k,v);return v},
+      assign:o=>{Object.entries(o).forEach(([k,v])=>m.set(k,v));return o},
+      map:m
+    };
+  };
+  async function runCase(warmupValue){
+    const store=makeStore(),attrs={},events=[];
+    const root2={__APP_AUTH_RUNTIME_WARMUP_PROMISE__:null};
+    const RT={
+      bootMainUi(){
+        root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__={controllerLoaded:warmupValue===true};
+        root2.__APP_AUTH_RUNTIME_WARMUP_PROMISE__=Promise.resolve(warmupValue);
+        return Promise.resolve({ok:true,shellShown:true,warmupPending:true});
+      },
+      recordWarning(){}
+    };
+    const ctx={
+      root2,store,RT,
+      shell(){},
+      updateRoleBadgeCrit(){},
+      id:()=>({setAttribute:(k,v)=>{attrs[k]=v}}),
+      doc:{dispatchEvent:e=>events.push(e)},
+      CustomEvent:function(name,init){this.type=name;this.detail=init&&init.detail},
+      __appObserve(){return false},
+      __appIsFn:v=>typeof v==='function',
+      txt:v=>v==null?'':String(v),
+      Promise,Date,Error,Object
+    };
+    vm.runInNewContext(block,ctx);
+    return {ctx,store,attrs,events};
+  }
+  const pass=await runCase(true);
+  const result=await pass.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'});
+  assert.equal(result.dashboardReady,true);
+  assert.equal(pass.store.get('auth.uiReady',false),true);
+  assert.equal(pass.store.get('auth.dashboardReady',false),true);
+  assert.equal(pass.attrs['data-login-handoff'],'dashboard-ready');
+  assert.ok(pass.events.some(e=>e.type==='app:auth-dashboard-ready'));
+
+  const fail=await runCase(false);
+  await assert.rejects(fail.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'}),e=>e.code==='DASHBOARD_BOOT_FAILED');
+  assert.equal(fail.store.get('auth.uiReady',true),false);
+  assert.equal(fail.store.get('auth.dashboardReady',true),false);
+  assert.equal(fail.attrs['data-login-handoff'],'dashboard-failed');
+});
+
+ok('P3 authenticated edge gate reaches session, Dashboard controller, and Dashboard data',()=>{
+  assert.ok(workflow.includes("method:'apiLogin'"),'P3 must start from authenticated login');
+  assert.ok(workflow.includes("method:'apiSessionCheck'"),'P3 session verification missing');
+  assert.ok(workflow.includes("method:'getDeferredInclude'"),'P3 authenticated Dashboard controller fetch missing');
+  assert.ok(workflow.includes("name:'Scripts_Page_Dashboard'"),'P3 must fetch the canonical Dashboard controller');
+  assert.ok(workflow.includes("method:'apiGetDashboardBundle'"),'P3 authenticated Dashboard data fetch missing');
+  assert.ok(workflow.includes("P3 login/session/Dashboard contract: PASS"),'P3 success marker missing');
+  assert.ok(workflow.includes("P3 login/session/Dashboard contract: NOT CONFIGURED"),'P3 unconfigured marker missing');
+  assert.ok(workflow.includes("Scripts_Page_Dashboard authenticated controller fetch: PASS"),'P3 controller summary missing');
+  assert.ok(workflow.includes("apiGetDashboardBundle authenticated data fetch: PASS"),'P3 data summary missing');
+  assert.ok(workflow.includes("P3 Dashboard controller fetch failed"),'P3 controller gate must fail closed');
+  assert.ok(workflow.includes("P3 Dashboard data fetch failed"),'P3 data gate must fail closed');
+  assert.ok(workflow.includes("access-control-allow-origin"),'P3 authenticated calls must retain CORS verification');
+  assert.ok(!workflow.includes('echo "$E2E_SMOKE_USERNAME"'),'P3 username must not be echoed');
+  assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'P3 password must not be echoed');
+  assert.ok(!workflow.includes('cat "$auth_dir/dashboard-data.body.json"'),'P3 Dashboard response body must not be logged');
 });
 
 ok('interaction paths avoid blocking work on tap',()=>{

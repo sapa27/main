@@ -528,7 +528,7 @@ jobs:
               "$edge_origin/api/router" || true)"
             test "$login_code" = "200" || { echo "P2 authenticated apiLogin failed (HTTP $login_code)" >&2; exit 1; }
 
-            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
           const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
@@ -549,8 +549,21 @@ jobs:
           if(!token||!user||typeof user!=='object') process.exit(1);
           fs.writeFileSync(process.env.AUTH_SESSION_REQ,JSON.stringify({
             method:'apiSessionCheck',
-            payload:{token,csrfToken:csrf,csrf,_csrf:csrf},
+            payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf},
             timeoutMs:30000
+          }));
+          fs.writeFileSync(process.env.AUTH_DASHBOARD_ASSET_REQ,JSON.stringify({
+            method:'getDeferredInclude',
+            payload:{name:'Scripts_Page_Dashboard',forceFresh:true,token,_token:token,authToken:token,csrfToken:csrf,csrf,_csrf:csrf},
+            timeoutMs:70000
+          }));
+          fs.writeFileSync(process.env.AUTH_DASHBOARD_DATA_REQ,JSON.stringify({
+            method:'apiRouter',
+            payload:{
+              method:'apiGetDashboardBundle',
+              payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf,forceFresh:true,clientContext:{source:'github-actions-p3-dashboard',headless:true}}
+            },
+            timeoutMs:70000
           }));
           NODE
 
@@ -580,12 +593,81 @@ jobs:
           const session=candidates.find(x=>x.user||x.account||x.role||x.authenticated===true||x.valid===true);
           if(!session) process.exit(1);
           NODE
+
+            dashboard_asset_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -D "$auth_dir/dashboard-asset.headers.txt" -o "$auth_dir/dashboard-asset.body.json" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $edge_origin" \
+              --data-binary "@$auth_dir/dashboard-asset.request.json" \
+              "$edge_origin/api/router" || true)"
+            test "$dashboard_asset_code" = "200" || { echo "P3 Dashboard controller fetch failed (HTTP $dashboard_asset_code)" >&2; exit 1; }
+
+            AUTH_DASHBOARD_ASSET_BODY="$auth_dir/dashboard-asset.body.json" AUTH_DASHBOARD_ASSET_HEADERS="$auth_dir/dashboard-asset.headers.txt" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_DASHBOARD_ASSET_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_DASHBOARD_ASSET_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          let current=body.result,html='';
+          for(let depth=0;depth<6&&current&&typeof current==='object'&&!Array.isArray(current);depth++){
+            if(current.ok===false) process.exit(1);
+            if(typeof current.html==='string'){html=current.html;break}
+            if(Object.prototype.hasOwnProperty.call(current,'data')){current=current.data;continue}
+            if(Object.prototype.hasOwnProperty.call(current,'result')){current=current.result;continue}
+            break;
+          }
+          if(typeof current==='string'&&!html) html=current;
+          if(!html.trim()||!/<script\b/i.test(html)||!/dashboard/i.test(html)) process.exit(1);
+          NODE
+
+            dashboard_data_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -D "$auth_dir/dashboard-data.headers.txt" -o "$auth_dir/dashboard-data.body.json" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $edge_origin" \
+              --data-binary "@$auth_dir/dashboard-data.request.json" \
+              "$edge_origin/api/router" || true)"
+            test "$dashboard_data_code" = "200" || { echo "P3 Dashboard data fetch failed (HTTP $dashboard_data_code)" >&2; exit 1; }
+
+            AUTH_DASHBOARD_DATA_BODY="$auth_dir/dashboard-data.body.json" AUTH_DASHBOARD_DATA_HEADERS="$auth_dir/dashboard-data.headers.txt" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_DASHBOARD_DATA_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_DASHBOARD_DATA_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          const result=body.result;
+          if(result&&typeof result==='object'&&result.ok===false) process.exit(1);
+          let current=result;
+          for(let depth=0;depth<5&&current&&typeof current==='object'&&!Array.isArray(current)&&current.data&&typeof current.data==='object';depth++)current=current.data;
+          if(!current||typeof current!=='object'||Array.isArray(current)) process.exit(1);
+          NODE
+
             rm -rf "$auth_dir"
             echo "P2 auth smoke: PASS"
+            echo "P3 login/session/Dashboard contract: PASS"
             echo "- Authenticated apiLogin → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "### P3 Login / Session / Dashboard Boot Contract Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiLogin contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiSessionCheck contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Scripts_Page_Dashboard authenticated controller fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiGetDashboardBundle authenticated data fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "P2 auth smoke: NOT CONFIGURED"
+            echo "P3 login/session/Dashboard contract: NOT CONFIGURED"
             echo "- Authenticated apiLogin → apiSessionCheck: NOT CONFIGURED (set E2E_SMOKE_USERNAME/E2E_SMOKE_PASSWORD secrets)" >> "$GITHUB_STEP_SUMMARY"
+            echo "### P3 Login / Session / Dashboard Boot Contract Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Status: NOT CONFIGURED (set E2E_SMOKE_USERNAME/E2E_SMOKE_PASSWORD secrets)" >> "$GITHUB_STEP_SUMMARY"
           fi
 
           rm -rf "$p2_rpc_dir"
