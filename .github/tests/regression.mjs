@@ -511,8 +511,9 @@ ok('production error surfaces are sanitized, visible, and observable',()=>{
 ok('Login failures are visible once, sanitized, and carry safe diagnostics',()=>{
   assert.ok(!index.includes('#login-error-msg,.app-page-load-failure{display:none'),'login error surface must not be hidden');
   assert.ok(index.includes('visibleLoginErr=RT&&__appIsFn(RT.publicErrorNotice)?RT.publicErrorNotice(e,m,"LOGIN_FAILED")'),'apiLogin failure must use the public notice owner');
-  assert.ok(index.includes('visibleBootErr=RT&&__appIsFn(RT.publicErrorNotice)?RT.publicErrorNotice(e,bootMsg,"DASHBOARD_BOOT_FAILED")'),'dashboard boot failure must use the public notice owner');
-  assert.ok(index.includes('RT.handleError&&RT.handleError(e,"เข้าสู่ระบบสำเร็จ แต่ไม่สามารถเปิดหน้าหลักได้ กรุณาลองใหม่อีกครั้ง",{source:"login.dashboard",code:"DASHBOARD_BOOT_FAILED"})'),'authenticated Dashboard boot failure must render through the central visible error owner');
+  assert.ok(index.includes('bootCode=txt(e&&e.code||"DASHBOARD_BOOT_FAILED")'),'dashboard bootstrap must preserve a safe granular error code');
+  assert.ok(index.includes('RT.publicErrorNotice(e,bootMsg,bootCode)'),'dashboard boot failure must use the public notice owner with the granular code');
+  assert.ok(index.includes('RT.handleError&&RT.handleError(e,"เข้าสู่ระบบสำเร็จ แต่ไม่สามารถเปิดหน้าหลักได้ กรุณาลองใหม่อีกครั้ง",{source:"login.dashboard",code:bootCode})'),'authenticated Dashboard boot failure must render through the central visible error owner');
   assert.ok(index.includes('visibleLoginRecoveryErr=RT&&__appIsFn(RT.publicErrorNotice)?RT.publicErrorNotice(e,m,"LOGIN_RECOVERY_FAILED")'),'login recovery failure must use the public notice owner');
   assert.ok(index.includes('RT.handleError(e,m,{render:!1,source:"login.api",code:"LOGIN_FAILED"})'),'login inline error must log centrally without a duplicate banner');
   assert.ok(index.includes('RT.handleError(e,m,{render:!1,source:"login.recovery",code:"LOGIN_RECOVERY_FAILED"})'),'login recovery inline error must log centrally without a duplicate banner');
@@ -669,6 +670,8 @@ ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(index.includes('dashboard-data-recovery-r345'));
   assert.ok(index.includes('dashboard.dataRecovery.current'));
   assert.ok(index.includes('dashboard.dataRecovery.criticalFirst'));
+  assert.ok(index.includes('__APP_DASHBOARD_COMPLETE_DATA_READY__=!0'),'complete Dashboard data must set the canonical global readiness flag');
+  assert.ok(index.includes('dataReadySource:"app:dashboard-load-settled"'),'settled-event owner must publish canonical data readiness state');
   assert.ok(index.includes('DASHBOARD_CONTROLLER_NOT_READY'));
   assert.ok(index.includes('var delays=[0,1200,3500,7000]'));
   assert.ok(index.includes('var state=root2.__APP_DASHBOARD_DATA_RECOVERY_CURRENT__,delays=[1600,4000,9000]'));
@@ -696,21 +699,31 @@ ok('Dashboard controller and data recovery are bounded after login',()=>{
   assert.ok(!index.includes('setInterval(function(){recoverDashboardRuntimeCrit'),'Dashboard recovery must not poll forever');
 });
 
-ok('P3 explicit login completes only after Dashboard runtime readiness',async()=>{
-  const start=index.indexOf('function bootAfterLoginCrit(user)');
-  const end=index.indexOf('function executeLogin(ev)',start);
-  assert.ok(start>=0&&end>start,'P3 bootAfterLogin contract missing');
-  const block=index.slice(start,end);
-  assert.ok(block.includes('__APP_AUTH_RUNTIME_WARMUP_PROMISE__'),'login completion must await the canonical Dashboard warmup promise');
-  assert.ok(block.includes('DASHBOARD_BOOT_PROMISE_MISSING'),'missing Dashboard warmup owner must fail closed');
-  assert.ok(block.includes('DASHBOARD_BOOT_FAILED'),'false Dashboard warmup result must fail closed');
-  assert.ok(block.includes('__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__'),'Dashboard readiness must be verified through the canonical runtime state owner');
-  assert.ok(block.includes('dashboardState.controllerLoaded!==!0'),'Dashboard controller must be loaded before login completion');
-  assert.ok(!block.includes('dashboardControllerReadyCrit()'),'P3 must not reach into the private bootMainUi helper scope');
-  assert.ok(block.includes('"auth.uiReady":!0'),'auth.uiReady must be committed only after Dashboard readiness');
-  assert.ok(block.includes('"auth.dashboardReady":!0'),'Dashboard readiness must have an explicit store contract');
-  assert.ok(block.includes('app:auth-dashboard-ready'),'P3 success event missing');
-  assert.ok(!block.includes('return Promise.resolve(!0)'),'login boot must not report success before Dashboard warmup settles');
+ok('P4 login and session resume complete only after Dashboard controller and first complete data settle',async()=>{
+  const helperStart=index.indexOf('function createDashboardInitialDataGateCrit(timeoutMs)');
+  const end=index.indexOf('function executeLogin(ev)',helperStart);
+  assert.ok(helperStart>=0&&end>helperStart,'P4 Dashboard bootstrap contract missing');
+  const block=index.slice(helperStart,end);
+  assert.ok(block.includes('dashboard-initial-data-gate-p4'),'P4 data gate stamp missing');
+  assert.ok(block.includes('app:dashboard-load-settled'),'P4 must wait for the canonical Dashboard settled event');
+  assert.ok(block.includes('detail.completeData===!0'),'P4 may not mark readiness for partial Dashboard data');
+  assert.ok(block.includes('DASHBOARD_DATA_NOT_READY'),'P4 incomplete Dashboard data must fail closed');
+  assert.ok(block.includes('DASHBOARD_ACTIVATION_FAILED'),'P4 route activation failure must fail closed');
+  assert.ok(block.includes('__APP_AUTH_RUNTIME_WARMUP_PROMISE__'),'P4 must still await canonical Dashboard runtime warmup');
+  assert.ok(block.includes('dashboardState.controllerLoaded!==!0'),'P4 must verify canonical Dashboard controller readiness');
+  assert.ok(block.includes('dashboardState.dataReady!==!0'),'P4 must verify canonical Dashboard data readiness');
+  assert.ok(block.includes('"auth.dashboardDataReady":!0'),'P4 must commit explicit Dashboard data readiness');
+  assert.ok(block.includes('completeData:!0,source:"critical-login-runtime-p4"'),'P4 success event must declare complete data');
+  assert.ok(!index.includes('app-login-dashboard-autostart-current'),'duplicate legacy Dashboard autostart owner must be removed');
+  assert.ok(!index.includes('w.AppLoginDashboardAutostart'),'duplicate Dashboard bootstrap namespace must be removed');
+
+  const resumeStart=index.indexOf('function tryResume(o)');
+  const resumeEnd=index.indexOf('function manifest()',resumeStart);
+  const resumeBlock=index.slice(resumeStart,resumeEnd);
+  assert.ok(resumeBlock.includes('bootAfterLoginCrit(d.user)'),'session resume must use the same P4 Dashboard bootstrap owner');
+  assert.ok(!resumeBlock.includes('boot=RT.bootMainUi(d.user)'),'session resume must not retain a second Dashboard boot path');
+  assert.ok(resumeBlock.includes('bootstrapResume=/^(?:startup|critical-ready|vue-bootstrap-resume-current)$/i.test(resumeReason)'),'only startup session resume may enter the Dashboard bootstrap gate');
+  assert.ok(resumeBlock.includes('if(!bootstrapResume)return!0'),'API token recovery must restore auth without rerouting to Dashboard');
 
   const makeStore=()=>{
     const m=new Map([['auth.token','fixture-token'],['auth.user',{role:'Admin',name:'Fixture'}]]);
@@ -721,45 +734,65 @@ ok('P3 explicit login completes only after Dashboard runtime readiness',async()=
       map:m
     };
   };
-  async function runCase(warmupValue){
-    const store=makeStore(),attrs={},events=[];
-    const root2={__APP_AUTH_RUNTIME_WARMUP_PROMISE__:null};
+  function makeDoc(){
+    const listeners=new Map(),events=[];
+    return {
+      events,
+      addEventListener(name,fn){if(!listeners.has(name))listeners.set(name,new Set());listeners.get(name).add(fn)},
+      removeEventListener(name,fn){listeners.get(name)?.delete(fn)},
+      dispatchEvent(ev){events.push(ev);for(const fn of [...(listeners.get(ev.type)||[])])fn(ev);return true}
+    };
+  }
+  async function runCase(mode){
+    const store=makeStore(),attrs={},doc=makeDoc(),root2={__APP_AUTH_RUNTIME_WARMUP_PROMISE__:null,setTimeout,clearTimeout,APP_RUNTIME_CONFIG:{pageActivationTimeoutMs:75000}};
+    const CustomEvent=function(name,init){this.type=name;this.detail=init&&init.detail||{}};
     const RT={
       bootMainUi(){
-        root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__={controllerLoaded:warmupValue===true};
-        root2.__APP_AUTH_RUNTIME_WARMUP_PROMISE__=Promise.resolve(warmupValue);
+        const controllerReady=mode!=='warmup-fail';
+        root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__={controllerLoaded:controllerReady};
+        root2.__APP_AUTH_RUNTIME_WARMUP_PROMISE__=Promise.resolve(mode!=='warmup-fail');
+        if(mode==='data-ready')setTimeout(()=>doc.dispatchEvent(new CustomEvent('app:dashboard-load-settled',{detail:{completeData:true,current:true,pageId:'dashboard'}})),0);
+        if(mode==='activation-fail')setTimeout(()=>doc.dispatchEvent(new CustomEvent('app:page-activation-failed',{detail:{pageId:'dashboard'}})),0);
         return Promise.resolve({ok:true,shellShown:true,warmupPending:true});
       },
       recordWarning(){}
     };
     const ctx={
-      root2,store,RT,
+      root2,store,RT,doc,CustomEvent,
       shell(){},
       updateRoleBadgeCrit(){},
       id:()=>({setAttribute:(k,v)=>{attrs[k]=v}}),
-      doc:{dispatchEvent:e=>events.push(e)},
-      CustomEvent:function(name,init){this.type=name;this.detail=init&&init.detail},
       __appObserve(){return false},
       __appIsFn:v=>typeof v==='function',
       txt:v=>v==null?'':String(v),
-      Promise,Date,Error,Object
+      Promise,Date,Error,Object,Number,Math,setTimeout,clearTimeout
     };
     vm.runInNewContext(block,ctx);
-    return {ctx,store,attrs,events};
+    return {ctx,store,attrs,doc,root2};
   }
-  const pass=await runCase(true);
+
+  const pass=await runCase('data-ready');
   const result=await pass.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'});
   assert.equal(result.dashboardReady,true);
+  assert.equal(result.dashboardDataReady,true);
   assert.equal(pass.store.get('auth.uiReady',false),true);
   assert.equal(pass.store.get('auth.dashboardReady',false),true);
+  assert.equal(pass.store.get('auth.dashboardDataReady',false),true);
+  assert.equal(pass.root2.__APP_DASHBOARD_COMPLETE_DATA_READY__,true);
   assert.equal(pass.attrs['data-login-handoff'],'dashboard-ready');
-  assert.ok(pass.events.some(e=>e.type==='app:auth-dashboard-ready'));
+  assert.ok(pass.doc.events.some(e=>e.type==='app:auth-dashboard-ready'&&e.detail.completeData===true));
 
-  const fail=await runCase(false);
-  await assert.rejects(fail.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'}),e=>e.code==='DASHBOARD_BOOT_FAILED');
-  assert.equal(fail.store.get('auth.uiReady',true),false);
-  assert.equal(fail.store.get('auth.dashboardReady',true),false);
-  assert.equal(fail.attrs['data-login-handoff'],'dashboard-failed');
+  const warmupFail=await runCase('warmup-fail');
+  await assert.rejects(warmupFail.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'}),e=>e.code==='DASHBOARD_BOOT_FAILED');
+  assert.equal(warmupFail.store.get('auth.uiReady',true),false);
+  assert.equal(warmupFail.store.get('auth.dashboardDataReady',true),false);
+  assert.equal(warmupFail.attrs['data-login-handoff'],'dashboard-failed');
+
+  const activationFail=await runCase('activation-fail');
+  await assert.rejects(activationFail.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'}),e=>e.code==='DASHBOARD_ACTIVATION_FAILED');
+  assert.equal(activationFail.store.get('auth.uiReady',true),false);
+  assert.equal(activationFail.store.get('auth.dashboardReady',true),false);
+  assert.equal(activationFail.store.get('auth.dashboardDataReady',true),false);
 });
 
 ok('P3 authenticated edge gate reaches session, Dashboard controller, and Dashboard data',()=>{

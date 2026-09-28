@@ -252,6 +252,10 @@ jobs:
           grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
           grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
           grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
+          grep -q 'dashboard-initial-data-gate-p4' "$tmp_dir/index.html"
+          grep -q 'auth.dashboardDataReady' "$tmp_dir/index.html"
+          grep -q 'critical-login-runtime-p4' "$tmp_dir/index.html"
+          if grep -q 'app-login-dashboard-autostart-current' "$tmp_dir/index.html"; then echo "P4 failed: duplicate Dashboard autostart owner is still deployed" >&2; exit 1; fi
           grep -q 'deferred-auth-handoff-r353' "$tmp_dir/index.html"
           grep -q 'DASHBOARD_AUTH_TOKEN_NOT_READY' "$tmp_dir/index.html"
           grep -q 'direct-bootstrap-r349' "$tmp_dir/index.html"
@@ -315,6 +319,10 @@ jobs:
           grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
           grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
           grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
+          grep -q 'dashboard-initial-data-gate-p4' "$tmp_dir/index.html"
+          grep -q 'auth.dashboardDataReady' "$tmp_dir/index.html"
+          grep -q 'critical-login-runtime-p4' "$tmp_dir/index.html"
+          if grep -q 'app-login-dashboard-autostart-current' "$tmp_dir/index.html"; then echo "P4 failed: duplicate Dashboard autostart owner is still deployed" >&2; exit 1; fi
           grep -q 'deferred-auth-handoff-r353' "$tmp_dir/index.html"
           grep -q 'DASHBOARD_AUTH_TOKEN_NOT_READY' "$tmp_dir/index.html"
           grep -q 'direct-bootstrap-r349' "$tmp_dir/index.html"
@@ -326,6 +334,10 @@ jobs:
           echo "- Browser runtime: same-origin (P0-F edge-ready)" >> "$GITHUB_STEP_SUMMARY"
           echo "- P0-F-A Network Access Compatibility: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P0-F-B1 workers.dev edge: deployment gate follows production smoke" >> "$GITHUB_STEP_SUMMARY"
+          echo "### P4 Dashboard Bootstrap Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dashboard controller readiness owner: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- First complete-data settle gate: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Duplicate login Dashboard autostart owner: REMOVED" >> "$GITHUB_STEP_SUMMARY"
           echo "- Frontend source: frontend/" >> "$GITHUB_STEP_SUMMARY"
           echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- Response owner: GAS (gas-direct-json-v1)" >> "$GITHUB_STEP_SUMMARY"
@@ -681,6 +693,12 @@ jobs:
             test "$attempt" -lt 3 && sleep 2
           done
           test -n "$edge_config" || { echo "P0-F-B1 edge app-config unavailable" >&2; exit 1; }
+          edge_index_tmp="$(mktemp)"
+          curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/" -o "$edge_index_tmp"
+          grep -q 'dashboard-initial-data-gate-p4' "$edge_index_tmp"
+          grep -q 'auth.dashboardDataReady' "$edge_index_tmp"
+          grep -q 'critical-login-runtime-p4' "$edge_index_tmp"
+          if grep -q 'app-login-dashboard-autostart-current' "$edge_index_tmp"; then echo "P4 edge failed: duplicate Dashboard autostart owner is still public" >&2; exit 1; fi
           printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
           if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
             echo "P0-F-B1 failed: public browser config exposes run.app" >&2
@@ -704,6 +722,7 @@ jobs:
           echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Public URL: $edge_origin" >> "$GITHUB_STEP_SUMMARY"
           echo "- Browser → Cloudflare → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P4 Dashboard bootstrap source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove CR-8 canary
