@@ -227,7 +227,7 @@ ok('auth session and deferred assets bypass the application router',()=>{
   const baseBlock=index.slice(baseStart,baseEnd);
   assert.ok(baseBlock.includes('directTransportMethod?RT.rawRun(a,q,options)'));
   assert.ok(baseBlock.includes('RT.rawRun("apiRouter",{method:a,payload:q},options)'));
-  assert.ok(baseBlock.includes('q.token=t'),'direct deferred load must receive authenticated token');
+  assert.ok(baseBlock.includes('syncAuthPayloadCrit(q,q.__actionTokenIssued===!0)'),'canonical AppStore auth must be applied to every authenticated request');
   assert.ok(index.includes('function deferredRequestPayloadCurrent(name)'));
   assert.ok(index.includes('deferred-auth-handoff-r353'));
   assert.ok(index.includes('DASHBOARD_AUTH_TOKEN_NOT_READY'));
@@ -235,6 +235,122 @@ ok('auth session and deferred assets bypass the application router',()=>{
   assert.ok(gateway.includes('read:+env.GAS_READ_TIMEOUT_MS||75000'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:60000'));
   assert.ok(config.includes('apiGetDashboardBundle:70000'));
+});
+
+ok('P6 rotated session auth remains stable across sequential and strict writes',async()=>{
+  const helperStart=index.indexOf('function data(p)');
+  const helperEnd=index.indexOf('function saveResume',helperStart);
+  const rtStart=index.indexOf('RT.call=RT.call||function');
+  const rtEnd=index.indexOf('root2.__APP_DIRECT_BOOTSTRAP_TRANSPORT_CURRENT__',rtStart);
+  const appStart=index.indexOf('Object.assign(appApi,{__criticalApi',rtEnd);
+  const appEnd=index.indexOf('),root2.apiCall=root2.apiCall||function',appStart);
+  assert.ok(helperStart>=0&&helperEnd>helperStart&&rtStart>=0&&rtEnd>rtStart&&appStart>=0&&appEnd>appStart,'P6 canonical API blocks missing');
+
+  const helperBlock=index.slice(helperStart,helperEnd);
+  const rtBlock=index.slice(rtStart,rtEnd);
+  const appBlock=index.slice(appStart,appEnd+1);
+  assert.ok(helperBlock.includes('nextSessionToken'),'rotated session token aliases missing');
+  assert.ok(helperBlock.includes('nextCsrfToken'),'rotated CSRF aliases missing');
+  assert.ok(helperBlock.includes('resumeHandle'),'rotated resume handle capture missing');
+  assert.ok(helperBlock.includes('syncAuthPayloadCrit'),'canonical auth payload owner missing');
+  assert.ok(helperBlock.includes('resetActionAuthCrit'),'strict action-token reset owner missing');
+  assert.ok(rtBlock.includes('syncAuthPayloadCrit(q,q.__actionTokenIssued===!0)'),'write middleware must refresh canonical auth before every write');
+  assert.ok(appBlock.includes('rotationRetry=/SESSION_TOKEN_ROTATED_RETRY/i'),'rotation must have a distinct bounded retry path');
+  assert.ok(appBlock.indexOf('if(rotationRetry&&!pub&&!q.__rotationRetried)')<appBlock.indexOf('if(authFail&&!pub&&!q.__authRecovered'),'rotation retry must occur before session-resume recovery');
+  assert.ok(!index.includes('q.token=q.token||txt(store.get("auth.token",""))'),'stale caller token must not win over canonical auth');
+  assert.ok(!index.includes('t&&!q.token&&(q.token=t)'),'base transport must not preserve a stale caller token');
+
+  const state={'auth.token':'token-1','auth.csrfToken':'csrf-1'};
+  const store={
+    get:(k,d)=>Object.prototype.hasOwnProperty.call(state,k)?state[k]:d,
+    set:(k,v)=>(state[k]=v,v),
+    assign:o=>(Object.assign(state,o),o)
+  };
+  let resumeCount=0,caseWrites=0,deleteWrites=0,actionIssues=0,savedResume=null;
+  const raw=[];
+  const root2={
+    __authToken:'',__csrfToken:'',
+    AppSecurity:{setSessionTokens(token,csrf){if(token)store.set('auth.token',String(token));if(csrf)store.set('auth.csrfToken',String(csrf));return true}},
+    AppRouteContract:{absorb(){}},
+    AppTransport:{getLastRpcTrace(){return {requestId:'fixture-request-id'}}},
+    AppRuntime:{handleAuthExpiry(){}},
+    AppSessionResume:{tryResume:async()=>{resumeCount++;return true}},
+    isWriteApiMethod:m=>m==='apiSaveCase'||m==='apiDeleteCase',
+    requiresStrictActionToken:m=>m==='apiDeleteCase'
+  };
+  const ctx={
+    root2,store,
+    txt:v=>v==null?'':String(v),
+    ctx:()=>({source:'p6-regression'}),
+    __appIsFn:v=>typeof v==='function',
+    __appObserve(){},
+    saveResume:d=>{savedResume=d;return true},
+    Promise,Object,Array,Error,Date,
+    RT:{rawRun:async(method,payload)=>{
+      const snap=JSON.parse(JSON.stringify(payload||{}));
+      raw.push({method,payload:snap});
+      const target=method==='apiRouter'?String(payload&&payload.method||''):method;
+      const body=method==='apiRouter'&&payload&&payload.payload||payload||{};
+      if(target==='apiSaveCase'){
+        caseWrites++;
+        if(caseWrites===1)return {ok:false,errorCode:'SESSION_TOKEN_ROTATED_RETRY',nextSessionToken:'token-2',nextCsrfToken:'csrf-2'};
+        if(caseWrites===2)return {ok:true,data:{saved:true},nextSessionToken:'token-3',nextCsrfToken:'csrf-3',resumeHandle:'resume-3',resumeExpiresAt:'2099-01-01T00:00:00Z'};
+        return {ok:true,data:{saved:true}};
+      }
+      if(target==='apiIssueActionToken'){
+        actionIssues++;
+        return {ok:true,data:{actionToken:'act-'+actionIssues}};
+      }
+      if(target==='apiDeleteCase'){
+        deleteWrites++;
+        if(deleteWrites===1)return {ok:false,errorCode:'SESSION_TOKEN_ROTATED_RETRY',nextSessionToken:'token-4',nextCsrfToken:'csrf-4'};
+        return {ok:true,data:{deleted:true},nextSessionToken:'token-5',nextCsrfToken:'csrf-5'};
+      }
+      return {ok:true,data:{}};
+    }}
+  };
+  vm.runInNewContext(helperBlock,ctx);
+  vm.runInNewContext(rtBlock,ctx);
+  ctx.appApi={};
+  vm.runInNewContext(appBlock,ctx);
+
+  const stale={caseNo:'fixture',token:'stale-token',sessionToken:'stale-session',_token:'stale-private',authToken:'stale-auth',csrfToken:'stale-csrf',csrf:'stale-csrf',_csrf:'stale-csrf'};
+  const saved=await ctx.appApi.call('apiSaveCase',stale);
+  assert.equal(saved.saved,true);
+  const saveCalls=raw.filter(x=>x.method==='apiRouter'&&x.payload.method==='apiSaveCase');
+  assert.equal(saveCalls.length,2);
+  assert.equal(saveCalls[0].payload.payload.token,'token-1');
+  assert.equal(saveCalls[0].payload.payload.sessionToken,'token-1');
+  assert.equal(saveCalls[0].payload.payload._token,'token-1');
+  assert.equal(saveCalls[0].payload.payload.authToken,'token-1');
+  assert.equal(saveCalls[0].payload.payload.csrfToken,'csrf-1');
+  assert.equal(saveCalls[1].payload.payload.token,'token-2');
+  assert.equal(saveCalls[1].payload.payload.csrfToken,'csrf-2');
+  assert.equal(resumeCount,0,'SESSION_TOKEN_ROTATED_RETRY must not invoke session resume');
+  assert.equal(store.get('auth.token',''),'token-3');
+  assert.equal(store.get('auth.csrfToken',''),'csrf-3');
+  assert.equal(savedResume&&savedResume.resumeHandle,'resume-3');
+
+  await ctx.appApi.call('apiSaveCase',{caseNo:'fixture-2',token:'old-token',csrfToken:'old-csrf'});
+  const thirdSave=raw.filter(x=>x.method==='apiRouter'&&x.payload.method==='apiSaveCase')[2];
+  assert.equal(thirdSave.payload.payload.token,'token-3','next sequential write must use the latest canonical token');
+  assert.equal(thirdSave.payload.payload.csrfToken,'csrf-3','next sequential write must use the latest canonical CSRF');
+
+  await ctx.appApi.call('apiDeleteCase',{caseId:'fixture-delete',token:'old-delete-token',csrfToken:'old-delete-csrf'});
+  const issueCalls=raw.filter(x=>x.method==='apiRouter'&&x.payload.method==='apiIssueActionToken');
+  const deleteCalls=raw.filter(x=>x.method==='apiRouter'&&x.payload.method==='apiDeleteCase');
+  assert.equal(issueCalls.length,2,'strict write must issue a new action token after session rotation');
+  assert.equal(deleteCalls.length,2);
+  assert.equal(issueCalls[0].payload.payload.token,'token-3');
+  assert.equal(deleteCalls[0].payload.payload.actionToken,'act-1');
+  assert.equal(issueCalls[1].payload.payload.token,'token-4');
+  assert.equal(issueCalls[1].payload.payload.csrfToken,'csrf-4');
+  assert.equal(deleteCalls[1].payload.payload.token,'token-4');
+  assert.equal(deleteCalls[1].payload.payload.actionToken,'act-2');
+  assert.equal(deleteCalls[1].payload.payload.csrfToken,'act-2');
+  assert.equal(store.get('auth.token',''),'token-5');
+  assert.equal(store.get('auth.csrfToken',''),'csrf-5');
+  assert.equal(resumeCount,0);
 });
 
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
