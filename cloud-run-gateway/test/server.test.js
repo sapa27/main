@@ -93,6 +93,9 @@ test('P0-F network health is local-only and recognizes forwarded Cloudflare edge
   assert.equal(j.network.originMode,'public-edge');
   assert.equal(j.network.edge.detected,true);
   assert.equal(j.network.edge.provider,'cloudflare');
+  assert.equal(j.sourceSha,'test-source-sha');
+  assert.equal(j.cloudRun.service,'');
+  assert.equal(j.cloudRun.revision,'');
 }));
 
 
