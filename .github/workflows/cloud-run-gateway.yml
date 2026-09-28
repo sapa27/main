@@ -789,6 +789,9 @@ jobs:
           grep -q 'data-mobile-nav-owner' "$edge_index_tmp"
           grep -q '__APP_SIDEBAR_NAV_CLICK_OWNER__' "$edge_index_tmp"
           grep -q 'AppPrint.printWithProfile' "$edge_index_tmp"
+          grep -q 'APP_CLOUD_RUN_TRANSPORT_REQUIRED' "$edge_index_tmp"
+          if grep -q 'google.script.run' "$edge_index_tmp"; then echo "P12 edge failed: retired browser GAS fallback returned" >&2; exit 1; fi
+          if grep -q 'AppTransport.run=root2.AppTransport.run||' "$edge_index_tmp"; then echo "P12 edge failed: duplicate AppTransport fallback owner returned" >&2; exit 1; fi
           if grep -q 'app-login-dashboard-autostart-current' "$edge_index_tmp"; then echo "P4 edge failed: duplicate Dashboard autostart owner is still public" >&2; exit 1; fi
           printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
           if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
@@ -819,6 +822,7 @@ jobs:
           echo "- P9 production measurement owner at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P9 performance baseline remains explicit/manual: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P10 canonical action/mobile/print owners at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P12 direct-only frontend cleanup at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove CR-8 canary
