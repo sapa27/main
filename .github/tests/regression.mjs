@@ -284,6 +284,10 @@ ok('production deploy is gated by direct-only canary',()=>{
   assert.ok(workflow.includes('P0-F-A Network Access Compatibility: PASS'));
   assert.ok(workflow.includes('Resolve P0-F-B1 workers.dev origin'));
   assert.ok(workflow.includes('Deploy P0-F-B1 Cloudflare workers.dev edge'));
+  const cleanupStep=workflow.indexOf('Remove retired transport environment variables');
+  const productionSmokeStep=workflow.indexOf('Smoke final CR-8 production');
+  const edgeDeployStep=workflow.indexOf('Deploy P0-F-B1 Cloudflare workers.dev edge');
+  assert.ok(cleanupStep>=0&&productionSmokeStep>cleanupStep&&edgeDeployStep>productionSmokeStep,'production must be mutated before final smoke, and edge deploy must follow the verified revision');
   assert.ok(workflow.includes('CF_WORKER_NAME'));
   assert.ok(workflow.includes('CF_WORKERS_SUBDOMAIN'));
   assert.ok(workflow.includes("vars.CF_WORKERS_SUBDOMAIN || 'anti27'"));
