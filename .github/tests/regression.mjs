@@ -722,6 +722,8 @@ ok('P4 login and session resume complete only after Dashboard controller and fir
   const resumeBlock=index.slice(resumeStart,resumeEnd);
   assert.ok(resumeBlock.includes('bootAfterLoginCrit(d.user)'),'session resume must use the same P4 Dashboard bootstrap owner');
   assert.ok(!resumeBlock.includes('boot=RT.bootMainUi(d.user)'),'session resume must not retain a second Dashboard boot path');
+  assert.ok(resumeBlock.includes('bootstrapResume=/^(?:startup|critical-ready|vue-bootstrap-resume-current)$/i.test(resumeReason)'),'only startup session resume may enter the Dashboard bootstrap gate');
+  assert.ok(resumeBlock.includes('if(!bootstrapResume)return!0'),'API token recovery must restore auth without rerouting to Dashboard');
 
   const makeStore=()=>{
     const m=new Map([['auth.token','fixture-token'],['auth.user',{role:'Admin',name:'Fixture'}]]);
