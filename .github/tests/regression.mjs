@@ -453,6 +453,38 @@ ok('P9 performance measurement and cache owners remain bounded and single-source
   assert.ok(transport.includes('EPOCH++'),'write epoch invalidation missing');
 });
 
+ok('P10 UI runtime keeps unique DOM ids and canonical interaction owners',()=>{
+  const templateMatches=[...index.matchAll(/<script\b[^>]*\bid="(tpl-page-[^"]+)"[^>]*>([\s\S]*?)<\/script\s*>/gi)];
+  assert.equal(templateMatches.length,10,'expected exactly ten canonical page templates');
+  const expectedTemplates=['dashboard','search','track','report','meeting','committee-meeting','people','petitioner','budget','admin'].map(x=>'tpl-page-'+x).sort();
+  assert.deepEqual(templateMatches.map(x=>x[1]).sort(),expectedTemplates);
+  for(const match of templateMatches){
+    const ids=[...match[2].matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
+    const seen=new Set(),duplicates=[];
+    ids.forEach(id=>seen.has(id)?duplicates.push(id):seen.add(id));
+    assert.deepEqual(duplicates,[],'duplicate DOM id(s) inside '+match[1]+': '+duplicates.join(','));
+  }
+
+  const activeMarkup=index
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi,'')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi,'');
+  const activeIds=[...activeMarkup.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
+  const activeSeen=new Set(),activeDuplicates=[];
+  activeIds.forEach(id=>activeSeen.has(id)?activeDuplicates.push(id):activeSeen.add(id));
+  assert.deepEqual(activeDuplicates,[],'duplicate id(s) in active document markup: '+activeDuplicates.join(','));
+
+  assert.equal((index.match(/root2\.AppActionHub\.dispatch=function/g)||[]).length,1,'AppActionHub dispatch owner must be unique');
+  assert.ok(index.includes('__APP_SINGLE_EVENT_DELEGATION__'),'canonical click delegation owner missing');
+  assert.ok(index.includes('__APP_SINGLE_CHANGE_DELEGATION__'),'canonical change delegation owner missing');
+  assert.ok(index.includes('data-mobile-nav-owner'),'mobile navigation owner marker missing');
+  assert.ok(index.includes('__APP_SIDEBAR_NAV_CLICK_OWNER__'),'mobile/sidebar navigation click owner missing');
+  assert.equal((index.match(/root2\.AppUi=root2\.AppUi\|\|/g)||[]).length,1,'critical AppUi facade owner must be unique');
+  assert.ok(index.includes('AppPrint.printWithProfile'),'canonical print profile owner missing');
+  assert.equal((meetingController.match(/AppPages\.register\("meeting"/g)||[]).length,1,'Meeting page registration owner must be unique');
+  assert.equal((meetingController.match(/window\.initMeetingPage/g)||[]).length,1,'Meeting init owner must be unique');
+  assert.ok(!index.includes('#login-error-msg,.app-page-load-failure{display:none'),'visible error surfaces must not regress to hidden UI');
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
