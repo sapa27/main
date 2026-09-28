@@ -256,6 +256,10 @@ jobs:
           grep -q 'function resetActionAuthCrit' "$tmp_dir/index.html"
           grep -q 'nextSessionToken' "$tmp_dir/index.html"
           grep -q 'nextCsrfToken' "$tmp_dir/index.html"
+          grep -q 'p7-data-pipeline-contract' "$tmp_dir/index.html"
+          grep -q 'function dataPipelineContractReadyCrit' "$tmp_dir/index.html"
+          grep -q '"phase1.fieldMap":fieldMap' "$tmp_dir/index.html"
+          grep -q '"phase1.statusMap":statusMap' "$tmp_dir/index.html"
           grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
           grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
           grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
@@ -330,6 +334,10 @@ jobs:
           grep -q 'function resetActionAuthCrit' "$tmp_dir/index.html"
           grep -q 'nextSessionToken' "$tmp_dir/index.html"
           grep -q 'nextCsrfToken' "$tmp_dir/index.html"
+          grep -q 'p7-data-pipeline-contract' "$tmp_dir/index.html"
+          grep -q 'function dataPipelineContractReadyCrit' "$tmp_dir/index.html"
+          grep -q '"phase1.fieldMap":fieldMap' "$tmp_dir/index.html"
+          grep -q '"phase1.statusMap":statusMap' "$tmp_dir/index.html"
           grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
           grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
           grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
@@ -361,6 +369,10 @@ jobs:
           echo "- SESSION_TOKEN_ROTATED_RETRY bounded immediate retry: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Strict action token is re-issued after session rotation: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Rotated opaque resume handle capture: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "### P7 Data Pipeline Verification Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Route readiness cannot bypass data-contract hydration: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Field map / status map remain distinct canonical slots: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Data contract readiness is scoped to auth epoch: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Frontend source: frontend/" >> "$GITHUB_STEP_SUMMARY"
           echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- Response owner: GAS (gas-direct-json-v1)" >> "$GITHUB_STEP_SUMMARY"
@@ -728,6 +740,10 @@ jobs:
           grep -q 'function resetActionAuthCrit' "$edge_index_tmp"
           grep -q 'nextSessionToken' "$edge_index_tmp"
           grep -q 'nextCsrfToken' "$edge_index_tmp"
+          grep -q 'p7-data-pipeline-contract' "$edge_index_tmp"
+          grep -q 'function dataPipelineContractReadyCrit' "$edge_index_tmp"
+          grep -q '"phase1.fieldMap":fieldMap' "$edge_index_tmp"
+          grep -q '"phase1.statusMap":statusMap' "$edge_index_tmp"
           if grep -q 'app-login-dashboard-autostart-current' "$edge_index_tmp"; then echo "P4 edge failed: duplicate Dashboard autostart owner is still public" >&2; exit 1; fi
           printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
           if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
@@ -755,6 +771,7 @@ jobs:
           echo "- P4 Dashboard bootstrap source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P5 Dashboard recovery single-owner source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- P6 rotated-session write stability source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P7 data-pipeline contract source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove CR-8 canary
