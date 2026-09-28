@@ -342,6 +342,8 @@ ok('P2 public edge POST gate is mandatory and authenticated smoke is secret-gate
   assert.ok(workflow.includes('{"method":"apiRouter","payload":{"method":"apiSessionCheck","payload":{}},"timeoutMs":30000}'),'nested router edge payload missing');
   assert.ok(workflow.includes("get('x-gas-response-contract')!=='gas-direct-json-v1'"),'P2 must verify canonical GAS response contract');
   assert.ok(workflow.includes("get('x-p0f-edge')!=='cloudflare-workers-dev'"),'P2 must verify the public Cloudflare edge');
+  assert.ok(workflow.includes('-H "Origin: $edge_origin"'),'P2 POSTs must reproduce the browser Origin contract');
+  assert.ok(workflow.includes("get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN"),'P2 must verify CORS reflects the public edge origin');
   assert.ok(workflow.includes("get('x-request-id')"),'P2 must capture requestId');
   assert.ok(workflow.includes('test "$http_code" = "200" || { echo "P2 $label POST failed'),'P2 public POST must fail closed');
   assert.ok(workflow.includes("method:'apiLogin'"),'secret-gated apiLogin smoke missing');
