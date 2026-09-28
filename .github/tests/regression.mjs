@@ -506,6 +506,22 @@ ok('P11 production deployment quality gate fails closed',()=>{
   assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
 });
 
+ok('P12 production cleanup removes retired browser transport fallback',()=>{
+  assert.ok(!index.includes('google.script.run'),'retired browser-to-GAS google.script.run fallback must be removed');
+  assert.ok(!index.includes('AppTransport.run=root2.AppTransport.run||'),'critical runtime must not recreate a second AppTransport owner');
+  assert.ok(index.includes('APP_CLOUD_RUN_TRANSPORT_REQUIRED'),'missing fail-closed Cloud Run transport ownership guard');
+  const transportAsset=index.indexOf('<script src="./cloud-run-transport.js');
+  const transportGuard=index.indexOf('APP_CLOUD_RUN_TRANSPORT_REQUIRED');
+  assert.ok(transportAsset>=0&&transportGuard>transportAsset,'canonical Cloud Run transport must load before the fail-closed consumer');
+  for(const token of ['script.google.com','github-pages','parentOrigin','rpcToken','rpcVersion','installErrorPopupSuppression','suppressVisibleErrorNode','app-login-dashboard-autostart-current']){
+    assert.ok(!index.includes(token),'retired production frontend token returned: '+token);
+  }
+  assert.ok(gateway.includes('legacyFallbackEnabled:false'),'gateway must remain direct-only');
+  assert.ok(workflow.includes("grep -q 'APP_CLOUD_RUN_TRANSPORT_REQUIRED' \"$edge_index_tmp\""),'P12 edge transport-owner guard missing');
+  assert.ok(workflow.includes("if grep -q 'google.script.run' \"$edge_index_tmp\""),'P12 edge must fail if browser GAS fallback returns');
+  assert.ok(workflow.includes('P12 direct-only frontend cleanup at public edge: PASS'),'P12 deployment summary marker missing');
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
