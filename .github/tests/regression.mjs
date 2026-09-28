@@ -376,6 +376,55 @@ ok('P7 read-data pipeline uses the production baseline contract',()=>{
   assert.ok(workflow.includes('Public edge → Cloud Run → GAS read contract: PASS'),'P7 deployment summary marker missing');
 });
 
+ok('P8 write path classification timeout cache and retry contract is consistent',()=>{
+  const writeMethods=[
+    'apiSaveCase','apiDeleteCase','apiSavePetitioner','apiDeletePetitioner',
+    'apiSavePersonnelComm','apiSavePersonnelOp','apiSavePersonnelStaff','apiSavePersonnelSubcommittee',
+    'apiDeletePersonnelComm','apiDeletePersonnelOp','apiDeletePersonnelStaff','apiDeletePersonnelSubcommittee',
+    'apiSaveCommitteeMeetingSystem','apiDeleteCommitteeMeetingSystem','apiSaveSalarySettings',
+    'apiSaveMeetingLog','apiDeleteMeetingLog','apiSaveLetter','apiDeleteLetter','apiCleanupMeetingData',
+    'apiBudgetSaveImport','apiBudgetDeleteImport','apiAdminSaveUser','apiAdminDeleteUser',
+    'apiAdminSaveSubcommittee','apiAdminDeleteSubcommittee','apiBudgetAdminSaveYearSettingsRows'
+  ];
+  const declared=(index.match(/root2\.WRITE_API_METHODS=root2\.WRITE_API_METHODS\|\|\{([^}]+)\}/)||[])[1]||'';
+  for(const method of writeMethods) assert.ok(declared.includes(method+':!0'),'frontend write registry missing '+method);
+  assert.equal((declared.match(/:!0/g)||[]).length,writeMethods.length,'frontend write registry changed without updating the P8 contract');
+
+  const gatewayWrite=/^api(?:(?!Get|List|Search|Check).)*(Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup|Import)/;
+  for(const method of writeMethods) assert.ok(gatewayWrite.test(method),'gateway write classifier would miss '+method);
+  assert.ok(gateway.includes("const isWrite=m=>/^api(?:(?!Get|List|Search|Check).)*(Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup|Import)/.test(txt(m));"),'gateway write classifier drifted');
+
+  assert.ok(config.includes('WRITE_REQUEST_TIMEOUT_MS:120000'),'frontend write timeout must remain 120 seconds');
+  assert.ok(gateway.includes('write:+env.GAS_WRITE_TIMEOUT_MS||120000'),'gateway write timeout must remain 120 seconds');
+  assert.ok(transport.includes('var write=isWriteMethod(I.method),read=isReadMethod(I.method),key=write?"":cacheKey(I)'),'writes must never enter the read cache key path');
+  assert.ok(transport.includes('if(write)return p.then(function(v){EPOCH++;TTL=Object.create(null);F=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must invalidate client read cache');
+  assert.ok(!transport.includes('if(write&&cached)'),'writes must never be served from stale cache');
+
+  const appStart=index.indexOf('Object.assign(appApi,{__criticalApi');
+  const appEnd=index.indexOf('),root2.apiCall=root2.apiCall||function',appStart);
+  assert.ok(appStart>=0&&appEnd>appStart,'P8 AppApi write/retry owner missing');
+  const appBlock=index.slice(appStart,appEnd+1);
+  assert.ok(appBlock.includes('rotationRetry=/SESSION_TOKEN_ROTATED_RETRY/i'),'P8 rotation retry path missing');
+  assert.ok(appBlock.includes('if(rotationRetry&&!pub&&!q.__rotationRetried)'),'rotation replay must be bounded');
+  assert.ok(appBlock.includes('if(authFail&&!pub&&!q.__authRecovered'),'auth recovery replay must be bounded');
+  assert.ok(appBlock.includes('throw e}return n.data'),'non-auth write failures must fail closed instead of generic replay');
+
+  const strictMethods=[
+    'apiDeleteCase','apiDeletePetitioner','apiDeletePersonnelComm','apiDeletePersonnelOp',
+    'apiDeletePersonnelStaff','apiDeletePersonnelSubcommittee','apiDeleteCommitteeMeetingSystem',
+    'apiDeleteMeetingLog','apiDeleteLetter','apiCleanupMeetingData','apiBudgetDeleteImport',
+    'apiAdminSaveUser','apiAdminDeleteUser','apiAdminSaveSubcommittee','apiAdminDeleteSubcommittee',
+    'apiBudgetAdminSaveYearSettingsRows'
+  ];
+  const strictStart=index.indexOf('root2.requiresStrictActionToken=');
+  const strictEnd=index.indexOf('root2.isWriteApiMethod=',strictStart);
+  const strictBlock=index.slice(strictStart,strictEnd);
+  for(const method of strictMethods){
+    const isDelete=/^apiDelete/.test(method)||/^apiDeletePersonnel/.test(method)||method==='apiDeleteCommitteeMeetingSystem'||method==='apiDeleteMeetingLog'||method==='apiDeleteLetter';
+    if(!isDelete) assert.ok(strictBlock.includes(method.replace(/^api/,''))||strictBlock.includes('apiAdmin(?:Save|Delete)')||strictBlock.includes('apiBudget(?:Delete|AdminSave)')||strictBlock.includes('apiCleanup'),'strict action-token classifier drifted near '+method);
+  }
+});
+
 ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   new vm.Script(gateway,{filename:'server.js'});
   assert.ok(gateway.includes("REV='cr8.15-p0f-network-gate'"));
