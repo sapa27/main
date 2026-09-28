@@ -262,6 +262,10 @@ jobs:
           set -euo pipefail
           gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
 
+      - name: Remove retired transport environment variables
+        run: |
+          gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION"             --remove-env-vars "GAS_RPC_VERSION,GAS_PARENT_ORIGIN,LEGACY_GAS_RPC_FALLBACK,LEGACY_GAS_RPC_VERSION,LEGACY_GAS_PARENT_ORIGIN" || true
+
       - name: Smoke final CR-8 production
         run: |
           set -euo pipefail
@@ -471,10 +475,6 @@ jobs:
           echo "- Public URL: $edge_origin" >> "$GITHUB_STEP_SUMMARY"
           echo "- Browser → Cloudflare → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
           echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Remove retired transport environment variables
-        run: |
-          gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION"             --remove-env-vars "GAS_RPC_VERSION,GAS_PARENT_ORIGIN,LEGACY_GAS_RPC_FALLBACK,LEGACY_GAS_RPC_VERSION,LEGACY_GAS_PARENT_ORIGIN" || true
 
       - name: Remove CR-8 canary
         if: always()
