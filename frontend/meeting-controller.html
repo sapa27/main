@@ -4240,14 +4240,18 @@
       );
     }
     function meetingPublicErrorText_(err, fallback) {
-      var safe = meetingText(
-        fallback || "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
-      ).trim();
-      var raw = "";
+      var raw = "",
+        safe = "ระบบไม่สามารถดำเนินการได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง";
       try {
         raw = meetingText(
           (err && (err.msg || err.message || err.error)) || err || "",
         ).trim();
+        var preferred = meetingText(fallback || raw || safe).trim();
+        safe =
+          meetingRoot.AppRuntime &&
+          __appIsFn(meetingRoot.AppRuntime.publicErrorMessage)
+            ? meetingRoot.AppRuntime.publicErrorMessage(err, preferred)
+            : preferred || safe;
         meetingRoot.AppRuntime &&
           meetingRoot.AppRuntime.recordWarning &&
           meetingRoot.AppRuntime.recordWarning(
@@ -4269,23 +4273,29 @@
     }
     function oe(t, n) {
       var rawNotice = String(n || ""),
-        visibleNotice = rawNotice;
+        visibleNotice =
+          "success" === t
+            ? rawNotice
+            : meetingPublicErrorText_(null, rawNotice);
       if ("success" !== t) {
         try {
           meetingRoot.AppRuntime &&
             meetingRoot.AppRuntime.recordWarning &&
             meetingRoot.AppRuntime.recordWarning(
-              "meeting.ui.errorNotice.suppressed",
+              "meeting.ui.errorNotice",
               null,
-              { message: rawNotice, uiSuppressed: !0 },
+              {
+                message: rawNotice,
+                publicMessage: visibleNotice,
+                uiSuppressed: !1,
+              },
             );
-        } catch (_meetingNoticeSuppressErr) {
+        } catch (_meetingNoticeLogErr) {
           __appObserve(
-            _meetingNoticeSuppressErr,
-            "meeting.ui.errorNotice.suppressed",
+            _meetingNoticeLogErr,
+            "meeting.ui.errorNotice.log",
           );
         }
-        return Promise.resolve(!1);
       }
       var i = String(t || "") + "|" + visibleNotice,
         r = Date.now(),
