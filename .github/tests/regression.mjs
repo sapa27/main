@@ -1393,4 +1393,66 @@ ok('Meeting tab changes retain the correct save target without runtime errors',(
   assert.equal(window.meetingRememberSaveTarget_,undefined,'the helper must remain private to the Meeting owner');
 });
 
+ok('structured API failures retain their code and message for auth recovery',()=>{
+  const ctx={txt:v=>v==null?'':String(v)};
+  vm.runInNewContext(index.slice(index.indexOf('function env(r)'),index.indexOf('function applyTok(')),ctx);
+  const result=ctx.env({ok:false,error:{code:'SESSION_EXPIRED',message:'Session expired'},requestId:'http_fixture'});
+  assert.equal(result.errorCode,'SESSION_EXPIRED');
+  assert.equal(result.error,'Session expired');
+  assert.equal(result.requestId,'http_fixture');
+  assert.equal(ctx.env({ok:false,message:'Login rejected',code:'AUTH_REQUIRED'}).msg,'Login rejected');
+  assert.equal(ctx.env({ok:false,error:'Legacy failure',errorCode:'LEGACY_FAILURE'}).error,'Legacy failure');
+});
+
+ok('login form events and rebinding cannot unlock an outstanding login',()=>{
+  const handlers={};let bindings=0;
+  const button={disabled:false,dataset:{},removeAttribute(){},setAttribute(){}};
+  const d={addEventListener:(name,fn)=>{handlers[name]=fn},getElementById:()=>button};
+  const w={document:d,AppLogin:{init(){bindings++}},AppRuntime:{clearUiBlocks(){}}};
+  const ctx={window:w,__appObserve(){}};
+  vm.runInNewContext(scripts(index).find(s=>s.includes('__APP_LAL_CurrentStampS__')),ctx);
+  w.__APP_LOGIN_IN_FLIGHT__=true;w.__APP_EXPLICIT_LOGIN_ATTEMPT__=true;button.disabled=true;
+  const initialBindings=bindings;
+  for(const event of ['pointerdown','input','keydown','click','submit'])handlers[event]({target:{id:'login-form',closest:()=>true}});
+  assert.equal(w.__APP_LOGIN_IN_FLIGHT__,true);
+  assert.equal(button.disabled,true);
+  assert.equal(bindings,initialBindings);
+  w.__APP_LOGIN_IN_FLIGHT__=false;w.__APP_EXPLICIT_LOGIN_ATTEMPT__=false;w.__APP_LOGGED_OUT_LOCK__=true;
+  handlers.click({target:{closest:()=>true}});
+  assert.equal(w.__APP_LOGGED_OUT_LOCK__,false,'a completed logout still permits a fresh login');
+  assert.equal(button.disabled,false);
+  const bindCtx={root2:{__APP_LOGIN_IN_FLIGHT__:true},scrubUrl(){throw new Error('must not reset busy form')}};
+  vm.runInNewContext(index.slice(index.indexOf('function bindLogin(){'),index.indexOf('function installCriticalAuthOwnerCurrentStamp()')),bindCtx);
+  bindCtx.bindLogin();
+});
+
+{
+  let clears=0;
+  const events=[];
+  const w={location:{origin:'https://app.example.test'},AbortController,setTimeout:()=>1,clearTimeout(){clears++},
+    fetch:async()=>({ok:true,status:200,headers:{get:()=>null},text:async()=>{throw new DOMException('body aborted','AbortError')}})};
+  vm.runInNewContext(transport,{window:w,document:{dispatchEvent:e=>events.push(e)},CustomEvent:function(name,options){this.name=name;this.detail=options.detail},Promise,Date});
+  await assert.rejects(w.AppTransport.run('apiSessionCheck',{}),e=>e.code==='CLOUD_RUN_TIMEOUT');
+  ok('response body failures settle transport state and release the request timer',()=>{
+    assert.equal(clears,1);
+    assert.equal(w.AppTransport.getLastRpcTrace().resultState,'fetch-error');
+    assert.equal(events.filter(e=>e.name==='app:transport:rpc-settled').length,1);
+    assert.equal(w.AppTransport.getClientCacheStats().inflight,0);
+  });
+  w.fetch=async()=>({ok:false,status:503,headers:{get:()=>null},text:async()=>JSON.stringify({error:{code:'GAS_UPSTREAM_TIMEOUT',message:'upstream timeout'},traceId:'http_fixture'})});
+  await assert.rejects(w.AppTransport.run('apiLogin',{}),e=>e.code==='GAS_UPSTREAM_TIMEOUT'&&e.requestId==='http_fixture');
+  ok('failed API calls expose only safe correlation metadata',()=>{
+    const trace=w.AppTransport.getLastRpcTrace();
+    assert.equal(trace.requestId,'http_fixture');
+    assert.equal(trace.httpStatus,503);
+    assert.equal(trace.errorCode,'GAS_UPSTREAM_TIMEOUT');
+    assert.equal('payload' in trace,false);
+  });
+  let calls=0;
+  w.fetch=async()=>({ok:++calls>1,json:async()=>({ok:calls>1})});
+  await assert.rejects(w.AppTransport.health());
+  assert.equal(await w.AppTransport.health(),true);
+  ok('health recovers after an HTTP failure instead of reusing a rejected promise',()=>assert.equal(calls,2));
+}
+
 console.log('# '+passed+' CR-7 regression groups passed');
