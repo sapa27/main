@@ -600,6 +600,14 @@ ok('P11 production deployment quality gate fails closed',()=>{
   assert.ok(workflow.includes('Post-delete force-fresh search verification: PASS'),'P8 delete verification summary missing');
   assert.ok(workflow.includes('Logout → Login → Save → Delete cleanup: PASS'),'P8 re-login write regression summary missing');
   assert.ok(workflow.includes('Temporary test records remaining: 0'),'P8 cleanup invariant summary missing');
+  const p8NodeStart=workflow.indexOf("E2E_SMOKE_PASSWORD=\"$E2E_SMOKE_PASSWORD\" \\\n              GITHUB_RUN_ID=\"$GITHUB_RUN_ID\" \\\n              GITHUB_RUN_ATTEMPT=\"$GITHUB_RUN_ATTEMPT\" node <<'NODE'");
+  assert.ok(p8NodeStart>=0,'P8 live write Node heredoc missing');
+  const p8ScriptStart=workflow.indexOf("\n",p8NodeStart)+1;
+  const p8ScriptEnd=workflow.indexOf("\n          NODE",p8ScriptStart);
+  assert.ok(p8ScriptEnd>p8ScriptStart,'P8 live write Node heredoc terminator missing');
+  const p8Script=workflow.slice(p8ScriptStart,p8ScriptEnd).split("\n").map(line=>line.startsWith("          ")?line.slice(10):line).join("\n");
+  new vm.Script(p8Script,{filename:'p8-live-write-gate.js'});
+  assert.ok(p8Script.includes('(async()=>{'),'P8 live write gate must use an async execution boundary');
   assert.ok(!workflow.includes('console.log(password)'),'P8 write gate must never log password');
   assert.ok(!workflow.includes('console.log(token)'),'P8 write gate must never log session token');
   assert.ok(!workflow.includes('console.log(csrf)'),'P8 write gate must never log CSRF token');
