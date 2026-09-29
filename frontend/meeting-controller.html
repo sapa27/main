@@ -3006,10 +3006,9 @@
             __appObserve(_fastPathDatasetErr, "meeting.fastPath.dataset");
           }
           if (!Je() && !t.force) return !1;
-          if (
-            document.documentElement &&
-            "1" === document.documentElement.dataset.meetingPageInitialized
-          ) {
+          var page = meetingById("p-meeting");
+          if (!page) return !1;
+          if (page.dataset.meetingPageInitialized === "1") {
             if ((ze(), !searchEditFastPath && !1 !== t.reload && Je() && !H().length))
               try {
                 meetingRefreshCases({ limit: 40, silent: !0 }).then(
@@ -3022,9 +3021,7 @@
               }
             return !0;
           }
-          (document.documentElement &&
-            (document.documentElement.dataset.meetingPageInitialized = "1"),
-            ze(),
+          (ze(),
             updateMeetingIntegrityToolsVisibility_(),
             !searchEditFastPath &&
               S(
@@ -3355,6 +3352,8 @@
             } catch (e) {
               __appObserve(e, "ec");
             }
+          page.dataset.meetingPageInitialized = "1";
+          if (document.documentElement) document.documentElement.dataset.meetingPageInitialized = "1";
           return !0;
         }));
     }

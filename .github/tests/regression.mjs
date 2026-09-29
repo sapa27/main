@@ -1455,4 +1455,24 @@ ok('login form events and rebinding cannot unlock an outstanding login',()=>{
   ok('health recovers after an HTTP failure instead of reusing a rejected promise',()=>assert.equal(calls,2));
 }
 
+ok('Meeting failed initialization remains retryable and remount initializes new DOM',()=>{
+  const start=meetingController.indexOf('(window.initMeetingPage = function (t) {');
+  const end=meetingController.indexOf('    function S(t, n, i)',start);
+  const chunk=meetingController.slice(start,end);
+  const fn=chunk.slice(chunk.indexOf('function (t)'),chunk.lastIndexOf('}));')+1);
+  const page={dataset:{}},document={documentElement:{dataset:{}}};
+  const ctx={window:{},document,meetingRoot:{},meetingAuthReadyCanonical_:()=>true,
+    meetingSearchEditFastPathSeed_:()=>null,meetingById:id=>id==='p-meeting'?page:null,
+    Je:()=>false,H:()=>[],ze:()=>{throw new Error('binding failed')},__appObserve:()=>{}};
+  vm.createContext(ctx);vm.runInContext('window.initMeetingPage='+fn+';',ctx);
+  assert.throws(()=>ctx.window.initMeetingPage({force:true}),/binding failed/);
+  assert.notEqual(page.dataset.meetingPageInitialized,'1');
+  assert.notEqual(document.documentElement.dataset.meetingPageInitialized,'1');
+  document.documentElement.dataset.meetingPageInitialized='1';
+  ctx.ze=()=>{};
+  ctx.updateMeetingIntegrityToolsVisibility_=()=>{throw new Error('new DOM initialization reached')};
+  assert.throws(()=>ctx.window.initMeetingPage({force:true}),/new DOM initialization reached/);
+  assert.notEqual(page.dataset.meetingPageInitialized,'1');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
