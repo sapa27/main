@@ -1,0 +1,892 @@
+name: Cloud Run Production
+# zero-error-boxes-final-20260925
+on:
+  push:
+    paths:
+      - 'cloud-run-gateway/**'
+      - 'frontend/**'
+      - '.github/tests/regression.mjs'
+      - '.github/workflows/cloud-run-gateway.yml'
+  pull_request:
+    paths:
+      - 'cloud-run-gateway/**'
+      - 'frontend/**'
+      - '.github/tests/regression.mjs'
+      - '.github/workflows/cloud-run-gateway.yml'
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy validated CR-8 GAS-canonical production service'
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: cloud-run-production-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage production frontend
+        run: |
+          set -euo pipefail
+          rm -rf cloud-run-gateway/public
+          cp -R frontend cloud-run-gateway/public
+          test -f cloud-run-gateway/public/index.html
+          test -f cloud-run-gateway/public/app-config.js
+          test -f cloud-run-gateway/public/cloud-run-transport.js
+          test -f cloud-run-gateway/public/meeting-controller.html
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate CR-8 frontend and gateway
+        run: |
+          set -euo pipefail
+          node .github/tests/regression.mjs --frontend-only
+          cd cloud-run-gateway
+          npm run check
+          npm test
+      - name: Validate container build
+        run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
+
+  deploy:
+    needs: validate
+    if: (github.event_name == 'workflow_dispatch' && inputs.deploy == true) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[deploy-cloud-run]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'sapa27' }}
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast3' }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'sapa27-gateway' }}
+      CANARY_SERVICE: sapa27-gateway-cr8-canary
+      WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER || 'projects/770468331446/locations/global/workloadIdentityPools/github-actions/providers/sapa27-main' }}
+      DEPLOY_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deployer@sapa27.iam.gserviceaccount.com' }}
+      GAS_WEB_APP_URL: ${{ vars.GAS_WEB_APP_URL }}
+      GAS_CANDIDATE_WEB_APP_URL: ${{ vars.GAS_WEB_APP_URL }}
+      ANTI_GAS_WEB_APP_URL: ${{ vars.ANTI_GAS_WEB_APP_URL }}
+      CLOUD_RUN_ORIGIN: ${{ vars.CLOUD_RUN_ORIGIN || 'https://sapa27-gateway-asxuzzwspa-eu.a.run.app' }}
+      PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+      CF_WORKER_NAME: ${{ vars.CF_WORKER_NAME || 'sapa27' }}
+      CF_WORKERS_SUBDOMAIN: ${{ vars.CF_WORKERS_SUBDOMAIN || 'anti27' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      E2E_SMOKE_USERNAME: ${{ secrets.E2E_SMOKE_USERNAME }}
+      E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}
+      ANTI_PUBLIC_ORIGIN: https://sapa27.github.io
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage production frontend
+        run: |
+          set -euo pipefail
+          rm -rf cloud-run-gateway/public
+          cp -R frontend cloud-run-gateway/public
+      - name: Validate deployment variables
+        run: |
+          set -euo pipefail
+          for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CF_WORKER_NAME CF_WORKERS_SUBDOMAIN; do
+            test -n "${!name:-}" || { echo "Missing required production gate variable: $name" >&2; exit 1; }
+          done
+      - name: Diagnose GAS primary and candidate endpoints
+        run: |
+          set -euo pipefail
+          probe_gas() {
+            local label="$1" url="$2" body_file header_file http_code
+            body_file="$(mktemp)"
+            header_file="$(mktemp)"
+            http_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -L -sS \
+              -D "$header_file" -o "$body_file" -w '%{http_code}' \
+              -H 'Content-Type: application/json;charset=UTF-8' \
+              -H 'Accept: application/json' \
+              --data '{"method":"apiSessionCheck","payload":{}}' \
+              "$url" || true)"
+            PROBE_BODY="$body_file" PROBE_HEADERS="$header_file" PROBE_LABEL="$label" PROBE_HTTP="$http_code" node <<'NODE'
+          const fs=require('fs');
+          const label=process.env.PROBE_LABEL||'GAS';
+          const status=process.env.PROBE_HTTP||'0';
+          const raw=fs.readFileSync(process.env.PROBE_BODY,'utf8');
+          const headers=fs.readFileSync(process.env.PROBE_HEADERS,'utf8').split(/\r?\n/).filter(Boolean);
+          const contentType=[...headers].reverse().find(x=>/^content-type:/i.test(x))?.split(':').slice(1).join(':').trim()||'';
+          let x=null,json=false;
+          try{x=JSON.parse(raw);json=true}catch(_){}
+          const object=!!x&&typeof x==='object'&&!Array.isArray(x);
+          const keys=object?Object.keys(x).slice(0,12).sort().join(','):'';
+          const transportOk=object&&typeof x.transportOk==='boolean'?String(x.transportOk):'missing';
+          const errorCode=object&&x.error&&typeof x.error==='object'?String(x.error.code||''):'';
+          console.log(label+' GAS probe metadata: HTTP '+status+' contentType='+(contentType||'unknown')+' json='+json+' keys='+(keys||'none')+' transportOk='+transportOk+(errorCode?' errorCode='+errorCode:''));
+          if(status!=='200'||!object||x.transportOk!==true||!Object.prototype.hasOwnProperty.call(x,'result'))process.exit(1);
+          NODE
+          }
+
+          primary_ok=false
+          candidate_ok=false
+          probe_gas "primary" "$GAS_WEB_APP_URL" && primary_ok=true
+          probe_gas "candidate" "$GAS_CANDIDATE_WEB_APP_URL" && candidate_ok=true
+
+          echo "### GAS Endpoint Preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Primary canonical probe: $primary_ok" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Candidate canonical probe: $candidate_ok" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$primary_ok" != "true" ]; then
+            if [ "$candidate_ok" = "true" ]; then
+              echo "Primary GAS endpoint failed while candidate passed; explicit endpoint promotion is required before deployment." >&2
+            else
+              echo "Primary and candidate GAS endpoints both failed canonical direct JSON preflight." >&2
+            fi
+            exit 1
+          fi
+      - name: Resolve P0-F-B1 workers.dev origin
+        run: |
+          set -euo pipefail
+          preferred_subdomain="${CF_WORKERS_SUBDOMAIN:-anti}"
+          candidate_subdomains=("$preferred_subdomain" "anti27" "sapa27-anti" "anti-sapa27")
+
+          [[ "$CF_WORKER_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKER_NAME" >&2; exit 1; }
+          for candidate in "${candidate_subdomains[@]}"; do
+            [[ "$candidate" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || { echo "Invalid CF_WORKERS_SUBDOMAIN candidate" >&2; exit 1; }
+          done
+
+          selected_subdomain="$preferred_subdomain"
+
+          if [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            cf_subdomain_tmp="$(mktemp)"
+            cf_subdomain_status="$(curl --max-time 30 -sS -o "$cf_subdomain_tmp" -w '%{http_code}'               -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json")"
+
+            current_subdomain=""
+            if [ "$cf_subdomain_status" = "200" ]; then
+              current_subdomain="$(node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||!x.result?.subdomain)process.exit(1);process.stdout.write(x.result.subdomain)' "$cf_subdomain_tmp")"
+            elif [ "$cf_subdomain_status" != "404" ]; then
+              echo "Unable to read Cloudflare workers.dev subdomain (HTTP $cf_subdomain_status)" >&2
+              cat "$cf_subdomain_tmp" >&2
+              exit 1
+            fi
+
+            current_is_neutral=false
+            for candidate in "${candidate_subdomains[@]}"; do
+              if [ "$current_subdomain" = "$candidate" ]; then
+                selected_subdomain="$current_subdomain"
+                current_is_neutral=true
+                break
+              fi
+            done
+
+            if [ "$current_is_neutral" != "true" ]; then
+              echo "Replacing personal workers.dev account subdomain with a neutral value"
+
+              if [ -n "$current_subdomain" ]; then
+                delete_tmp="$(mktemp)"
+                delete_status="$(curl --max-time 30 -sS -o "$delete_tmp" -w '%{http_code}'                   -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+                case "$delete_status" in
+                  200|204) ;;
+                  *)
+                    echo "Unable to remove existing Cloudflare workers.dev subdomain (HTTP $delete_status)" >&2
+                    cat "$delete_tmp" >&2
+                    exit 1
+                    ;;
+                esac
+              fi
+
+              selected_subdomain=""
+              for candidate in "${candidate_subdomains[@]}"; do
+                candidate_tmp="$(mktemp)"
+                candidate_status="$(curl --max-time 30 -sS -o "$candidate_tmp" -w '%{http_code}'                   -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                   -H "Content-Type: application/json"                   --data "$(printf '{"subdomain":"%s"}' "$candidate")")"
+
+                if [ "$candidate_status" = "200" ]; then
+                  node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$candidate_tmp" "$candidate"
+                  selected_subdomain="$candidate"
+                  echo "Selected neutral workers.dev subdomain: $selected_subdomain"
+                  break
+                fi
+
+                if [ "$candidate_status" != "403" ] && [ "$candidate_status" != "409" ]; then
+                  echo "Unexpected Cloudflare response while selecting neutral workers.dev subdomain (HTTP $candidate_status)" >&2
+                  cat "$candidate_tmp" >&2
+                  break
+                fi
+              done
+
+              if [ -z "$selected_subdomain" ]; then
+                if [ -n "$current_subdomain" ]; then
+                  echo "No neutral workers.dev candidate was available; attempting rollback"
+                  rollback_tmp="$(mktemp)"
+                  rollback_status="$(curl --max-time 30 -sS -o "$rollback_tmp" -w '%{http_code}'                     -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"                     -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                     -H "Content-Type: application/json"                     --data "$(printf '{"subdomain":"%s"}' "$current_subdomain")")"
+                  if [ "$rollback_status" = "200" ]; then
+                    echo "Rollback restored previous workers.dev subdomain"
+                  else
+                    echo "Rollback of workers.dev subdomain failed (HTTP $rollback_status)" >&2
+                    cat "$rollback_tmp" >&2
+                  fi
+                fi
+                exit 1
+              fi
+            fi
+          fi
+
+          edge_origin="https://${CF_WORKER_NAME}.${selected_subdomain}.workers.dev"
+          if [ -n "${PUBLIC_APP_ORIGIN:-}" ] && [ "$PUBLIC_APP_ORIGIN" != "$edge_origin" ]; then
+            echo "PUBLIC_APP_ORIGIN differs from workers.dev target: $PUBLIC_APP_ORIGIN" >&2
+            exit 1
+          fi
+
+          echo "CF_WORKERS_SUBDOMAIN=$selected_subdomain" >> "$GITHUB_ENV"
+          echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
+          echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy CR-8 GAS-canonical canary
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 20             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
+          canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
+
+      - name: Require direct GAS transport on canary
+        run: |
+          set -euo pipefail
+          ready="$(curl --max-time 30 -fsS "$CANARY_URL/ready")"
+          version="$(curl --max-time 30 -fsS "$CANARY_URL/version")"
+          health="$(curl --max-time 30 -fsS "$CANARY_URL/health")"
+          network="$(curl --max-time 30 -fsS "$CANARY_URL/network-health")"
+          upstream=""
+          upstream_diag="$(mktemp)"
+          for attempt in 1 2 3; do
+            http_code="$(curl --max-time 45 -sS -o "$upstream_diag" -w '%{http_code}' "$CANARY_URL/upstream-health" || true)"
+            candidate="$(cat "$upstream_diag" 2>/dev/null || true)"
+            echo "Canary upstream attempt $attempt HTTP $http_code"
+            test -n "$candidate" && echo "Canary upstream response: $candidate"
+            if test "$http_code" = "200"; then
+              upstream="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 4
+          done
+          test -n "$upstream" || { echo "Canary upstream health failed after 3 attempts" >&2; exit 1; }
+          echo "Canary ready: $ready"
+          echo "Canary version: $version"
+          echo "Canary health: $health"
+          echo "Canary network: $network"
+          echo "Canary upstream: $upstream"
+          node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          tmp_dir="$(mktemp -d)"
+          curl --max-time 30 -fsS "$CANARY_URL/" -o "$tmp_dir/index.html"
+          curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
+          curl --max-time 30 -fsS "$CANARY_URL/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
+          curl --max-time 30 -fsS "$CANARY_URL/meeting-controller.html" -o "$tmp_dir/meeting-controller.html"
+          grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
+          grep -q 'p0-f-edge-ready-20260922' "$tmp_dir/app-config.js"
+          grep -q 'p0-f-network-access-compatibility-r354' "$tmp_dir/app-config.js"
+          if grep -q '\.run\.app' "$tmp_dir/app-config.js"; then echo "P0-F failed: browser config contains run.app" >&2; exit 1; fi
+          grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'gas-router-wire-r350' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'function gasWire(I)' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'repairMeetingCanonicalMountCurrent' "$tmp_dir/index.html"
+          grep -q 'ensureCanonicalPageControllerCurrent' "$tmp_dir/index.html"
+          grep -q 'force:id===\"meeting\"' "$tmp_dir/index.html"
+          grep -q 'fetchStaticMeetingController' "$tmp_dir/index.html"
+          grep -q 'warmMeetingSharedAssets' "$tmp_dir/index.html"
+          grep -q 'page.meeting.staticController' "$tmp_dir/index.html"
+          grep -q 'recoverDashboardRuntimeCrit' "$tmp_dir/index.html"
+          grep -q 'dashboard.dataRecovery.current' "$tmp_dir/index.html"
+          grep -q 'dashboard-data-recovery-p5' "$tmp_dir/index.html"
+          grep -q 'recoveryState.reset("login-dashboard-bootstrap")' "$tmp_dir/index.html"
+          grep -q 'rotationRetry=/SESSION_TOKEN_ROTATED_RETRY' "$tmp_dir/index.html"
+          grep -q 'function syncAuthPayloadCrit' "$tmp_dir/index.html"
+          grep -q 'function resetActionAuthCrit' "$tmp_dir/index.html"
+          grep -q 'nextSessionToken' "$tmp_dir/index.html"
+          grep -q 'nextCsrfToken' "$tmp_dir/index.html"
+          grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
+          grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
+          grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
+          grep -q 'dashboard-initial-data-gate-p4' "$tmp_dir/index.html"
+          grep -q 'auth.dashboardDataReady' "$tmp_dir/index.html"
+          grep -q 'critical-login-runtime-p4' "$tmp_dir/index.html"
+          if grep -q 'app-login-dashboard-autostart-current' "$tmp_dir/index.html"; then echo "P4 failed: duplicate Dashboard autostart owner is still deployed" >&2; exit 1; fi
+          grep -q 'deferred-auth-handoff-r353' "$tmp_dir/index.html"
+          grep -q 'DASHBOARD_AUTH_TOKEN_NOT_READY' "$tmp_dir/index.html"
+          grep -q 'direct-bootstrap-r349' "$tmp_dir/index.html"
+          grep -q 'CR-8.3 Cloud Run static Meeting controller' "$tmp_dir/meeting-controller.html"
+          grep -q 'window.initMeetingPage' "$tmp_dir/meeting-controller.html"
+          grep -q 'AppPages.register("meeting"' "$tmp_dir/meeting-controller.html"
+
+      - name: Promote CR-8 GAS-canonical to production
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 40             --min-instances 0 --max-instances 5 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA"
+
+      - name: Remove retired transport environment variables
+        run: |
+          gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION"             --remove-env-vars "GAS_RPC_VERSION,GAS_PARENT_ORIGIN,LEGACY_GAS_RPC_FALLBACK,LEGACY_GAS_RPC_VERSION,LEGACY_GAS_PARENT_ORIGIN" || true
+
+      - name: Smoke final CR-8 production
+        run: |
+          set -euo pipefail
+          url="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+          ready="$(curl --max-time 30 -fsS "$url/ready")"
+          version="$(curl --max-time 30 -fsS "$url/version")"
+          health="$(curl --max-time 30 -fsS "$url/health")"
+          network="$(curl --max-time 30 -fsS "$url/network-health")"
+          upstream=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 45 -fsS "$url/upstream-health")"; then
+              upstream="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 4
+          done
+          test -n "$upstream" || { echo "Production upstream health failed after 3 attempts" >&2; exit 1; }
+          echo "Ready: $ready"
+          echo "Version: $version"
+          echo "Health: $health"
+          echo "Network: $network"
+          echo "Upstream: $upstream"
+          node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="same-origin"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          tmp_dir="$(mktemp -d)"
+          curl --max-time 30 -fsS "$url/" -o "$tmp_dir/index.html"
+          curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
+          curl --max-time 30 -fsS "$url/cloud-run-transport.js" -o "$tmp_dir/cloud-run-transport.js"
+          curl --max-time 30 -fsS "$url/meeting-controller.html" -o "$tmp_dir/meeting-controller.html"
+          grep -q 'CANONICAL CLOUD RUN FRONTEND r331-v62' "$tmp_dir/index.html"
+          grep -q 'p0-f-edge-ready-20260922' "$tmp_dir/app-config.js"
+          grep -q 'p0-f-network-access-compatibility-r354' "$tmp_dir/app-config.js"
+          if grep -q '\.run\.app' "$tmp_dir/app-config.js"; then echo "P0-F failed: browser config contains run.app" >&2; exit 1; fi
+          grep -q 'cloud-run-gas-canonical-cr8' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'gas-router-wire-r350' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'function gasWire(I)' "$tmp_dir/cloud-run-transport.js"
+          grep -q 'repairMeetingCanonicalMountCurrent' "$tmp_dir/index.html"
+          grep -q 'ensureCanonicalPageControllerCurrent' "$tmp_dir/index.html"
+          grep -q 'force:id===\"meeting\"' "$tmp_dir/index.html"
+          grep -q 'fetchStaticMeetingController' "$tmp_dir/index.html"
+          grep -q 'warmMeetingSharedAssets' "$tmp_dir/index.html"
+          grep -q 'page.meeting.staticController' "$tmp_dir/index.html"
+          grep -q 'recoverDashboardRuntimeCrit' "$tmp_dir/index.html"
+          grep -q 'dashboard.dataRecovery.current' "$tmp_dir/index.html"
+          grep -q 'dashboard-data-recovery-p5' "$tmp_dir/index.html"
+          grep -q 'recoveryState.reset("login-dashboard-bootstrap")' "$tmp_dir/index.html"
+          grep -q 'rotationRetry=/SESSION_TOKEN_ROTATED_RETRY' "$tmp_dir/index.html"
+          grep -q 'function syncAuthPayloadCrit' "$tmp_dir/index.html"
+          grep -q 'function resetActionAuthCrit' "$tmp_dir/index.html"
+          grep -q 'nextSessionToken' "$tmp_dir/index.html"
+          grep -q 'nextCsrfToken' "$tmp_dir/index.html"
+          grep -q 'dashboard-runtime-recovery-r345' "$tmp_dir/index.html"
+          grep -q 'patchDashboardControllerContractCurrent' "$tmp_dir/index.html"
+          grep -q 'dashboard-critical-first-r347' "$tmp_dir/index.html"
+          grep -q 'dashboard-initial-data-gate-p4' "$tmp_dir/index.html"
+          grep -q 'auth.dashboardDataReady' "$tmp_dir/index.html"
+          grep -q 'critical-login-runtime-p4' "$tmp_dir/index.html"
+          if grep -q 'app-login-dashboard-autostart-current' "$tmp_dir/index.html"; then echo "P4 failed: duplicate Dashboard autostart owner is still deployed" >&2; exit 1; fi
+          grep -q 'deferred-auth-handoff-r353' "$tmp_dir/index.html"
+          grep -q 'DASHBOARD_AUTH_TOKEN_NOT_READY' "$tmp_dir/index.html"
+          grep -q 'direct-bootstrap-r349' "$tmp_dir/index.html"
+          grep -q 'CR-8.3 Cloud Run static Meeting controller' "$tmp_dir/meeting-controller.html"
+          grep -q 'window.initMeetingPage' "$tmp_dir/meeting-controller.html"
+          grep -q 'AppPages.register("meeting"' "$tmp_dir/meeting-controller.html"
+          echo "### CR-8 GAS Canonical Response" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production URL: $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser runtime: same-origin (P0-F edge-ready)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P0-F-A Network Access Compatibility: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P0-F-B1 workers.dev edge: deployment gate follows production smoke" >> "$GITHUB_STEP_SUMMARY"
+          echo "### P4 Dashboard Bootstrap Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dashboard controller readiness owner: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- First complete-data settle gate: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Duplicate login Dashboard autostart owner: REMOVED" >> "$GITHUB_STEP_SUMMARY"
+          echo "### P5 Dashboard Recovery Consolidation Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Recovery owner: single-flight" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Retry generation reset per authenticated bootstrap: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dashboard controller recovery preserves data-ready state: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "### P6 Session / Write Stability Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Canonical AppStore auth overrides stale caller credentials: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SESSION_TOKEN_ROTATED_RETRY bounded immediate retry: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Strict action token is re-issued after session rotation: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rotated opaque resume handle capture: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend source: frontend/" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GAS transport: direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Response owner: GAS (gas-direct-json-v1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Legacy parent-origin RPC: removed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy P0-F-B1 Cloudflare workers.dev edge
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID:-}" || { echo "P11 production gate failed: CLOUDFLARE_ACCOUNT_ID is required" >&2; exit 1; }
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "P11 production gate failed: CLOUDFLARE_API_TOKEN is required" >&2; exit 1; }
+
+          edge_origin="https://${CF_WORKER_NAME}.${CF_WORKERS_SUBDOMAIN}.workers.dev"
+          test "${PUBLIC_APP_ORIGIN:-}" = "$edge_origin"
+
+          subdomain_tmp="$(mktemp)"
+          subdomain_status="$(curl --max-time 30 -sS -o "$subdomain_tmp" -w '%{http_code}'             -X GET "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Content-Type: application/json")"
+
+          if [ "$subdomain_status" = "200" ]; then
+            node -e 'const fs=require("fs"),x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$subdomain_tmp" "$CF_WORKERS_SUBDOMAIN" || {
+              echo "Existing workers.dev subdomain differs from expected $CF_WORKERS_SUBDOMAIN" >&2
+              cat "$subdomain_tmp" >&2
+              exit 1
+            }
+            echo "Using existing workers.dev subdomain: $CF_WORKERS_SUBDOMAIN"
+          elif [ "$subdomain_status" = "404" ]; then
+            subdomain_payload="$(printf '{"subdomain":"%s"}' "$CF_WORKERS_SUBDOMAIN")"
+            subdomain_result="$(curl --max-time 30 -fsS               -X PUT "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Content-Type: application/json"               --data "$subdomain_payload")"
+            node -e 'const x=JSON.parse(process.argv[1]);if(x.success!==true||x.result?.subdomain!==process.argv[2])process.exit(1)' "$subdomain_result" "$CF_WORKERS_SUBDOMAIN"
+            echo "Created workers.dev subdomain: $CF_WORKERS_SUBDOMAIN"
+          else
+            echo "Unable to read Cloudflare workers.dev subdomain (HTTP $subdomain_status)" >&2
+            cat "$subdomain_tmp" >&2
+            exit 1
+          fi
+
+          tmp_edge="$(mktemp -d)"
+          cat > "$tmp_edge/worker.mjs" <<'EDGE_WORKER'
+          export default {
+            async fetch(request, env) {
+              const incoming = new URL(request.url);
+              const upstreamBase = new URL(env.CLOUD_RUN_ORIGIN);
+              const target = new URL(incoming.pathname + incoming.search, upstreamBase);
+              const headers = new Headers(request.headers);
+              headers.delete("host");
+              headers.delete("content-length");
+              headers.set("X-Forwarded-Host", incoming.host);
+              headers.set("X-Forwarded-Proto", "https");
+              headers.set("X-Edge-Provider", "cloudflare");
+
+              const init = {
+                method: request.method,
+                headers,
+                redirect: "manual"
+              };
+              if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+
+              const upstream = await fetch(target.toString(), init);
+              const responseHeaders = new Headers(upstream.headers);
+              responseHeaders.set("X-P0F-Edge", "cloudflare-workers-dev");
+
+              const location = responseHeaders.get("Location");
+              if (location) {
+                try {
+                  const redirectUrl = new URL(location);
+                  if (redirectUrl.origin === upstreamBase.origin) {
+                    redirectUrl.protocol = incoming.protocol;
+                    redirectUrl.host = incoming.host;
+                    responseHeaders.set("Location", redirectUrl.toString());
+                  }
+                } catch (_) {}
+              }
+
+              return new Response(upstream.body, {
+                status: upstream.status,
+                statusText: upstream.statusText,
+                headers: responseHeaders
+              });
+            }
+          };
+          EDGE_WORKER
+
+          node -e 'const fs=require("fs");const p=process.argv[1],name=process.argv[2],origin=process.argv[3];fs.writeFileSync(p,JSON.stringify({name,main:"./worker.mjs",compatibility_date:"2026-09-22",workers_dev:true,preview_urls:false,vars:{CLOUD_RUN_ORIGIN:origin}},null,2))'             "$tmp_edge/wrangler.jsonc" "$CF_WORKER_NAME" "$CLOUD_RUN_ORIGIN"
+
+          node --check "$tmp_edge/worker.mjs"
+          npx --yes wrangler@4.136.1 deploy --config "$tmp_edge/wrangler.jsonc"
+
+          script_subdomain="$(curl --max-time 30 -fsS             -X POST "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$CF_WORKER_NAME/subdomain"             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Content-Type: application/json"             --data '{"enabled":true,"previews_enabled":false}')"
+          node -e 'const x=JSON.parse(process.argv[1]);if(x.success!==true||x.result?.enabled!==true||x.result?.previews_enabled!==false)process.exit(1)' "$script_subdomain"
+
+          edge_network=""
+          for attempt in 1 2 3 4 5; do
+            if candidate="$(curl --max-time 30 -fsS "$edge_origin/network-health")"; then
+              edge_network="$candidate"
+              break
+            fi
+            test "$attempt" -lt 5 && sleep 3
+          done
+          test -n "$edge_network" || { echo "P0-F-B1 edge network-health unavailable" >&2; exit 1; }
+          node -e 'const n=JSON.parse(process.argv[1]),sha=process.argv[2];if(n.ok!==true||n.status!=="reachable"||n.sourceSha!==sha||n.network?.gate!=="P0-F"||n.network?.publicOriginConfigured!==true||n.network?.originMode!=="public-edge"||n.network?.edge?.detected!==true||n.network?.edge?.provider!=="cloudflare"||n.upstream?.checked!==false||!n.cloudRun?.service||!n.cloudRun?.revision)process.exit(1)' "$edge_network" "$GITHUB_SHA"
+          echo "P0 public edge source SHA attested: $GITHUB_SHA"
+
+          edge_upstream=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/upstream-health")"; then
+              edge_upstream="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 3
+          done
+          test -n "$edge_upstream" || { echo "P0-F-B1 edge upstream-health unavailable" >&2; exit 1; }
+          node -e 'const u=JSON.parse(process.argv[1]);if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$edge_upstream"
+
+          # P2 mandatory E2E POST gate: public edge -> Cloud Run -> GAS.
+          p2_rpc_dir="$(mktemp -d)"
+          p2_post_rpc() {
+            local label="$1"
+            local payload="$2"
+            local body_file="$p2_rpc_dir/$label.body.json"
+            local header_file="$p2_rpc_dir/$label.headers.txt"
+            local http_code=""
+            for attempt in 1 2 3; do
+              http_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+                -D "$header_file" -o "$body_file" -w '%{http_code}' \
+                -H 'Content-Type: application/json' \
+                -H "Origin: $edge_origin" \
+                --data "$payload" \
+                "$edge_origin/api/router" || true)"
+              if [ "$http_code" = "200" ]; then
+                break
+              fi
+              test "$attempt" -lt 3 && sleep 3
+            done
+            test "$http_code" = "200" || { echo "P2 $label POST failed (HTTP $http_code)" >&2; exit 1; }
+
+            P2_BODY_FILE="$body_file" P2_HEADER_FILE="$header_file" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.P2_BODY_FILE,'utf8'));
+          const headers=fs.readFileSync(process.env.P2_HEADER_FILE,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1') process.exit(1);
+          if(get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN) process.exit(1);
+          const requestId=get('x-request-id');
+          if(!/^[A-Za-z0-9_.:-]{6,128}$/.test(requestId)) process.exit(1);
+          NODE
+          }
+
+          p2_post_rpc "direct-session-check" '{"method":"apiSessionCheck","payload":{},"timeoutMs":30000}'
+          p2_post_rpc "nested-router-session-check" '{"method":"apiRouter","payload":{"method":"apiSessionCheck","payload":{}},"timeoutMs":30000}'
+
+          echo "### P2 End-to-End Transport Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public POST /api/router: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Direct apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Nested apiRouter → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Contract: gas-direct-json-v1" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Edge marker: cloudflare-workers-dev" >> "$GITHUB_STEP_SUMMARY"
+
+          # P11 production gate: authenticated chain is mandatory. Never echo request/response bodies or tokens.
+          test -n "${E2E_SMOKE_USERNAME:-}" || { echo "P11 production gate failed: E2E_SMOKE_USERNAME is required" >&2; exit 1; }
+          test -n "${E2E_SMOKE_PASSWORD:-}" || { echo "P11 production gate failed: E2E_SMOKE_PASSWORD is required" >&2; exit 1; }
+
+          auth_dir="$(mktemp -d)"
+            AUTH_REQ_FILE="$auth_dir/login.request.json" \
+            E2E_SMOKE_USERNAME="$E2E_SMOKE_USERNAME" E2E_SMOKE_PASSWORD="$E2E_SMOKE_PASSWORD" node <<'NODE'
+          const fs=require('fs');
+          const username=process.env.E2E_SMOKE_USERNAME||'';
+          const password=process.env.E2E_SMOKE_PASSWORD||'';
+          if(!username||!password) process.exit(1);
+          fs.writeFileSync(process.env.AUTH_REQ_FILE,JSON.stringify({
+            method:'apiLogin',
+            payload:{
+              username,
+              email:username,
+              password,
+              clientContext:{source:'github-actions-p2-e2e',headless:true}
+            },
+            timeoutMs:45000
+          }));
+          NODE
+
+            login_code="$(curl --max-time 60 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -D "$auth_dir/login.headers.txt" -o "$auth_dir/login.body.json" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $edge_origin" \
+              --data-binary "@$auth_dir/login.request.json" \
+              "$edge_origin/api/router" || true)"
+            test "$login_code" = "200" || { echo "P2 authenticated apiLogin failed (HTTP $login_code)" >&2; exit 1; }
+
+            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true) process.exit(1);
+          const candidates=[body.result,body.result?.result,body.result?.data,body.result?.data?.data];
+          const auth=candidates.find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.token||x.nextToken||x.sessionToken));
+          if(!auth) process.exit(1);
+          const token=String(auth.token||auth.nextToken||auth.sessionToken||'');
+          const csrf=String(auth.csrfToken||auth.csrf||'');
+          const user=auth.user||auth.account;
+          if(!token||!user||typeof user!=='object') process.exit(1);
+          fs.writeFileSync(process.env.AUTH_SESSION_REQ,JSON.stringify({
+            method:'apiSessionCheck',
+            payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf},
+            timeoutMs:30000
+          }));
+          fs.writeFileSync(process.env.AUTH_DASHBOARD_ASSET_REQ,JSON.stringify({
+            method:'getDeferredInclude',
+            payload:{name:'Scripts_Page_Dashboard',forceFresh:true,token,_token:token,authToken:token,csrfToken:csrf,csrf,_csrf:csrf},
+            timeoutMs:70000
+          }));
+          fs.writeFileSync(process.env.AUTH_DASHBOARD_DATA_REQ,JSON.stringify({
+            method:'apiRouter',
+            payload:{
+              method:'apiGetDashboardBundle',
+              payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf,forceFresh:true,clientContext:{source:'github-actions-p3-dashboard',headless:true}}
+            },
+            timeoutMs:70000
+          }));
+          NODE
+
+            session_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -D "$auth_dir/session.headers.txt" -o "$auth_dir/session.body.json" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $edge_origin" \
+              --data-binary "@$auth_dir/session.request.json" \
+              "$edge_origin/api/router" || true)"
+            test "$session_code" = "200" || { echo "P2 authenticated apiSessionCheck failed (HTTP $session_code)" >&2; exit 1; }
+
+            AUTH_SESSION_BODY="$auth_dir/session.body.json" AUTH_SESSION_HEADERS="$auth_dir/session.headers.txt" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_SESSION_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_SESSION_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          const result=body.result;
+          if(result&&typeof result==='object'&&result.ok===false) process.exit(1);
+          const candidates=[result,result?.result,result?.data,result?.data?.data].filter(x=>x&&typeof x==='object'&&!Array.isArray(x));
+          const session=candidates.find(x=>x.user||x.account||x.role||x.authenticated===true||x.valid===true);
+          if(!session) process.exit(1);
+          NODE
+
+            dashboard_asset_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -D "$auth_dir/dashboard-asset.headers.txt" -o "$auth_dir/dashboard-asset.body.json" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $edge_origin" \
+              --data-binary "@$auth_dir/dashboard-asset.request.json" \
+              "$edge_origin/api/router" || true)"
+            test "$dashboard_asset_code" = "200" || { echo "P3 Dashboard controller fetch failed (HTTP $dashboard_asset_code)" >&2; exit 1; }
+
+            AUTH_DASHBOARD_ASSET_BODY="$auth_dir/dashboard-asset.body.json" AUTH_DASHBOARD_ASSET_HEADERS="$auth_dir/dashboard-asset.headers.txt" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_DASHBOARD_ASSET_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_DASHBOARD_ASSET_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          let current=body.result,html='';
+          for(let depth=0;depth<6&&current&&typeof current==='object'&&!Array.isArray(current);depth++){
+            if(current.ok===false) process.exit(1);
+            if(typeof current.html==='string'){html=current.html;break}
+            if(Object.prototype.hasOwnProperty.call(current,'data')){current=current.data;continue}
+            if(Object.prototype.hasOwnProperty.call(current,'result')){current=current.result;continue}
+            break;
+          }
+          if(typeof current==='string'&&!html) html=current;
+          if(!html.trim()||!/<script\b/i.test(html)||!/dashboard/i.test(html)) process.exit(1);
+          NODE
+
+            dashboard_data_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -D "$auth_dir/dashboard-data.headers.txt" -o "$auth_dir/dashboard-data.body.json" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H "Origin: $edge_origin" \
+              --data-binary "@$auth_dir/dashboard-data.request.json" \
+              "$edge_origin/api/router" || true)"
+            test "$dashboard_data_code" = "200" || { echo "P3 Dashboard data fetch failed (HTTP $dashboard_data_code)" >&2; exit 1; }
+
+            AUTH_DASHBOARD_DATA_BODY="$auth_dir/dashboard-data.body.json" AUTH_DASHBOARD_DATA_HEADERS="$auth_dir/dashboard-data.headers.txt" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.AUTH_DASHBOARD_DATA_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.AUTH_DASHBOARD_DATA_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          const result=body.result;
+          if(result&&typeof result==='object'&&result.ok===false) process.exit(1);
+          let current=result;
+          for(let depth=0;depth<5&&current&&typeof current==='object'&&!Array.isArray(current)&&current.data&&typeof current.data==='object';depth++)current=current.data;
+          if(!current||typeof current!=='object'||Array.isArray(current)) process.exit(1);
+          NODE
+
+            mkdir -p "$auth_dir/p7"
+            P7_AUTH_SOURCE="$auth_dir/dashboard-data.request.json" P7_DIR="$auth_dir/p7" node <<'NODE'
+          const fs=require('fs'),path=require('path');
+          const request=JSON.parse(fs.readFileSync(process.env.P7_AUTH_SOURCE,'utf8'));
+          const auth=request?.payload?.payload||{};
+          const common={
+            token:String(auth.token||''),
+            sessionToken:String(auth.sessionToken||auth.token||''),
+            csrfToken:String(auth.csrfToken||''),
+            csrf:String(auth.csrf||auth.csrfToken||''),
+            _csrf:String(auth._csrf||auth.csrfToken||'')
+          };
+          if(!common.token) process.exit(1);
+          const probes={
+            apiGetDashboardBundle:{phase1FirstPaint:false,hotPathMode:'performance-baseline-complete',includeBudgetSummary:true},
+            apiSearchCasesLite:{page:1,limit:20,compactReadModel:true,includeMeetingHistory:false},
+            apiGetCommitteeMeetingSystem:{page:1,limit:20},
+            apiGetTracking:{page:1,limit:20},
+            apiGetPeoplePageBundle:{page:1,limit:100},
+            apiGetPetitioners:{page:1,limit:100},
+            apiBudgetGetSummary:{page:1,limit:100,pageSize:100}
+          };
+          for(const [method,payload] of Object.entries(probes)){
+            fs.writeFileSync(path.join(process.env.P7_DIR,method+'.request.json'),JSON.stringify({
+              method:'apiRouter',
+              payload:{method,payload:{...common,...payload,source:'github-actions-p7-data-pipeline'}},
+              timeoutMs:90000
+            }));
+          }
+          NODE
+
+            for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiGetPeoplePageBundle apiGetPetitioners apiBudgetGetSummary; do
+              p7_code="$(curl --max-time 105 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+                -D "$auth_dir/p7/$p7_method.headers.txt" -o "$auth_dir/p7/$p7_method.body.json" -w '%{http_code}' \
+                -H 'Content-Type: application/json' \
+                -H "Origin: $edge_origin" \
+                --data-binary "@$auth_dir/p7/$p7_method.request.json" \
+                "$edge_origin/api/router" || true)"
+              test "$p7_code" = "200" || { echo "P7 $p7_method read failed (HTTP $p7_code)" >&2; exit 1; }
+              P7_BODY="$auth_dir/p7/$p7_method.body.json" P7_HEADERS="$auth_dir/p7/$p7_method.headers.txt" P7_ORIGIN="$edge_origin" P7_METHOD="$p7_method" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.P7_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.P7_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1') process.exit(1);
+          if(get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P7_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          const result=body.result;
+          if(result&&typeof result==='object'&&result.ok===false) process.exit(1);
+          if(result===null||result===undefined) process.exit(1);
+          NODE
+            done
+
+            echo "### P7 Read Data Pipeline Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Dashboard read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Case search read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Committee meeting read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Tracking read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- People read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Petitioner read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Budget summary read: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Public edge → Cloud Run → GAS read contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+            rm -rf "$auth_dir"
+            echo "P2 auth smoke: PASS"
+            echo "P3 login/session/Dashboard contract: PASS"
+            echo "- Authenticated apiLogin → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "### P3 Login / Session / Dashboard Boot Contract Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiLogin contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiSessionCheck contract: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Scripts_Page_Dashboard authenticated controller fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiGetDashboardBundle authenticated data fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "### P11 Production Deployment Quality Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required Cloudflare credentials: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Required authenticated E2E credentials: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Login → session → Dashboard → P7 reads: PASS" >> "$GITHUB_STEP_SUMMARY"
+
+          rm -rf "$p2_rpc_dir"
+
+          edge_config=""
+          for attempt in 1 2 3; do
+            if candidate="$(curl --max-time 30 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/app-config.js")"; then
+              edge_config="$candidate"
+              break
+            fi
+            test "$attempt" -lt 3 && sleep 2
+          done
+          test -n "$edge_config" || { echo "P0-F-B1 edge app-config unavailable" >&2; exit 1; }
+          edge_index_tmp="$(mktemp)"
+          curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/" -o "$edge_index_tmp"
+          grep -q 'dashboard-initial-data-gate-p4' "$edge_index_tmp"
+          grep -q 'auth.dashboardDataReady' "$edge_index_tmp"
+          grep -q 'critical-login-runtime-p4' "$edge_index_tmp"
+          grep -q 'dashboard-data-recovery-p5' "$edge_index_tmp"
+          grep -q 'recoveryState.reset("login-dashboard-bootstrap")' "$edge_index_tmp"
+          grep -q 'rotationRetry=/SESSION_TOKEN_ROTATED_RETRY' "$edge_index_tmp"
+          grep -q 'function syncAuthPayloadCrit' "$edge_index_tmp"
+          grep -q 'function resetActionAuthCrit' "$edge_index_tmp"
+          grep -q 'nextSessionToken' "$edge_index_tmp"
+          grep -q 'nextCsrfToken' "$edge_index_tmp"
+          grep -q 'app-production-measurement-gate-current' "$edge_index_tmp"
+          grep -q 'RUN_PERFORMANCE_BASELINE' "$edge_index_tmp"
+          grep -q 'm10-dependency-performance-baseline-r330' "$edge_index_tmp"
+          grep -q '__APP_SINGLE_EVENT_DELEGATION__' "$edge_index_tmp"
+          grep -q '__APP_SINGLE_CHANGE_DELEGATION__' "$edge_index_tmp"
+          grep -q 'data-mobile-nav-owner' "$edge_index_tmp"
+          grep -q '__APP_SIDEBAR_NAV_CLICK_OWNER__' "$edge_index_tmp"
+          grep -q 'AppPrint.printWithProfile' "$edge_index_tmp"
+          grep -q 'APP_CLOUD_RUN_TRANSPORT_REQUIRED' "$edge_index_tmp"
+          if grep -q 'google.script.run' "$edge_index_tmp"; then echo "P12 edge failed: retired browser GAS fallback returned" >&2; exit 1; fi
+          if grep -q 'AppTransport.run=root2.AppTransport.run||' "$edge_index_tmp"; then echo "P12 edge failed: duplicate AppTransport fallback owner returned" >&2; exit 1; fi
+          if grep -q 'app-login-dashboard-autostart-current' "$edge_index_tmp"; then echo "P4 edge failed: duplicate Dashboard autostart owner is still public" >&2; exit 1; fi
+          printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
+          if printf '%s' "$edge_config" | grep -q '\.run\.app'; then
+            echo "P0-F-B1 failed: public browser config exposes run.app" >&2
+            exit 1
+          fi
+
+          edge_meeting_tmp="$(mktemp)"
+          edge_meeting_ok=false
+          for attempt in 1 2 3 4 5; do
+            if curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/meeting-controller.html" -o "$edge_meeting_tmp" \
+              && grep -q 'window.initMeetingPage' "$edge_meeting_tmp" \
+              && grep -q 'AppPages.register("meeting"' "$edge_meeting_tmp"; then
+              edge_meeting_ok=true
+              break
+            fi
+            test "$attempt" -lt 5 && sleep 3
+          done
+          test "$edge_meeting_ok" = "true" || { echo "P0-F-B1 Meeting controller unavailable or invalid at edge" >&2; exit 1; }
+
+          echo "### P0-F-B1 Cloudflare Edge" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Status: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Public URL: $edge_origin" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workers → Cloud Run source SHA: $GITHUB_SHA (MATCH)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Cloud Run revision attestation: PRESENT" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Browser → Cloudflare → Cloud Run → GAS Direct JSON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P4 Dashboard bootstrap source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P5 Dashboard recovery single-owner source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P6 rotated-session write stability source at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P9 production measurement owner at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P9 performance baseline remains explicit/manual: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P10 canonical action/mobile/print owners at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- P12 direct-only frontend cleanup at public edge: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preview URLs: disabled" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove CR-8 canary
+        if: always()
+        run: |
+          gcloud run services delete "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --quiet || true
