@@ -1019,7 +1019,7 @@ ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   assert.ok(index.includes('router-meeting-canonical-recovery'));
   assert.ok(index.includes('var adapter=ensureCanonicalPageControllerCurrent(id)'));
   assert.ok(index.includes('force:id==="meeting"'));
-  assert.ok(index.includes('reload:id==="meeting"?!1:void 0'));
+  assert.ok(index.includes('reload:id==="meeting"?!1:forceDomReload?!0:void 0'),'Meeting must preserve mount-only recovery while data pages may request a reload');
   assert.ok(index.includes('meetingPageInitialized==="1"'));
   assert.ok(index.includes('result===!1&&id==="meeting"&&!isPageOperational(id)?repairMeetingCanonicalMountCurrent(id,generation)'));
   const bridgeStart=index.indexOf('function ensureCanonicalPageControllerCurrent(id)');
