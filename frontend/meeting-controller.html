@@ -7038,13 +7038,21 @@
 </script>
 <script id="meeting-page-adapter-owner-p3" data-app-fragment="meeting">
   (function (w, d) {
+    var existingMeetingAdapter =
+      w.AppPages && __appIsFn(w.AppPages.get)
+        ? w.AppPages.get("meeting")
+        : null;
+    if (!w.AppPages || !__appIsFn(w.AppPages.register)) return;
     if (
-      w.__meetingAppPageAdapterReady ||
-      !w.AppPages ||
-      !__appIsFn(w.AppPages.register)
+      w.__meetingAppPageAdapterReady &&
+      existingMeetingAdapter &&
+      existingMeetingAdapter.__canonicalLifecycle &&
+      __appIsFn(existingMeetingAdapter.mount) &&
+      __appIsFn(existingMeetingAdapter.reload) &&
+      __appIsFn(existingMeetingAdapter.dispose)
     )
       return;
-    w.__meetingAppPageAdapterReady = 1;
+    w.__meetingAppPageAdapterReady = 0;
     var fn = function (n) {
         return w[n];
       },
@@ -7164,6 +7172,7 @@
         },
       };
     w.AppPages.register("meeting", mod);
+    w.__meetingAppPageAdapterReady = 1;
     __appIsFn(w.AppPages.expose) &&
       w.AppPages.expose("meeting", mod, {
         globals: {

@@ -59,6 +59,24 @@ ok('critical application surfaces remain present',()=>{
   for(const marker of ['ลำดับเรื่อง','จัดการเรื่องพิจารณา','ประวัติการประชุม','หนังสือติดตามมติ'])assert.ok(index.includes(marker),'missing UI marker '+marker);
 });
 
+ok('R355 page controller cache rehydrates every routed controller',()=>{
+  assert.ok(index.includes('function invalidatePageControllerCurrent(id)'),'generic routed-controller invalidation owner missing');
+  assert.ok(index.includes('var controllerRequired=id!=="login",controllerReady=!controllerRequired||pageControllerReadyCurrent(id)'),'route cache must verify controller readiness for every page');
+  assert.ok(index.includes('invalidatePageControllerCurrent(id)'),'stale prepared routes must invalidate their page controller assets');
+});
+
+ok('R355 data pages force lifecycle reload after Vue DOM recreation',()=>{
+  assert.ok(index.includes('var forceDomReload=/^(track|people|admin|budget)$/.test(id)'),'data-page remount set missing');
+  assert.ok(index.includes('force:id==="meeting"||forceDomReload'),'data pages must force lifecycle activation after remount');
+  assert.ok(index.includes('reload:id==="meeting"?!1:forceDomReload?!0:void 0'),'Track People Admin Budget must reload data-bound state after DOM recreation');
+});
+
+ok('R355 Meeting adapter can re-register after lifecycle registry reset',()=>{
+  assert.ok(meetingController.includes('var existingMeetingAdapter ='),'Meeting adapter readiness must inspect the current AppPages registry');
+  assert.ok(meetingController.includes('w.__meetingAppPageAdapterReady = 0;'),'stale Meeting ready flag must not block re-registration');
+  assert.ok(meetingController.includes('w.AppPages.register("meeting", mod);\n    w.__meetingAppPageAdapterReady = 1;'),'Meeting ready flag must be committed only after registration');
+});
+
 ok('CR-5 mobile Meeting protections remain',()=>{
   assert.ok(index.includes('id="app-mobile-compact-cr5"'));
   assert.ok(index.includes('route.meeting.bootstrap-background:'));
@@ -1001,7 +1019,7 @@ ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   assert.ok(index.includes('router-meeting-canonical-recovery'));
   assert.ok(index.includes('var adapter=ensureCanonicalPageControllerCurrent(id)'));
   assert.ok(index.includes('force:id==="meeting"'));
-  assert.ok(index.includes('reload:id==="meeting"?!1:void 0'));
+  assert.ok(index.includes('reload:id==="meeting"?!1:forceDomReload?!0:void 0'),'Meeting must preserve mount-only recovery while data pages may request a reload');
   assert.ok(index.includes('meetingPageInitialized==="1"'));
   assert.ok(index.includes('result===!1&&id==="meeting"&&!isPageOperational(id)?repairMeetingCanonicalMountCurrent(id,generation)'));
   const bridgeStart=index.indexOf('function ensureCanonicalPageControllerCurrent(id)');
