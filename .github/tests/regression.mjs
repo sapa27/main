@@ -1475,4 +1475,22 @@ ok('Meeting failed initialization remains retryable and remount initializes new 
   assert.notEqual(page.dataset.meetingPageInitialized,'1');
 });
 
+ok('Meeting status selection and edit round-trip use canonical option values',()=>{
+  const select=index.match(/<select\b[^>]*id="meeting-status"[^>]*>([\s\S]*?)<\/select>/)[1];
+  const options=[...select.matchAll(/<option(?:\s+value="([^"]*)")?>([^<]*)<\/option>/g)].map(m=>({value:m[1]??m[2],label:m[2]}));
+  const start=meetingController.indexOf('function normalizeMeetingStatusValue(status)');
+  const end=meetingController.indexOf('function showMeetingStatusField',start);
+  const ctx={meetingText:v=>String(v??'')};
+  vm.runInNewContext(meetingController.slice(start,end),ctx);
+  for(const option of options){
+    const normalized=ctx.normalizeMeetingStatusValue(option.value);
+    assert.ok(options.some(o=>o.value===normalized),'selection cleared by normalization: '+option.label);
+    assert.equal(normalized,option.value,'option must already use canonical API value');
+  }
+  for(const saved of ['กมธ.พิจารณา','กมธ. พิจารณา','คณะกรรมาธิการพิจารณา']){
+    assert.ok(options.some(o=>o.value===ctx.normalizeMeetingStatusValue(saved)),'edit must select saved committee status');
+  }
+  assert.equal(options.find(o=>o.value==='กมธ. พิจารณา').label,'กมธ.พิจารณา','preserve displayed label');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
