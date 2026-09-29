@@ -1,0 +1,18 @@
+# GitHub Repository Variables (Settings -> Secrets and variables -> Actions -> Variables)
+GAS_WEB_APP_URL=https://script.google.com/macros/s/AKfycbw3o5OzTcls7MUpE0dQY5g6WCL7GHP8sO4UPZYYX-3tw5fSc25AYkCvnBLBb7DnyXug/exec
+ANTI_GAS_WEB_APP_URL=<existing anti-public GAS /exec URL if enabled>
+GCP_PROJECT_ID=sapa27
+GCP_REGION=asia-southeast3
+CLOUD_RUN_SERVICE=sapa27-gateway
+GCP_WIF_PROVIDER=<current workload identity provider resource>
+GCP_SERVICE_ACCOUNT=<current github cloud run deployer service account>
+CLOUD_RUN_ORIGIN=<current sapa27-gateway run.app origin>
+PUBLIC_APP_ORIGIN=https://sapa27.anti27.workers.dev
+CF_WORKER_NAME=sapa27
+CF_WORKERS_SUBDOMAIN=anti27
+CLOUDFLARE_ACCOUNT_ID=<current Cloudflare account id>
+
+# GitHub Secrets (do not commit their values)
+# CLOUDFLARE_API_TOKEN
+# E2E_SMOKE_USERNAME
+# E2E_SMOKE_PASSWORD

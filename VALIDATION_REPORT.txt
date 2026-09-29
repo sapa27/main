@@ -1,0 +1,37 @@
+SAPA27 GitHub Full Replacement - Validation Report
+Date: 2026-09-29
+Source baseline: sapa27/main @ 3193b713118bd176c8f7c7c59182ccb45631d65c
+R355 lifecycle merge: 0d53c7cdfbdab3208637b6b06af14e936796a880
+
+SOURCE VALIDATION
+- Existing GitHub production frontend regression: PASS 63/63 groups
+- Cloud Run gateway syntax: PASS
+- Cloud Run gateway unit tests: PASS 17/17
+
+CLEAN REPLACEMENT VALIDATION
+- Clean replacement frontend regression: PASS 63/63 groups
+- Cloud Run gateway syntax: PASS
+- Cloud Run gateway unit tests: PASS 17/17
+- GitHub Actions YAML parse: PASS
+- Frontend forbidden-helper/secret scan: PASS
+  * no isFnLocal
+  * no appCsrf
+  * no script.google.com/macros/s/ endpoint
+  * no OPENAI_API_KEY
+- Primary deployed GAS endpoint hard-code in workflow: NONE
+- Canonical GAS upstream owner: GitHub Repository Variable GAS_WEB_APP_URL
+- Production workflow owner count: 1 (.github/workflows/cloud-run-gateway.yml)
+
+INTENTIONALLY REMOVED FROM REPLACEMENT
+- frontend-v2
+- separate v2-canary workflow
+- separate v2-cloud-run-canary workflow
+- separate v2-promote-production workflow
+- frontend-validation duplicate workflow
+- migrate-gas-upstream one-time workflow
+- v2 regression suite tied to retired workflow owners
+- GitHub Pages browser-to-GAS runtime/fallback
+
+NOT CLAIMED
+- This ZIP has not itself been deployed to the live Cloud Run service.
+- Live authenticated E2E must be run by the production workflow after upload and validation.

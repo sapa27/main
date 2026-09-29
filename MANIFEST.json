@@ -1,0 +1,29 @@
+{
+  "package": "sapa27-github-full-replacement",
+  "date": "2026-09-29",
+  "sourceBaselineSha": "3193b713118bd176c8f7c7c59182ccb45631d65c",
+  "r355MergeSha": "0d53c7cdfbdab3208637b6b06af14e936796a880",
+  "architecture": "Cloudflare Workers -> Cloud Run -> GAS direct JSON",
+  "gasResponseContract": "gas-direct-json-v1",
+  "gasWebAppVariable": "GAS_WEB_APP_URL",
+  "productionGasWebAppUrl": "https://script.google.com/macros/s/AKfycbw3o5OzTcls7MUpE0dQY5g6WCL7GHP8sO4UPZYYX-3tw5fSc25AYkCvnBLBb7DnyXug/exec",
+  "singleProductionWorkflow": ".github/workflows/cloud-run-gateway.yml",
+  "removedFromReplacement": [
+    "frontend-v2",
+    ".github/workflows/v2-canary.yml",
+    ".github/workflows/v2-cloud-run-canary.yml",
+    ".github/workflows/v2-promote-production.yml",
+    ".github/workflows/frontend-validation.yml",
+    ".github/workflows/migrate-gas-upstream.yml",
+    ".github/tests/v2-regression.mjs",
+    "github-pages browser-to-GAS runtime"
+  ],
+  "preserved": [
+    "frontend UI/UX",
+    "gas-direct-json-v1 transport",
+    "Cloud Run gateway",
+    "Cloudflare edge gate",
+    "authenticated production smoke",
+    "Meeting R355 lifecycle fix"
+  ]
+}
