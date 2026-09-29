@@ -103,7 +103,7 @@ ok('browser transport is same-origin and edge-ready',()=>{
   assert.ok(transport.includes('cache:"no-store"'));
   assert.ok(transport.includes('e.requestId=requestId'),'transport errors must carry the gateway request id');
   assert.ok(transport.includes('resultState:"response"'),'transport must record response trace before validating the envelope');
-  for(const state of ['bad-json','http-error','contract-error','gas-error','fetch-error'])assert.ok(transport.includes('resultState="'+state+'"')||transport.includes('resultState:"'+state+'"'),'missing failure trace state '+state);
+  for(const state of ['bad-json','http-error','contract-error','gas-error','fetch-error'])assert.match(transport,new RegExp('resultState\\s*[=:]\\s*"'+state+'"'),'missing failure trace state '+state);
   assert.ok(transport.includes('getLastRpcTrace'),'transport trace getter must remain available');
   assert.ok(!transport.includes('parentOrigin'));
   assert.ok(!transport.includes('rpcToken'));
@@ -1463,6 +1463,30 @@ ok('login form events and rebinding cannot unlock an outstanding login',()=>{
     assert.equal(trace.httpStatus,503);
     assert.equal(trace.errorCode,'GAS_UPSTREAM_TIMEOUT');
     assert.equal('payload' in trace,false);
+  });
+  for (const status of [502, 504]) {
+    let requests = 0;
+    w.fetch = async () => {
+      requests++;
+      return {ok:false,status,headers:{get:()=>null},text:async()=>'<html>private upstream details</html>'};
+    };
+    await assert.rejects(w.AppTransport.run('apiLogin',{}),e=>
+      e.code === 'CLOUD_RUN_HTTP_' + status && e.httpStatus === status &&
+      !e.message.includes('private upstream details'));
+    ok('HTML gateway ' + status + ' retains HTTP failure without retry or response leakage',()=>{
+      const trace = w.AppTransport.getLastRpcTrace();
+      assert.equal(trace.resultState,'http-error');
+      assert.equal(trace.httpStatus,status);
+      assert.equal(trace.errorCode,'CLOUD_RUN_HTTP_' + status);
+      assert.equal(requests,1);
+      assert.equal(w.AppTransport.getClientCacheStats().inflight,0);
+      assert.ok(!JSON.stringify(events).includes('private upstream details'));
+    });
+  }
+  w.fetch = async () => ({ok:true,status:200,headers:{get:()=>null},text:async()=>'<html>invalid success</html>'});
+  await assert.rejects(w.AppTransport.run('apiSessionCheck',{}),e=>e.code==='CLOUD_RUN_BAD_JSON');
+  ok('successful HTTP responses still require valid JSON',()=>{
+    assert.equal(w.AppTransport.getLastRpcTrace().resultState,'bad-json');
   });
   let calls=0;
   w.fetch=async()=>({ok:++calls>1,json:async()=>({ok:calls>1})});

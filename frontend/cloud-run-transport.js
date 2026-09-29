@@ -28,7 +28,16 @@ contract=t(r.headers&&r.headers.get&&r.headers.get("X-GAS-Response-Contract"));
 gatewayDurationMs=Number(r.headers&&r.headers.get&&r.headers.get("X-Gateway-Duration-Ms"))||0;
 LAST_TRACE={orig:I.method,wireMethod:G.wire,routedThroughApiRouter:G.routed,resultState:"response",transport:"cloud-run",write:write,ai:ai,clientDurationMs:Date.now()-st,responseContract:contract,requestId:requestId,gatewayDurationMs:gatewayDurationMs,httpStatus:httpStatus};
 var raw=await r.text(),x;
-try{x=JSON.parse(raw)}catch(_){resultState="bad-json";throw err("Cloud Run JSON invalid","CLOUD_RUN_BAD_JSON")}
+try {
+  x = JSON.parse(raw);
+} catch (_) {
+  if (!r.ok) {
+    resultState = "http-error";
+    throw err("Cloud Run HTTP " + httpStatus, "CLOUD_RUN_HTTP_" + httpStatus);
+  }
+  resultState = "bad-json";
+  throw err("Cloud Run JSON invalid", "CLOUD_RUN_BAD_JSON");
+}
 requestId=requestId||safeRequestId(x&&(x.requestId||x.traceId));
 if(!r.ok){resultState="http-error";var ge=x&&x.error||{};throw err(ge.message||"Cloud Run HTTP "+r.status,ge.code||"CLOUD_RUN_HTTP_"+r.status)}
 if(contract!=="gas-direct-json-v1"){resultState="contract-error";throw err("GAS response contract mismatch","GAS_RESPONSE_CONTRACT_MISMATCH")}
