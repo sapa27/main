@@ -1,5 +1,5 @@
 # GitHub Repository Variables (Settings -> Secrets and variables -> Actions -> Variables)
-GAS_WEB_APP_URL=https://script.google.com/macros/s/AKfycbw3o5OzTcls7MUpE0dQY5g6WCL7GHP8sO4UPZYYX-3tw5fSc25AYkCvnBLBb7DnyXug/exec
+GAS_WEB_APP_URL=https://script.google.com/macros/s/AKfycbwscDjSmT-hPDaY5SYJe2A8D0UoSgJjIbsH5oEyy-H4E_BN1qgVyfWwZNio3lQyxFgC/exec
 ANTI_GAS_WEB_APP_URL=<existing anti-public GAS /exec URL if enabled>
 GCP_PROJECT_ID=sapa27
 GCP_REGION=asia-southeast3

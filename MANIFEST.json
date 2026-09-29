@@ -6,7 +6,7 @@
   "architecture": "Cloudflare Workers -> Cloud Run -> GAS direct JSON",
   "gasResponseContract": "gas-direct-json-v1",
   "gasWebAppVariable": "GAS_WEB_APP_URL",
-  "productionGasWebAppUrl": "https://script.google.com/macros/s/AKfycbw3o5OzTcls7MUpE0dQY5g6WCL7GHP8sO4UPZYYX-3tw5fSc25AYkCvnBLBb7DnyXug/exec",
+  "productionGasWebAppUrl": "https://script.google.com/macros/s/AKfycbwscDjSmT-hPDaY5SYJe2A8D0UoSgJjIbsH5oEyy-H4E_BN1qgVyfWwZNio3lQyxFgC/exec",
   "singleProductionWorkflow": ".github/workflows/cloud-run-gateway.yml",
   "removedFromReplacement": [
     "frontend-v2",
