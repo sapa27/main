@@ -96,6 +96,53 @@ jobs:
           for name in PROJECT_ID REGION SERVICE CANARY_SERVICE WIF_PROVIDER DEPLOY_SERVICE_ACCOUNT GAS_WEB_APP_URL ANTI_GAS_WEB_APP_URL CLOUD_RUN_ORIGIN ANTI_PUBLIC_ORIGIN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_TOKEN CF_WORKER_NAME CF_WORKERS_SUBDOMAIN; do
             test -n "${!name:-}" || { echo "Missing required production gate variable: $name" >&2; exit 1; }
           done
+      - name: Diagnose GAS primary and candidate endpoints
+        run: |
+          set -euo pipefail
+          probe_gas() {
+            local label="$1" url="$2" body_file http_code
+            body_file="$(mktemp)"
+            http_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+              -o "$body_file" -w '%{http_code}' \
+              -H 'Content-Type: application/json;charset=UTF-8' \
+              -H 'Accept: application/json' \
+              --data '{"method":"apiSessionCheck","payload":{}}' \
+              "$url" || true)"
+            if [ "$http_code" != "200" ]; then
+              echo "$label GAS probe HTTP $http_code"
+              return 1
+            fi
+            if PROBE_BODY="$body_file" node <<'NODE'
+          const fs=require('fs');
+          let x;
+          try{x=JSON.parse(fs.readFileSync(process.env.PROBE_BODY,'utf8'))}catch(_){process.exit(1)}
+          if(!x||typeof x!=='object'||Array.isArray(x)||x.transportOk!==true||!Object.prototype.hasOwnProperty.call(x,'result'))process.exit(1);
+          NODE
+            then
+              echo "$label GAS probe canonical direct JSON PASS"
+              return 0
+            fi
+            echo "$label GAS probe canonical direct JSON FAIL"
+            return 1
+          }
+
+          primary_ok=false
+          candidate_ok=false
+          probe_gas "primary" "$GAS_WEB_APP_URL" && primary_ok=true
+          probe_gas "candidate" "$GAS_CANDIDATE_WEB_APP_URL" && candidate_ok=true
+
+          echo "### GAS Endpoint Preflight" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Primary canonical probe: $primary_ok" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Candidate canonical probe: $candidate_ok" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$primary_ok" != "true" ]; then
+            if [ "$candidate_ok" = "true" ]; then
+              echo "Primary GAS endpoint failed while candidate passed; explicit endpoint promotion is required before deployment." >&2
+            else
+              echo "Primary and candidate GAS endpoints both failed canonical direct JSON preflight." >&2
+            fi
+            exit 1
+          fi
       - name: Resolve P0-F-B1 workers.dev origin
         run: |
           set -euo pipefail
