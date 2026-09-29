@@ -600,7 +600,8 @@ ok('P11 production deployment quality gate fails closed',()=>{
   assert.ok(workflow.includes('Post-delete force-fresh search verification: PASS'),'P8 delete verification summary missing');
   assert.ok(workflow.includes('Logout → Login → Save → Delete cleanup: PASS'),'P8 re-login write regression summary missing');
   assert.ok(workflow.includes('Temporary test records remaining: 0'),'P8 cleanup invariant summary missing');
-  const p8NodeStart=workflow.indexOf("E2E_SMOKE_PASSWORD=\"$E2E_SMOKE_PASSWORD\" \\\n              GITHUB_RUN_ID=\"$GITHUB_RUN_ID\" \\\n              GITHUB_RUN_ATTEMPT=\"$GITHUB_RUN_ATTEMPT\" node <<'NODE'");
+  const p8NodeMarker="GITHUB_RUN_ATTEMPT=\"$GITHUB_RUN_ATTEMPT\" node <<'NODE'";
+  const p8NodeStart=workflow.indexOf(p8NodeMarker);
   assert.ok(p8NodeStart>=0,'P8 live write Node heredoc missing');
   const p8ScriptStart=workflow.indexOf("\n",p8NodeStart)+1;
   const p8ScriptEnd=workflow.indexOf("\n          NODE",p8ScriptStart);
