@@ -1048,54 +1048,59 @@ jobs:
             }
           }
 
-          let failure=null;
-          try{
-            await login();
+          (async()=>{
+            let failure=null;
+            try{
+              await login();
 
-            const first=makeCase(1);
-            created.push(first);
-            for(let i=1;i<=4;i++){
-              first.remark='P8 live write smoke iteration '+i;
-              const saved=await business('apiSaveCase',()=>({...first}),1);
-              if(i===1){
-                first.caseId=await resolveCaseId(first,saved);
-                first.id=first.caseId;
+              const first=makeCase(1);
+              created.push(first);
+              for(let i=1;i<=4;i++){
+                first.remark='P8 live write smoke iteration '+i;
+                const saved=await business('apiSaveCase',()=>({...first}),1);
+                if(i===1){
+                  first.caseId=await resolveCaseId(first,saved);
+                  first.id=first.caseId;
+                }
               }
+              await deleteCase(first.caseId);
+              await verifyDeleted(first);
+              created.splice(created.indexOf(first),1);
+
+              await logout();
+              await login();
+
+              const second=makeCase(2);
+              created.push(second);
+              const secondSaved=await business('apiSaveCase',()=>({...second}),1);
+              second.caseId=await resolveCaseId(second,secondSaved);
+              second.id=second.caseId;
+              await deleteCase(second.caseId);
+              await verifyDeleted(second);
+              created.splice(created.indexOf(second),1);
+
+              await logout();
+            }catch(e){
+              failure=e;
             }
-            await deleteCase(first.caseId);
-            await verifyDeleted(first);
-            created.splice(created.indexOf(first),1);
 
-            await logout();
-            await login();
+            let cleanupOk=true;
+            for(const meta of [...created]){
+              if(!(await cleanupMeta(meta))) cleanupOk=false;
+            }
+            try{await logout()}catch(_){}
 
-            const second=makeCase(2);
-            created.push(second);
-            const secondSaved=await business('apiSaveCase',()=>({...second}),1);
-            second.caseId=await resolveCaseId(second,secondSaved);
-            second.id=second.caseId;
-            await deleteCase(second.caseId);
-            await verifyDeleted(second);
-            created.splice(created.indexOf(second),1);
-
-            await logout();
-          }catch(e){
-            failure=e;
-          }
-
-          let cleanupOk=true;
-          for(const meta of [...created]){
-            if(!(await cleanupMeta(meta))) cleanupOk=false;
-          }
-          try{await logout()}catch(_){}
-
-          if(!cleanupOk){
-            const err=new Error('P8_WRITE_CLEANUP_FAILED');
-            err.cause=failure||undefined;
-            throw err;
-          }
-          if(failure) throw failure;
-          console.log('P8 live write/delete smoke PASS');
+            if(!cleanupOk){
+              const err=new Error('P8_WRITE_CLEANUP_FAILED');
+              err.cause=failure||undefined;
+              throw err;
+            }
+            if(failure) throw failure;
+            console.log('P8 live write/delete smoke PASS');
+          })().catch(e=>{
+            console.error('P8 live write/delete smoke failed code='+(e?.code||e?.message||'P8_WRITE_GATE_FAILED'));
+            process.exit(1);
+          });
           NODE
 
             echo "### P8 Live Write/Delete Gate" >> "$GITHUB_STEP_SUMMARY"
