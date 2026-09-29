@@ -591,6 +591,18 @@ ok('P11 production deployment quality gate fails closed',()=>{
   assert.ok(!workflow.includes("github.event_name == 'pull_request' && inputs.deploy"),'pull requests must never enter the deploy path');
   assert.ok(workflow.includes('### P11 Production Deployment Quality Gate'),'P11 production summary missing');
   assert.ok(workflow.includes('Login → session → Dashboard → P7 reads: PASS'),'P11 authenticated chain summary missing');
+  assert.ok(workflow.includes('### P8 Live Write/Delete Gate'),'P8 live write/delete production gate missing');
+  assert.ok(workflow.includes('for(let i=1;i<=4;i++)'),'P8 must execute four sequential case saves to reproduce the reported 2-3 write failure window');
+  assert.ok(workflow.includes("business('apiSaveCase'"),'P8 live apiSaveCase path missing');
+  assert.ok(workflow.includes("rpc('apiIssueActionToken'"),'P8 strict delete action-token issuance missing');
+  assert.ok(workflow.includes("rpc('apiDeleteCase'"),'P8 live apiDeleteCase path missing');
+  assert.ok(workflow.includes("code==='SESSION_TOKEN_ROTATED_RETRY'"),'P8 live write gate must preserve bounded session-rotation retry');
+  assert.ok(workflow.includes('Post-delete force-fresh search verification: PASS'),'P8 delete verification summary missing');
+  assert.ok(workflow.includes('Logout → Login → Save → Delete cleanup: PASS'),'P8 re-login write regression summary missing');
+  assert.ok(workflow.includes('Temporary test records remaining: 0'),'P8 cleanup invariant summary missing');
+  assert.ok(!workflow.includes('console.log(password)'),'P8 write gate must never log password');
+  assert.ok(!workflow.includes('console.log(token)'),'P8 write gate must never log session token');
+  assert.ok(!workflow.includes('console.log(csrf)'),'P8 write gate must never log CSRF token');
   assert.ok(!workflow.includes('echo "$E2E_SMOKE_PASSWORD"'),'password must never be echoed');
   assert.ok(!workflow.includes('cat "$auth_dir/login.body.json"'),'login response/token must never be printed');
 });
