@@ -803,6 +803,309 @@ jobs:
             echo "- Budget summary read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Public edge → Cloud Run → GAS read contract: PASS" >> "$GITHUB_STEP_SUMMARY"
 
+            P8_EDGE_ORIGIN="$edge_origin" \
+              E2E_SMOKE_USERNAME="$E2E_SMOKE_USERNAME" \
+              E2E_SMOKE_PASSWORD="$E2E_SMOKE_PASSWORD" \
+              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" node <<'NODE'
+          const edge=String(process.env.P8_EDGE_ORIGIN||'').replace(/\/+$/,'');
+          const username=String(process.env.E2E_SMOKE_USERNAME||'');
+          const password=String(process.env.E2E_SMOKE_PASSWORD||'');
+          const runId=String(process.env.GITHUB_RUN_ID||Date.now());
+          const runAttempt=String(process.env.GITHUB_RUN_ATTEMPT||'1');
+          if(!edge||!username||!password) throw new Error('P8_WRITE_GATE_CONFIG_MISSING');
+
+          const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          const seenObjects=root=>{
+            const out=[],seen=new Set(),queue=[root];
+            while(queue.length&&out.length<256){
+              const v=queue.shift();
+              if(!v||typeof v!=='object'||seen.has(v)) continue;
+              seen.add(v);out.push(v);
+              if(Array.isArray(v)){for(const x of v)queue.push(x);continue}
+              for(const x of Object.values(v)) if(x&&typeof x==='object')queue.push(x);
+            }
+            return out;
+          };
+          const firstField=(root,names)=>{
+            for(const o of seenObjects(root)){
+              if(Array.isArray(o)) continue;
+              for(const n of names){
+                const v=o[n];
+                if(v!==undefined&&v!==null&&String(v).trim()) return String(v).trim();
+              }
+            }
+            return '';
+          };
+          const failureCode=root=>{
+            for(const o of seenObjects(root)){
+              if(Array.isArray(o)||o.ok!==false) continue;
+              return String(o.errorCode||o.code||o.error?.code||o.error||o.message||o.msg||'API_REQUEST_FAILED');
+            }
+            return '';
+          };
+          const rowsOf=root=>{
+            for(const o of seenObjects(root)){
+              if(Array.isArray(o)) return o;
+              if(Array.isArray(o?.rows)) return o.rows;
+              if(Array.isArray(o?.items)) return o.items;
+              if(Array.isArray(o?.records)) return o.records;
+            }
+            return [];
+          };
+          let token='',csrf='',loggedIn=false;
+          const updateAuth=root=>{
+            const nextToken=firstField(root,['nextSessionToken','nextToken','sessionToken','token']);
+            const nextCsrf=firstField(root,['nextCsrfToken','csrfToken','csrf']);
+            if(nextToken) token=nextToken;
+            if(nextCsrf) csrf=nextCsrf;
+          };
+          const authPayload=(csrfValue=csrf)=>({
+            token,sessionToken:token,_token:token,authToken:token,
+            csrfToken:csrfValue,csrf:csrfValue,_csrf:csrfValue
+          });
+          async function post(method,payload,timeoutMs=120000){
+            const ac=new AbortController();
+            const timer=setTimeout(()=>ac.abort(),timeoutMs);
+            let res;
+            try{
+              res=await fetch(edge+'/api/router',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Origin':edge},
+                body:JSON.stringify({method,payload,timeoutMs}),
+                signal:ac.signal
+              });
+            }catch(e){
+              const err=new Error(e?.name==='AbortError'?'P8_EDGE_TIMEOUT':'P8_EDGE_FETCH_FAILED');
+              err.code=err.message;throw err;
+            }finally{clearTimeout(timer)}
+            const requestId=String(res.headers.get('x-request-id')||'');
+            if(!res.ok){
+              const err=new Error('P8_EDGE_HTTP_'+res.status);err.code=err.message;err.requestId=requestId;throw err;
+            }
+            let body;
+            try{body=await res.json()}catch(_){
+              const err=new Error('P8_EDGE_JSON_INVALID');err.code=err.message;err.requestId=requestId;throw err;
+            }
+            if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')){
+              const err=new Error(String(body?.error?.code||'P8_GAS_TRANSPORT_FAILED'));
+              err.code=err.message;err.requestId=requestId;throw err;
+            }
+            return {body,result:body.result,requestId};
+          }
+          async function direct(method,payload,timeoutMs){return post(method,payload,timeoutMs)}
+          async function rpc(method,payload,timeoutMs=120000){
+            return post('apiRouter',{method,payload},timeoutMs);
+          }
+          const ensureSuccess=(response,label)=>{
+            updateAuth(response.result);
+            const code=failureCode(response.result);
+            if(code){
+              const err=new Error(label+':'+code);err.code=code;err.requestId=response.requestId;throw err;
+            }
+            return response;
+          };
+          async function login(){
+            const response=ensureSuccess(await direct('apiLogin',{
+              username,email:username,password,
+              clientContext:{source:'github-actions-p8-live-write',headless:true}
+            },60000),'apiLogin');
+            updateAuth(response.result);
+            if(!token) throw new Error('P8_LOGIN_TOKEN_MISSING');
+            loggedIn=true;
+            return response;
+          }
+          async function logout(){
+            if(!loggedIn||!token) return;
+            try{await direct('apiLogout',{...authPayload(),clientContext:{source:'github-actions-p8-live-write',headless:true}},45000)}finally{
+              loggedIn=false;token='';csrf='';
+            }
+          }
+          async function business(method,buildPayload,maxRotation=1){
+            for(let attempt=0;attempt<=maxRotation;attempt++){
+              const response=await rpc(method,{
+                ...buildPayload(),
+                ...authPayload(),
+                actionMethod:method,
+                clientContext:{source:'github-actions-p8-live-write',headless:true}
+              });
+              updateAuth(response.result);
+              const code=failureCode(response.result);
+              if(code==='SESSION_TOKEN_ROTATED_RETRY'&&attempt<maxRotation) continue;
+              if(code){
+                const err=new Error(method+':'+code);err.code=code;err.requestId=response.requestId;throw err;
+              }
+              return response;
+            }
+            throw new Error(method+':P8_ROTATION_RETRY_EXHAUSTED');
+          }
+          async function issueDeleteActionToken(){
+            for(let attempt=0;attempt<2;attempt++){
+              const response=await rpc('apiIssueActionToken',{
+                token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf,
+                action:'apiDeleteCase',method:'apiDeleteCase',
+                clientContext:{source:'github-actions-p8-live-write',headless:true}
+              },60000);
+              updateAuth(response.result);
+              const code=failureCode(response.result);
+              if(code==='SESSION_TOKEN_ROTATED_RETRY'&&attempt===0) continue;
+              if(code){
+                const err=new Error('apiIssueActionToken:'+code);err.code=code;err.requestId=response.requestId;throw err;
+              }
+              const actionToken=firstField(response.result,['actionToken','csrfActionToken'])||
+                firstField(response.result,['csrfToken']);
+              if(!actionToken) throw new Error('P8_ACTION_TOKEN_MISSING');
+              return actionToken;
+            }
+            throw new Error('P8_ACTION_TOKEN_ROTATION_EXHAUSTED');
+          }
+          async function deleteCase(caseId){
+            if(!caseId) throw new Error('P8_DELETE_CASE_ID_MISSING');
+            for(let attempt=0;attempt<2;attempt++){
+              const actionToken=await issueDeleteActionToken();
+              const response=await rpc('apiDeleteCase',{
+                caseId,id:caseId,
+                token,sessionToken:token,_token:token,authToken:token,
+                csrfToken:actionToken,csrf:actionToken,_csrf:actionToken,
+                actionToken,csrfActionToken:actionToken,_actionToken:actionToken,
+                actionMethod:'apiDeleteCase',
+                clientContext:{source:'github-actions-p8-live-write',headless:true}
+              },120000);
+              updateAuth(response.result);
+              const code=failureCode(response.result);
+              if(code==='SESSION_TOKEN_ROTATED_RETRY'&&attempt===0) continue;
+              if(code){
+                const err=new Error('apiDeleteCase:'+code);err.code=code;err.requestId=response.requestId;throw err;
+              }
+              return response;
+            }
+            throw new Error('P8_DELETE_ROTATION_EXHAUSTED');
+          }
+          async function searchExact(meta){
+            const response=await business('apiSearchCasesLite',()=>({
+              q:meta.title,query:meta.title,search:meta.title,page:1,limit:50,
+              compactReadModel:true,includeMeetingHistory:false,
+              forceFresh:true,noCache:true,bypassCache:true,cacheTtlSeconds:0
+            }),1);
+            return rowsOf(response.result).find(row=>{
+              const id=String(row?.caseId||row?.id||'').trim();
+              const n=String(row?.caseNum||row?.caseNo||row?.runningNo||row?.['ลำดับเรื่อง']||'').trim();
+              const title=String(row?.title||row?.caseTitle||'').trim();
+              return (meta.caseId&&id===meta.caseId)||title===meta.title||n===meta.caseNum;
+            })||null;
+          }
+          async function resolveCaseId(meta,response){
+            const directId=firstField(response.result,['caseId']);
+            if(directId) return directId;
+            for(let attempt=0;attempt<4;attempt++){
+              const row=await searchExact(meta);
+              const id=String(row?.caseId||row?.id||'').trim();
+              if(id) return id;
+              await sleep(1500);
+            }
+            throw new Error('P8_SAVED_CASE_ID_NOT_FOUND');
+          }
+          async function verifyDeleted(meta){
+            for(let attempt=0;attempt<4;attempt++){
+              const row=await searchExact(meta);
+              if(!row) return true;
+              await sleep(1500);
+            }
+            throw new Error('P8_DELETE_VERIFY_FAILED');
+          }
+          function makeCase(suffix){
+            const digits=runId.replace(/\D/g,'').slice(-6).padStart(6,'0');
+            const attempt=runAttempt.replace(/\D/g,'').slice(-2).padStart(2,'0');
+            const caseNum='98'+digits+attempt+String(suffix);
+            const title='[E2E-P8-'+runId+'-'+runAttempt+'-'+suffix+'] ทดสอบการบันทึกอัตโนมัติ';
+            const today=new Date().toISOString().slice(0,10);
+            return {
+              caseId:'',id:'',caseNum,caseNo:caseNum,runningNo:caseNum,'ลำดับเรื่อง':caseNum,
+              recNo:caseNum+'/2569',receiveNo:caseNum+'/2569','เลขรับเรื่อง':caseNum+'/2569',
+              offerDate:today,recDate:today,cat:'ทดสอบระบบ',subCat:'Production E2E',
+              title,caseTitle:title+' - พิจารณา',
+              petitioners:'GitHub Actions E2E',petitioner:'GitHub Actions E2E',
+              petitionerPhone:'',respondent:'',assignees:'',coAssignees:'',staffs:'',
+              status:'เรื่องเข้าใหม่',keySummary:'ทดสอบเส้นทางบันทึก Production',
+              pendingRemark:'',rejectionReason:'',closedReason:'',agencyName:'',
+              remark:'P8 live write smoke'
+            };
+          }
+          const created=[];
+          async function cleanupMeta(meta){
+            try{
+              if(!loggedIn||!token) await login();
+              if(!meta.caseId){
+                const row=await searchExact(meta);
+                meta.caseId=String(row?.caseId||row?.id||'').trim();
+              }
+              if(meta.caseId) await deleteCase(meta.caseId);
+              await verifyDeleted(meta);
+              return true;
+            }catch(e){
+              console.error('P8 cleanup failed code='+(e?.code||e?.message||'P8_CLEANUP_FAILED'));
+              return false;
+            }
+          }
+
+          let failure=null;
+          try{
+            await login();
+
+            const first=makeCase(1);
+            created.push(first);
+            for(let i=1;i<=4;i++){
+              first.remark='P8 live write smoke iteration '+i;
+              const saved=await business('apiSaveCase',()=>({...first}),1);
+              if(i===1){
+                first.caseId=await resolveCaseId(first,saved);
+                first.id=first.caseId;
+              }
+            }
+            await deleteCase(first.caseId);
+            await verifyDeleted(first);
+            created.splice(created.indexOf(first),1);
+
+            await logout();
+            await login();
+
+            const second=makeCase(2);
+            created.push(second);
+            const secondSaved=await business('apiSaveCase',()=>({...second}),1);
+            second.caseId=await resolveCaseId(second,secondSaved);
+            second.id=second.caseId;
+            await deleteCase(second.caseId);
+            await verifyDeleted(second);
+            created.splice(created.indexOf(second),1);
+
+            await logout();
+          }catch(e){
+            failure=e;
+          }
+
+          let cleanupOk=true;
+          for(const meta of [...created]){
+            if(!(await cleanupMeta(meta))) cleanupOk=false;
+          }
+          try{await logout()}catch(_){}
+
+          if(!cleanupOk){
+            const err=new Error('P8_WRITE_CLEANUP_FAILED');
+            err.cause=failure||undefined;
+            throw err;
+          }
+          if(failure) throw failure;
+          console.log('P8 live write/delete smoke PASS');
+          NODE
+
+            echo "### P8 Live Write/Delete Gate" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Login → 4 sequential apiSaveCase calls: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Session-token rotation retry: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- apiIssueActionToken → apiDeleteCase: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Post-delete force-fresh search verification: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Logout → Login → Save → Delete cleanup: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Temporary test records remaining: 0" >> "$GITHUB_STEP_SUMMARY"
+
             rm -rf "$auth_dir"
             echo "P2 auth smoke: PASS"
             echo "P3 login/session/Dashboard contract: PASS"
