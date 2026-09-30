@@ -135,6 +135,42 @@ test('CORS accepts same Cloud Run origin and rejects unknown origin',async()=>wi
   assert.equal(ok.headers.get('access-control-allow-origin'),ORIGIN);
 }));
 
+for (const route of ['staff', 'anti']) {
+  test(`${route} GAS deadline remains active while reading the response body`, async t => {
+    t.mock.timers.enable({apis:['setTimeout']});
+    const original = global.fetch;
+    let signal, releaseBody;
+    const envelope = route === 'staff'
+      ? {transportOk:true,result:{ok:true}}
+      : {apiVersion:'1',ok:true,data:{counts:{}}};
+    global.fetch = async (_url, options) => {
+      signal = options.signal;
+      return {ok:true,status:200,text:() => new Promise((resolve,reject) => {
+        releaseBody = () => resolve(JSON.stringify(envelope));
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted','AbortError')), {once:true});
+      })};
+    };
+    try {
+      const pending = route === 'staff'
+        ? directRpc('apiSessionCheck',{},10000,cfg(ENV))
+        : directAnti('dashboard',{},10000,cfg(ENV));
+      const outcome = pending.then(value => ({value}), error => ({error}));
+      for (let i=0;i<5;i++) await Promise.resolve();
+      assert.equal(typeof releaseBody,'function');
+      t.mock.timers.tick(10000);
+      releaseBody();
+      const {error} = await outcome;
+      assert.equal(signal.aborted,true);
+      assert.equal(error?.code,'GAS_UPSTREAM_TIMEOUT');
+      assert.equal(error?.status,504);
+    } finally {
+      releaseBody?.();
+      global.fetch = original;
+      t.mock.timers.reset();
+    }
+  });
+}
+
 test('directRpc posts JSON to GAS and preserves canonical GAS envelope',async()=>{
   const original=global.fetch;
   let call=null;
