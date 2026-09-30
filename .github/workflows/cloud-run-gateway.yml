@@ -531,12 +531,16 @@ jobs:
           echo "P0 public edge source SHA attested: $GITHUB_SHA"
 
           edge_upstream=""
-          for attempt in 1 2 3; do
-            if candidate="$(curl --max-time 75 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/upstream-health")"; then
+          edge_upstream_diag="$(mktemp)"
+          for attempt in 1 2 3 4 5; do
+            edge_http="$(curl --max-time 75 -sS -o "$edge_upstream_diag" -w '%{http_code}' "$edge_origin/upstream-health" || true)"
+            candidate="$(cat "$edge_upstream_diag" 2>/dev/null || true)"
+            echo "Edge upstream attempt $attempt HTTP $edge_http"
+            if [ "$edge_http" = "200" ]; then
               edge_upstream="$candidate"
               break
             fi
-            test "$attempt" -lt 3 && sleep 3
+            test "$attempt" -lt 5 && sleep 5
           done
           test -n "$edge_upstream" || { echo "P0-F-B1 edge upstream-health unavailable" >&2; exit 1; }
           node -e 'const u=JSON.parse(process.argv[1]);if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$edge_upstream"
