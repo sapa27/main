@@ -1,6 +1,6 @@
 'use strict';
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const NAME='sapa27-cloud-run-gateway',REV='cr8.15-p0f-network-gate',GAS_RESPONSE_CONTRACT='gas-direct-json-v1',ANTI_RESPONSE_CONTRACT='anti-public-json-v1',UPSTREAM_HEALTH_TIMEOUT_MS=30000,PUBLIC_DIR=path.join(__dirname,'public');
+const NAME='sapa27-cloud-run-gateway',REV='cr8.15-p0f-network-gate',GAS_RESPONSE_CONTRACT='gas-direct-json-v1',ANTI_RESPONSE_CONTRACT='anti-public-json-v1',UPSTREAM_HEALTH_TIMEOUT_MS=60000,PUBLIC_DIR=path.join(__dirname,'public');
 const txt=v=>v==null?'':String(v);
 function sourceSha(env=process.env){return txt(env.APP_SOURCE_SHA).trim()}
 function cfg(env=process.env){const publicOrigin=txt(env.PUBLIC_APP_ORIGIN).trim().replace(/\/+$/,''),origins=txt(env.GATEWAY_ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);if(publicOrigin&&!origins.includes(publicOrigin))origins.push(publicOrigin);return{port:+env.PORT||8080,gas:txt(env.GAS_WEB_APP_URL),antiGas:txt(env.ANTI_GAS_WEB_APP_URL),publicOrigin,origins,read:+env.GAS_READ_TIMEOUT_MS||75000,antiRead:+env.ANTI_GAS_READ_TIMEOUT_MS||45000,write:+env.GAS_WRITE_TIMEOUT_MS||120000,ai:+env.GAS_AI_TIMEOUT_MS||300000,maxBody:+env.MAX_BODY_BYTES||8388608}}

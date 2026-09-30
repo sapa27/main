@@ -638,7 +638,7 @@ ok('gateway is direct-only and contains no legacy GitHub RPC',()=>{
   assert.ok(!gateway.includes('return{ok:true,result:value'));
   assert.ok(gateway.includes("gasTransport:'direct-json-primary'"));
   assert.ok(gateway.includes("u.pathname==='/network-health'"));
-  assert.ok(gateway.includes('UPSTREAM_HEALTH_TIMEOUT_MS=30000'),'GAS health probe must use the 30s session-check budget');
+  assert.ok(gateway.includes('UPSTREAM_HEALTH_TIMEOUT_MS=60000'),'GAS health probe must use the 30s session-check budget');
   assert.ok(gateway.includes("directRpc('apiSessionCheck',{},UPSTREAM_HEALTH_TIMEOUT_MS,c)"),'upstream health must use the bounded health timeout constant');
   assert.ok(!gateway.includes("directRpc('apiSessionCheck',{},10000,c)"),'retired 10s GAS health timeout must not return');
   assert.ok(gateway.includes("gate:'P0-F'"));

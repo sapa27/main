@@ -532,7 +532,7 @@ jobs:
 
           edge_upstream=""
           for attempt in 1 2 3; do
-            if candidate="$(curl --max-time 45 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/upstream-health")"; then
+            if candidate="$(curl --max-time 75 --retry 2 --retry-delay 2 --retry-all-errors -fsS "$edge_origin/upstream-health")"; then
               edge_upstream="$candidate"
               break
             fi
