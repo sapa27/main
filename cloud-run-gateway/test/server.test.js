@@ -26,8 +26,8 @@ test('CR-7 configuration is direct-only',()=>{
   assert.equal(REV,'cr8.15-p0f-network-gate');
   assert.equal(GAS_RESPONSE_CONTRACT,'gas-direct-json-v1');
   assert.equal(ANTI_RESPONSE_CONTRACT,'anti-public-json-v1');
-  assert.equal(UPSTREAM_HEALTH_TIMEOUT_MS,60000);
-  assert.equal(timeout('apiSessionCheck',UPSTREAM_HEALTH_TIMEOUT_MS,c),60000);
+  assert.equal(UPSTREAM_HEALTH_TIMEOUT_MS,30000);
+  assert.equal(timeout('apiSessionCheck',UPSTREAM_HEALTH_TIMEOUT_MS,c),30000);
   assert.equal(gasUrl(ENV.GAS_WEB_APP_URL),ENV.GAS_WEB_APP_URL);
   assert.equal(allowed(ORIGIN,c),true);
   assert.equal(allowed('https://app.example.test',c),true);
@@ -115,6 +115,26 @@ test('upstream health probes GAS separately',async()=>{
       assert.equal(j.ok,true);
       assert.equal(j.upstream.checked,true);
       assert.equal(j.upstream.transport,'gas-direct-json');
+    });
+  }finally{global.fetch=original}
+});
+
+test('upstream health retries one transient GAS transport failure',async()=>{
+  const original=global.fetch;
+  let calls=0;
+  global.fetch=async(url,opt={})=>{
+    if(String(url).startsWith('http://127.0.0.1:'))return original(url,opt);
+    calls++;
+    if(calls===1)return {ok:false,status:404,text:async()=>''};
+    return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true}})};
+  };
+  try{
+    await withServer(async base=>{
+      const r=await fetch(base+'/upstream-health');
+      const j=await r.json();
+      assert.equal(r.status,200);
+      assert.equal(j.ok,true);
+      assert.equal(calls,2);
     });
   }finally{global.fetch=original}
 });
