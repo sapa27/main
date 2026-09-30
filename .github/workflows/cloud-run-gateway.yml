@@ -90,6 +90,17 @@ jobs:
           set -euo pipefail
           rm -rf cloud-run-gateway/public
           cp -R frontend cloud-run-gateway/public
+      - name: Lock production GAS endpoint to repository manifest
+        run: |
+          set -euo pipefail
+          canonical_gas_url="$(node -e 'const fs=require("fs");const x=JSON.parse(fs.readFileSync("MANIFEST.json","utf8"));const v=String(x.productionGasWebAppUrl||"");if(!/^https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^/]+\\/exec$/.test(v))process.exit(1);process.stdout.write(v)')"
+          if [ "$GAS_WEB_APP_URL" != "$canonical_gas_url" ]; then
+            echo "GAS_WEB_APP_URL differs from MANIFEST.json; using the repository-canonical endpoint"
+            echo "GAS_WEB_APP_URL=$canonical_gas_url" >> "$GITHUB_ENV"
+            echo "GAS_CANDIDATE_WEB_APP_URL=$canonical_gas_url" >> "$GITHUB_ENV"
+          fi
+          echo "### GAS Endpoint Source" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source: MANIFEST.json productionGasWebAppUrl" >> "$GITHUB_STEP_SUMMARY"
       - name: Validate deployment variables
         run: |
           set -euo pipefail
