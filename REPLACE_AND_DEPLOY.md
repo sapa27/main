@@ -6,7 +6,7 @@ Target repository: `sapa27/main`
 
 Set these under **Settings → Secrets and variables → Actions → Variables**:
 
-- `GAS_WEB_APP_URL` = `https://script.google.com/macros/s/AKfycbze7ACLlmWt9GO-mQAV1qmjNS3-hfFDCiuMApEU0pf3tL9o7CaoqcIbyPcsW_tysRkl/exec`
+- `GAS_WEB_APP_URL` = `https://script.google.com/macros/s/AKfycbzTUUIy3jyH4Gwx-30LWQ-mnea-e44DtxxV5xWCQDRBo5ZWsgHrAGRXwlG5Cx4KCcGj/exec`
 - `ANTI_GAS_WEB_APP_URL` = existing Anti public GAS `/exec` URL, if that isolated public endpoint is still enabled
 - `GCP_PROJECT_ID` = `sapa27`
 - `GCP_REGION` = `asia-southeast3`
