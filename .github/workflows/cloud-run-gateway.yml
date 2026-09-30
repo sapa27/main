@@ -1,5 +1,6 @@
 name: Cloud Run Production
 # zero-error-boxes-final-20260925
+# manifest-canonical-gas-20260930
 on:
   push:
     paths:
