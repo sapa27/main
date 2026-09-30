@@ -4,12 +4,14 @@ name: Cloud Run Production
 on:
   push:
     paths:
+      - 'MANIFEST.json'
       - 'cloud-run-gateway/**'
       - 'frontend/**'
       - '.github/tests/regression.mjs'
       - '.github/workflows/cloud-run-gateway.yml'
   pull_request:
     paths:
+      - 'MANIFEST.json'
       - 'cloud-run-gateway/**'
       - 'frontend/**'
       - '.github/tests/regression.mjs'
