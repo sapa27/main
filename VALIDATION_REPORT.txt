@@ -19,7 +19,7 @@ CLEAN REPLACEMENT VALIDATION
   * no script.google.com/macros/s/ endpoint
   * no OPENAI_API_KEY
 - Primary deployed GAS endpoint hard-code in workflow: NONE
-- Canonical GAS upstream owner: GitHub Repository Variable GAS_WEB_APP_URL
+- Canonical GAS upstream owner: MANIFEST.json productionGasWebAppUrl (workflow synchronizes GAS_WEB_APP_URL)
 - Production workflow owner count: 1 (.github/workflows/cloud-run-gateway.yml)
 
 INTENTIONALLY REMOVED FROM REPLACEMENT
