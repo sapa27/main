@@ -1180,7 +1180,7 @@ ok('P4 login and session resume complete after Dashboard controller and usable d
   const block=index.slice(helperStart,end);
   assert.ok(block.includes('dashboard-initial-data-gate-p4'),'P4 data gate stamp missing');
   assert.ok(block.includes('app:dashboard-load-settled'),'P4 must wait for the canonical Dashboard settled event');
-  assert.ok(block.includes('function dashboardOperationalDataReadyCrit(detail)'),'P4 operational Dashboard readiness helper missing');
+  assert.ok(index.includes('function dashboardOperationalDataReadyCrit(detail)'),'P4 operational Dashboard readiness helper missing');
   assert.ok(block.includes('budget-degraded-operational'),'P4 must distinguish optional Budget degradation from fatal Dashboard failure');
   assert.ok(block.includes('__APP_DASHBOARD_OPERATIONAL_DATA_READY__'),'P4 operational Dashboard readiness marker missing');
   assert.ok(block.includes('DASHBOARD_DATA_NOT_READY'),'P4 unusable Dashboard data must still fail closed');
