@@ -641,13 +641,17 @@ ok('P10 UI runtime keeps unique DOM ids and canonical interaction owners',()=>{
   assert.ok(workflow.includes('P10 canonical action/mobile/print owners at public edge: PASS'),'P10 deployment summary marker missing');
 });
 
-ok('production gate verifies Search Track Report page owners from GAS',()=>{
+ok('production gate verifies routed Staff page owners from GAS',()=>{
   assert.ok(workflow.includes("['AUTH_TRACK_OWNER_REQ','Scripts_Page_Tracking']"),'Tracking owner live request missing');
   assert.ok(workflow.includes("['AUTH_SEARCH_OWNER_REQ','Scripts_Page_Search']"),'Search owner live request missing');
   assert.ok(workflow.includes("['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report']"),'Report owner live request missing');
+  assert.ok(workflow.includes("['AUTH_PETITIONER_OWNER_REQ','Scripts_Page_Petitioner']"),'Petitioner owner live request missing');
+  assert.ok(workflow.includes("['AUTH_PEOPLE_OWNER_REQ','Scripts_Page_People']"),'People owner live request missing');
+  assert.ok(workflow.includes("['AUTH_BUDGET_OWNER_REQ','Scripts_Page_Budget']"),'Budget owner live request missing');
+  assert.ok(workflow.includes('for page_owner in track search report petitioner people budget; do'),'routed Staff page owner loop incomplete');
   assert.ok(workflow.includes("html.includes('registerActions(\"'+page+'\"')"),'page owner action registration check missing');
   assert.ok(workflow.includes("html.includes('register(\"'+page+'\"')"),'page lifecycle registration check missing');
-  assert.ok(workflow.includes('Search / Track / Report deferred page owners from GAS: PASS'),'page owner production summary marker missing');
+  assert.ok(workflow.includes('Search / Track / Report / Petitioner / People / Budget deferred page owners from GAS: PASS'),'page owner production summary marker missing');
 });
 
 ok('P11 production deployment quality gate fails closed',()=>{

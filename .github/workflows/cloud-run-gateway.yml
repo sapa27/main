@@ -655,7 +655,7 @@ jobs:
               "$edge_origin/api/router" || true)"
             test "$login_code" = "200" || { echo "P2 authenticated apiLogin failed (HTTP $login_code)" >&2; exit 1; }
 
-            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" AUTH_TRACK_OWNER_REQ="$auth_dir/track-owner.request.json" AUTH_SEARCH_OWNER_REQ="$auth_dir/search-owner.request.json" AUTH_REPORT_OWNER_REQ="$auth_dir/report-owner.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" AUTH_TRACK_OWNER_REQ="$auth_dir/track-owner.request.json" AUTH_SEARCH_OWNER_REQ="$auth_dir/search-owner.request.json" AUTH_REPORT_OWNER_REQ="$auth_dir/report-owner.request.json" AUTH_PETITIONER_OWNER_REQ="$auth_dir/petitioner-owner.request.json" AUTH_PEOPLE_OWNER_REQ="$auth_dir/people-owner.request.json" AUTH_BUDGET_OWNER_REQ="$auth_dir/budget-owner.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
           const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
@@ -695,7 +695,10 @@ jobs:
           [
             ['AUTH_TRACK_OWNER_REQ','Scripts_Page_Tracking'],
             ['AUTH_SEARCH_OWNER_REQ','Scripts_Page_Search'],
-            ['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report']
+            ['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report'],
+            ['AUTH_PETITIONER_OWNER_REQ','Scripts_Page_Petitioner'],
+            ['AUTH_PEOPLE_OWNER_REQ','Scripts_Page_People'],
+            ['AUTH_BUDGET_OWNER_REQ','Scripts_Page_Budget']
           ].forEach(([envKey,name])=>fs.writeFileSync(process.env[envKey],JSON.stringify({
             method:'getDeferredInclude',
             payload:{name,forceFresh:true,token,_token:token,authToken:token,csrfToken:csrf,csrf,_csrf:csrf},
@@ -789,7 +792,7 @@ jobs:
           if(!current||typeof current!=='object'||Array.isArray(current)) process.exit(1);
           NODE
 
-            for page_owner in track search report; do
+            for page_owner in track search report petitioner people budget; do
               owner_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
                 -D "$auth_dir/$page_owner-owner.headers.txt" -o "$auth_dir/$page_owner-owner.body.json" -w '%{http_code}' \
                 -H 'Content-Type: application/json' \
@@ -823,7 +826,7 @@ jobs:
           NODE
             done
 
-            echo "- Search / Track / Report deferred page owners from GAS: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Search / Track / Report / Petitioner / People / Budget deferred page owners from GAS: PASS" >> "$GITHUB_STEP_SUMMARY"
 
             mkdir -p "$auth_dir/p7"
             P7_AUTH_SOURCE="$auth_dir/dashboard-data.request.json" P7_DIR="$auth_dir/p7" node <<'NODE'
