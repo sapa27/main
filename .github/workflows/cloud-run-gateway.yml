@@ -952,10 +952,28 @@ jobs:
             return 0;
           }
           const people=body('p7bPeople'),def=body('p7bBudgetDefault'),fresh=body('p7bBudgetFresh');
+          const defaultPeopleOuter=JSON.parse(fs.readFileSync(path.join(process.env.P7B_DIR,'apiGetPeoplePageBundle.body.json'),'utf8'));
+          const defaultPeopleResult=defaultPeopleOuter?.result;
+          const defaultPeople=defaultPeopleResult&&defaultPeopleResult.data&&typeof defaultPeopleResult.data==='object'?defaultPeopleResult.data:defaultPeopleResult||{};
           const peopleMonthly=num(people.currentMonthlyExpense||people.summary?.currentMonthlyExpense||people.salarySummary?.currentMonthlyExpense);
-          const defSpent=spent(personnelRow(def)),freshSpent=spent(personnelRow(fresh));
-          console.log('P7-B budget/personnel aggregates: fy=2570 peopleMonthly='+peopleMonthly+' budgetDefault='+defSpent+' budgetForceFresh='+freshSpent);
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n### P7-B Budget / Personnel Aggregate Diagnostic\n- FY 2570 People current-month expense: '+peopleMonthly.toFixed(2)+'\n- Budget personnel expense (default): '+defSpent.toFixed(2)+'\n- Budget personnel expense (forceFresh): '+freshSpent.toFixed(2)+'\n');
+          const peopleDefaultMonthly=num(defaultPeople.currentMonthlyExpense||defaultPeople.summary?.currentMonthlyExpense||defaultPeople.salarySummary?.currentMonthlyExpense);
+          function personnelRows(data){
+            const rows=[...(Array.isArray(data.rows)?data.rows:[]),...(Array.isArray(data.items)?data.items:[])];
+            return rows.filter(r=>r&&(r.isPersonnelCompensation===true||/ค่าตอบแทนผู้ปฏิบัติงาน|ผู้ปฏิบัติงานให้คณะกรรมาธิการ/.test(String(r.item||r.name||r.label||r.type||r.entryType||''))));
+          }
+          function compactFields(r){
+            const out={};
+            ['personnelExpense','staffExpense','ytdExpense','salaryExpense','compensationExpense','allowanceExpense','currentMonthlyExpense','monthlyRateTotal','totalPaid','totalSpent','spent','spentAmount','expense','expenseAmount','amount','totalAmount','annualCommitment','budget','remain'].forEach(k=>{
+              if(r&&r[k]!=null&&String(r[k]).trim()!=='') out[k]=num(r[k]);
+            });
+            out.source=String(r&&r.__budgetPersonnelExpenseSource||'');
+            out.contract=String(r&&r.__budgetPersonnelExpenseContract||'');
+            return out;
+          }
+          const defDirect=compactFields(personnelRow(def)),freshDirect=compactFields(personnelRow(fresh));
+          const defRows=personnelRows(def).map(compactFields),freshRows=personnelRows(fresh).map(compactFields);
+          console.log('P7-B budget/personnel aggregates: '+JSON.stringify({fy:'2570',peopleDefaultMonthly,peopleSalaryMonthly:peopleMonthly,budgetDefaultDirect:defDirect,budgetDefaultRows:defRows,budgetFreshDirect:freshDirect,budgetFreshRows:freshRows}));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n### P7-B Budget / Personnel Aggregate Diagnostic\n- FY 2570 People current-month expense (default bundle): '+peopleDefaultMonthly.toFixed(2)+'\n- FY 2570 People current-month expense (salary bundle): '+peopleMonthly.toFixed(2)+'\n- Budget personnel display-row count (default/forceFresh): '+defRows.length+'/'+freshRows.length+'\n- Budget personnel direct amount (default/forceFresh): '+spent(personnelRow(def)).toFixed(2)+'/'+spent(personnelRow(fresh)).toFixed(2)+'\n');
           NODE
 
             echo "### P7 Read Data Pipeline Gate" >> "$GITHUB_STEP_SUMMARY"
