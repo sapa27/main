@@ -8,6 +8,7 @@ const ROOT=process.cwd();
 let passed=0;
 function file(p){const x=path.join(ROOT,p);assert.ok(fs.existsSync(x),'missing file: '+p);return fs.readFileSync(x,'utf8')}
 function ok(name,fn){try{fn();passed++;console.log('ok '+passed+' - '+name)}catch(e){console.error('not ok - '+name);throw e}}
+async function okAsync(name,fn){try{await fn();passed++;console.log('ok '+passed+' - '+name)}catch(e){console.error('not ok - '+name);throw e}}
 function scripts(html){const out=[];for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)){const a=m[1]||'',type=(a.match(/\btype=["']([^"']+)["']/i)||[])[1]||'';if(/\bsrc\s*=/.test(a)||type&&!/(?:javascript|ecmascript|module)/i.test(type))continue;const b=(m[2]||'').replace(/<\?(?:!=|=)?[\s\S]*?\?>/g,'null');if(b.trim())out.push(b)}return out}
 
 const index=file('frontend/index.html');
@@ -63,7 +64,7 @@ ok('R355 page controller cache rehydrates every routed controller',()=>{
   assert.ok(index.includes('invalidatePageControllerCurrent(id)'),'stale prepared routes must invalidate their page controller assets');
 });
 
-ok('P0 route preparation rehydrates every missing canonical page adapter before activation',()=>{
+await okAsync('P0 route preparation rehydrates every missing canonical page adapter before activation',async()=>{
   assert.ok(index.includes('function recoverPageControllerCurrent(id)'),'generic controller rehydrate owner missing');
   const prepStart=index.indexOf('function prepareRouteAssetsCurrent(target)');
   const prepEnd=index.indexOf('function disposeActivePageForLoginCurrent',prepStart);
@@ -94,11 +95,10 @@ ok('P0 route preparation rehydrates every missing canonical page adapter before 
     }
   };
   vm.runInNewContext(source,ctx);
-  return ctx.recoverPageControllerCurrent('search').then(ok=>{
-    assert.equal(ok,true);
-    assert.equal(invalidations,1,'missing adapter must invalidate stale controller cache exactly once');
-    assert.equal(loads,1,'missing adapter must re-execute page scripts exactly once');
-  });
+  const recovered=await ctx.recoverPageControllerCurrent('search');
+  assert.equal(recovered,true);
+  assert.equal(invalidations,1,'missing adapter must invalidate stale controller cache exactly once');
+  assert.equal(loads,1,'missing adapter must re-execute page scripts exactly once');
 });
 
 ok('R355 data pages force lifecycle reload after Vue DOM recreation',()=>{
