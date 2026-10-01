@@ -3515,6 +3515,7 @@ return!1
 }
 function invalidatePageControllerCurrent(id){id=canonicalPageId(id);if(!id||id==="login")return!1;delete routeAssetsPreparedCurrent[id];var A=window.AppAssetLoader||window.AppCritical,inv=A&&A.invalidatePartial,isLoaded=A&&A.isLoaded;if(!__appIsFn(inv))return!1;pageScriptList(id).forEach(function(name){try{if(__appIsFn(isLoaded)&&!isLoaded.call(A,name))return;inv.call(A,name)}catch(err){__appObserve(err,"route.page.invalidatePartial."+id)}});return!0}
 function invalidateMeetingControllerCurrent(id){id=canonicalPageId(id);if(id!=="meeting"&&id!=="committee-meeting")return!1;return invalidatePageControllerCurrent(id)}
+function recoverPageControllerCurrent(id){id=canonicalPageId(id);if(pageControllerReadyCurrent(id))return Promise.resolve(!0);invalidatePageControllerCurrent(id);var A=window.AppAssetLoader||window.AppCritical,loader=A&&A.loadPageScripts;var work=__appIsFn(loader)?Promise.resolve(loader.call(A,id)):loadPageScriptsDirect(id);return work.then(function(result){if(result===!1)return!1;return pageControllerReadyCurrent(id)}).catch(function(err){window.AppRuntime&&window.AppRuntime.recordWarning&&window.AppRuntime.recordWarning("route.controller.rehydrate."+id,err,{pageId:id});return!1})}
 function pageScriptList(id){id=canonicalPageId(id);var list=deferredScriptMap[id]||deferredScriptMap[String(id||"").replace(/^dash$/,"dashboard")]||[];return Array.isArray(list)?list.filter(function(f){return String(f||"")!=="Scripts_Core_Runtime"}).slice():[]}function loadPageScriptsDirect(id){var list=pageScriptList(id=canonicalPageId(id));if(!list.length)return Promise.resolve(!0);var loader=window.AppCritical&&window.AppCritical.loadPartial||window.AppAssetLoader&&window.AppAssetLoader.loadPartial;return loader?list.reduce(function(p,name){return p.then(function(){return loader(name).catch(function(err){throw window.AppRuntime&&window.AppRuntime.recordWarning&&window.AppRuntime.recordWarning("route.directPageChunk."+id,err,{partial:name}),err})})},Promise.resolve(!0)):Promise.resolve(!1)}function ensurePageScripts(id){
 id=canonicalPageId(id);
 if(!appNavAllowed(id,resolveCurrentRole()))return notifyPermissionDenied(id),Promise.resolve(!1);
@@ -3563,7 +3564,9 @@ var templateWork=prepareRouteTemplateCurrent(target);
 var work=Promise.all([templateWork,ensurePageScripts(id)]).then(function(results){
 if(results[0]===!1)throw new Error("โหลดแม่แบบหน้าไม่สำเร็จ: "+id);
 if(results[1]===!1)throw new Error("โหลดตัวควบคุมหน้าไม่สำเร็จ: "+id);
-if((id==="meeting"||id==="committee-meeting")&&!pageControllerReadyCurrent(id))throw new Error("ไม่พบ canonical page adapter หลังโหลดตัวควบคุม: "+id);
+if(pageControllerReadyCurrent(id))return!0;
+return recoverPageControllerCurrent(id).then(function(recovered){if(!recovered)throw new Error("ไม่พบ canonical page adapter หลังโหลดตัวควบคุม: "+id);return!0})
+}).then(function(){
 routeAssetsPreparedCurrent[id]=!0;
 return!0
 }).finally(function(){delete routePreparationInFlightCurrent[key]});
