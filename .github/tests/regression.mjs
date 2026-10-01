@@ -645,8 +645,8 @@ ok('production gate verifies Search Track Report page owners from GAS',()=>{
   assert.ok(workflow.includes("['AUTH_TRACK_OWNER_REQ','Scripts_Page_Tracking']"),'Tracking owner live request missing');
   assert.ok(workflow.includes("['AUTH_SEARCH_OWNER_REQ','Scripts_Page_Search']"),'Search owner live request missing');
   assert.ok(workflow.includes("['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report']"),'Report owner live request missing');
-  assert.ok(workflow.includes("html.includes('registerActions(\\\"'+page+'\\\"')"),'page owner action registration check missing');
-  assert.ok(workflow.includes("html.includes('register(\\\"'+page+'\\\"')"),'page lifecycle registration check missing');
+  assert.ok(workflow.includes("html.includes('registerActions(\"'+page+'\"')"),'page owner action registration check missing');
+  assert.ok(workflow.includes("html.includes('register(\"'+page+'\"')"),'page lifecycle registration check missing');
   assert.ok(workflow.includes('Search / Track / Report deferred page owners from GAS: PASS'),'page owner production summary marker missing');
 });
 
