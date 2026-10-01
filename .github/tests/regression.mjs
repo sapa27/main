@@ -440,6 +440,9 @@ ok('P7 read-data pipeline uses the production baseline contract',()=>{
   assert.ok(workflow.includes('### P7 Read Data Pipeline Gate'),'P7 live read gate missing from production workflow');
   assert.ok(workflow.includes('for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiGetPeoplePageBundle apiGetPetitioners apiBudgetGetSummary; do'),'P7 live read method set drifted');
   assert.ok(workflow.includes("source:'github-actions-p7-data-pipeline'"),'P7 live read source marker missing');
+  assert.ok(workflow.includes("apiGetPetitioners:{page:1,limit:25}"),'P7 petitioner probe must mirror the production default page size');
+  assert.ok(workflow.includes("P7 timing $p7_method HTTP $p7_code"),'P7 live read timing evidence missing');
+  assert.ok(workflow.includes("x-gateway-duration-ms:"),'P7 gateway duration evidence missing');
   assert.ok(workflow.includes('P7 $p7_method read failed'),'P7 live read gate must fail closed');
   assert.ok(workflow.includes('Public edge → Cloud Run → GAS read contract: PASS'),'P7 deployment summary marker missing');
 });

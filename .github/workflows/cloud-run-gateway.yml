@@ -847,7 +847,7 @@ jobs:
             apiGetCommitteeMeetingSystem:{page:1,limit:20},
             apiGetTracking:{page:1,limit:20},
             apiGetPeoplePageBundle:{page:1,limit:100},
-            apiGetPetitioners:{page:1,limit:100},
+            apiGetPetitioners:{page:1,limit:25},
             apiBudgetGetSummary:{page:1,limit:100,pageSize:100}
           };
           for(const [method,payload] of Object.entries(probes)){
@@ -860,13 +860,18 @@ jobs:
           NODE
 
             for p7_method in apiGetDashboardBundle apiSearchCasesLite apiGetCommitteeMeetingSystem apiGetTracking apiGetPeoplePageBundle apiGetPetitioners apiBudgetGetSummary; do
-              p7_code="$(curl --max-time 105 --retry 1 --retry-delay 2 --retry-all-errors -sS \
-                -D "$auth_dir/p7/$p7_method.headers.txt" -o "$auth_dir/p7/$p7_method.body.json" -w '%{http_code}' \
+              p7_meta="$(curl --max-time 105 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+                -D "$auth_dir/p7/$p7_method.headers.txt" -o "$auth_dir/p7/$p7_method.body.json" -w '%{http_code}|%{time_total}' \
                 -H 'Content-Type: application/json' \
                 -H "Origin: $edge_origin" \
                 --data-binary "@$auth_dir/p7/$p7_method.request.json" \
                 "$edge_origin/api/router" || true)"
-              test "$p7_code" = "200" || { echo "P7 $p7_method read failed (HTTP $p7_code)" >&2; exit 1; }
+              p7_code="${p7_meta%%|*}"
+              p7_total="${p7_meta#*|}"
+              p7_gateway_ms="$(awk 'BEGIN{IGNORECASE=1} /^x-gateway-duration-ms:/{gsub("\\r","",$2); print $2; exit}' "$auth_dir/p7/$p7_method.headers.txt" 2>/dev/null || true)"
+              echo "P7 timing $p7_method HTTP $p7_code total=${p7_total}s gateway=${p7_gateway_ms:-unknown}ms"
+              echo "- $p7_method: HTTP $p7_code, total ${p7_total}s, gateway ${p7_gateway_ms:-unknown}ms" >> "$GITHUB_STEP_SUMMARY"
+              test "$p7_code" = "200" || { echo "P7 $p7_method read failed (HTTP $p7_code, total ${p7_total}s, gateway ${p7_gateway_ms:-unknown}ms)" >&2; exit 1; }
               P7_BODY="$auth_dir/p7/$p7_method.body.json" P7_HEADERS="$auth_dir/p7/$p7_method.headers.txt" P7_ORIGIN="$edge_origin" P7_METHOD="$p7_method" node <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync(process.env.P7_BODY,'utf8'));
