@@ -1048,6 +1048,18 @@ ok('Committee Meeting qualified fragment falls back to the legacy base asset wit
   assert.ok(index.includes('if(n==="committee-meeting")return loadCommitteeMeetingPageCurrent(list)'));
 });
 
+ok('Route activation rehydrates missing canonical adapters before PAGE_ACTIVATION_FAILED',()=>{
+  const start=index.indexOf('function runPageActivation(id,generation)');
+  const end=index.indexOf('function createStaticPage',start);
+  assert.ok(start>=0&&end>start,'runPageActivation source missing');
+  const block=index.slice(start,end);
+  assert.ok(block.includes('function activateCanonicalPageCurrent()'),'canonical activation helper missing');
+  assert.ok(block.includes('if(ensureCanonicalPageControllerCurrent(id))return activateCanonicalPageCurrent()'),'ready adapter must activate directly');
+  assert.ok(block.includes('return recoverPageControllerCurrent(id).then(function(recovered)'),'missing canonical adapter must use the existing recovery owner');
+  assert.ok(block.includes('if(!recovered||!ensureCanonicalPageControllerCurrent(id))throw new Error("ไม่พบ canonical page adapter: "+id)'),'activation must fail closed after bounded recovery');
+  assert.equal((block.match(/recoverPageControllerCurrent\(id\)/g)||[]).length,1,'route must have one controller recovery owner call');
+});
+
 ok('Meeting canonical lifecycle recovers mobile activation race',()=>{
   assert.ok(index.includes('critical-bootstrap-lifecycle-compatible-r342'));
   assert.ok(index.includes('a.__canonicalLifecycle=!0'));
