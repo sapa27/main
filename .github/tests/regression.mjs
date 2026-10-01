@@ -1174,9 +1174,10 @@ ok('P5 Dashboard recovery owner is single-flight and generation bounded',()=>{
 });
 
 ok('P4 login and session resume complete after Dashboard controller and usable data settle',async()=>{
-  const helperStart=index.indexOf('function createDashboardInitialDataGateCrit(timeoutMs)');
-  const end=index.indexOf('function executeLogin(ev)',helperStart);
-  assert.ok(helperStart>=0&&end>helperStart,'P4 Dashboard bootstrap contract missing');
+  const helperStart=index.indexOf('function dashboardOperationalDataReadyCrit(detail)');
+  const gateStart=index.indexOf('function createDashboardInitialDataGateCrit(timeoutMs)',helperStart);
+  const end=index.indexOf('function executeLogin(ev)',gateStart);
+  assert.ok(helperStart>=0&&gateStart>helperStart&&end>gateStart,'P4 Dashboard bootstrap contract missing');
   const block=index.slice(helperStart,end);
   assert.ok(block.includes('dashboard-initial-data-gate-p4'),'P4 data gate stamp missing');
   assert.ok(block.includes('app:dashboard-load-settled'),'P4 must wait for the canonical Dashboard settled event');
