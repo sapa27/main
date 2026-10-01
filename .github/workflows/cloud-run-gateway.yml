@@ -891,6 +891,73 @@ jobs:
           NODE
             done
 
+
+            # P7-B diagnostic: compare the personnel compensation read model with
+            # the People page owner. Log aggregate numbers only; never log rows,
+            # names, credentials, tokens or request bodies.
+            P7B_AUTH_SOURCE="$auth_dir/dashboard-data.request.json" P7B_DIR="$auth_dir/p7" node <<'NODE'
+          const fs=require('fs'),path=require('path');
+          const request=JSON.parse(fs.readFileSync(process.env.P7B_AUTH_SOURCE,'utf8'));
+          const auth=request?.payload?.payload||{};
+          const common={
+            token:String(auth.token||''),
+            sessionToken:String(auth.sessionToken||auth.token||''),
+            csrfToken:String(auth.csrfToken||''),
+            csrf:String(auth.csrf||auth.csrfToken||''),
+            _csrf:String(auth._csrf||auth.csrfToken||'')
+          };
+          if(!common.token) process.exit(1);
+          const fy='2570';
+          const probes={
+            p7bPeople:{method:'apiGetPeoplePageBundle',payload:{fy,activeTab:'salary',includeSalaryRows:true,forceFresh:true,cacheTtlSeconds:0}},
+            p7bBudgetDefault:{method:'apiBudgetGetSummary',payload:{fy,page:1,limit:100,pageSize:100}},
+            p7bBudgetFresh:{method:'apiBudgetGetSummary',payload:{fy,page:1,limit:100,pageSize:100,forceFresh:true,noCache:true,bypassCache:true,bypassRequestCache:true}}
+          };
+          for(const [name,spec] of Object.entries(probes)){
+            fs.writeFileSync(path.join(process.env.P7B_DIR,name+'.request.json'),JSON.stringify({
+              method:'apiRouter',
+              payload:{method:spec.method,payload:{...common,...spec.payload,source:'github-actions-p7b-budget-personnel-parity'}},
+              timeoutMs:90000
+            }));
+          }
+          NODE
+            for p7b_name in p7bPeople p7bBudgetDefault p7bBudgetFresh; do
+              p7b_code="$(curl --max-time 105 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+                -D "$auth_dir/p7/$p7b_name.headers.txt" -o "$auth_dir/p7/$p7b_name.body.json" -w '%{http_code}' \
+                -H 'Content-Type: application/json' \
+                -H "Origin: $edge_origin" \
+                --data-binary "@$auth_dir/p7/$p7b_name.request.json" \
+                "$edge_origin/api/router" || true)"
+              test "$p7b_code" = "200" || { echo "P7-B $p7b_name failed (HTTP $p7b_code)" >&2; exit 1; }
+            done
+            P7B_DIR="$auth_dir/p7" node <<'NODE'
+          const fs=require('fs'),path=require('path');
+          function body(name){
+            const x=JSON.parse(fs.readFileSync(path.join(process.env.P7B_DIR,name+'.body.json'),'utf8'));
+            if(x?.transportOk!==true) throw new Error(name+' transport');
+            const r=x.result;
+            if(r&&r.ok===false) throw new Error(name+' application');
+            return r&&r.data&&typeof r.data==='object'?r.data:r||{};
+          }
+          function num(v){const n=Number(String(v??'').replace(/,/g,''));return Number.isFinite(n)?n:0}
+          function personnelRow(data){
+            const direct=data.personnelExpenseRow||data.personnelRow||data.staffExpenseRow||data.meta?.personnelExpenseRow;
+            if(direct&&typeof direct==='object') return direct;
+            const rows=[...(Array.isArray(data.rows)?data.rows:[]),...(Array.isArray(data.items)?data.items:[])];
+            return rows.find(r=>r&&(r.isPersonnelCompensation===true||/ค่าตอบแทนผู้ปฏิบัติงาน|ผู้ปฏิบัติงานให้คณะกรรมาธิการ/.test(String(r.item||r.name||r.label||r.type||r.entryType||''))))||{};
+          }
+          function spent(row){
+            const keys=['personnelExpense','staffExpense','ytdExpense','salaryExpense','compensationExpense','allowanceExpense','currentMonthlyExpense','monthlyRateTotal','totalPaid','totalSpent','spent','spentAmount','expense','expenseAmount','amount','totalAmount'];
+            for(const k of keys){if(row&&row[k]!=null&&String(row[k]).trim()!==''){const n=num(row[k]);if(n>0)return n}}
+            return 0;
+          }
+          const people=body('p7bPeople'),def=body('p7bBudgetDefault'),fresh=body('p7bBudgetFresh');
+          const peopleMonthly=num(people.currentMonthlyExpense||people.summary?.currentMonthlyExpense||people.salarySummary?.currentMonthlyExpense);
+          const defSpent=spent(personnelRow(def)),freshSpent=spent(personnelRow(fresh));
+          console.log('P7-B budget/personnel aggregates: fy=2570 peopleMonthly='+peopleMonthly+' budgetDefault='+defSpent+' budgetForceFresh='+freshSpent);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n### P7-B Budget / Personnel Aggregate Diagnostic\n- FY 2570 People current-month expense: '+peopleMonthly.toFixed(2)+'\n- Budget personnel expense (default): '+defSpent.toFixed(2)+'\n- Budget personnel expense (forceFresh): '+freshSpent.toFixed(2)+'\n');
+          NODE
+
             echo "### P7 Read Data Pipeline Gate" >> "$GITHUB_STEP_SUMMARY"
             echo "- Dashboard read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Case search read: PASS" >> "$GITHUB_STEP_SUMMARY"
