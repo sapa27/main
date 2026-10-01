@@ -655,7 +655,7 @@ jobs:
               "$edge_origin/api/router" || true)"
             test "$login_code" = "200" || { echo "P2 authenticated apiLogin failed (HTTP $login_code)" >&2; exit 1; }
 
-            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" AUTH_TRACK_OWNER_REQ="$auth_dir/track-owner.request.json" AUTH_SEARCH_OWNER_REQ="$auth_dir/search-owner.request.json" AUTH_REPORT_OWNER_REQ="$auth_dir/report-owner.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
           const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
@@ -692,6 +692,15 @@ jobs:
             },
             timeoutMs:70000
           }));
+          [
+            ['AUTH_TRACK_OWNER_REQ','Scripts_Page_Tracking'],
+            ['AUTH_SEARCH_OWNER_REQ','Scripts_Page_Search'],
+            ['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report']
+          ].forEach(([envKey,name])=>fs.writeFileSync(process.env[envKey],JSON.stringify({
+            method:'getDeferredInclude',
+            payload:{name,forceFresh:true,token,_token:token,authToken:token,csrfToken:csrf,csrf,_csrf:csrf},
+            timeoutMs:70000
+          })));
           NODE
 
             session_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -sS \
@@ -779,6 +788,42 @@ jobs:
           for(let depth=0;depth<5&&current&&typeof current==='object'&&!Array.isArray(current)&&current.data&&typeof current.data==='object';depth++)current=current.data;
           if(!current||typeof current!=='object'||Array.isArray(current)) process.exit(1);
           NODE
+
+            for page_owner in track search report; do
+              owner_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
+                -D "$auth_dir/$page_owner-owner.headers.txt" -o "$auth_dir/$page_owner-owner.body.json" -w '%{http_code}' \
+                -H 'Content-Type: application/json' \
+                -H "Origin: $edge_origin" \
+                --data-binary "@$auth_dir/$page_owner-owner.request.json" \
+                "$edge_origin/api/router" || true)"
+              test "$owner_code" = "200" || { echo "P3 $page_owner owner fetch failed (HTTP $owner_code)" >&2; exit 1; }
+              P3_OWNER_BODY="$auth_dir/$page_owner-owner.body.json" P3_OWNER_HEADERS="$auth_dir/$page_owner-owner.headers.txt" P3_OWNER_PAGE="$page_owner" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+          const fs=require('fs');
+          const body=JSON.parse(fs.readFileSync(process.env.P3_OWNER_BODY,'utf8'));
+          const headers=fs.readFileSync(process.env.P3_OWNER_HEADERS,'utf8').split(/\r?\n/);
+          const get=name=>{
+            const prefix=name.toLowerCase()+':';
+            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
+            return line?line.slice(line.indexOf(':')+1).trim():'';
+          };
+          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
+          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
+          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
+          let current=body.result,html='';
+          for(let depth=0;depth<6&&current&&typeof current==='object'&&!Array.isArray(current);depth++){
+            if(current.ok===false) process.exit(1);
+            if(typeof current.html==='string'){html=current.html;break}
+            if(Object.prototype.hasOwnProperty.call(current,'data')){current=current.data;continue}
+            if(Object.prototype.hasOwnProperty.call(current,'result')){current=current.result;continue}
+            break;
+          }
+          if(typeof current==='string'&&!html) html=current;
+          const page=String(process.env.P3_OWNER_PAGE||'');
+          if(!html.includes('registerActions("'+page+'"')||!html.includes('register("'+page+'"')) process.exit(1);
+          NODE
+            done
+
+            echo "- Search / Track / Report deferred page owners from GAS: PASS" >> "$GITHUB_STEP_SUMMARY"
 
             mkdir -p "$auth_dir/p7"
             P7_AUTH_SOURCE="$auth_dir/dashboard-data.request.json" P7_DIR="$auth_dir/p7" node <<'NODE'
