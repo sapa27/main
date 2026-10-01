@@ -2,7 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
-const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,UPSTREAM_HEALTH_TIMEOUT_MS,cfg,gasUrl,allowed,networkProfile,isWrite,effectiveMethod,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
+const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,UPSTREAM_HEALTH_TIMEOUT_MS,cfg,gasUrl,allowed,networkProfile,isWrite,effectiveMethod,isRetryableRead,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
 const ENV={
@@ -47,6 +47,43 @@ test('GAS router wrappers retain read, write, and AI deadline budgets',()=>{
   assert.equal(timeout(effectiveMethod('apiRouter',{method:'apiExtractDocumentPdf'}),300000,c),300000);
   assert.equal(timeout(effectiveMethod('apiRouter',{method:'apiGetDashboardBundle'}),35000,c),35000);
   assert.equal(effectiveMethod('getDeferredInclude',{method:'apiSaveCase'}),'getDeferredInclude');
+});
+
+test('transient GAS 404 retry is limited to read-only methods',()=>{
+  assert.equal(isRetryableRead('getDeferredInclude',{}),true);
+  assert.equal(isRetryableRead('apiRouter',{method:'apiGetDashboardBundle'}),true);
+  assert.equal(isRetryableRead('apiSessionCheck',{}),true);
+  assert.equal(isRetryableRead('apiLogin',{}),false);
+  assert.equal(isRetryableRead('apiRouter',{method:'apiSaveCase'}),false);
+  assert.equal(isRetryableRead('apiRouter',{method:'apiDeleteCase'}),false);
+});
+
+test('directRpc retries transient GAS 404 for read-only calls',async()=>{
+  const original=global.fetch;
+  let calls=0;
+  global.fetch=async()=>{
+    calls++;
+    if(calls===1)return {ok:false,status:404,text:async()=>''};
+    return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{rows:[]}}})};
+  };
+  try{
+    const out=await directRpc('getDeferredInclude',{name:'Scripts_Page_Dashboard'},30000,cfg(ENV));
+    assert.equal(out.envelope.transportOk,true);
+    assert.equal(calls,2);
+  }finally{global.fetch=original}
+});
+
+test('directRpc never retries transient GAS 404 for write calls',async()=>{
+  const original=global.fetch;
+  let calls=0;
+  global.fetch=async()=>{calls++;return {ok:false,status:404,text:async()=>''}};
+  try{
+    await assert.rejects(
+      directRpc('apiRouter',{method:'apiSaveCase',payload:{id:'case-1'}},30000,cfg(ENV)),
+      e=>e&&e.code==='GAS_DIRECT_HTTP_404'
+    );
+    assert.equal(calls,1);
+  }finally{global.fetch=original}
 });
 
 test('readiness and version expose direct-only CR-7 contract',async()=>withServer(async base=>{
