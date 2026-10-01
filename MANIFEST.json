@@ -26,5 +26,6 @@
     "authenticated production smoke",
     "Meeting R355 lifecycle fix"
   ],
-  "frontendRecovery": "p0-route-adapter-rehydrate-v1"
+  "frontendRecovery": "p0-route-adapter-rehydrate-v1",
+  "frontendRecoveryVerification": "p0-route-adapter-rehydrate-v1-final"
 }
