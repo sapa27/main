@@ -58,6 +58,18 @@ ok('critical application surfaces remain present',()=>{
   for(const marker of ['ลำดับเรื่อง','จัดการเรื่องพิจารณา','ประวัติการประชุม','หนังสือติดตามมติ'])assert.ok(index.includes(marker),'missing UI marker '+marker);
 });
 
+ok('Search Track Report deferred chunks include their explicit page owners',()=>{
+  assert.ok(index.includes('"Scripts_Page_Search":"Viewer"'),'Search deferred owner role missing');
+  assert.ok(index.includes('"Scripts_Page_Tracking":"Staff"'),'Tracking deferred owner role missing');
+  assert.ok(index.includes('"Scripts_Page_Report":"Staff"'),'Report deferred owner role missing');
+  assert.ok(index.includes('"search":["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common","Scripts_Page_Search"]'),'Search chunk must load shared implementation then Search owner');
+  assert.ok(index.includes('"track":["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common","Scripts_Page_Tracking"]'),'Tracking chunk must load shared implementation then Tracking owner');
+  assert.ok(index.includes('"report":["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common","Scripts_Page_Report"]'),'Report chunk must load shared implementation then Report owner');
+  assert.ok(index.includes('filterTrack:"track"'),'Tracking filter must remain page-owned by track');
+  assert.ok(index.includes('loadReportData:"report"'),'Report load must remain page-owned by report');
+  assert.ok(index.includes('searchAll:"search"'),'Search action must remain page-owned by search');
+});
+
 ok('R355 page controller cache rehydrates every routed controller',()=>{
   assert.ok(index.includes('function invalidatePageControllerCurrent(id)'),'generic routed-controller invalidation owner missing');
   assert.ok(index.includes('var controllerRequired=id!=="login",controllerReady=!controllerRequired||pageControllerReadyCurrent(id)'),'route cache must verify controller readiness for every page');
