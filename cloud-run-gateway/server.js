@@ -1,4 +1,5 @@
 'use strict';
+// gas-read-transient-retry-v1
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const NAME='sapa27-cloud-run-gateway',REV='cr8.15-p0f-network-gate',GAS_RESPONSE_CONTRACT='gas-direct-json-v1',ANTI_RESPONSE_CONTRACT='anti-public-json-v1',UPSTREAM_HEALTH_TIMEOUT_MS=30000,PUBLIC_DIR=path.join(__dirname,'public');
 const txt=v=>v==null?'':String(v);
