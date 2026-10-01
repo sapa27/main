@@ -114,16 +114,18 @@ jobs:
         run: |
           set -euo pipefail
           probe_gas() {
-            local label="$1" url="$2" body_file header_file http_code
-            body_file="$(mktemp)"
-            header_file="$(mktemp)"
-            http_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -L -sS \
-              -D "$header_file" -o "$body_file" -w '%{http_code}' \
-              -H 'Content-Type: application/json;charset=UTF-8' \
-              -H 'Accept: application/json' \
-              --data '{"method":"apiSessionCheck","payload":{}}' \
-              "$url" || true)"
-            PROBE_BODY="$body_file" PROBE_HEADERS="$header_file" PROBE_LABEL="$label" PROBE_HTTP="$http_code" node <<'NODE'
+            local label="$1" url="$2" body_file header_file http_code attempt probe_status
+            for attempt in 1 2 3; do
+              body_file="$(mktemp)"
+              header_file="$(mktemp)"
+              http_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -L -sS \
+                -D "$header_file" -o "$body_file" -w '%{http_code}' \
+                -H 'Content-Type: application/json;charset=UTF-8' \
+                -H 'Accept: application/json' \
+                --data '{"method":"apiSessionCheck","payload":{}}' \
+                "$url" || true)"
+              set +e
+              PROBE_BODY="$body_file" PROBE_HEADERS="$header_file" PROBE_LABEL="$label" PROBE_HTTP="$http_code" node <<'NODE'
           const fs=require('fs');
           const label=process.env.PROBE_LABEL||'GAS';
           const status=process.env.PROBE_HTTP||'0';
@@ -136,9 +138,22 @@ jobs:
           const keys=object?Object.keys(x).slice(0,12).sort().join(','):'';
           const transportOk=object&&typeof x.transportOk==='boolean'?String(x.transportOk):'missing';
           const errorCode=object&&x.error&&typeof x.error==='object'?String(x.error.code||''):'';
-          console.log(label+' GAS probe metadata: HTTP '+status+' contentType='+(contentType||'unknown')+' json='+json+' keys='+(keys||'none')+' transportOk='+transportOk+(errorCode?' errorCode='+errorCode:''));
+          console.log(label+' GAS probe metadata: attempt='+process.env.PROBE_ATTEMPT+' HTTP '+status+' contentType='+(contentType||'unknown')+' json='+json+' keys='+(keys||'none')+' transportOk='+transportOk+(errorCode?' errorCode='+errorCode:''));
           if(status!=='200'||!object||x.transportOk!==true||!Object.prototype.hasOwnProperty.call(x,'result'))process.exit(1);
           NODE
+              probe_status=$?
+              set -e
+              if [ "$probe_status" -eq 0 ]; then
+                return 0
+              fi
+              if [ "$http_code" = "404" ] && [ "$attempt" -lt 3 ]; then
+                echo "$label GAS probe transient HTTP 404; retrying ($attempt/3)"
+                sleep "$attempt"
+                continue
+              fi
+              return 1
+            done
+            return 1
           }
 
           primary_ok=false
