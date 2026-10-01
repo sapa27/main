@@ -63,6 +63,44 @@ ok('R355 page controller cache rehydrates every routed controller',()=>{
   assert.ok(index.includes('invalidatePageControllerCurrent(id)'),'stale prepared routes must invalidate their page controller assets');
 });
 
+ok('P0 route preparation rehydrates every missing canonical page adapter before activation',()=>{
+  assert.ok(index.includes('function recoverPageControllerCurrent(id)'),'generic controller rehydrate owner missing');
+  const prepStart=index.indexOf('function prepareRouteAssetsCurrent(target)');
+  const prepEnd=index.indexOf('function disposeActivePageForLoginCurrent',prepStart);
+  assert.ok(prepStart>=0&&prepEnd>prepStart,'route preparation source boundary missing');
+  const prep=index.slice(prepStart,prepEnd);
+  assert.ok(prep.includes('if(pageControllerReadyCurrent(id))return!0;'),'route preparation must accept only a registered canonical controller');
+  assert.ok(prep.includes('return recoverPageControllerCurrent(id).then(function(recovered)'),'route preparation must own bounded controller rehydration');
+  assert.ok(prep.includes('if(!recovered)throw new Error("ไม่พบ canonical page adapter หลังโหลดตัวควบคุม: "+id)'),'missing adapter must fail closed after the single recovery attempt');
+  assert.ok(!prep.includes('(id==="meeting"||id==="committee-meeting")&&!pageControllerReadyCurrent(id)'),'controller verification must no longer be Meeting-only');
+
+  const start=index.indexOf('function recoverPageControllerCurrent(id)');
+  const end=index.indexOf('function pageScriptList(id)',start);
+  assert.ok(start>=0&&end>start,'controller recovery helper source boundary missing');
+  const source=index.slice(start,end);
+  let ready=false,invalidations=0,loads=0;
+  const ctx={
+    Promise,
+    canonicalPageId:v=>String(v||''),
+    pageControllerReadyCurrent:()=>ready,
+    invalidatePageControllerCurrent:()=>{invalidations++;return true},
+    loadPageScriptsDirect:()=>Promise.resolve(false),
+    __appIsFn:v=>typeof v==='function',
+    window:{
+      AppAssetLoader:{
+        loadPageScripts(id){assert.equal(id,'search');loads++;ready=true;return Promise.resolve(true)}
+      },
+      AppRuntime:{recordWarning(){}}
+    }
+  };
+  vm.runInNewContext(source,ctx);
+  return ctx.recoverPageControllerCurrent('search').then(ok=>{
+    assert.equal(ok,true);
+    assert.equal(invalidations,1,'missing adapter must invalidate stale controller cache exactly once');
+    assert.equal(loads,1,'missing adapter must re-execute page scripts exactly once');
+  });
+});
+
 ok('R355 data pages force lifecycle reload after Vue DOM recreation',()=>{
   assert.ok(index.includes('var forceDomReload=/^(track|people|admin|budget)$/.test(id)'),'data-page remount set missing');
   assert.ok(index.includes('force:id==="meeting"||forceDomReload'),'data pages must force lifecycle activation after remount');
