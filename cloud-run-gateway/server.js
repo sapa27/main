@@ -38,7 +38,51 @@ async function ftimeout(url,opt,ms){
 function validateGasEnvelope(value){if(!value||typeof value!=='object'||Array.isArray(value)||typeof value.transportOk!=='boolean')throw fail('GAS response contract mismatch','GAS_RESPONSE_CONTRACT_MISMATCH',502);if(value.transportOk===true&&!Object.prototype.hasOwnProperty.call(value,'result'))throw fail('GAS success response missing result','GAS_RESPONSE_CONTRACT_MISMATCH',502);if(value.transportOk===false&&(!value.error||typeof value.error!=='object'))throw fail('GAS failure response missing error','GAS_RESPONSE_CONTRACT_MISMATCH',502);return value}
 function validateAntiEnvelope(value,action){if(!value||typeof value!=='object'||Array.isArray(value)||String(value.apiVersion||'')!=='1'||typeof value.ok!=='boolean')throw fail('Anti GAS response contract mismatch','ANTI_RESPONSE_CONTRACT_MISMATCH',502);if(value.ok===true&&action==='dashboard'&&(!value.data||!value.data.counts||typeof value.data.counts!=='object'))throw fail('Anti dashboard response missing counts','ANTI_RESPONSE_CONTRACT_MISMATCH',502);if(value.ok===true&&action==='search'&&typeof value.found!=='boolean')throw fail('Anti search response missing found flag','ANTI_RESPONSE_CONTRACT_MISMATCH',502);return value}
 function validateAntiRequest(value){if(!value||typeof value!=='object'||Array.isArray(value))throw fail('Invalid anti request','ANTI_REQUEST_INVALID',400);const action=txt(value.action).trim().toLowerCase();if(action!=='dashboard'&&action!=='search')throw fail('Anti action not allowed','ANTI_ACTION_NOT_ALLOWED',403);const payload=value.payload&&typeof value.payload==='object'&&!Array.isArray(value.payload)?value.payload:{};if(action==='dashboard'){const visitorId=txt(payload.visitorId).trim();if(visitorId.length>160)throw fail('Invalid visitor id','ANTI_VISITOR_INVALID',400);return{action,payload:{visitorId}}}const recNo=txt(payload.recNo).trim(),clientToken=txt(payload.clientToken).trim();if(!recNo||recNo.length>80)throw fail('Invalid receipt number','ANTI_REC_NO_INVALID',400);if(clientToken.length>128)throw fail('Invalid client token','ANTI_CLIENT_TOKEN_INVALID',400);return{action,payload:{recNo,clientToken}}}
-async function directRpc(method,payload,want,c){method=txt(method).trim();if(!/^[A-Za-z][A-Za-z0-9_]{1,127}$/.test(method))throw fail('Invalid API method','METHOD_INVALID',400);const g=gasUrl(c.gas);if(!g)throw fail('GAS_WEB_APP_URL is not configured','GAS_URL_NOT_CONFIGURED',503);const started=Date.now(),retryable=isRetryableRead(method,payload),maxAttempts=retryable?3:1;for(let attempt=1;attempt<=maxAttempts;attempt++){const r=await ftimeout(g,{method:'POST',redirect:'follow',headers:{'Content-Type':'application/json;charset=UTF-8','Accept':'application/json'},body:JSON.stringify({method,payload:payload==null?{}:payload})},timeout(effectiveMethod(method,payload),want,c));if(!r.ok){if(retryable&&r.status===404&&attempt<maxAttempts){await new Promise(resolve=>setTimeout(resolve,attempt*250));continue}throw fail('GAS direct HTTP '+r.status,'GAS_DIRECT_HTTP_'+r.status,r.status>=500?502:400)}let envelope;try{envelope=validateGasEnvelope(JSON.parse(r.raw));return{envelope,meta:{gateway:REV,method,transport:'gas-direct-json',responseContract:GAS_RESPONSE_CONTRACT,durationMs:Date.now()-started}}}catch(e){const err=e&&e.code?e:fail('GAS direct response is not JSON','GAS_DIRECT_JSON_INVALID',502);if(retryable&&(err.code==='GAS_DIRECT_JSON_INVALID'||err.code==='GAS_RESPONSE_CONTRACT_MISMATCH')&&attempt<maxAttempts){await new Promise(resolve=>setTimeout(resolve,attempt*250));continue}throw err}}throw fail('GAS direct read retries exhausted','GAS_READ_RETRY_EXHAUSTED',502)}
+async function directRpc(method,payload,want,c){
+  method=txt(method).trim();
+  if(!/^[A-Za-z][A-Za-z0-9_]{1,127}$/.test(method))throw fail('Invalid API method','METHOD_INVALID',400);
+  const g=gasUrl(c.gas);
+  if(!g)throw fail('GAS_WEB_APP_URL is not configured','GAS_URL_NOT_CONFIGURED',503);
+  const started=Date.now();
+  const retryable=isRetryableRead(method,payload);
+  const maxAttempts=retryable?3:1;
+  const budgetMs=timeout(effectiveMethod(method,payload),want,c);
+  const deadline=started+budgetMs;
+  for(let attempt=1;attempt<=maxAttempts;attempt++){
+    const remainingMs=deadline-Date.now();
+    if(remainingMs<=0)throw fail('GAS upstream timeout','GAS_UPSTREAM_TIMEOUT',504);
+    const r=await ftimeout(g,{
+      method:'POST',
+      redirect:'follow',
+      headers:{'Content-Type':'application/json;charset=UTF-8','Accept':'application/json'},
+      body:JSON.stringify({method,payload:payload==null?{}:payload})
+    },remainingMs);
+    if(!r.ok){
+      if(retryable&&r.status===404&&attempt<maxAttempts){
+        const delayMs=attempt*250;
+        if(Date.now()+delayMs>=deadline)throw fail('GAS upstream timeout','GAS_UPSTREAM_TIMEOUT',504);
+        await new Promise(resolve=>setTimeout(resolve,delayMs));
+        continue;
+      }
+      throw fail('GAS direct HTTP '+r.status,'GAS_DIRECT_HTTP_'+r.status,r.status>=500?502:400);
+    }
+    let envelope;
+    try{
+      envelope=validateGasEnvelope(JSON.parse(r.raw));
+      return{envelope,meta:{gateway:REV,method,transport:'gas-direct-json',responseContract:GAS_RESPONSE_CONTRACT,durationMs:Date.now()-started}};
+    }catch(e){
+      const err=e&&e.code?e:fail('GAS direct response is not JSON','GAS_DIRECT_JSON_INVALID',502);
+      if(retryable&&(err.code==='GAS_DIRECT_JSON_INVALID'||err.code==='GAS_RESPONSE_CONTRACT_MISMATCH')&&attempt<maxAttempts){
+        const delayMs=attempt*250;
+        if(Date.now()+delayMs>=deadline)throw fail('GAS upstream timeout','GAS_UPSTREAM_TIMEOUT',504);
+        await new Promise(resolve=>setTimeout(resolve,delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw fail('GAS direct read retries exhausted','GAS_READ_RETRY_EXHAUSTED',502);
+}
 async function upstreamHealth(c){let last=null;for(let attempt=0;attempt<2;attempt++){try{const x=await directRpc('apiSessionCheck',{},UPSTREAM_HEALTH_TIMEOUT_MS,c);if(x.envelope.transportOk!==true)throw fail('GAS canonical health call failed','GAS_UPSTREAM_HEALTH_FAILED',502);return x}catch(e){last=e;const code=txt(e&&e.code);if(attempt===0&&(code==='GAS_UPSTREAM_TIMEOUT'||code==='GAS_DIRECT_HTTP_404'||code.startsWith('GAS_DIRECT_HTTP_5'))){await new Promise(resolve=>setTimeout(resolve,250));continue}throw e}}throw last||fail('GAS canonical health call failed','GAS_UPSTREAM_HEALTH_FAILED',502)}
 async function directAnti(action,payload,want,c){const g=gasUrl(c.antiGas);if(!g)throw fail('ANTI_GAS_WEB_APP_URL is not configured','ANTI_GAS_URL_NOT_CONFIGURED',503);const started=Date.now();const r=await ftimeout(g,{method:'POST',redirect:'follow',headers:{'Content-Type':'application/json;charset=UTF-8','Accept':'application/json'},body:JSON.stringify({action,payload:payload||{}})},Math.max(10000,Math.min(c.antiRead,+want||c.antiRead)));if(!r.ok)throw fail('Anti GAS direct HTTP '+r.status,'ANTI_GAS_DIRECT_HTTP_'+r.status,r.status>=500?502:400);const raw=r.raw;let envelope;try{envelope=validateAntiEnvelope(JSON.parse(raw),action)}catch(e){if(e&&e.code)throw e;throw fail('Anti GAS direct response is not JSON','ANTI_GAS_DIRECT_JSON_INVALID',502)}return{envelope,meta:{gateway:REV,action,transport:'gas-direct-json',responseContract:ANTI_RESPONSE_CONTRACT,durationMs:Date.now()-started}}}
 function body(req,max){return new Promise((resolve,reject)=>{let n=0,chunks=[];req.on('data',x=>{n+=x.length;if(n>max){reject(fail('Request too large','REQUEST_TOO_LARGE',413));req.destroy()}else chunks.push(x)});req.on('end',()=>{try{const s=Buffer.concat(chunks).toString('utf8').trim();resolve(s?JSON.parse(s):{})}catch(_){reject(fail('Invalid JSON','INVALID_JSON',400))}});req.on('error',reject)})}

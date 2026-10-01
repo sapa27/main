@@ -13,7 +13,7 @@ r.APP_BUILD_PROVENANCE=P;
 r.APP_RUNTIME_CONFIG={
  CLOUD_RUN_GATEWAY_URL:CR_URL,CLOUD_RUN_ALL_PRIMARY:!0,NETWORK_ACCESS_GATE:"P0-F",SAME_ORIGIN_TRANSPORT:!0,
  REQUEST_TIMEOUT_MS:60000,WRITE_REQUEST_TIMEOUT_MS:120000,AI_DOCUMENT_TIMEOUT_MS:300000,
- RPC_READ_TIMEOUT_BY_METHOD_MS:{apiSessionResume:30000,apiSessionCheck:30000,apiGetDashboardBundle:70000,apiSearchCasesLite:45000,apiGetTracking:45000,apiGetCommitteeMeetingSystem:45000,apiBudgetGetSummary:45000},
+ RPC_READ_TIMEOUT_BY_METHOD_MS:{getDeferredInclude:50000,apiSessionResume:30000,apiSessionCheck:30000,apiGetDashboardBundle:70000,apiSearchCasesLite:45000,apiGetTracking:45000,apiGetCommitteeMeetingSystem:45000,apiBudgetGetSummary:45000},
  RPC_READ_CACHE_TTL_MS:60000,RPC_READ_STALE_TTL_MS:600000,RPC_READ_CACHE_MAX_ENTRIES:96,
  RPC_READ_CACHE_TTL_BY_METHOD_MS:{apiGetDashboardBundle:180000,apiGetTracking:300000,apiGetPeoplePageBundle:180000,apiGetPetitioners:180000,apiSearchCasesLite:180000,apiGetMeetingLookupOptions:300000,apiGetMeetingHistory:120000,apiGetLetters:120000,apiGetCanonicalCaseBundle:120000,apiListCommitteeMeetings:120000,apiGetCommitteeMeetingSystem:120000}
 };

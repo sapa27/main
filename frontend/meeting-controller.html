@@ -6236,7 +6236,19 @@
     }
     function Ge() {
       var caseNumValue = normalizeMeetingManualNo(T("meeting-caseNum")),
-        recNoValue = normalizeMeetingReceiveNo(T("meeting-recNo"));
+        recNoValue = normalizeMeetingReceiveNo(T("meeting-recNo")),
+        statusValue = normalizeMeetingStatusValue(T("meeting-status")),
+        pendingReasonValue = T("meeting-pendingRemark"),
+        closedReasonValue = T("meeting-closedReason"),
+        rejectionReasonValue = T("meeting-rejectionReason"),
+        statusReasonValue =
+          "รอพิจารณา" === statusValue
+            ? pendingReasonValue
+            : "ยุติเรื่อง" === statusValue
+              ? closedReasonValue
+              : "ไม่รับเรื่อง" === statusValue
+                ? rejectionReasonValue
+                : "";
       return Ye({
         caseId: T("meeting-caseId"),
         id: T("meeting-caseId"),
@@ -6244,7 +6256,7 @@
         caseNo: caseNumValue,
         runningNo: caseNumValue,
         ลำดับเรื่อง: caseNumValue,
-        status: T("meeting-status"),
+        status: statusValue,
         recNo: recNoValue,
         receiveNo: recNoValue,
         เลขรับเรื่อง: recNoValue,
@@ -6263,26 +6275,17 @@
         staffs: T("meeting-staffs"),
         keySummary: T("meeting-keySummary"),
         remark: T("meeting-remark"),
-        pendingRemark: T("meeting-pendingRemark"),
-        pendingReason: T("meeting-pendingRemark"),
-        waitReason: T("meeting-pendingRemark"),
+        pendingRemark: "รอพิจารณา" === statusValue ? pendingReasonValue : "",
+        pendingReason: "รอพิจารณา" === statusValue ? pendingReasonValue : "",
+        waitReason: "รอพิจารณา" === statusValue ? pendingReasonValue : "",
         agencyName: T("meeting-agencyName"),
-        closedReason: T("meeting-closedReason"),
-        rejectionReason: T("meeting-rejectionReason"),
-        rejectReason: T("meeting-rejectionReason"),
-        statusReason:
-          "รอพิจารณา" === normalizeMeetingStatusValue(T("meeting-status"))
-            ? T("meeting-pendingRemark")
-            : T("meeting-closedReason") || T("meeting-rejectionReason"),
-        reason:
-          "รอพิจารณา" === normalizeMeetingStatusValue(T("meeting-status"))
-            ? T("meeting-pendingRemark")
-            : T("meeting-closedReason") || T("meeting-rejectionReason"),
-        เหตุผล:
-          "รอพิจารณา" === normalizeMeetingStatusValue(T("meeting-status"))
-            ? T("meeting-pendingRemark")
-            : T("meeting-closedReason") || T("meeting-rejectionReason"),
-        "เหตุผล (ไม่รับเรื่อง)": T("meeting-rejectionReason"),
+        closedReason: "ยุติเรื่อง" === statusValue ? closedReasonValue : "",
+        rejectionReason: "ไม่รับเรื่อง" === statusValue ? rejectionReasonValue : "",
+        rejectReason: "ไม่รับเรื่อง" === statusValue ? rejectionReasonValue : "",
+        statusReason: statusReasonValue,
+        reason: statusReasonValue,
+        เหตุผล: statusReasonValue,
+        "เหตุผล (ไม่รับเรื่อง)": "ไม่รับเรื่อง" === statusValue ? rejectionReasonValue : "",
         newRound: T("meeting-newRound"),
         newDate: P("meeting-newDate"),
         newNote: T("meeting-newNote"),
