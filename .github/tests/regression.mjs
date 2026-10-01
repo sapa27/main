@@ -1173,21 +1173,24 @@ ok('P5 Dashboard recovery owner is single-flight and generation bounded',()=>{
   assert.ok(!block.includes('if(state.timer)clearTimeout(state.timer);state.timer=setTimeout'),'old rescheduling pattern must not return');
 });
 
-ok('P4 login and session resume complete only after Dashboard controller and first complete data settle',async()=>{
+ok('P4 login and session resume complete after Dashboard controller and usable data settle',async()=>{
   const helperStart=index.indexOf('function createDashboardInitialDataGateCrit(timeoutMs)');
   const end=index.indexOf('function executeLogin(ev)',helperStart);
   assert.ok(helperStart>=0&&end>helperStart,'P4 Dashboard bootstrap contract missing');
   const block=index.slice(helperStart,end);
   assert.ok(block.includes('dashboard-initial-data-gate-p4'),'P4 data gate stamp missing');
   assert.ok(block.includes('app:dashboard-load-settled'),'P4 must wait for the canonical Dashboard settled event');
-  assert.ok(block.includes('detail.completeData===!0'),'P4 may not mark readiness for partial Dashboard data');
-  assert.ok(block.includes('DASHBOARD_DATA_NOT_READY'),'P4 incomplete Dashboard data must fail closed');
+  assert.ok(block.includes('function dashboardOperationalDataReadyCrit(detail)'),'P4 operational Dashboard readiness helper missing');
+  assert.ok(block.includes('budget-degraded-operational'),'P4 must distinguish optional Budget degradation from fatal Dashboard failure');
+  assert.ok(block.includes('__APP_DASHBOARD_OPERATIONAL_DATA_READY__'),'P4 operational Dashboard readiness marker missing');
+  assert.ok(block.includes('DASHBOARD_DATA_NOT_READY'),'P4 unusable Dashboard data must still fail closed');
   assert.ok(block.includes('DASHBOARD_ACTIVATION_FAILED'),'P4 route activation failure must fail closed');
   assert.ok(block.includes('__APP_AUTH_RUNTIME_WARMUP_PROMISE__'),'P4 must still await canonical Dashboard runtime warmup');
   assert.ok(block.includes('dashboardState.controllerLoaded!==!0'),'P4 must verify canonical Dashboard controller readiness');
   assert.ok(block.includes('dashboardState.dataReady!==!0'),'P4 must verify canonical Dashboard data readiness');
   assert.ok(block.includes('"auth.dashboardDataReady":!0'),'P4 must commit explicit Dashboard data readiness');
-  assert.ok(block.includes('completeData:!0,source:"critical-login-runtime-p4"'),'P4 success event must declare complete data');
+  assert.ok(block.includes('operationalData:root2.__APP_DASHBOARD_OPERATIONAL_DATA_READY__===!0'),'P4 success event must disclose operational readiness');
+  assert.ok(block.includes('degraded:root2.__APP_DASHBOARD_COMPLETE_DATA_READY__!==!0'),'P4 success event must preserve degraded-vs-complete state');
   assert.ok(!index.includes('app-login-dashboard-autostart-current'),'duplicate legacy Dashboard autostart owner must be removed');
   assert.ok(!index.includes('w.AppLoginDashboardAutostart'),'duplicate Dashboard bootstrap namespace must be removed');
 
@@ -1226,6 +1229,10 @@ ok('P4 login and session resume complete only after Dashboard controller and fir
         root2.__APP_DASHBOARD_CRITICAL_FIRST_CURRENT__={controllerLoaded:controllerReady};
         root2.__APP_AUTH_RUNTIME_WARMUP_PROMISE__=Promise.resolve(mode!=='warmup-fail');
         if(mode==='data-ready')setTimeout(()=>doc.dispatchEvent(new CustomEvent('app:dashboard-load-settled',{detail:{completeData:true,current:true,pageId:'dashboard'}})),0);
+        if(mode==='budget-degraded'){
+          root2.AppDashboard={__state:{data:{summaryStats:{total:5},meta:{dashboardSingleCompletePath:true,completeData:false,budgetWarningCode:'DASHBOARD_BUDGET_READ_FAILED',deferHydrationRequired:false}}}};
+          setTimeout(()=>doc.dispatchEvent(new CustomEvent('app:dashboard-load-settled',{detail:{completeData:false,hasData:true,current:true,pageId:'dashboard',singleCompletePath:true,errorCode:''}})),0);
+        }
         if(mode==='activation-fail')setTimeout(()=>doc.dispatchEvent(new CustomEvent('app:page-activation-failed',{detail:{pageId:'dashboard'}})),0);
         return Promise.resolve({ok:true,shellShown:true,warmupPending:true});
       },
@@ -1253,8 +1260,21 @@ ok('P4 login and session resume complete only after Dashboard controller and fir
   assert.equal(pass.store.get('auth.dashboardReady',false),true);
   assert.equal(pass.store.get('auth.dashboardDataReady',false),true);
   assert.equal(pass.root2.__APP_DASHBOARD_COMPLETE_DATA_READY__,true);
+  assert.equal(pass.root2.__APP_DASHBOARD_OPERATIONAL_DATA_READY__,true);
   assert.equal(pass.attrs['data-login-handoff'],'dashboard-ready');
-  assert.ok(pass.doc.events.some(e=>e.type==='app:auth-dashboard-ready'&&e.detail.completeData===true));
+  assert.ok(pass.doc.events.some(e=>e.type==='app:auth-dashboard-ready'&&e.detail.completeData===true&&e.detail.operationalData===true));
+
+  const degraded=await runCase('budget-degraded');
+  const degradedResult=await degraded.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'});
+  assert.equal(degradedResult.dashboardReady,true);
+  assert.equal(degradedResult.dashboardDataReady,true);
+  assert.equal(degradedResult.dashboardDataComplete,false);
+  assert.equal(degradedResult.dashboardDataDegraded,true);
+  assert.equal(degraded.root2.__APP_DASHBOARD_COMPLETE_DATA_READY__,false);
+  assert.equal(degraded.root2.__APP_DASHBOARD_OPERATIONAL_DATA_READY__,true);
+  assert.equal(degraded.store.get('auth.uiReady',false),true);
+  assert.equal(degraded.attrs['data-login-handoff'],'dashboard-ready');
+  assert.ok(degraded.doc.events.some(e=>e.type==='app:auth-dashboard-ready'&&e.detail.completeData===false&&e.detail.operationalData===true&&e.detail.degraded===true));
 
   const warmupFail=await runCase('warmup-fail');
   await assert.rejects(warmupFail.ctx.bootAfterLoginCrit({role:'Admin',name:'Fixture'}),e=>e.code==='DASHBOARD_BOOT_FAILED');
