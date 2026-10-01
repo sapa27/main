@@ -16,7 +16,7 @@ function fail(message,code='GATEWAY_ERROR',status=502){const e=new Error(message
 const isWrite=m=>/^api(?:(?!Get|List|Search|Check).)*(Save|Delete|Update|Queue|Process|Create|Migrate|Repair|Cleanup|Import)/.test(txt(m));
 const isAI=m=>/^apiExtract(?:Tracking|Document|MeetingAgenda)Pdf$/i.test(txt(m));
 function effectiveMethod(method,payload){return method==='apiRouter'&&payload&&typeof payload==='object'&&!Array.isArray(payload)?txt(payload.method).trim()||method:method}
-function isRetryableRead(method,payload){const m=effectiveMethod(method,payload);return m==='getDeferredInclude'||/^api(?:Get|List|Search|Check|Bootstrap)/.test(m)}
+function isRetryableRead(method,payload){const m=effectiveMethod(method,payload);return m==='getDeferredInclude'||m==='apiSessionCheck'||/^api(?:Get|List|Search|Check|Bootstrap)/.test(m)}
 function timeout(method,want,c){const cap=isAI(method)?c.ai:isWrite(method)?c.write:c.read,n=+want||cap;return Math.max(10000,Math.min(cap,n))}
 async function ftimeout(url,opt,ms){
   const ac=new AbortController();
