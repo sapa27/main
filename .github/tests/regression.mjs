@@ -475,7 +475,10 @@ ok('Case status reason payload keeps rejection, closure, and pending reasons iso
   assert.ok(transport.includes('if(write&&writeKey&&W[writeKey]){emit("app:transport:write-deduped"'),'concurrent duplicate writes must share one in-flight request');
   assert.ok(transport.includes('writeKey&&delete W[writeKey]'),'P8 write single-flight key must be released on settle');
   assert.ok(transport.includes('writeInflight:Object.keys(W).length'),'P8 diagnostics must expose active write count without payload logging');
-  assert.ok(transport.includes('EPOCH++;TTL=Object.create(null);F=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must invalidate client read cache');
+  assert.ok(transport.includes('dedupeKey=(read?"e"+EPOCH+"|":"")+(key||I.wire+"|"'),'read single-flight keys must be generation scoped after cache invalidation');
+  assert.ok(transport.includes('EPOCH++;TTL=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must invalidate client read cache without orphaning active requests');
+  assert.ok(!transport.includes('EPOCH++;TTL=Object.create(null);F=Object.create(null);emit("app:transport:cache-invalidated"'),'successful writes must not drop in-flight request tracking');
+  assert.ok(transport.includes('invalidateClientApiCache=function(){EPOCH++;TTL=Object.create(null);LAST_TRACE=null;return!0}'),'manual cache invalidation must advance generation without orphaning in-flight reads');
   assert.ok(!transport.includes('if(write&&cached)'),'writes must never be served from stale cache');
 
   const appStart=index.indexOf('Object.assign(appApi,{__criticalApi');
