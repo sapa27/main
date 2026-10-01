@@ -25,5 +25,6 @@
     "Cloudflare edge gate",
     "authenticated production smoke",
     "Meeting R355 lifecycle fix"
-  ]
+  ],
+  "frontendRecovery": "p0-route-adapter-rehydrate-v1"
 }
