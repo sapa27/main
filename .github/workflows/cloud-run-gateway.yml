@@ -125,7 +125,7 @@ jobs:
                 --data '{"method":"apiSessionCheck","payload":{}}' \
                 "$url" || true)"
               set +e
-              PROBE_BODY="$body_file" PROBE_HEADERS="$header_file" PROBE_LABEL="$label" PROBE_HTTP="$http_code" node <<'NODE'
+              PROBE_BODY="$body_file" PROBE_HEADERS="$header_file" PROBE_LABEL="$label" PROBE_HTTP="$http_code" PROBE_ATTEMPT="$attempt" node <<'NODE'
           const fs=require('fs');
           const label=process.env.PROBE_LABEL||'GAS';
           const status=process.env.PROBE_HTTP||'0';
@@ -146,10 +146,14 @@ jobs:
               if [ "$probe_status" -eq 0 ]; then
                 return 0
               fi
-              if [ "$http_code" = "404" ] && [ "$attempt" -lt 3 ]; then
-                echo "$label GAS probe transient HTTP 404; retrying ($attempt/3)"
-                sleep "$attempt"
-                continue
+              if [ "$attempt" -lt 3 ]; then
+                case "$http_code" in
+                  200|404|429|500|502|503|504)
+                    echo "$label GAS probe transient response HTTP $http_code; retrying ($attempt/3)"
+                    sleep "$attempt"
+                    continue
+                    ;;
+                esac
               fi
               return 1
             done
@@ -159,7 +163,15 @@ jobs:
           primary_ok=false
           candidate_ok=false
           probe_gas "primary" "$GAS_WEB_APP_URL" && primary_ok=true
-          probe_gas "candidate" "$GAS_CANDIDATE_WEB_APP_URL" && candidate_ok=true
+          if [ "$GAS_CANDIDATE_WEB_APP_URL" = "$GAS_WEB_APP_URL" ]; then
+            if [ "$primary_ok" = "true" ]; then
+              candidate_ok=true
+            else
+              probe_gas "canonical-retry" "$GAS_WEB_APP_URL" && { primary_ok=true; candidate_ok=true; }
+            fi
+          else
+            probe_gas "candidate" "$GAS_CANDIDATE_WEB_APP_URL" && candidate_ok=true
+          fi
 
           echo "### GAS Endpoint Preflight" >> "$GITHUB_STEP_SUMMARY"
           echo "- Primary canonical probe: $primary_ok" >> "$GITHUB_STEP_SUMMARY"
