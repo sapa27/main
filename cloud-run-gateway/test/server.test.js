@@ -58,6 +58,21 @@ test('transient GAS 404 retry is limited to read-only methods',()=>{
   assert.equal(isRetryableRead('apiRouter',{method:'apiDeleteCase'}),false);
 });
 
+test('directRpc retries transient non-JSON GAS response for read-only calls',async()=>{
+  const original=global.fetch;
+  let calls=0;
+  global.fetch=async()=>{
+    calls++;
+    if(calls===1)return {ok:true,status:200,text:async()=>'<html>temporary upstream page</html>'};
+    return {ok:true,status:200,text:async()=>JSON.stringify({transportOk:true,result:{ok:true,data:{html:'<script>dashboard</script>'}}})};
+  };
+  try{
+    const out=await directRpc('getDeferredInclude',{name:'Scripts_Page_Dashboard'},30000,cfg(ENV));
+    assert.equal(out.envelope.transportOk,true);
+    assert.equal(calls,2);
+  }finally{global.fetch=original}
+});
+
 test('directRpc retries transient GAS 404 for read-only calls',async()=>{
   const original=global.fetch;
   let calls=0;
