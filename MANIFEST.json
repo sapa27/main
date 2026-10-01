@@ -1,6 +1,6 @@
 {
   "package": "sapa27-github-full-replacement",
-  "date": "2026-09-29",
+  "date": "2026-10-01",
   "sourceBaselineSha": "3193b713118bd176c8f7c7c59182ccb45631d65c",
   "r355MergeSha": "0d53c7cdfbdab3208637b6b06af14e936796a880",
   "architecture": "Cloudflare Workers -> Cloud Run -> GAS direct JSON",
