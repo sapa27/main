@@ -1,0 +1,85 @@
+<script id="report-page-production-owner-p5" data-app-fragment="report">
+!(function (root, doc) {
+  "use strict";
+  if (!root || !doc || root.__REPORT_PAGE_PRODUCTION_OWNER_P5__) return;
+  var OWNER = "Scripts_Page_Report:ProductionOwner.P5";
+  var isFn = root.__appIsFn || function (v) { return typeof v === "function"; };
+  function attr(ctx, name) {
+    return ctx && ctx.target && ctx.target.getAttribute ? ctx.target.getAttribute(name) : "";
+  }
+  function warn(label, err, meta) {
+    try {
+      if (root.AppRuntime && isFn(root.AppRuntime.recordWarning)) return root.AppRuntime.recordWarning(label, err, Object.assign({ owner: OWNER }, meta || {}));
+    } catch (_) { void _; }
+    return false;
+  }
+  function callShared(name, args) {
+    var fn = root[name];
+    if (!isFn(fn)) { warn("report.shared.missing." + name, null, { name: name }); return false; }
+    return fn.apply(root, args || []);
+  }
+  function loadFresh(source) {
+    return callShared("loadReportData", [1, { forceFresh: true, manualRefresh: true, source: source || "report-action-p5" }]);
+  }
+  function updateGroupAndReload() {
+    return Promise.resolve(isFn(root.updateReportGroupOptions) ? root.updateReportGroupOptions() : true).then(function () {
+      return loadFresh("report-type-change-p5");
+    });
+  }
+  function onKeydown(ev) {
+    if (!ev || ev.key !== "Enter" || !ev.target || ev.target.id !== "report-search-name") return;
+    if (!(ev.target.closest && ev.target.closest("#p-report"))) return;
+    if (ev.preventDefault) ev.preventDefault();
+    return loadFresh("report-enter-key-p5");
+  }
+  function onChange(ev) {
+    var t = ev && ev.target;
+    if (!t || t.id !== "report-group-value" || !(t.closest && t.closest("#p-report"))) return;
+    return loadFresh("report-group-change-p5");
+  }
+  function bindEvents() {
+    if (!root.AppEvents || !isFn(root.AppEvents.on)) return false;
+    root.AppEvents.on(doc, "keydown", onKeydown, false, "reportPageP5.keydown");
+    root.AppEvents.on(doc, "change", onChange, false, "reportPageP5.group.change");
+    return true;
+  }
+  function disposeEvents() {
+    return root.AppEvents && isFn(root.AppEvents.disposePage) ? root.AppEvents.disposePage("reportPageP5") : 0;
+  }
+  function applyHeaders() {
+    return root.AppReportTrack && isFn(root.AppReportTrack.applyHeaders) ? root.AppReportTrack.applyHeaders() : false;
+  }
+
+  if (root.AppPages && isFn(root.AppPages.registerActions)) {
+    root.AppPages.registerActions("report", {
+      renderReport: function () { return loadFresh("report-action-render-p5"); },
+      loadReportData: function () { return loadFresh("report-action-load-p5"); },
+      updateReportGroupOptions: updateGroupAndReload,
+      reportChangePage: function (ctx) { return callShared("reportChangePage", [attr(ctx, "data-page") || 1, ctx && ctx.target]); },
+      exportToExcel: function (ctx) { return root.AppReportTrack && isFn(root.AppReportTrack.exportToExcel) ? root.AppReportTrack.exportToExcel(ctx) : false; },
+      searchShowCase: function (ctx) { return callShared("searchShowCase", [attr(ctx, "data-case-id")]); }
+    });
+  }
+  if (root.AppPages && isFn(root.AppPages.register)) {
+    root.AppPages.register("report", {
+      mount: function () {
+        disposeEvents();
+        bindEvents();
+        applyHeaders();
+        return Promise.resolve(isFn(root.updateReportGroupOptions) ? root.updateReportGroupOptions() : true).then(function () {
+          return callShared("loadReportData", [1, { forceFresh: false, source: "report.lifecycle.mount-p5" }]);
+        });
+      },
+      reload: function () {
+        return callShared("loadReportData", [1, { forceFresh: true, manualRefresh: true, source: "report.lifecycle.reload-p5" }]);
+      },
+      dispose: function () {
+        disposeEvents();
+        return true;
+      }
+    });
+  }
+  root.AppReportPage = Object.assign(root.AppReportPage || {}, { owner: OWNER });
+  root.__REPORT_PAGE_PRODUCTION_OWNER_P5__ = !0;
+})(window, document);
+</script>

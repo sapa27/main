@@ -1,0 +1,2265 @@
+<script id="committee-meeting-system-owner" data-app-fragment="committee">
+  !(function (root, doc) {
+    "use strict";
+    if (root && !root.__COMMITTEE_MEETING_SYSTEM_CURRENT__) {
+      root.__COMMITTEE_MEETING_SYSTEM_CURRENT__ = !0;
+      var Kit =
+          root.AppKit && root.AppKit.moduleKit
+            ? root.AppKit.moduleKit("CommitteeMeetingSystem")
+            : root.AppPageKit && root.AppPageKit.moduleKit
+              ? root.AppPageKit.moduleKit("CommitteeMeetingSystem")
+              : root.AppKit || root.AppPageKit || root.AppUtil || {},
+        searchTimer = null,
+        listState = {
+          page: 1,
+          pageSize: 20,
+          total: 0,
+          meetings: [],
+          itemsByMeetingId: {},
+          requestSeq: 0,
+          activated: !1,
+        },
+        byId =
+          (Kit && Kit.byId) ||
+          function (id) {
+            return doc.getElementById(id);
+          },
+        text =
+          (Kit && Kit.text) ||
+          function (v) {
+            return null == v ? "" : String(v);
+          },
+        esc =
+          (Kit && (Kit.esc || Kit.escapeHtml)) ||
+          function (v) {
+            return text(v).replace(/[&<>"']/g, function (c) {
+              return (
+                {
+                  "&": "&amp;",
+                  "<": "&lt;",
+                  ">": "&gt;",
+                  '"': "&quot;",
+                  "'": "&#39;",
+                }[c] || c
+              );
+            });
+          },
+        setHtml =
+          (Kit && (Kit.setHtml || Kit.setTrustedHtml)) ||
+          function (id, html, moduleName) {
+            var el = id && id.nodeType ? id : byId(id);
+            return el
+              ? root.AppProductionSafeDom &&
+                __appIsFn(root.AppProductionSafeDom.setHtml)
+                ? root.AppProductionSafeDom.setHtml(el, html || "", {
+                    moduleName: moduleName || "meeting.page",
+                    trusted: !1,
+                  })
+                : root.AppDom && __appIsFn(root.AppDom.setHtml)
+                  ? root.AppDom.setHtml(el, html || "", {
+                      moduleName: moduleName || "meeting.page",
+                      trusted: !1,
+                    })
+                  : ((el.textContent = text(html || "")), el)
+              : null;
+          },
+        val = __Scripts_Page_Meeting_val,
+        setVal = __Scripts_Page_Meeting_setVal,
+        unwrap =
+          (Kit && Kit.unwrap) ||
+          function (res) {
+            if (
+              res &&
+              "object" == typeof res &&
+              (!1 === res.ok || !1 === res.success)
+            )
+              throw new Error(errorText(res, "คำขอไม่สำเร็จ"));
+            return res && res.data ? res.data : res || {};
+          },
+        api = function (name, payload) {
+          var finalPayload = meetingFreshAuthPayload(name, payload || {});
+          return root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner)
+            ? root.AppPageKit.apiRunner(
+                name,
+                finalPayload,
+                "CommitteeMeetingSystem",
+                45e3,
+              )
+            : Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"));
+        },
+        notify =
+          (Kit && Kit.notify) ||
+          function (icon, msg) {
+            root.Swal
+              ? root.Swal.fire({
+                  icon: icon || "info",
+                  text: msg,
+                  timer: 1800,
+                  showConfirmButton: !1,
+                })
+              : alert(msg);
+          },
+        meetingConsiderationTitle = function (meeting, items) {
+          meeting = meeting || {};
+          return text(
+            meeting.title ||
+              meeting.meetingTitle ||
+              meeting.name ||
+              meeting.displayTitle ||
+              meeting.summaryTitle ||
+              "การประชุมคณะกรรมาธิการ",
+          )
+            .replace(/\s+/g, " ")
+            .trim();
+        };
+      (root.AppMeetingEventOwner && __appIsFn(root.AppMeetingEventOwner.ready)
+        ? root.AppMeetingEventOwner.ready(bind, "committee-summary.ready")
+        : "loading" === doc.readyState
+          ? doc.addEventListener("DOMContentLoaded", bind)
+          : bind(),
+        (root.committeeMeetingSummaryPage = function (page, source) {
+          try {
+            var pager =
+                source && source.closest
+                  ? source.closest(".app-table-pager")
+                  : null,
+              sel =
+                source && source.matches && source.matches("select")
+                  ? source
+                  : pager && pager.querySelector
+                    ? pager.querySelector(".app-table-page-size")
+                    : null;
+            if (sel)
+              listState.pageSize = Math.max(
+                1,
+                Number(sel.value || listState.pageSize || 20) || 20,
+              );
+          } catch (_meetingPageSizeErr) {
+            __appObserve(_meetingPageSizeErr, "meeting.footer.size");
+          }
+          return (
+            (listState.page = clampPage(
+              page,
+              listState.meetings.length,
+              listState.pageSize,
+            )),
+            renderPagedRows(),
+            !0
+          );
+        }),
+        (root.CommitteeMeetingSystem = {
+          reload: loadList,
+          clear: clearForm,
+          save: save,
+          scanAgenda: function () {
+            return triggerAgendaAiScan(byId("committee-meeting-ai-agenda-btn"));
+          },
+          activate: function () {
+            if (!byId("content-committee-meeting-system")) return !1;
+            try {
+              bind();
+            } catch (_committeeBindActivateErr) {
+              __appObserve(_committeeBindActivateErr, "meeting.committee.bind.activate");
+            }
+            var first = !listState.activated;
+            listState.activated = !0;
+            clearForm();
+            /*
+             * Page lifecycle and data loading are separate contracts.
+             * loadList() already renders its API error inside the page. A transient
+             * data failure must not make AppLifecycle report that the page controller
+             * is missing, otherwise the whole committee-meeting route is rejected.
+             */
+            return Promise.resolve(loadList({ forceFresh: first })).then(
+              function () {
+                return !0;
+              },
+              function (err) {
+                try {
+                  root.AppRuntime &&
+                    __appIsFn(root.AppRuntime.recordWarning) &&
+                    root.AppRuntime.recordWarning(
+                      "meeting.committee.initialDataLoad",
+                      err,
+                      { pageId: "committee-meeting", controllerReady: !0 },
+                    );
+                } catch (_committeeInitialLoadWarnErr) {
+                  __appObserve(
+                    _committeeInitialLoadWarnErr,
+                    "meeting.committee.initialDataLoad.warn",
+                  );
+                }
+                return !0;
+              },
+            );
+          },
+          showView: showView,
+          formatDate: formatDate,
+        }));
+    }
+    function errorText(err, direct) {
+      if (((direct = direct || "เกิดข้อผิดพลาด"), !err)) return direct;
+      if ("string" == typeof err) return err || direct;
+      if (err.message) return text(err.message);
+      if (err.error) return text(err.error);
+      if (err.msg) return text(err.msg);
+      if (err.details && err.details.message) return text(err.details.message);
+      try {
+        return JSON.stringify(err);
+      } catch (_e) {
+        return direct;
+      }
+    }
+    function formatDate(v) {
+      if (null == v || "" === v) return "";
+      if (root.AppFormat && __appIsFn(root.AppFormat.toThaiDate)) {
+        var out = root.AppFormat.toThaiDate(v, "");
+        if (out) return out;
+      }
+      return text(v).trim();
+    }
+    function caseRefText(v) {
+      var f = root.normalizeCaseManualNo || root.normalizeCaseDisplay;
+      if (f) return f(v);
+      if (null == v || "" === v) return "";
+      var s = text(v)
+        .replace(/^'+/, "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
+      if (!s || "-" === s) return "";
+      if (
+        /^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i.test(s) ||
+        /GMT[+-]\d{4}|เวลาอินโดจีน/i.test(s) ||
+        /^\d{4}-\d{1,2}-\d{1,2}/.test(s) ||
+        /^\d{1,2}\/\d{1,2}\/(?:19|20|25)\d{2}$/.test(s)
+      )
+        return "";
+      if (/^\d+$/.test(s)) return s;
+      var decimal = s.match(/^(\d+)\.0+$/);
+      if (decimal) return decimal[1];
+      var previous = s.match(/^(\d+)\s*[\/\-–—]\s*(?:19|20|25)\d{2}$/);
+      return previous ? previous[1] : "";
+    }
+    function __Scripts_Page_Meeting_val(id) {
+      var el = byId(id);
+      return el ? text(el.value).trim() : "";
+    }
+    function __Scripts_Page_Meeting_setVal(id, value) {
+      var el = byId(id);
+      el && (el.value = null == value ? "" : String(value));
+    }
+    function meetingFreshAuthPayload(name, payload) {
+      var p =
+        payload && "object" == typeof payload && !Array.isArray(payload)
+          ? Object.assign({}, payload)
+          : {};
+      p.actionMethod = p.actionMethod || text(name || "");
+      var tok = "",
+        csrf = "";
+      try {
+        ((tok = String(
+          (root.AppStore &&
+            root.AppStore.get &&
+            root.AppStore.get("auth.token", "")) ||
+            "",
+        )),
+          (csrf = String(
+            (root.AppStore &&
+              root.AppStore.get &&
+              root.AppStore.get("auth.csrfToken", "")) ||
+              "",
+          )));
+      } catch (_authReadErr) {
+        __appObserve(_authReadErr, "meeting.auth.read");
+      }
+      return (
+        (p.__authTransportOwner = "AppApiMiddlewarePipeline"),
+        (p.__meetingDelegatesWriteAuthTo = "AppWriteActionUiOwner"),
+        p
+      );
+    }
+    function closeSwal() {
+      if (root.Swal && root.Swal.close)
+        try {
+          root.Swal.close();
+        } catch (_e) {
+          __appObserve(_e, "ec");
+        }
+    }
+    function disable(el, flag) {
+      el && ((el.disabled = !!flag), el.classList.toggle("disabled", !!flag));
+    }
+    function filterPayload(options) {
+      options = options || {};
+      return {
+        query: val("committee-meeting-print-query"),
+        agendaNo: val("committee-meeting-print-agenda"),
+        forceFresh: options.forceFresh === !0,
+        noCache: options.forceFresh === !0,
+        bypassCache: options.forceFresh === !0,
+        cacheTtlSeconds: options.forceFresh === !0 ? 0 : 300,
+        compactList: !0,
+        source:
+          options.forceFresh === !0
+            ? "committee-meeting-list-first-fresh"
+            : "committee-meeting-list-cache",
+      };
+    }
+    function meetingListDisplayTitle(meeting) {
+      var id = String((meeting && meeting.meetingId) || "");
+      return meetingConsiderationTitle(
+        meeting,
+        (listState.itemsByMeetingId || {})[id] || [],
+      );
+    }
+    function isListVisible() {
+      var p = byId("committee-meeting-list-panel");
+      return !(!p || p.classList.contains("d-none"));
+    }
+    function hideDetail() {
+      var p = byId("committee-meeting-detail-panel");
+      p && p.classList.add("d-none");
+    }
+    function clampPage(v, total, size) {
+      var pages = Math.max(
+        1,
+        Math.ceil(
+          Math.max(0, Number(total || 0)) / Math.max(1, Number(size || 20)),
+        ),
+      );
+      return Math.min(Math.max(1, Number(v || 1) || 1), pages);
+    }
+    function renderListFooter(total) {
+      var host = byId("committee-meeting-list-footer");
+      if (host) {
+        ((total = Math.max(0, Number(total || 0) || 0)),
+          (listState.total = total),
+          (listState.page = clampPage(
+            listState.page,
+            total,
+            listState.pageSize,
+          )));
+        var footerOpts = {
+          total: total,
+          pageSize: listState.pageSize,
+          page: listState.page,
+          action: "committeeMeetingSummaryPage",
+          kind: "committee-meeting-list-footer",
+          sizeClass:
+            "committee-meeting-summary-page-size app-standard-page-size",
+          dataName: "data-committee-meeting-footer",
+        };
+        if (root.AppTable && __appIsFn(root.AppTable.footer))
+          try {
+            return (root.AppTable.footer(host, footerOpts), void 0);
+          } catch (_meetingStdFooterErr) {
+            try {
+              root.AppRuntime &&
+                root.AppRuntime.recordWarning &&
+                root.AppRuntime.recordWarning(
+                  "meeting.renderStandardFooter",
+                  _meetingStdFooterErr,
+                  footerOpts,
+                );
+            } catch (_warnErr) {
+              __appObserve(_warnErr, "ec");
+            }
+          }
+        else
+          try {
+            root.AppRuntime &&
+              root.AppRuntime.recordWarning &&
+              root.AppRuntime.recordWarning(
+                "meeting.AppTable.footer.notReady",
+                new Error("AppTable.footer ไม่พร้อมใช้งาน"),
+                footerOpts,
+              );
+          } catch (_warnErr) {
+            __appObserve(_warnErr, "ec");
+          }
+      }
+    }
+    function renderPagedRows() {
+      var meetings = (listState.meetings || []).filter(function (m) {
+          return !(m && m.readOnlyLegacy);
+        }),
+        total = meetings.length;
+      listState.page = clampPage(listState.page, total, listState.pageSize);
+      var start = (listState.page - 1) * listState.pageSize,
+        rows = meetings.slice(start, start + listState.pageSize);
+      if (!rows.length) {
+        var f = filterPayload(),
+          empty =
+            f.query || f.agendaNo
+              ? "ไม่พบข้อมูลตามคำค้น/ตัวกรอง"
+              : "ยังไม่มีข้อมูลการประชุม";
+        return (
+          setHtml(
+            "committee-meeting-list-tbody",
+            '<tr><td class="text-center text-muted p-3" colspan="4">' +
+              esc(empty) +
+              "</td></tr>",
+          ),
+          renderListFooter(0),
+          void 0
+        );
+      }
+      (setHtml(
+        "committee-meeting-list-tbody",
+        rows
+          .map(function (m) {
+            var id = esc(m.meetingId || "");
+            return (
+              '<tr><td class="text-center fw-bold">' +
+              esc(m.meetingNo || "") +
+              '</td><td class="text-center">' +
+              esc(formatDate(m.meetingDate || "")) +
+              "</td><td>" +
+              esc(meetingListDisplayTitle(m)) +
+              '</td><td class="text-center"><button class="btn btn-sm btn-outline-info js-show-meeting-detail" data-id="' +
+              id +
+              '" type="button">แสดงข้อมูล</button> <button class="btn btn-sm btn-outline-primary js-load-meeting" data-id="' +
+              id +
+              '" type="button">แก้ไข</button> <button class="btn btn-sm btn-outline-danger js-delete-meeting" data-id="' +
+              id +
+              '" type="button">ลบ</button></td></tr>'
+            );
+          })
+          .join(""),
+      ),
+        renderListFooter(total),
+        root.CommitteeMeetingSummaryDetail &&
+          __appIsFn(root.CommitteeMeetingSummaryDetail.enhanceRows) &&
+          root.CommitteeMeetingSummaryDetail.enhanceRows());
+    }
+    function showView(view) {
+      ((view = "list" === view ? "list" : "form"),
+        ["form", "list"].forEach(function (name) {
+          var panel = byId("committee-meeting-" + name + "-panel");
+          panel && panel.classList.toggle("d-none", name !== view);
+          var tab = byId("committee-meeting-tab-" + name);
+          tab && tab.classList.toggle("active", name === view);
+        }),
+        "list" === view && loadList());
+    }
+    function agendaRowHtml(no, item) {
+      item = item || {};
+      var agendaNo = Number(no),
+        hidden =
+          '<input type="hidden" class="js-item-id" value="' +
+          esc(item.itemId || "") +
+          '">';
+      if (2 === agendaNo)
+        return (
+          '<div class="committee-agenda-row border rounded p-2 mb-2" data-agenda="2">' +
+          hidden +
+          '<div class="row g-2"><div class="col-md-3"><label class="small fw-bold">การประชุมครั้งที่</label><input class="form-control form-control-sm js-related-no" value="' +
+          esc(item.relatedMeetingNo || "") +
+          '"></div><div class="col-md-3"><label class="small fw-bold">วันเดือนปี</label><input class="form-control form-control-sm app-thai-date-input js-related-date" data-thai-date="1" value="' +
+          esc(formatDate(item.relatedMeetingDate || "")) +
+          '"></div><div class="col-md-5"><label class="small fw-bold">ผลการประชุม/มติที่ประชุม</label><textarea class="form-control form-control-sm js-result" rows="2">' +
+          esc(item.result || item.note || "") +
+          '</textarea></div><div class="col-md-1 d-flex align-items-end"><button class="btn btn-sm btn-outline-danger js-remove" type="button"><i class="fas fa-xmark"></i></button></div></div></div>'
+        );
+      if (1 === agendaNo || 3 === agendaNo || 4 === agendaNo) {
+        var label = 3 === agendaNo ? "เรื่องพิจารณา" : "ชื่อเรื่อง",
+          placeholder =
+            1 === agendaNo
+              ? "พิมพ์ชื่อเรื่อง หรือค้นจากลำดับเรื่อง/ชื่อเรื่อง/ชื่อเรื่องพิจารณา"
+              : 4 === agendaNo
+                ? "ค้นหรือพิมพ์ชื่อเรื่องอื่น ๆ"
+                : "ค้นหรือพิมพ์ชื่อเรื่องพิจารณา",
+          itemCaseNum = caseRefText(item.caseNum || ""),
+          itemRecNo = caseRefText(item.recNo || ""),
+          linkedCase = itemCaseNum
+            ? "เชื่อมประวัติการพิจารณาแล้ว: " + itemCaseNum
+            : item.caseId
+              ? "เชื่อมประวัติการพิจารณาแล้ว"
+              : "",
+          titleValue = item.caseTitle || item.title || "";
+        return (
+          '<div class="committee-agenda-row border rounded p-2 mb-2" data-agenda="' +
+          esc(agendaNo) +
+          '" data-case-id="' +
+          esc(item.caseId || "") +
+          '" data-case-num="' +
+          esc(itemCaseNum) +
+          '" data-rec-no="' +
+          esc(itemRecNo) +
+          '">' +
+          hidden +
+          '<div class="row g-2"><div class="col-lg-5 col-md-6"><label class="small fw-bold">' +
+          esc(label) +
+          '</label><div class="input-group input-group-sm"><input class="form-control js-case-query" value="' +
+          esc(titleValue) +
+          '" placeholder="' +
+          esc(placeholder) +
+          '"><button class="btn btn-outline-primary js-search-case" type="button">ค้น/เชื่อม</button></div><select class="form-select form-select-sm mt-1 js-case-options d-none"></select><div class="small text-success js-linked-case">' +
+          esc(linkedCase) +
+          '</div><div class="small text-muted">เมื่อบันทึก ระบบจะเชื่อมเข้าประวัติการพิจารณาของคณะกรรมาธิการอัตโนมัติ</div></div><div class="col-lg-3 col-md-6"><label class="small fw-bold">หน่วยงาน/ผู้ชี้แจง</label><input class="form-control form-control-sm js-agency" value="' +
+          esc(item.agencyOrPresenter || "") +
+          '"></div><div class="col-lg-3 col-md-10"><label class="small fw-bold">ผลการประชุม/มติที่ประชุม</label><textarea class="form-control form-control-sm js-result" rows="2">' +
+          esc(item.result || item.note || "") +
+          '</textarea></div><div class="col-lg-1 col-md-2 d-flex align-items-end"><button class="btn btn-sm btn-outline-danger js-remove" type="button"><i class="fas fa-xmark"></i></button></div></div></div>'
+        );
+      }
+      return (
+        '<div class="committee-agenda-row border rounded p-2 mb-2" data-agenda="' +
+        esc(no) +
+        '">' +
+        hidden +
+        '<div class="row g-2"><div class="col-md-5"><label class="small fw-bold">ชื่อเรื่อง</label><input class="form-control form-control-sm js-title" value="' +
+        esc(item.title || item.caseTitle || "") +
+        '"></div><div class="col-md-6"><label class="small fw-bold">ผลการประชุม/มติที่ประชุม</label><textarea class="form-control form-control-sm js-result" rows="2">' +
+        esc(item.result || item.note || "") +
+        '</textarea></div><div class="col-md-1 d-flex align-items-end"><button class="btn btn-sm btn-outline-danger js-remove" type="button"><i class="fas fa-xmark"></i></button></div></div></div>'
+      );
+    }
+    function appendTrustedAgendaHtml(box, html) {
+      if (!box) return null;
+      var frag = null;
+      if (
+        root.AppProductionSafeDom &&
+        __appIsFn(root.AppProductionSafeDom.createTrustedFragment)
+      )
+        frag = root.AppProductionSafeDom.createTrustedFragment(html, {
+          moduleName: "meeting.agenda.row",
+          trustedTemplate: !0,
+        });
+      else if (doc.createRange) {
+        var range = doc.createRange();
+        (range.selectNode(box),
+          (frag = range.createContextualFragment(String(html || ""))));
+      }
+      return frag
+        ? (box.appendChild(frag), box.lastElementChild || null)
+        : null;
+    }
+    function addAgendaRow(no, item) {
+      var box = byId("committee-agenda" + no + "-rows");
+      box && appendTrustedAgendaHtml(box, agendaRowHtml(no, item || {}));
+    }
+    function collectAgenda(no) {
+      return Array.prototype.slice
+        .call(
+          doc.querySelectorAll(
+            "#committee-agenda" + no + "-rows .committee-agenda-row",
+          ),
+        )
+        .map(function (row, idx) {
+          return {
+            itemId: (row.querySelector(".js-item-id") || {}).value || "",
+            agendaNo: String(no),
+            seq: idx + 1,
+            title:
+              (
+                row.querySelector(".js-title") ||
+                row.querySelector(".js-case-query") ||
+                {}
+              ).value || "",
+            relatedMeetingNo:
+              (row.querySelector(".js-related-no") || {}).value || "",
+            relatedMeetingDate: formatDate(
+              (row.querySelector(".js-related-date") || {}).value || "",
+            ),
+            caseId: row.getAttribute("data-case-id") || "",
+            caseNum: row.getAttribute("data-case-num") || "",
+            recNo: row.getAttribute("data-rec-no") || "",
+            caseTitle: (row.querySelector(".js-case-query") || {}).value || "",
+            agencyOrPresenter:
+              (row.querySelector(".js-agency") || {}).value || "",
+            result: (row.querySelector(".js-result") || {}).value || "",
+          };
+        })
+        .filter(function (item) {
+          return Object.keys(item).some(function (k) {
+            return !/^(agendaNo|seq)$/.test(k) && "" !== text(item[k]).trim();
+          });
+        });
+    }
+    function clearForm() {
+      ([
+        "committee-meetingId",
+        "committee-meetingNo",
+        "committee-meetingDate",
+        "committee-meetingTitle",
+        "committee-meetingNote",
+      ].forEach(function (id) {
+        setVal(id, "");
+      }),
+        [1, 2, 3, 4].forEach(function (no) {
+          (setHtml("committee-agenda" + no + "-rows", ""),
+            addAgendaRow(no, {}));
+        }),
+        showView("form"));
+    }
+    function formPayload() {
+      return {
+        meeting: {
+          meetingId: val("committee-meetingId"),
+          meetingNo: val("committee-meetingNo"),
+          meetingDate: formatDate(val("committee-meetingDate")),
+          title: val("committee-meetingTitle"),
+          note: val("committee-meetingNote"),
+        },
+        agenda1: collectAgenda(1),
+        agenda2: collectAgenda(2),
+        agenda3: collectAgenda(3),
+        agenda4: collectAgenda(4),
+      };
+    }
+    function renderList(data, options) {
+      options = options || {};
+      var meetings = (data = data || {}).meetings || [],
+        itemsByMeetingId = data.itemsByMeetingId || {};
+      return (
+        (listState.meetings = meetings.slice ? meetings.slice() : meetings),
+        (listState.itemsByMeetingId = itemsByMeetingId || {}),
+        (listState.pageSize = Math.max(
+          1,
+          Number(listState.pageSize || 20) || 20,
+        )),
+        options.keepPage || (listState.page = 1),
+        (root.__committeeMeetingCache = {
+          meetings: listState.meetings,
+          itemsByMeetingId: listState.itemsByMeetingId,
+        }),
+        renderPagedRows(),
+        data
+      );
+    }
+    function loadList(options) {
+      options = options || {};
+      var requestSeq = ++listState.requestSeq,
+        tbody = byId("committee-meeting-list-tbody");
+      return (
+        tbody && setHtml(tbody, '<tr data-app-loading-state="committee-meeting-list"><td class="text-center text-muted p-3" colspan="4"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>กำลังโหลดข้อมูล</td></tr>', "meeting.list.loading"),
+        setHtml("committee-meeting-list-footer", ""),
+        hideDetail(),
+        api("apiListCommitteeMeetings", filterPayload(options))
+          .then(function (res) {
+            var data = unwrap(res) || {},
+              depth = 0;
+            for (
+              ;
+              depth < 4 &&
+              data &&
+              data.data &&
+              "object" == typeof data.data &&
+              !Array.isArray(data.data) &&
+              !data.meetings;
+              depth += 1
+            )
+              data = data.data;
+            return requestSeq === listState.requestSeq
+              ? renderList(data || {})
+              : data;
+          })
+          .catch(function (err) {
+            throw (
+              setHtml(
+                "committee-meeting-list-tbody",
+                '<tr><td class="text-center text-danger p-3" colspan="4">' +
+                  esc((err && err.message) || err || "โหลดข้อมูลไม่สำเร็จ") +
+                  "</td></tr>",
+              ),
+              setHtml("committee-meeting-list-footer", ""),
+              err
+            );
+          })
+      );
+    }
+    function showCommitteeLoadingSpinner() {
+      try {
+        root.Swal.showLoading();
+      } catch (_e) {
+        __appObserve(_e, "ec");
+      }
+    }
+    function save(btn) {
+      var payload = formPayload();
+      return (
+        root.Swal &&
+          root.Swal.fire({
+            title: "กำลังบันทึกข้อมูล",
+            text: "กรุณารอสักครู่",
+            allowOutsideClick: !1,
+            allowEscapeKey: !1,
+            backdrop: !0,
+            showConfirmButton: !1,
+            didOpen: showCommitteeLoadingSpinner,
+          }),
+        disable(btn, !0),
+        api("apiSaveCommitteeMeetingSystem", payload)
+          .then(function (res) {
+            var data = unwrap(res) || {};
+            return (
+              setVal(
+                "committee-meetingId",
+                data.meetingId || payload.meeting.meetingId || "",
+              ),
+              closeSwal(),
+              notify("success", "บันทึกการประชุมคณะกรรมาธิการสำเร็จ"),
+              loadList().then(function () {
+                return res;
+              })
+            );
+          })
+          .catch(function (err) {
+            throw (
+              closeSwal(),
+              notify("error", text((err && err.message) || err)),
+              err
+            );
+          })
+          .finally(function () {
+            disable(btn, !1);
+          })
+      );
+    }
+    function loadToForm(meeting, items) {
+      (setVal("committee-meetingId", (meeting = meeting || {}).meetingId || ""),
+        setVal("committee-meetingNo", meeting.meetingNo || ""),
+        setVal("committee-meetingDate", formatDate(meeting.meetingDate || "")),
+        setVal(
+          "committee-meetingTitle",
+          meeting.title || "การประชุมคณะกรรมาธิการ",
+        ),
+        setVal("committee-meetingNote", meeting.note || ""),
+        [1, 2, 3, 4].forEach(function (no) {
+          setHtml("committee-agenda" + no + "-rows", "");
+        }),
+        (items || []).forEach(function (item) {
+          addAgendaRow(Number(item.agendaNo || 1), item);
+        }),
+        [1, 2, 3, 4].forEach(function (no) {
+          doc.querySelector(
+            "#committee-agenda" + no + "-rows .committee-agenda-row",
+          ) || addAgendaRow(no, {});
+        }),
+        showView("form"));
+    }
+    function showMeetingEditLoading() {
+      if (root.Swal)
+        try {
+          return (
+            root.Swal.fire({
+              title: "กำลังโหลดข้อมูล",
+              text: "กำลังโหลดข้อมูลสรุปการประชุม กรุณารอสักครู่",
+              allowOutsideClick: !1,
+              allowEscapeKey: !1,
+              backdrop: !0,
+              showConfirmButton: !1,
+              didOpen: showCommitteeLoadingSpinner,
+            }),
+            !0
+          );
+        } catch (_swalErr) {
+          __appObserve(_swalErr, "ec");
+        }
+      return !1;
+    }
+    function closeMeetingEditLoading() {
+      if (root.Swal)
+        try {
+          root.Swal.close();
+        } catch (_e) {
+          __appObserve(_e, "ec");
+        }
+    }
+    function editMeeting(id) {
+      return (
+        showMeetingEditLoading(),
+        api("apiGetCommitteeMeetingSystem", { meetingId: id })
+          .then(function (res) {
+            var data = unwrap(res) || {};
+            if (data.meeting) return loadToForm(data.meeting, data.items || []);
+            var cache = root.__committeeMeetingCache || {},
+              meeting;
+            return loadToForm(
+              (cache.meetings || []).filter(function (m) {
+                return String(m.meetingId || "") === String(id || "");
+              })[0] || null,
+              (cache.itemsByMeetingId || {})[String(id || "")] || [],
+            );
+          })
+          .then(function (out) {
+            return (closeMeetingEditLoading(), out);
+          })
+          .catch(function (err) {
+            throw (
+              closeMeetingEditLoading(),
+              notify(
+                "error",
+                text((err && err.message) || err || "โหลดข้อมูลไม่สำเร็จ"),
+              ),
+              err
+            );
+          })
+      );
+    }
+    function setAiAgendaStatus(msg, tone) {
+      var el = byId("committee-meeting-ai-agenda-status");
+      el &&
+        ((msg = text(msg || "")),
+        (el.textContent = msg),
+        el.classList.toggle("d-none", !msg),
+        el.classList.toggle("text-danger", "danger" === tone),
+        el.classList.toggle("text-success", "success" === tone),
+        el.classList.toggle("text-muted", !tone || "muted" === tone));
+    }
+    function fileToBase64(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        ((reader.onload = function () {
+          var raw = String(reader.result || ""),
+            comma = raw.indexOf(",");
+          resolve(comma >= 0 ? raw.substring(comma + 1) : raw);
+        }),
+          (reader.onerror = function () {
+            reject(reader.error || new Error("อ่านไฟล์ไม่สำเร็จ"));
+          }),
+          reader.readAsDataURL(file));
+      });
+    }
+    function hasAgendaData() {
+      return [1, 2, 3, 4].some(function (no) {
+        return collectAgenda(no).length > 0;
+      });
+    }
+    function normalizeAiAgendaRows(rows, agendaNo) {
+      return (rows = Array.isArray(rows) ? rows : [])
+        .map(function (item) {
+          var title = text(
+            (item = item || {}).title || item.caseTitle || "",
+          ).trim();
+          return {
+            agendaNo: String(agendaNo),
+            title: title,
+            caseTitle: text(item.caseTitle || title).trim(),
+            agencyOrPresenter: text(
+              item.agencyOrPresenter || item.agency || item.presenter || "",
+            ).trim(),
+            result: text(
+              item.result || item.note || item.resolution || "",
+            ).trim(),
+            relatedMeetingNo: text(item.relatedMeetingNo || "").trim(),
+            relatedMeetingDate: formatDate(item.relatedMeetingDate || ""),
+          };
+        })
+        .filter(function (item) {
+          return (
+            "" !==
+            text(
+              item.title ||
+                item.caseTitle ||
+                item.agencyOrPresenter ||
+                item.result ||
+                item.relatedMeetingNo ||
+                item.relatedMeetingDate,
+            ).trim()
+          );
+        });
+    }
+    function applyAiAgenda(data) {
+      var meeting = (data = data || {}).meeting || {};
+      (meeting.meetingNo &&
+        !val("committee-meetingNo") &&
+        setVal("committee-meetingNo", meeting.meetingNo),
+        meeting.meetingDate &&
+          !val("committee-meetingDate") &&
+          setVal("committee-meetingDate", formatDate(meeting.meetingDate)),
+        meeting.title &&
+          !val("committee-meetingTitle") &&
+          setVal("committee-meetingTitle", meeting.title),
+        meeting.note &&
+          !val("committee-meetingNote") &&
+          setVal("committee-meetingNote", meeting.note));
+      var total = 0;
+      return (
+        [1, 2, 3, 4].forEach(function (no) {
+          var rows = normalizeAiAgendaRows(data["agenda" + no], no);
+          rows.length &&
+            (setHtml("committee-agenda" + no + "-rows", ""),
+            rows.forEach(function (item) {
+              addAgendaRow(no, item);
+            }),
+            (total += rows.length));
+        }),
+        [1, 2, 3, 4].forEach(function (no) {
+          doc.querySelector(
+            "#committee-agenda" + no + "-rows .committee-agenda-row",
+          ) || addAgendaRow(no, {});
+        }),
+        setAiAgendaStatus(
+          total
+            ? "AI กรอกระเบียบวาระแล้ว " +
+                total +
+                " รายการ กรุณาตรวจทานก่อนบันทึก"
+            : "AI ไม่พบรายการระเบียบวาระในเอกสาร",
+          total ? "success" : "danger",
+        ),
+        total
+      );
+    }
+    function scanAgendaFile(file, btn) {
+      return file
+        ? /pdf$/i.test(String(file.type || "")) ||
+          /\.pdf$/i.test(String(file.name || ""))
+          ? file.size > 6291456
+            ? (notify("warning", "ไฟล์ใหญ่เกิน 6 MB กรุณาลดขนาดไฟล์ก่อนสแกน"),
+              Promise.resolve(!1))
+            : hasAgendaData() &&
+                !root.confirm(
+                  "AI จะเติม/แทนที่ข้อมูลในช่องระเบียบวาระที่ตรวจพบ ต้องการดำเนินการต่อหรือไม่?",
+                )
+              ? Promise.resolve(!1)
+              : (disable(btn, !0),
+                setAiAgendaStatus(
+                  "AI กำลังสแกนเอกสารและแยกระเบียบวาระ กรุณารอสักครู่...",
+                  "muted",
+                ),
+                root.Swal &&
+                  root.Swal.fire({
+                    title: "AI กำลังสแกนระเบียบวาระ",
+                    text: "กรุณารอสักครู่",
+                    allowOutsideClick: !1,
+                    allowEscapeKey: !1,
+                    backdrop: !0,
+                    showConfirmButton: !1,
+                    didOpen: showCommitteeLoadingSpinner,
+                  }),
+                fileToBase64(file)
+                  .then(function (base64) {
+                    return api("apiExtractMeetingAgendaPdf", {
+                      base64: base64,
+                      fileName: file.name || "",
+                      mimeType: file.type || "application/pdf",
+                    });
+                  })
+                  .then(function (res) {
+                    closeSwal();
+                    var data = unwrap(res) || {},
+                      count;
+                    return (
+                      applyAiAgenda(data)
+                        ? notify("success", "AI กรอกระเบียบวาระจากเอกสารแล้ว")
+                        : notify("warning", "AI ไม่พบรายการวาระในเอกสาร"),
+                      data
+                    );
+                  })
+                  .catch(function (err) {
+                    closeSwal();
+                    var msg = errorText(err, "AI สแกนเอกสารไม่สำเร็จ");
+                    (setAiAgendaStatus(msg, "danger"), notify("error", msg));
+                    try {
+                      root.AppRuntime &&
+                        root.AppRuntime.reportApiError &&
+                        root.AppRuntime.reportApiError(
+                          "AI สแกนระเบียบวาระไม่สำเร็จ",
+                          err,
+                          {
+                            method: "apiExtractMeetingAgendaPdf",
+                            source: "CommitteeMeetingSystem.scanAgendaFile",
+                          },
+                        );
+                    } catch (_reportErr) {
+                      __appObserve(_reportErr, "ec");
+                    }
+                    return !1;
+                  })
+                  .finally(function () {
+                    disable(btn, !1);
+                  }))
+          : (notify("warning", "รองรับไฟล์ PDF เท่านั้น"), Promise.resolve(!1))
+        : (notify("warning", "กรุณาเลือกไฟล์ PDF ระเบียบวาระการประชุม"),
+          Promise.resolve(!1));
+    }
+    function triggerAgendaAiScan(btn) {
+      var input = byId("committee-meeting-ai-agenda-file");
+      return input
+        ? ((input.value = ""),
+          (input.dataset.triggerButton = btn && btn.id ? btn.id : ""),
+          input.click(),
+          !0)
+        : (notify("error", "ไม่พบช่องเลือกไฟล์สำหรับ AI"), !1);
+    }
+    function searchCase(btn) {
+      var row =
+          btn && btn.closest ? btn.closest(".committee-agenda-row") : null,
+        q = (row && (row.querySelector(".js-case-query") || {}).value) || "",
+        select = row && row.querySelector(".js-case-options");
+      return q
+        ? api("apiSearchMeetingAgendaCases", { query: q, limit: 30 }).then(
+            function (res) {
+              var data = unwrap(res) || {},
+                rows = data.rows || data.items || data.meetings || [];
+              return select
+                ? rows.length
+                  ? (setHtml(
+                      select,                      '<option value="">เลือกเรื่องที่ต้องการเชื่อมประวัติการพิจารณา</option>' +
+                        rows
+                          .map(function (item) {
+                            var clean = Object.assign({}, item || {}, {
+                              caseNum: caseRefText(item && item.caseNum),
+                              recNo: caseRefText(item && item.recNo),
+                            });
+                            return (
+                              '<option value="' +
+                              esc(JSON.stringify(clean)) +
+                              '">' +
+                              esc(
+                                [clean.caseNum, clean.caseTitle || clean.title]
+                                  .filter(Boolean)
+                                  .join(" | "),
+                              ) +
+                              "</option>"
+                            );
+                          })
+                          .join(""),
+                      "meeting.case-options",
+                    ),
+                    select.classList.remove("d-none"),
+                    rows)
+                  : (select.classList.add("d-none"),
+                    notify("warning", "ไม่พบเรื่องพิจารณา"),
+                    rows)
+                : rows;
+            },
+          )
+        : (notify("warning", "กรุณาระบุคำค้น"), !1);
+    }
+    function selectCase(select) {
+      if (select && select.value)
+        try {
+          var item = JSON.parse(select.value),
+            row = select.closest(".committee-agenda-row");
+          if (!row) return;
+          var caseNum = caseRefText(item.caseNum || ""),
+            recNo = caseRefText(item.recNo || "");
+          (row.setAttribute("data-case-id", item.caseId || ""),
+            row.setAttribute("data-case-num", caseNum),
+            row.setAttribute("data-rec-no", recNo));
+          var input = row.querySelector(".js-case-query");
+          input && (input.value = item.caseTitle || item.title || "");
+          var agency = row.querySelector(".js-agency");
+          agency &&
+            !agency.value &&
+            item.agencyName &&
+            (agency.value = item.agencyName);
+          var linked = row.querySelector(".js-linked-case");
+          (linked &&
+            (linked.textContent = caseNum
+              ? "เชื่อมประวัติการพิจารณาแล้ว: " + caseNum
+              : "เชื่อมประวัติการพิจารณาแล้ว"),
+            select.classList.add("d-none"));
+        } catch (_e) {
+          __appObserve(_e, "ec");
+        }
+    }
+    function bindCommitteeEvent(eventName, handler, options, key) {
+      return root.AppEvents && __appIsFn(root.AppEvents.on)
+        ? root.AppEvents.on(doc, eventName, handler, options, key)
+        : (doc.addEventListener(eventName, handler, options), !0);
+    }
+    function bind() {
+      if (root.__COMMITTEE_MEETING_SYSTEM_BOUND_CURRENT__) return !0;
+      ((root.__COMMITTEE_MEETING_SYSTEM_BOUND_CURRENT__ = !0),
+        bindCommitteeEvent(
+          "click",
+          function (ev) {
+            var btn =
+              ev.target && ev.target.closest
+                ? ev.target.closest(
+                    '[data-committee-meeting-view],[data-agenda-add],.js-remove,.js-search-case,.js-load-meeting,.js-delete-meeting,#committee-meeting-ai-agenda-btn,#committee-meeting-save-btn,#committee-meeting-new-btn,#committee-meeting-refresh-list-btn,#committee-meeting-search-list-btn,#committee-meeting-clear-filter-btn,.app-table-pager [data-action="committeeMeetingSummaryPage"]',
+                  )
+                : null;
+            if (btn) {
+              if (btn.hasAttribute("data-committee-meeting-view"))
+                return (
+                  ev.preventDefault(),
+                  showView(btn.getAttribute("data-committee-meeting-view")),
+                  void 0
+                );
+              if (btn.hasAttribute("data-agenda-add"))
+                return (
+                  ev.preventDefault(),
+                  addAgendaRow(btn.getAttribute("data-agenda-add"), {}),
+                  void 0
+                );
+              if (btn.classList.contains("js-remove")) {
+                ev.preventDefault();
+                var row = btn.closest(".committee-agenda-row");
+                return (row && row.remove(), void 0);
+              }
+              if (btn.classList.contains("js-search-case"))
+                return (
+                  ev.preventDefault(),
+                  Promise.resolve(searchCase(btn)).catch(function (err) {
+                    notify(
+                      "error",
+                      errorText(err, "ค้นหาเรื่องพิจารณาไม่สำเร็จ"),
+                    );
+                  }),
+                  void 0
+                );
+              if ("committee-meeting-ai-agenda-btn" === btn.id)
+                return (ev.preventDefault(), triggerAgendaAiScan(btn), void 0);
+              if ("committee-meeting-save-btn" === btn.id)
+                return (
+                  ev.preventDefault(),
+                  Promise.resolve(save(btn)).catch(function (err) {
+                    notify(
+                      "error",
+                      errorText(err, "บันทึกข้อมูลการประชุมไม่สำเร็จ"),
+                    );
+                  }),
+                  void 0
+                );
+              if ("committee-meeting-new-btn" === btn.id)
+                return (ev.preventDefault(), clearForm(), void 0);
+              if (
+                "committee-meeting-refresh-list-btn" === btn.id ||
+                "committee-meeting-search-list-btn" === btn.id
+              )
+                return (
+                  ev.preventDefault(),
+                  (listState.page = 1),
+                  loadList(),
+                  void 0
+                );
+              if ("committee-meeting-clear-filter-btn" === btn.id)
+                return (
+                  ev.preventDefault(),
+                  setVal("committee-meeting-print-query", ""),
+                  setVal("committee-meeting-print-agenda", ""),
+                  (listState.page = 1),
+                  loadList(),
+                  void 0
+                );
+              if (
+                "committeeMeetingSummaryPage" ===
+                btn.getAttribute("data-action")
+              )
+                return (
+                  ev.preventDefault(),
+                  (listState.page = clampPage(
+                    btn.getAttribute("data-page"),
+                    listState.meetings.length,
+                    listState.pageSize,
+                  )),
+                  renderPagedRows(),
+                  void 0
+                );
+              if (btn.classList.contains("js-load-meeting"))
+                return (
+                  ev.preventDefault(),
+                  editMeeting(btn.getAttribute("data-id")),
+                  void 0
+                );
+              if (btn.classList.contains("js-delete-meeting")) {
+                ev.preventDefault();
+                var id = btn.getAttribute("data-id");
+                confirm("ยืนยันการลบข้อมูลการประชุมนี้?") &&
+                  api("apiDeleteCommitteeMeetingSystem", { meetingId: id })
+                    .then(function () {
+                      (notify("success", "ลบข้อมูลการประชุมสำเร็จ"),
+                        loadList());
+                    })
+                    .catch(function (err) {
+                      notify(
+                        "error",
+                        errorText(err, "ลบข้อมูลการประชุมไม่สำเร็จ"),
+                      );
+                    });
+              }
+            }
+          },
+          !1,
+          "meeting.committeeSystem.click",
+        ),
+        bindCommitteeEvent(
+          "change",
+          function (ev) {
+            var el = ev.target;
+            if (el && "committee-meeting-ai-agenda-file" === el.id) {
+              var btn = byId(
+                el.dataset.triggerButton || "committee-meeting-ai-agenda-btn",
+              );
+              return (
+                Promise.resolve(
+                  scanAgendaFile(el.files && el.files[0], btn),
+                ).catch(function (err) {
+                  notify("error", errorText(err, "AI สแกนเอกสารไม่สำเร็จ"));
+                }),
+                void 0
+              );
+            }
+            return el &&
+              el.classList &&
+              el.classList.contains("js-case-options")
+              ? (selectCase(el), void 0)
+              : el &&
+                  el.classList &&
+                  el.classList.contains("committee-meeting-summary-page-size")
+                ? ((listState.pageSize = Math.max(
+                    1,
+                    Number(el.value || 20) || 20,
+                  )),
+                  (listState.page = 1),
+                  renderPagedRows(),
+                  void 0)
+                : (el &&
+                    "committee-meeting-print-agenda" === el.id &&
+                    isListVisible() &&
+                    ((listState.page = 1), loadList()),
+                  void 0);
+          },
+          !1,
+          "meeting.committeeSystem.change",
+        ),
+        bindCommitteeEvent(
+          "input",
+          function (ev) {
+            var el = ev.target;
+            el &&
+              "committee-meeting-print-query" === el.id &&
+              isListVisible() &&
+              (searchTimer && root.clearTimeout(searchTimer),
+              (searchTimer = root.setTimeout(function () {
+                ((listState.page = 1), loadList());
+              }, 350)));
+          },
+          !1,
+          "meeting.committeeSystem.input",
+        ),
+        bindCommitteeEvent(
+          "keydown",
+          function (ev) {
+            var el = ev.target;
+            if (
+              (el &&
+                "committee-meeting-print-query" === el.id &&
+                "Enter" === ev.key &&
+                (ev.preventDefault(),
+                searchTimer && root.clearTimeout(searchTimer),
+                (listState.page = 1),
+                loadList()),
+              el &&
+                el.classList &&
+                el.classList.contains("js-case-query") &&
+                "Enter" === ev.key)
+            ) {
+              var row = el.closest(".committee-agenda-row"),
+                btn = row && row.querySelector(".js-search-case");
+              btn && (ev.preventDefault(), searchCase(btn));
+            }
+          },
+          !1,
+          "meeting.committeeSystem.keydown",
+        ),
+        byId("content-committee-meeting-system") && clearForm());
+    }
+  })(window, document);
+</script>
+<script id="committee-meeting-print-owner" data-app-fragment="committee">
+  !(function (root, doc) {
+    "use strict";
+    if (root && !root.__COMMITTEE_MEETING_PRINT_SYSTEM_TEMPLATE_CURRENT__) {
+      root.__COMMITTEE_MEETING_PRINT_SYSTEM_TEMPLATE_CURRENT__ = !0;
+      var Kit =
+          root.AppPageKit && root.AppPageKit.moduleKit
+            ? root.AppPageKit.moduleKit("CommitteeMeetingPrintRewrite")
+            : root.AppPageKit || root.AppUtil || {},
+        COMMITTEE_NAME =
+          "คณะกรรมาธิการการป้องกันและปราบปรามการทุจริตประพฤติมิชอบ สภาผู้แทนราษฎร",
+        byId =
+          (Kit && Kit.byId) ||
+          function (id) {
+            return doc.getElementById(id);
+          },
+        text =
+          (Kit && Kit.text) ||
+          function (v) {
+            return null == v ? "" : String(v);
+          },
+        trim =
+          (Kit && Kit.trim) ||
+          function (v) {
+            return text(v).replace(/\s+/g, " ").trim();
+          },
+        esc = __Scripts_Page_Meeting_Html_C8_esc_1,
+        fmtDate = function (v) {
+          if (
+            root.CommitteeMeetingSystem &&
+            __appIsFn(root.CommitteeMeetingSystem.formatDate)
+          )
+            return root.CommitteeMeetingSystem.formatDate(v);
+          if (!v) return "";
+          if (
+            "[object Date]" === Object.prototype.toString.call(v) &&
+            !isNaN(v.getTime())
+          ) {
+            var y = v.getFullYear();
+            return (
+              y < 2400 && (y += 543),
+              root.AppFormat.pad2(v.getDate()) + "/" + root.AppFormat.pad2(v.getMonth() + 1) + "/" + y
+            );
+          }
+          var s = trim(v);
+          if (!s) return "";
+          var m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (m) {
+            var yy = Number(m[3]);
+            return (
+              yy < 2400 && (yy += 543),
+              root.AppFormat.pad2(m[1]) + "/" + root.AppFormat.pad2(m[2]) + "/" + yy
+            );
+          }
+          if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) {
+            var y2 = Number(m[1]);
+            return (
+              y2 < 2400 && (y2 += 543),
+              root.AppFormat.pad2(m[3]) + "/" + root.AppFormat.pad2(m[2]) + "/" + y2
+            );
+          }
+          if (/GMT|เวลาอินโดจีน/.test(s)) {
+            var d = new Date(
+              s.replace(/\s*\(.*?\)\s*/g, " ").replace(/เวลาอินโดจีน/g, ""),
+            );
+            if (!isNaN(d.getTime())) {
+              var by = d.getFullYear();
+              return (
+                by < 2400 && (by += 543),
+                root.AppFormat.pad2(d.getDate()) + "/" + root.AppFormat.pad2(d.getMonth() + 1) + "/" + by
+              );
+            }
+          }
+          return s;
+        },
+        api = function (name, payload) {
+          return (
+            (payload = payload || {}),
+            root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner)
+              ? root.AppPageKit.apiRunner(
+                  name,
+                  payload,
+                  "CommitteeMeetingPrintRewrite",
+                  3e4,
+                )
+              : Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
+          );
+        },
+        unwrap =
+          (Kit && Kit.unwrap) ||
+          function (res) {
+            return res && res.data ? res.data : res || {};
+          },
+        notify =
+          (Kit && Kit.notify) ||
+          function (icon, msg) {
+            return (
+              (msg = text(msg || "")),
+              root.Swal && __appIsFn(root.Swal.fire)
+                ? root.Swal.fire({
+                    icon: icon || "info",
+                    text: msg,
+                    timer: 2200,
+                    showConfirmButton: !1,
+                  })
+                : (("error" === icon || msg) && root.alert(msg), null)
+            );
+          },
+        printOfficial = function (title, bodyHtml, options, preopenedWindow) {
+          options = normalizePrintOptions(
+            Object.assign({}, options || {}, {
+              title: title || (options && options.title),
+            }),
+          );
+          var payload = {
+            bodyHtml: text(bodyHtml || ""),
+            meta: {
+              title: options.title,
+              classification:
+                options.classification || "การประชุมคณะกรรมาธิการ",
+            },
+            layoutMode: options.layoutMode,
+            pageSize: options.pageSize,
+            autoPrint: !1 !== options.autoPrint,
+          };
+          if (!(root.AppPrint && __appIsFn(root.AppPrint.printWithProfile)))
+            return (notify("error", "ไม่พบ AppPrint.printWithProfile"), !1);
+          try {
+            var out = root.AppPrint.printWithProfile(
+              "meeting-summary",
+              payload,
+            );
+            if (preopenedWindow && !preopenedWindow.closed)
+              try {
+                preopenedWindow.close();
+              } catch (_c) {
+                __appObserve(_c, "ec");
+              }
+            return out;
+          } catch (err) {
+            return (notify("error", text((err && err.message) || err)), !1);
+          }
+        };
+      (root.AppMeetingEventOwner && __appIsFn(root.AppMeetingEventOwner.ready)
+        ? root.AppMeetingEventOwner.ready(bind, "standalone-print.ready")
+        : "loading" === doc.readyState
+          ? doc.addEventListener("DOMContentLoaded", bind)
+          : bind(),
+        (root.CommitteeMeetingStandalonePrint = {
+          printBundle: print,
+          fmtDate: fmtDate,
+          singleOwner: "AppPrint.printWithProfile",
+        }));
+    }
+    function __Scripts_Page_Meeting_Html_C8_esc_1(v) {
+      var fn = Kit.esc || Kit.escapeHtml;
+      return "function" == typeof fn
+        ? fn(v)
+        : text(v).replace(/[&<>"']/g, function (c) {
+            return (
+              {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              }[c] || c
+            );
+          });
+    }
+    function normalizePrintOptions(options) {
+      var layout = (options = options || {}).layoutMode || "landscape";
+      return {
+        layoutMode: layout,
+        pageSize:
+          "landscape" === layout || /landscape/i.test(options.pageSize || "")
+            ? "A4 landscape"
+            : "A4",
+        autoPrint: !1 !== options.autoPrint,
+        title: options.title || "รายงานการประชุมคณะกรรมาธิการ",
+        classification: options.classification || "การประชุมคณะกรรมาธิการ",
+      };
+    }
+    function meetingPrintVal(id) {
+      var el = byId(id);
+      return el ? trim(el.value || el.textContent || "") : "";
+    }
+    function filters(type) {
+      var agendaNo = meetingPrintVal("committee-meeting-print-agenda"),
+        agendaLabel = "ทุกวาระ";
+      try {
+        var sel = byId("committee-meeting-print-agenda"),
+          opt = sel && sel.options ? sel.options[sel.selectedIndex] : null;
+        opt && trim(opt.textContent) && (agendaLabel = trim(opt.textContent));
+      } catch (_filterOptErr) {
+        __appObserve(_filterOptErr, "ec");
+      }
+      return {
+        type: type || "summary",
+        printType: type || "summary",
+        query: meetingPrintVal("committee-meeting-print-query"),
+        agendaNo: agendaNo,
+        agendaLabel: agendaNo ? agendaLabel : "ทุกวาระ",
+      };
+    }
+    function emptyBox(msg) {
+      return (
+        '<div class="app-print-empty">' + esc(msg || "ไม่มีข้อมูล") + "</div>"
+      );
+    }
+    function printItemMeta(item) {
+      item = item || {};
+      var parts = [];
+      return (
+        ["caseNo", "caseNum", "recNo", "agency", "note"].forEach(function (k) {
+          var v = trim(item[k] || "");
+          v && parts.indexOf(v) < 0 && parts.push(v);
+        }),
+        parts.length
+          ? '<div class="app-print-muted">' +
+            parts.map(esc).join("<br>") +
+            "</div>"
+          : ""
+      );
+    }
+    function renderOverview(data) {
+      var rows = data.listMeetings || data.tableMeetings || [],
+        f = data.filters || {},
+        html =
+          '<div class="app-print-muted text-center" style="margin-bottom:10px;">พิมพ์ข้อมูลครบตามตารางสรุปการประชุม' +
+          (f.agendaLabel ? " / ตัวกรอง: " + esc(f.agendaLabel) : "") +
+          (f.query ? " / คำค้น: " + esc(f.query) : "") +
+          "</div>";
+      return rows.length
+        ? ((html +=
+            '<table class="app-standard-print-table"><thead><tr><th style="width:10%">ครั้งที่</th><th style="width:15%">วันเดือนปี</th><th>ชื่อการประชุม</th><th style="width:24%">หมายเหตุ</th></tr></thead><tbody>'),
+          rows.forEach(function (row) {
+            html +=
+              '<tr><td class="text-center">' +
+              esc(row.meetingNo) +
+              '</td><td class="text-center">' +
+              esc(fmtDate(row.meetingDate)) +
+              "</td><td>" +
+              esc(
+                row.title ||
+                  row.meetingTitle ||
+                  row.name ||
+                  row.displayTitle ||
+                  row.summaryTitle ||
+                  "",
+              ) +
+              "</td><td>" +
+              esc(row.note || "") +
+              "</td></tr>";
+          }),
+          html + "</tbody></table>")
+        : html + emptyBox("ไม่พบข้อมูลการประชุมตามตาราง");
+    }
+    function renderSummary(data) {
+      var meetings = data.summaryMeetings || [],
+        f = data.filters || {},
+        html =
+          '<div class="app-print-muted text-center" style="margin-bottom:10px;">ตัวกรอง: ' +
+          esc(f.agendaLabel || "ทุกวาระ") +
+          (f.query ? " / คำค้น: " + esc(f.query) : "") +
+          "</div>";
+      return meetings.length
+        ? (meetings.forEach(function (meeting) {
+            ((html +=
+              '<div class="app-print-section-title">การประชุมครั้งที่ ' +
+              esc(meeting.meetingNo) +
+              " วันที่ " +
+              esc(fmtDate(meeting.meetingDate)) +
+              " " +
+              esc(
+                meeting.title ||
+                  meeting.meetingTitle ||
+                  meeting.name ||
+                  meeting.displayTitle ||
+                  meeting.summaryTitle ||
+                  "",
+              ) +
+              "</div>"),
+              meeting.note &&
+                (html +=
+                  '<div class="app-print-muted" style="margin-bottom:6px;"><strong>หมายเหตุ:</strong> ' +
+                  esc(meeting.note) +
+                  "</div>"),
+              (html +=
+                '<table class="app-standard-print-table"><thead><tr><th style="width:18%">ระเบียบวาระ</th><th>ชื่อเรื่อง</th><th style="width:20%">หน่วยงาน/ผู้ชี้แจง</th><th style="width:30%">ผลการประชุม / มติที่ประชุม</th></tr></thead><tbody>'),
+              (meeting.items || []).forEach(function (item) {
+                html +=
+                  "<tr><td>" +
+                  esc(item.agendaLabel) +
+                  "</td><td>" +
+                  esc(item.title) +
+                  printItemMeta(item) +
+                  "</td><td>" +
+                  esc(item.agencyOrPresenter) +
+                  "</td><td>" +
+                  esc(item.result) +
+                  "</td></tr>";
+              }),
+              (html += "</tbody></table>"));
+          }),
+          html)
+        : html + emptyBox("ไม่พบข้อมูลตามตัวกรอง");
+    }
+    function print(type, preopenedWindow) {
+      return api("apiGetCommitteeMeetingPrintBundle", filters(type))
+        .then(function (res) {
+          var data = unwrap(res) || {};
+          return "overview" === type
+            ? printOfficial(
+                "รายการการประชุมคณะกรรมาธิการ",
+                renderOverview(data),
+                { layoutMode: "landscape", autoPrint: !0 },
+                preopenedWindow,
+              )
+            : printOfficial(
+                "รายงานสรุปผลการประชุมคณะกรรมาธิการ",
+                renderSummary(data),
+                { layoutMode: "landscape", autoPrint: !0 },
+                preopenedWindow,
+              );
+        })
+        .catch(function (err) {
+          throw (notify("error", text((err && err.message) || err)), err);
+        });
+    }
+    function bind() {
+      return root.AppMeetingEventOwner &&
+        __appIsFn(root.AppMeetingEventOwner.bind)
+        ? root.AppMeetingEventOwner.bind({
+            target: doc,
+            event: "click",
+            key: "standalone-print.click",
+            handler: function (ev) {
+              var btn =
+                  ev.target && ev.target.closest
+                    ? ev.target.closest(
+                        "#committee-meeting-print-overview-btn,#committee-meeting-print-summary-btn",
+                      )
+                    : null,
+                type;
+              btn &&
+                (ev.preventDefault(),
+                print(
+                  "committee-meeting-print-overview-btn" === btn.id
+                    ? "overview"
+                    : "summary",
+                  null,
+                ));
+            },
+          })
+        : !1;
+    }
+  })(window, document);
+</script>
+<script id="committee-meeting-summary-detail-owner" data-app-fragment="committee">
+  !(function (root, doc) {
+    "use strict";
+    if (
+      root &&
+      !root.__COMMITTEE_MEETING_SUMMARY_DETAIL_SYSTEM_PRINT_CURRENT__
+    ) {
+      root.__COMMITTEE_MEETING_SUMMARY_DETAIL_SYSTEM_PRINT_CURRENT__ = !0;
+      var Kit =
+          root.AppPageKit && root.AppPageKit.moduleKit
+            ? root.AppPageKit.moduleKit("CommitteeMeetingSummaryPopupRewrite")
+            : root.AppPageKit || root.AppUtil || {},
+        current = null,
+        modalApi = null,
+        agendaLabels = {
+          1: "ระเบียบวาระที่ 1 เรื่องแจ้ง",
+          2: "ระเบียบวาระที่ 2 รับรองบันทึกการประชุม",
+          3: "ระเบียบวาระที่ 3 เรื่องพิจารณา",
+          4: "ระเบียบวาระที่ 4 เรื่องอื่น ๆ",
+        },
+        byId =
+          (Kit && Kit.byId) ||
+          function (id) {
+            return doc.getElementById(id);
+          },
+        text =
+          (Kit && Kit.text) ||
+          function (v) {
+            return null == v ? "" : String(v);
+          },
+        trim =
+          (Kit && Kit.trim) ||
+          function (v) {
+            return text(v).replace(/\s+/g, " ").trim();
+          },
+        esc =
+          Kit.esc ||
+          Kit.escapeHtml ||
+          function (v) {
+            return text(v).replace(/[&<>\"']/g, function (c) {
+              return (
+                {
+                  "&": "&amp;",
+                  "<": "&lt;",
+                  ">": "&gt;",
+                  '"': "&quot;",
+                  "'": "&#39;",
+                }[c] || c
+              );
+            });
+          },
+        fmtDate = function (v) {
+          var owner = root.CommitteeMeetingStandalonePrint;
+          return owner && __appIsFn(owner.fmtDate)
+            ? owner.fmtDate(v)
+            : root.CommitteeMeetingSystem &&
+                __appIsFn(root.CommitteeMeetingSystem.formatDate)
+              ? root.CommitteeMeetingSystem.formatDate(v)
+              : trim(v);
+        },
+        api = function (name, payload) {
+          return (
+            (payload = payload || {}),
+            root.AppPageKit && __appIsFn(root.AppPageKit.apiRunner)
+              ? root.AppPageKit.apiRunner(
+                  name,
+                  payload,
+                  "CommitteeMeetingSummaryPopupRewrite",
+                  3e4,
+                )
+              : Promise.reject(new Error("AppPageKit.apiRunner ไม่พร้อมใช้งาน"))
+          );
+        },
+        unwrap =
+          (Kit && Kit.unwrap) ||
+          function (res) {
+            return res && res.data ? res.data : res || {};
+          },
+        notify =
+          (Kit && Kit.notify) ||
+          function (icon, msg) {
+            return (
+              (msg = text(msg || "")),
+              root.Swal && __appIsFn(root.Swal.fire)
+                ? root.Swal.fire({
+                    icon: icon || "info",
+                    text: msg,
+                    timer: 2200,
+                    showConfirmButton: !1,
+                  })
+                : (msg && root.alert(msg), null)
+            );
+          },
+        meetingConsiderationTitle = function (meeting, items) {
+          meeting = meeting || {};
+          var title = text(
+            meeting.title ||
+              meeting.meetingTitle ||
+              meeting.name ||
+              meeting.displayTitle ||
+              meeting.summaryTitle ||
+              "",
+          )
+            .replace(/\s+/g, " ")
+            .trim();
+          return title || "การประชุมคณะกรรมาธิการ";
+        },
+        show = __Scripts_Page_Meeting_show,
+        doPrint = function (selected, preopenedWindow) {
+          if (!current)
+            return (notify("warning", "กรุณากดแสดงข้อมูลก่อนพิมพ์"), !1);
+          var bodyHtml = selectedAgendaHtml(selected),
+            payload = {
+              title: "รายงานสรุปการประชุมคณะกรรมาธิการ",
+              bodyHtml: bodyHtml,
+              html: bodyHtml,
+              layoutMode: "landscape",
+              pageSize: "A4 landscape",
+              autoPrint: !0,
+              profile: "default",
+              meta: { title: "รายงานสรุปการประชุมคณะกรรมาธิการ" },
+            };
+          if (root.AppPrint && __appIsFn(root.AppPrint.printWithProfile))
+            try {
+              var primary = root.AppPrint.printWithProfile(
+                "meeting-summary",
+                payload,
+              );
+              if (!1 !== primary) {
+                try {
+                  preopenedWindow &&
+                    !preopenedWindow.closed &&
+                    preopenedWindow.close();
+                } catch (_pc) {
+                  __appObserve(_pc, "ec");
+                }
+                return primary;
+              }
+            } catch (_primaryPrintErr) {
+              try {
+                root.AppRuntime &&
+                  root.AppRuntime.recordWarning &&
+                  root.AppRuntime.recordWarning(
+                    "meeting.AppPrint.printWithProfile",
+                    _primaryPrintErr,
+                  );
+              } catch (_pe) {
+                __appObserve(_pe, "ec");
+              }
+            }
+          return (notify("error", "ไม่พบ AppPrint.printWithProfile"), !1);
+        };
+      (root.AppMeetingEventOwner && __appIsFn(root.AppMeetingEventOwner.ready)
+        ? root.AppMeetingEventOwner.ready(bind, "summary-detail.ready")
+        : "loading" === doc.readyState
+          ? doc.addEventListener("DOMContentLoaded", bind)
+          : bind(),
+        (root.CommitteeMeetingSummaryDetail = {
+          show: show,
+          printPopup: printPopup,
+          enhanceRows: enhanceRows,
+          hide: hidePopup,
+        }));
+    }
+    function injectCss() {
+      if (!byId("committee-meeting-summary-popup-css")) {
+        var style = doc.createElement("style");
+        ((style.id = "committee-meeting-summary-popup-css"),
+          (style.textContent =
+            ".committee-summary-popup-table th{white-space:nowrap}.committee-summary-popup-agenda{font-weight:700;color:#0b3b75;border-left:4px solid #0d6efd;padding-left:.65rem;margin:1rem 0 .5rem}.committee-summary-popup-meta{font-size:.82rem;color:#6c757d}.committee-summary-popup-direct{position:fixed;inset:0;z-index:1080;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:1rem}.committee-summary-popup-direct .modal-dialog{width:min(1120px,100%);max-width:1120px}.committee-summary-popup-direct .modal-content{max-height:92vh;overflow:hidden}.committee-summary-popup-direct .modal-body{overflow:auto}"),
+          (doc.head || doc.documentElement).appendChild(style));
+      }
+    }
+    function ensurePopup() {
+      injectCss();
+      var existing = byId("committee-meeting-summary-popup");
+      if (existing) return existing;
+      var wrap = doc.createElement("div");
+      ((wrap.id = "committee-meeting-summary-popup"),
+        (wrap.className = "modal fade"),
+        (wrap.tabIndex = -1),
+        wrap.setAttribute("aria-hidden", "true"),
+        wrap.setAttribute(
+          "aria-labelledby",
+          "committee-meeting-summary-popup-title",
+        ));
+      var popupShellHtml =
+        '<div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content shadow-lg border-0"><div class="modal-header bg-light"><div><div class="small text-muted fw-bold"><i class="fas fa-file-lines me-1"></i>รายละเอียดสรุปการประชุม</div><h5 class="modal-title fw-bold text-primary mb-0" id="committee-meeting-summary-popup-title">รายละเอียดการประชุม</h5></div><button type="button" class="btn-close" id="committee-meeting-summary-popup-x" aria-label="ปิด"></button></div><div class="modal-body" id="committee-meeting-summary-popup-body"><div class="text-center text-muted p-4" aria-busy="true"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span></div></div><div class="modal-footer d-flex justify-content-between gap-2 flex-wrap"><div class="small text-muted" id="committee-meeting-summary-popup-status">โหลดข้อมูลล่าสุดทุกครั้งเมื่อกดแสดงข้อมูล</div><div class="d-flex gap-2"><button type="button" class="btn btn-primary" id="committee-meeting-summary-popup-print"><i class="fas fa-print me-1"></i>พิมพ์</button><button type="button" class="btn btn-outline-secondary" id="committee-meeting-summary-popup-close"><i class="fas fa-xmark me-1"></i>ปิด</button></div></div></div></div>';
+      return (
+        root.AppProductionSafeDom && root.AppProductionSafeDom.setHtml
+          ? root.AppProductionSafeDom.setHtml(wrap, popupShellHtml, {
+              moduleName: "meeting.summary.popup.shell",
+              trusted: !0,
+            })
+          : root.AppDom && root.AppDom.setTrustedHtml
+            ? root.AppDom.setTrustedHtml(wrap, popupShellHtml, {
+                moduleName: "meeting.summary.popup.shell",
+              })
+            : (wrap.textContent = "", wrap.setAttribute("aria-busy", "true")),
+        doc.body.appendChild(wrap),
+        wrap
+      );
+    }
+    function showPopup() {
+      var modal = ensurePopup();
+      try {
+        var BS = root.bootstrap && root.bootstrap.Modal;
+        if (BS)
+          return (
+            (modalApi = BS.getOrCreateInstance
+              ? BS.getOrCreateInstance(modal, { backdrop: !0, keyboard: !0 })
+              : new BS(modal, { backdrop: !0, keyboard: !0 })).show(),
+            void 0
+          );
+      } catch (_e) {
+        __appObserve(_e, "ec");
+      }
+      (modal.classList.add("show", "committee-summary-popup-direct"),
+        (modal.style.display = "flex"),
+        modal.removeAttribute("aria-hidden"),
+        doc.body.classList.add("modal-open"));
+    }
+    function hidePopup() {
+      var modal = byId("committee-meeting-summary-popup");
+      if (modal) {
+        try {
+          if (modalApi && __appIsFn(modalApi.hide))
+            return (modalApi.hide(), void 0);
+        } catch (_e) {
+          __appObserve(_e, "ec");
+        }
+        (modal.classList.remove("show", "committee-summary-popup-direct"),
+          (modal.style.display = "none"),
+          modal.setAttribute("aria-hidden", "true"),
+          doc.body.classList.remove("modal-open"));
+      }
+    }
+    function setPopupLoading(title) {
+      var modal = ensurePopup(),
+        h = byId("committee-meeting-summary-popup-title"),
+        b = byId("committee-meeting-summary-popup-body"),
+        s = byId("committee-meeting-summary-popup-status");
+      if ((h && (h.textContent = title || "รายละเอียดการประชุม"), b)) {
+        var loadingHtml =
+          '<div class="text-center text-muted p-4"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>กำลังโหลดรายละเอียดสรุปการประชุมล่าสุด...</div>';
+        root.AppProductionSafeDom && root.AppProductionSafeDom.setHtml
+          ? root.AppProductionSafeDom.setHtml(b, loadingHtml, {
+              moduleName: "meeting.summary.popup.loading",
+            })
+          : root.AppDom && root.AppDom.setHtml
+            ? root.AppDom.setHtml(b, loadingHtml, {
+                moduleName: "meeting.summary.popup.loading",
+              })
+            : (b.textContent = "กำลังโหลดรายละเอียดสรุปการประชุมล่าสุด...");
+      }
+      return (
+        s && (s.textContent = "กำลังโหลดข้อมูลล่าสุดจากระบบ"),
+        showPopup(),
+        modal
+      );
+    }
+    function cacheModel(id) {
+      var cache = root.__committeeMeetingCache || {},
+        meeting;
+      return {
+        meeting:
+          (cache.meetings || []).filter(function (m) {
+            return String(m.meetingId || "") === String(id || "");
+          })[0] || null,
+        items: (cache.itemsByMeetingId || {})[String(id || "")] || [],
+      };
+    }
+    function getMeeting(id) {
+      return api("apiGetCommitteeMeetingSystem", { meetingId: id })
+        .then(function (res) {
+          var data = unwrap(res) || {};
+          if (data.meeting)
+            return { meeting: data.meeting, items: data.items || [] };
+          var direct = cacheModel(id);
+          if (direct.meeting) return direct;
+          throw new Error("ไม่พบข้อมูลการประชุม");
+        })
+        .catch(function (err) {
+          var direct = cacheModel(id);
+          if (direct.meeting) return direct;
+          throw err;
+        });
+    }
+    function agendaTitle(item) {
+      var label;
+      return (
+        (item = item || {}),
+        "2" === String(item.agendaNo || "")
+          ? [
+              item.relatedMeetingNo
+                ? "การประชุมครั้งที่ " + text(item.relatedMeetingNo)
+                : "",
+              fmtDate(item.relatedMeetingDate || ""),
+            ]
+              .filter(Boolean)
+              .join(" / ") || text(item.title || "รับรองบันทึกการประชุม")
+          : "3" === String(item.agendaNo || "")
+            ? text(item.caseTitle || item.title || "")
+            : text(item.title || item.caseTitle || "")
+      );
+    }
+    function itemMetaHtml(it, printMode) {
+      var parts = [];
+      return (
+        (it = it || {}).caseNum && parts.push(esc(it.caseNum)),
+        parts.length
+          ? printMode
+            ? '<br><span class="app-print-muted">' +
+              parts.join("<br>") +
+              "</span>"
+            : '<div class="committee-summary-popup-meta">' +
+              parts.join("<br>") +
+              "</div>"
+          : ""
+      );
+    }
+    function meetingHeading(meeting, items) {
+      var displayTitle = meetingConsiderationTitle(
+        (meeting = meeting || {}),
+        items || (current && current.items) || [],
+      );
+      return (
+        "การประชุมครั้งที่ " +
+        esc(meeting.meetingNo || "-") +
+        " วันที่ " +
+        esc(fmtDate(meeting.meetingDate || "")) +
+        (displayTitle ? " " + esc(displayTitle) : "")
+      );
+    }
+    function renderPopupDetail(model) {
+      var meeting = model.meeting || {},
+        items = model.items || [];
+      current = { meeting: meeting, items: items };
+      var displayTitle = meetingConsiderationTitle(meeting, items),
+        titleEl = byId("committee-meeting-summary-popup-title");
+      titleEl && (titleEl.textContent = meetingHeading(meeting, items));
+      var status = byId("committee-meeting-summary-popup-status");
+      status &&
+        (status.textContent =
+          "แสดงข้อมูลครบทุกวาระ พร้อมพิมพ์รายงานจาก popup นี้");
+      var html =
+        '<div class="alert alert-light border small mb-3"><div class="fw-bold text-primary mb-1">ข้อมูลการประชุม</div><div>ครั้งที่: ' +
+        esc(meeting.meetingNo || "-") +
+        " | วันที่: " +
+        esc(fmtDate(meeting.meetingDate || "")) +
+        "</div>" +
+        (displayTitle
+          ? "<div>ชื่อการประชุม: " + esc(displayTitle) + "</div>"
+          : "") +
+        (meeting.note ? "<div>หมายเหตุ: " + esc(meeting.note) + "</div>" : "") +
+        "</div>";
+      ["1", "2", "3", "4"].forEach(function (no) {
+        var rows = items.filter(function (it) {
+          return String(it.agendaNo || "") === no;
+        });
+        if (
+          ((html +=
+            '<div class="committee-summary-popup-agenda">' +
+            esc(agendaLabels[no]) +
+            "</div>"),
+          !rows.length)
+        )
+          return (
+            (html +=
+              '<div class="text-muted border rounded p-2 mb-2">ไม่มีรายการ</div>'),
+            void 0
+          );
+        ((html +=
+          '<div class="table-responsive mb-3"><table class="table table-bordered table-sm align-middle committee-summary-popup-table"><thead class="table-light text-center"><tr><th style="width:7%">ลำดับ</th><th>ชื่อเรื่อง/เรื่องพิจารณา</th><th style="width:24%">หน่วยงาน/ผู้ชี้แจง</th><th style="width:34%">ผลการประชุม / มติที่ประชุม</th></tr></thead><tbody>'),
+          rows.forEach(function (it, idx) {
+            html +=              '<tr><td class="text-center">' +
+              esc(it.seq || idx + 1) +
+              "</td><td>" +
+              esc(agendaTitle(it)) +
+              itemMetaHtml(it, !1) +
+              "</td><td>" +
+              esc(it.agencyOrPresenter || "") +
+              "</td><td>" +
+              esc(it.result || it.note || "") +
+              "</td></tr>";
+          }),
+          (html += "</tbody></table></div>"));
+      });
+      var body = byId("committee-meeting-summary-popup-body");
+      (body &&
+        (root.AppProductionSafeDom && root.AppProductionSafeDom.setHtml
+          ? root.AppProductionSafeDom.setHtml(body, html, {
+              moduleName: "meeting.summary.popup",
+            })
+          : root.safeSetInnerHTML
+            ? root.safeSetInnerHTML(body, html, {
+                moduleName: "meeting.summary.popup",
+              })
+            : (body.textContent = html)),
+        showPopup());
+    }
+    function __Scripts_Page_Meeting_show(id) {
+      return (
+        setPopupLoading("รายละเอียดสรุปการประชุม"),
+        getMeeting(id)
+          .then(renderPopupDetail)
+          .catch(function (err) {
+            var body = byId("committee-meeting-summary-popup-body");
+            if (body) {
+              var errHtml =
+                '<div class="alert alert-danger mb-0">' +
+                esc((err && err.message) || err) +
+                "</div>";
+              root.AppProductionSafeDom && root.AppProductionSafeDom.setHtml
+                ? root.AppProductionSafeDom.setHtml(body, errHtml, {
+                    moduleName: "meeting.summary.popup.error",
+                  })
+                : root.safeSetInnerHTML
+                  ? root.safeSetInnerHTML(body, errHtml, {
+                      moduleName: "meeting.summary.popup.error",
+                    })
+                  : (body.textContent = text((err && err.message) || err));
+            }
+            var status = byId("committee-meeting-summary-popup-status");
+            (status && (status.textContent = "โหลดข้อมูลไม่สำเร็จ"),
+              notify("error", text((err && err.message) || err)));
+          })
+      );
+    }
+    function selectedAgendaHtml(selected) {
+      selected = selected && selected.length ? selected : ["1", "2", "3", "4"];
+      var m = (current && current.meeting) || {},
+        items = ((current && current.items) || []).filter(function (it) {
+          return selected.indexOf(String(it.agendaNo || "")) > -1;
+        }),
+        displayTitle = meetingConsiderationTitle(
+          m,
+          (current && current.items) || [],
+        ),
+        html =
+          '<div class="app-print-muted text-center" style="margin-bottom:10px;">การประชุมครั้งที่ ' +
+          esc(m.meetingNo || "-") +
+          " วันที่ " +
+          esc(fmtDate(m.meetingDate || "")) +
+          (displayTitle ? " " + esc(displayTitle) : "") +
+          "</div>";
+      return (
+        m.note &&
+          (html +=
+            '<div class="app-print-muted" style="margin-bottom:8px;"><strong>หมายเหตุ:</strong> ' +
+            esc(m.note) +
+            "</div>"),
+        selected.forEach(function (no) {
+          var rows = items.filter(function (it) {
+            return String(it.agendaNo || "") === no;
+          });
+          if (
+            ((html +=
+              '<div class="app-print-section-title">' +
+              esc(agendaLabels[no]) +
+              "</div>"),
+            !rows.length)
+          )
+            return (
+              (html += '<div class="app-print-empty">ไม่มีรายการ</div>'),
+              void 0
+            );
+          ((html +=
+            '<table class="app-standard-print-table"><thead><tr><th style="width:8%">ลำดับ</th><th>ชื่อเรื่อง/เรื่องพิจารณา</th><th style="width:24%">หน่วยงาน/ผู้ชี้แจง</th><th style="width:34%">ผลการประชุม / มติที่ประชุม</th></tr></thead><tbody>'),
+            rows.forEach(function (it, idx) {
+              html +=
+                '<tr><td class="text-center">' +
+                esc(it.seq || idx + 1) +
+                "</td><td>" +
+                esc(agendaTitle(it)) +
+                itemMetaHtml(it, !0) +
+                "</td><td>" +
+                esc(it.agencyOrPresenter || "") +
+                "</td><td>" +
+                esc(it.result || it.note || "") +
+                "</td></tr>";
+            }),
+            (html += "</tbody></table>"));
+        }),
+        html
+      );
+    }
+    function printPopup() {
+      if (!current)
+        return (notify("warning", "กรุณากดแสดงข้อมูลก่อนพิมพ์"), !1);
+      var html =
+        '<div class="text-start">' +
+        ["1", "2", "3", "4"]
+          .map(function (no) {
+            return (
+              '<label class="d-block my-2"><input type="checkbox" class="committee-print-agenda-check me-1" value="' +
+              no +
+              '" checked> ' +
+              esc(agendaLabels[no]) +
+              "</label>"
+            );
+          })
+          .join("") +
+        "</div>";
+      if (root.Swal && __appIsFn(root.Swal.fire))
+        return root.Swal.fire({
+          title: "เลือกข้อมูลสำหรับพิมพ์",
+          html: html,
+          showCancelButton: !0,
+          confirmButtonText: "พิมพ์",
+          cancelButtonText: "ยกเลิก",
+          preConfirm: function () {
+            var vals = Array.prototype.map.call(
+              doc.querySelectorAll(".committee-print-agenda-check:checked"),
+              function (el) {
+                return el.value;
+              },
+            );
+            return vals.length
+              ? vals
+              : (root.Swal.showValidationMessage("กรุณาเลือกอย่างน้อย 1 วาระ"),
+                !1);
+          },
+        }).then(function (res) {
+          res.isConfirmed && res.value && doPrint(res.value, null);
+        });
+      var raw = root.prompt("เลือกวาระที่ต้องการพิมพ์ เช่น 1,2,3,4", "1,2,3,4");
+      return (
+        null !== raw && doPrint(raw.split(/[,\s]+/).filter(Boolean), null),
+        !0
+      );
+    }
+    function enhanceRows() {
+      var tb = byId("committee-meeting-list-tbody");
+      tb &&
+        Array.prototype.forEach.call(
+          tb.querySelectorAll(".js-load-meeting"),
+          function (btn) {
+            "เปิด" === (btn.textContent || "").trim() &&
+              (btn.textContent = "แก้ไข");
+            var tr = btn.closest("tr"),
+              id = btn.getAttribute("data-id") || "";
+            if (tr && !tr.querySelector(".js-show-meeting-detail")) {
+              var b = doc.createElement("button");
+              ((b.type = "button"),
+                (b.className =
+                  "btn btn-sm btn-outline-info js-show-meeting-detail me-1"),
+                b.setAttribute("data-id", id));
+              var icon = doc.createElement("i");
+              ((icon.className = "fas fa-eye me-1"),
+                b.appendChild(icon),
+                b.appendChild(doc.createTextNode("แสดงข้อมูล")),
+                btn.parentNode.insertBefore(b, btn));
+            }
+          },
+        );
+    }
+    function bind() {
+      root.AppMeetingEventOwner &&
+        __appIsFn(root.AppMeetingEventOwner.bind) &&
+        root.AppMeetingEventOwner.bind([
+          {
+            target: doc,
+            event: "click",
+            key: "summary-detail.click",
+            handler: function (ev) {
+              var btn =
+                ev.target && ev.target.closest
+                  ? ev.target.closest(
+                      ".js-show-meeting-detail,#committee-meeting-summary-popup-print,#committee-meeting-summary-popup-close,#committee-meeting-summary-popup-x",
+                    )
+                  : null;
+              if (btn)
+                return btn.classList &&
+                  btn.classList.contains("js-show-meeting-detail")
+                  ? (ev.preventDefault(),
+                    show(btn.getAttribute("data-id")),
+                    void 0)
+                  : "committee-meeting-summary-popup-close" === btn.id ||
+                      "committee-meeting-summary-popup-x" === btn.id
+                    ? (ev.preventDefault(), hidePopup(), void 0)
+                    : "committee-meeting-summary-popup-print" === btn.id
+                      ? (ev.preventDefault(), printPopup(), void 0)
+                      : void 0;
+            },
+          },
+          {
+            target: doc,
+            event: "keydown",
+            key: "summary-detail.keydown",
+            handler: function (ev) {
+              "Escape" === ev.key &&
+                byId("committee-meeting-summary-popup") &&
+                hidePopup();
+            },
+          },
+        ]);
+      var tb = byId("committee-meeting-list-tbody");
+      (tb &&
+        root.MutationObserver &&
+        new root.MutationObserver(enhanceRows).observe(tb, {
+          childList: !0,
+          subtree: !0,
+        }),
+        enhanceRows());
+    }
+  })(window, document);
+</script>
+<script id="committee-meeting-agenda-upfront-gas-owner-r330" data-app-fragment="committee">
+(function(root,doc){"use strict";
+if(!root||!doc||root.__COMMITTEE_MEETING_AGENDA_UPFRONT_OWNER_CURRENT__)return;
+root.__COMMITTEE_MEETING_AGENDA_UPFRONT_OWNER_CURRENT__="committee-meeting-agenda-upfront-gas-owner-r330";
+var OWNER="Index:committee-meeting-agenda-upfront-gas-owner-r330";
+var PREFIX="committee-agenda-";
+var SELECTOR='.accordion-button[data-bs-target^="#committee-agenda-"],.accordion-button[aria-controls^="committee-agenda-"],[data-committee-agenda-toggle^="#committee-agenda-"],[data-agenda-toggle^="#committee-agenda-"]';
+function txt(v){return root.AppRuntime&&root.AppRuntime.text?root.AppRuntime.text(v)+"":(v==null?"":String(v))}
+function qa(sel,ctx){try{return Array.prototype.slice.call((ctx||doc).querySelectorAll(sel))}catch(_){return[]}}
+function q(sel,ctx){try{return(ctx||doc).querySelector(sel)}catch(_){return null}}
+function isPanel(panel){return !!(panel&&panel.id&&txt(panel.id).indexOf(PREFIX)===0)}
+function selectorFrom(btn){if(!btn||!btn.getAttribute)return"";var s=btn.getAttribute('data-bs-target')||btn.getAttribute('data-target')||btn.getAttribute('data-committee-agenda-toggle')||btn.getAttribute('data-agenda-toggle')||"";if(!s&&btn.getAttribute('aria-controls'))s="#"+btn.getAttribute('aria-controls');s=txt(s).trim();return s.indexOf('#'+PREFIX)===0?s:""}
+function btnFrom(target){var btn=target&&target.closest?target.closest(SELECTOR):null;if(!btn||!selectorFrom(btn))return null;return btn}
+function panelFrom(btn){var s=selectorFrom(btn),panel=null;if(!s)return null;try{panel=s.charAt(0)==="#"?doc.querySelector(s):doc.getElementById(s)}catch(_){panel=null}return isPanel(panel)?panel:null}
+function visibleMeetingScope(btn,panel){var scope=(btn&&btn.closest&&btn.closest('#committee-agenda-accordion,.committee-meeting-form,.committee-meeting-agenda-panel'))||(panel&&panel.closest&&panel.closest('#committee-agenda-accordion,.committee-meeting-form,.committee-meeting-agenda-panel'))||null;if(!scope)return false;try{if(scope.closest('#side,.sidebar,.mobile-topbar,#sidebar-menu'))return false}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }
+  try{var current=root.AppStore&&root.AppStore.get?String(root.AppStore.get('ui.currentPage','')||''):'';var hash=String(root.location&&root.location.hash||'');if(current&&current!=='committee-meeting'&&current!=='meeting'&&hash.indexOf('committee-meeting')<0&&hash.indexOf('meeting')<0)return false}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }
+  return true;
+}
+function isOpen(panel){return !!(panel&&panel.classList&&panel.classList.contains('show'))}
+function buttonFor(panel,scope){if(!isPanel(panel))return null;return q('[data-bs-target="#'+panel.id+'"],[data-target="#'+panel.id+'"],[aria-controls="'+panel.id+'"],[data-committee-agenda-toggle="#'+panel.id+'"],[data-agenda-toggle="#'+panel.id+'"]',scope||doc)}
+function setButton(btn,open){if(!btn)return;try{btn.type='button';btn.removeAttribute('data-bs-toggle');btn.removeAttribute('data-toggle');btn.setAttribute('aria-expanded',open?'true':'false');btn.classList&&btn.classList.toggle('collapsed',!open);if(btn.style&&btn.style.pointerEvents==='none')btn.style.pointerEvents='auto'}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }}
+function setPanel(panel,open){if(!isPanel(panel))return;try{panel.classList&&panel.classList.add('collapse');panel.classList&&panel.classList.toggle('show',!!open);panel.setAttribute&&panel.setAttribute('aria-hidden',open?'false':'true');if(panel.style){panel.style.height='';panel.style.transition='';panel.style.visibility='visible';panel.style.display=open?'block':'none'}}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }}
+function scopeFor(panel){return panel&&panel.closest?panel.closest('#committee-agenda-accordion,.committee-meeting-form,.committee-meeting-agenda-panel')||doc:null}
+function closeOthers(panel){var scope=scopeFor(panel);qa('.accordion-collapse[id^="'+PREFIX+'"]',scope).forEach(function(other){if(other===panel)return;setPanel(other,false);setButton(buttonFor(other,scope),false)})}
+function toggle(btn,force){var panel=panelFrom(btn);if(!panel||!visibleMeetingScope(btn,panel))return false;var open=typeof force==='boolean'?force:!isOpen(panel);if(open)closeOthers(panel);setPanel(panel,open);setButton(btn,open);try{doc.dispatchEvent(new CustomEvent('app:meeting-agenda:toggled',{detail:{owner:OWNER,panelId:panel.id,open:open}}))}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }return true}
+function handle(ev){var btn=btnFrom(ev&&ev.target);if(!btn)return true;var panel=panelFrom(btn);if(!panel||!visibleMeetingScope(btn,panel))return true;try{ev.preventDefault&&ev.preventDefault();ev.stopPropagation&&ev.stopPropagation()}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }toggle(btn);return false}
+function handleKey(ev){var btn=btnFrom(ev&&ev.target);if(!btn)return true;if(ev.key==='Enter'||ev.key===' '||ev.key==='Spacebar')return handle(ev);return true}
+function boot(){qa(SELECTOR).forEach(function(btn){var panel=panelFrom(btn);if(!panel||!visibleMeetingScope(btn,panel))return;setButton(btn,isOpen(panel));if(isOpen(panel))setPanel(panel,true)})}
+['DOMContentLoaded','app:page-activated','app:page:meeting:shown','app:route:meeting','app:page-scripts-loaded'].forEach(function(name){try{doc.addEventListener(name,boot,false)}catch (_) { window.AppErrorPolicy && window.AppErrorPolicy.ignore("Scripts_Page_Meeting.html.ignored", _); }});
+doc.addEventListener('click',handle,false);
+doc.addEventListener('keydown',handleKey,false);
+if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',boot,{once:true});else (root.setTimeout||setTimeout)(boot,0);
+})(window,document);
+</script>

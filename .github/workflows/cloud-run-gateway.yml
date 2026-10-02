@@ -46,6 +46,11 @@ jobs:
           test -f cloud-run-gateway/public/app-config.js
           test -f cloud-run-gateway/public/cloud-run-transport.js
           test -f cloud-run-gateway/public/meeting-controller.html
+          test -f cloud-run-gateway/public/static-partials-manifest.json
+          test -f cloud-run-gateway/public/static-partials/Scripts_Core_Runtime.html
+          test -f cloud-run-gateway/public/static-partials/Scripts_Page_Dashboard.html
+          test -f cloud-run-gateway/public/static-partials/Scripts_Page_ReportTrack__reporttrack-common.html
+          test -f cloud-run-gateway/public/static-partials/Scripts_Page_Meeting__committee.html
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -655,7 +660,7 @@ jobs:
               "$edge_origin/api/router" || true)"
             test "$login_code" = "200" || { echo "P2 authenticated apiLogin failed (HTTP $login_code)" >&2; exit 1; }
 
-            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_ASSET_REQ="$auth_dir/dashboard-asset.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" AUTH_TRACK_OWNER_REQ="$auth_dir/track-owner.request.json" AUTH_SEARCH_OWNER_REQ="$auth_dir/search-owner.request.json" AUTH_REPORT_OWNER_REQ="$auth_dir/report-owner.request.json" AUTH_PETITIONER_OWNER_REQ="$auth_dir/petitioner-owner.request.json" AUTH_PEOPLE_OWNER_REQ="$auth_dir/people-owner.request.json" AUTH_BUDGET_OWNER_REQ="$auth_dir/budget-owner.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+            AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
           const fs=require('fs');
           const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
           const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
@@ -679,11 +684,6 @@ jobs:
             payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf},
             timeoutMs:30000
           }));
-          fs.writeFileSync(process.env.AUTH_DASHBOARD_ASSET_REQ,JSON.stringify({
-            method:'getDeferredInclude',
-            payload:{name:'Scripts_Page_Dashboard',forceFresh:true,token,_token:token,authToken:token,csrfToken:csrf,csrf,_csrf:csrf},
-            timeoutMs:70000
-          }));
           fs.writeFileSync(process.env.AUTH_DASHBOARD_DATA_REQ,JSON.stringify({
             method:'apiRouter',
             payload:{
@@ -692,18 +692,6 @@ jobs:
             },
             timeoutMs:70000
           }));
-          [
-            ['AUTH_TRACK_OWNER_REQ','Scripts_Page_Tracking'],
-            ['AUTH_SEARCH_OWNER_REQ','Scripts_Page_Search'],
-            ['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report'],
-            ['AUTH_PETITIONER_OWNER_REQ','Scripts_Page_Petitioner'],
-            ['AUTH_PEOPLE_OWNER_REQ','Scripts_Page_People'],
-            ['AUTH_BUDGET_OWNER_REQ','Scripts_Page_Budget']
-          ].forEach(([envKey,name])=>fs.writeFileSync(process.env[envKey],JSON.stringify({
-            method:'getDeferredInclude',
-            payload:{name,forceFresh:true,token,_token:token,authToken:token,csrfToken:csrf,csrf,_csrf:csrf},
-            timeoutMs:70000
-          })));
           NODE
 
             session_code="$(curl --max-time 45 --retry 1 --retry-delay 2 --retry-all-errors -sS \
@@ -733,37 +721,13 @@ jobs:
           if(!session) process.exit(1);
           NODE
 
-            dashboard_asset_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
-              -D "$auth_dir/dashboard-asset.headers.txt" -o "$auth_dir/dashboard-asset.body.json" -w '%{http_code}' \
-              -H 'Content-Type: application/json' \
-              -H "Origin: $edge_origin" \
-              --data-binary "@$auth_dir/dashboard-asset.request.json" \
-              "$edge_origin/api/router" || true)"
-            test "$dashboard_asset_code" = "200" || { echo "P3 Dashboard controller fetch failed (HTTP $dashboard_asset_code)" >&2; exit 1; }
-
-            AUTH_DASHBOARD_ASSET_BODY="$auth_dir/dashboard-asset.body.json" AUTH_DASHBOARD_ASSET_HEADERS="$auth_dir/dashboard-asset.headers.txt" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
-          const fs=require('fs');
-          const body=JSON.parse(fs.readFileSync(process.env.AUTH_DASHBOARD_ASSET_BODY,'utf8'));
-          const headers=fs.readFileSync(process.env.AUTH_DASHBOARD_ASSET_HEADERS,'utf8').split(/\r?\n/);
-          const get=name=>{
-            const prefix=name.toLowerCase()+':';
-            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
-            return line?line.slice(line.indexOf(':')+1).trim():'';
-          };
-          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
-          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
-          let current=body.result,html='';
-          for(let depth=0;depth<6&&current&&typeof current==='object'&&!Array.isArray(current);depth++){
-            if(current.ok===false) process.exit(1);
-            if(typeof current.html==='string'){html=current.html;break}
-            if(Object.prototype.hasOwnProperty.call(current,'data')){current=current.data;continue}
-            if(Object.prototype.hasOwnProperty.call(current,'result')){current=current.result;continue}
-            break;
-          }
-          if(typeof current==='string'&&!html) html=current;
-          if(!html.trim()||!/<script\b/i.test(html)||!/dashboard/i.test(html)) process.exit(1);
-          NODE
+            dashboard_asset_code="$(curl --max-time 30 --retry 2 --retry-delay 1 --retry-all-errors -sS \
+              -o "$auth_dir/dashboard-asset.body.html" -w '%{http_code}' \
+              "$edge_origin/static-partials/Scripts_Page_Dashboard.html" || true)"
+            test "$dashboard_asset_code" = "200" || { echo "P3 static Dashboard controller fetch failed (HTTP $dashboard_asset_code)" >&2; exit 1; }
+            grep -q '<script' "$auth_dir/dashboard-asset.body.html"
+            grep -qi 'dashboard' "$auth_dir/dashboard-asset.body.html"
+            if grep -q '<?!=' "$auth_dir/dashboard-asset.body.html"; then echo "P3 static Dashboard controller contains unresolved GAS template" >&2; exit 1; fi
 
             dashboard_data_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
               -D "$auth_dir/dashboard-data.headers.txt" -o "$auth_dir/dashboard-data.body.json" -w '%{http_code}' \
@@ -792,41 +756,23 @@ jobs:
           if(!current||typeof current!=='object'||Array.isArray(current)) process.exit(1);
           NODE
 
-            for page_owner in track search report petitioner people budget; do
-              owner_code="$(curl --max-time 85 --retry 1 --retry-delay 2 --retry-all-errors -sS \
-                -D "$auth_dir/$page_owner-owner.headers.txt" -o "$auth_dir/$page_owner-owner.body.json" -w '%{http_code}' \
-                -H 'Content-Type: application/json' \
-                -H "Origin: $edge_origin" \
-                --data-binary "@$auth_dir/$page_owner-owner.request.json" \
-                "$edge_origin/api/router" || true)"
-              test "$owner_code" = "200" || { echo "P3 $page_owner owner fetch failed (HTTP $owner_code)" >&2; exit 1; }
-              P3_OWNER_BODY="$auth_dir/$page_owner-owner.body.json" P3_OWNER_HEADERS="$auth_dir/$page_owner-owner.headers.txt" P3_OWNER_PAGE="$page_owner" P3_EDGE_ORIGIN="$edge_origin" node <<'NODE'
-          const fs=require('fs');
-          const body=JSON.parse(fs.readFileSync(process.env.P3_OWNER_BODY,'utf8'));
-          const headers=fs.readFileSync(process.env.P3_OWNER_HEADERS,'utf8').split(/\r?\n/);
-          const get=name=>{
-            const prefix=name.toLowerCase()+':';
-            const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
-            return line?line.slice(line.indexOf(':')+1).trim():'';
-          };
-          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-          if(get('access-control-allow-origin')!==process.env.P3_EDGE_ORIGIN) process.exit(1);
-          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
-          let current=body.result,html='';
-          for(let depth=0;depth<6&&current&&typeof current==='object'&&!Array.isArray(current);depth++){
-            if(current.ok===false) process.exit(1);
-            if(typeof current.html==='string'){html=current.html;break}
-            if(Object.prototype.hasOwnProperty.call(current,'data')){current=current.data;continue}
-            if(Object.prototype.hasOwnProperty.call(current,'result')){current=current.result;continue}
-            break;
-          }
-          if(typeof current==='string'&&!html) html=current;
-          const page=String(process.env.P3_OWNER_PAGE||'');
-          if(!html.includes('registerActions("'+page+'"')||!html.includes('register("'+page+'"')) process.exit(1);
-          NODE
-            done
+            while IFS='|' read -r page_owner static_asset owner_token; do
+              owner_code="$(curl --max-time 30 --retry 2 --retry-delay 1 --retry-all-errors -sS \
+                -o "$auth_dir/$page_owner-owner.body.html" -w '%{http_code}' \
+                "$edge_origin/static-partials/$static_asset" || true)"
+              test "$owner_code" = "200" || { echo "P3 static $page_owner owner fetch failed (HTTP $owner_code)" >&2; exit 1; }
+              grep -q "$owner_token" "$auth_dir/$page_owner-owner.body.html" || { echo "P3 static $page_owner owner marker missing" >&2; exit 1; }
+              if grep -q '<?!=' "$auth_dir/$page_owner-owner.body.html"; then echo "P3 static $page_owner owner contains unresolved GAS template" >&2; exit 1; fi
+            done <<'STATIC_OWNERS'
+          track|Scripts_Page_Tracking.html|register("track"
+          search|Scripts_Page_Search.html|register("search"
+          report|Scripts_Page_Report.html|register("report"
+          petitioner|Scripts_Page_Petitioner.html|register("petitioner"
+          people|Scripts_Page_People.html|register("people"
+          budget|Scripts_Page_Budget.html|register("budget"
+          STATIC_OWNERS
 
-            echo "- Search / Track / Report / Petitioner / People / Budget deferred page owners from GAS: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Search / Track / Report / Petitioner / People / Budget static page owners from Cloud Run: PASS" >> "$GITHUB_STEP_SUMMARY"
 
             mkdir -p "$auth_dir/p7"
             P7_AUTH_SOURCE="$auth_dir/dashboard-data.request.json" P7_DIR="$auth_dir/p7" node <<'NODE'
@@ -993,7 +939,7 @@ jobs:
             echo "### P3 Login / Session / Dashboard Boot Contract Gate" >> "$GITHUB_STEP_SUMMARY"
             echo "- apiLogin contract: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- apiSessionCheck contract: PASS" >> "$GITHUB_STEP_SUMMARY"
-            echo "- Scripts_Page_Dashboard authenticated controller fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- Scripts_Page_Dashboard static Cloud Run controller fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- apiGetDashboardBundle authenticated data fetch: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "### P11 Production Deployment Quality Gate" >> "$GITHUB_STEP_SUMMARY"
             echo "- Required Cloudflare credentials: PASS" >> "$GITHUB_STEP_SUMMARY"
@@ -1033,6 +979,9 @@ jobs:
           grep -q 'AppPrint.printWithProfile' "$edge_index_tmp"
           grep -q 'APP_CLOUD_RUN_TRANSPORT_REQUIRED' "$edge_index_tmp"
           if grep -q 'google.script.run' "$edge_index_tmp"; then echo "P12 edge failed: retired browser GAS fallback returned" >&2; exit 1; fi
+          grep -q 'fetchStaticPartialCurrent' "$edge_index_tmp"
+          if grep -q 'root2.AppApi.call("getDeferredInclude"' "$edge_index_tmp"; then echo "P0 static migration failed: browser still fetches controllers from GAS" >&2; exit 1; fi
+          curl --max-time 30 --retry 2 --retry-delay 1 --retry-all-errors -fsS "$edge_origin/static-partials-manifest.json" | grep -q 'cloud-run-static-partials-p0-20261002'
           if grep -q 'AppTransport.run=root2.AppTransport.run||' "$edge_index_tmp"; then echo "P12 edge failed: duplicate AppTransport fallback owner returned" >&2; exit 1; fi
           if grep -q 'app-login-dashboard-autostart-current' "$edge_index_tmp"; then echo "P4 edge failed: duplicate Dashboard autostart owner is still public" >&2; exit 1; fi
           printf '%s' "$edge_config" | grep -q 'p0-f-edge-ready-20260922'
