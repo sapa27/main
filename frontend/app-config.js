@@ -1,12 +1,12 @@
 (function(r){"use strict";
 var CR_URL="",
-R="commission-v1.2-cloud-run-static-p0-p1-2026-10-02-r470",
-AV="asset-manifest-cloud-run-static-r470",
-SF="cloud-run-static-controllers-api-gateway-r470",
-BN="V1.2 Cloud Run Static Frontend + Single API Gateway",
-RD="2026-10-02",FR="r470",
-HA="cloud-run-static-frontend-r470-p0-p1",
-QG="p0-static-p1-api-gateway-r470",TV="gas-direct-json-v1",
+R="commission-v1.2-reliability-loading-cache-session-2026-09-02-r331-v62",
+AV="asset-manifest-r331-v62-reliability",
+SF="cloud-run-single-source-r331-v62",
+BN="V1.2 Cloud Run + GAS Canonical Response P0-F Network Access Compatibility",
+RD="2026-09-22",FR="r331-v62",
+HA="cloud-run-canonical-frontend-r331-v62-p0-f-edge-ready-20260922",
+QG="p0-f-network-access-compatibility-r354",TV="gas-direct-json-v1",
 LOGO="https://upload.wikimedia.org/wikipedia/commons/9/9a/Seal_of_the_Parliament_of_Thailand.svg",
 P=Object.freeze({releaseStamp:R,assetStamp:AV,sourceFingerprint:SF,buildName:BN,releaseDate:RD,frontendRevision:FR,hostArtifact:HA,qualityGate:QG,transportProtocolVersion:TV,rpcProtocolVersion:TV});
 r.APP_BUILD_PROVENANCE=P;
