@@ -764,13 +764,13 @@ jobs:
               grep -q "$owner_token" "$auth_dir/$page_owner-owner.body.html" || { echo "P3 static $page_owner owner marker missing" >&2; exit 1; }
               if grep -q '<?!=' "$auth_dir/$page_owner-owner.body.html"; then echo "P3 static $page_owner owner contains unresolved GAS template" >&2; exit 1; fi
             done <<'STATIC_OWNERS'
-track|Scripts_Page_Tracking.html|register("track"
-search|Scripts_Page_Search.html|register("search"
-report|Scripts_Page_Report.html|register("report"
-petitioner|Scripts_Page_Petitioner.html|register("petitioner"
-people|Scripts_Page_People.html|register("people"
-budget|Scripts_Page_Budget.html|register("budget"
-STATIC_OWNERS
+          track|Scripts_Page_Tracking.html|register("track"
+          search|Scripts_Page_Search.html|register("search"
+          report|Scripts_Page_Report.html|register("report"
+          petitioner|Scripts_Page_Petitioner.html|register("petitioner"
+          people|Scripts_Page_People.html|register("people"
+          budget|Scripts_Page_Budget.html|register("budget"
+          STATIC_OWNERS
 
             echo "- Search / Track / Report / Petitioner / People / Budget static page owners from Cloud Run: PASS" >> "$GITHUB_STEP_SUMMARY"
 
