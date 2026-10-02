@@ -1,0 +1,57 @@
+<script id="tracking-page-production-owner-p5" data-app-fragment="track">
+!(function (root) {
+  "use strict";
+  if (!root || root.__TRACKING_PAGE_PRODUCTION_OWNER_P5__) return;
+  var OWNER = "Scripts_Page_Tracking:ProductionOwner.P5";
+  var isFn = root.__appIsFn || function (v) { return typeof v === "function"; };
+  function warn(label, err, meta) {
+    try { if (root.AppRuntime && isFn(root.AppRuntime.recordWarning)) return root.AppRuntime.recordWarning(label, err, Object.assign({ owner: OWNER }, meta || {})); } catch (_) { void _; }
+    return false;
+  }
+  function callShared(name, args) {
+    var fn = root[name];
+    if (!isFn(fn)) { warn("track.shared.missing." + name, null, { name: name }); return false; }
+    return fn.apply(root, args || []);
+  }
+  function attr(ctx, name) {
+    return ctx && ctx.target && ctx.target.getAttribute ? ctx.target.getAttribute(name) : "";
+  }
+  function activeFilter() {
+    try {
+      var active = document.querySelector('#p-track [data-filter-track].active');
+      return active && active.getAttribute ? active.getAttribute("data-filter-track") || "all" : "all";
+    } catch (_) { return "all"; }
+  }
+  function applyHeaders() {
+    return root.AppReportTrack && isFn(root.AppReportTrack.applyHeaders) ? root.AppReportTrack.applyHeaders() : false;
+  }
+
+  if (root.AppPages && isFn(root.AppPages.registerActions)) {
+    root.AppPages.registerActions("track", {
+      filterTrack: function (ctx) { return callShared("filterTrack", [ctx]); },
+      loadTrackData: function () { return callShared("loadTrackData", []); },
+      trackChangePage: function (ctx) { return callShared("trackChangePage", [attr(ctx, "data-page") || 1, ctx && ctx.target]); },
+      exportToExcel: function (ctx) { return root.AppReportTrack && isFn(root.AppReportTrack.exportToExcel) ? root.AppReportTrack.exportToExcel(ctx) : false; }
+    });
+  }
+  if (root.AppPages && isFn(root.AppPages.register)) {
+    root.AppPages.register("track", {
+      mount: function () {
+        applyHeaders();
+        return callShared("loadTrackData", [activeFilter(), 1, { forceFresh: false, source: "track.lifecycle.mount-p5" }]);
+      },
+      reload: function (options) {
+        return callShared("loadTrackData", [activeFilter(), 1, Object.assign({
+          forceFresh: true,
+          noCache: true,
+          bypassCache: true,
+          source: "track.lifecycle.mutation-reconcile-p5"
+        }, options || {})]);
+      },
+      dispose: function () { return true; }
+    });
+  }
+  root.AppTrackingPage = Object.assign(root.AppTrackingPage || {}, { owner: OWNER });
+  root.__TRACKING_PAGE_PRODUCTION_OWNER_P5__ = !0;
+})(window);
+</script>

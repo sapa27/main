@@ -1,0 +1,374 @@
+<!-- P4 canonical lazy print runtime: single owner, loaded through manifest chunk "print" -->
+<script id="app-official-table-format-standard-current7" data-app-fragment="print">
+!function (r, d) {
+    "use strict";
+    if (r && d && !r.__APP_OFFICIAL_TABLE_FORMAT_PRINT_ONLY_CURRENT__) {
+        r.__APP_OFFICIAL_TABLE_FORMAT_PRINT_ONLY_CURRENT__ = !0;
+        var I = "app-official-table-format-print-only-style-current";
+        function S() {
+            if (d.getElementById(I))
+                return !0;
+            var e = d.createElement("style");
+            return e.id = I, e.setAttribute("data-owner", "AppOfficialTableFormatPrintOnly"), e.textContent = '@media print{.print-doc table,.mp-doc table,.app-standard-print-table{width:100%;border-collapse:collapse!important;font-family:"TH Sarabun New","Sarabun",Tahoma,sans-serif!important;font-size:12pt!important;line-height:1.25!important}.print-doc th,.print-doc td,.mp-doc th,.mp-doc td,.app-standard-print-table th,.app-standard-print-table td{border:1px solid #444!important;padding:3.5pt 4pt!important;vertical-align:top!important;white-space:normal!important;overflow-wrap:anywhere!important;color:#111!important}.print-doc thead th,.mp-doc thead th,.app-standard-print-table thead th{background:#f2f2f2!important;text-align:center!important;font-weight:700!important}.text-end{text-align:right!important}.text-center{text-align:center!important}}', (d.head || d.documentElement).appendChild(e), !0;
+        }
+        r.AppOfficialTableFormat = { stamp: "current.3.29-save-popup-csrf-owner", mode: "print-only", enhance: S, enhanceTable: function () { return !0; }, schedule: S, styleId: I };
+        S();
+    }
+}(window, document);
+</script>
+<script id="app-print-engine-owner" data-app-fragment="print">
+!function (root) {
+    "use strict";
+    if (root && !root.__APP_PRINT_ENGINE_SINGLE_OWNER__) {
+        root.__APP_PRINT_ENGINE_SINGLE_OWNER__ = !0;
+        var doc = root.document, t = "SCR:AppPrint", e = "print-single-owner-runtime06-p4", r = "คณะกรรมาธิการการป้องกันและปราบปรามการทุจริตประพฤติมิชอบ สภาผู้แทนราษฎร", n = "เอกสารสำหรับพิมพ์", a = ["summary-view", "pet-summary-view", "ps-print-view", "p-search", "p-report", "p-track", "p-petitioner", "p-personnel", "p-budget", "p-meeting", "p-dash"], i = { "meeting-case-detail": "รายละเอียดเรื่องพิจารณา", "petitioner-detail": "ข้อมูลผู้ร้องเรียน", "personnel-report": "รายงานบุคลากร", "budget-summary": "รายงานสรุปค่าใช้จ่ายงบประมาณ", "track-summary": "รายงานการติดตามหนังสือ", report: "รายงานสรุปเรื่องพิจารณา", "people-history": "ประวัติการดำรงตำแหน่ง", ai: "รายงานจากผู้ช่วย AI", default: n }, p = { "summary-view": "รายละเอียดเรื่องพิจารณา", "pet-summary-view": "ข้อมูลผู้ร้องเรียน", "ps-print-view": "รายงานบุคลากร", "p-search": "ค้นหาเรื่องพิจารณา", "p-report": "รายงานสรุปเรื่องพิจารณา", "p-track": "รายงานการติดตามหนังสือ", "p-petitioner": "ข้อมูลผู้ร้องเรียน", "p-personnel": "รายงานบุคลากร", "p-budget": "ระบบบริหารงบประมาณ", "p-meeting": "จัดการเรื่องพิจารณา", "p-dash": "Dashboard" }, o = { printPage: 1, printReportPdf: 1, printTrack: 1, printBudgetSummary: 1, printTypeSummary: 1, printPersonnelReportMenu: 1, printSalaryReportOnly: 1, printWorkloadReport: 1, printBudgetImportRecord: 1, searchPrintCase: 1 }, d = { ok: !0, phase: "current", stamp: e, owner: t, engine: "AppPrint.printWithProfile", pagePrintEngineAllowed: !1, directWindowPrintAllowed: !1 }, l = root.AppPageKit && root.AppPageKit.moduleKit ? root.AppPageKit.moduleKit("Print.Engine") : root.AppPageKit || {}, s = l && l.text || function (t) { return String(null == t ? "" : t); }, c = l && l.trim || function (t) { return s(t).replace(/\s+/g, " ").trim(); }, u = l && l.byId || function (t) { return t && doc && doc.getElementById ? doc.getElementById(t) : null; }, f = l && (l.esc || l.escapeHtml) || function (t) { return String(null == t ? "" : t).replace(/[&<>"']/g, function (t) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[t]; }); }, warn = function (e, r) {
+            try {
+                if (l.warn)
+                    return l.warn(e, r, { owner: t });
+                if (root.AppRuntime && __appIsFn(root.AppRuntime.recordWarning))
+                    return root.AppRuntime.recordWarning(e, r);
+                root.console && __appIsFn(root.console.warn) && root.console.warn("[PrintWarn] " + String(e || "print"), r || "");
+            }
+            catch (t) {
+                __appObserve(t, "ec");
+            }
+            return !1;
+        }, m = l && l.notify || function (t, e, r) {
+            try {
+                if (root.appSwalFire)
+                    return root.appSwalFire(t, e, r || "warning");
+                if (root.Swal && root.Swal.fire)
+                    return root.Swal.fire(t, e, r || "warning");
+                root.alert && root.alert((t ? t + "\n" : "") + (e || ""));
+            }
+            catch (t) {
+                warn("print.notify.failed", t);
+            }
+            return !1;
+        }, thaiDate = function (t) {
+            if (root.AppFormat && __appIsFn(root.AppFormat.toThaiDate)) {
+                var e = root.AppFormat.toThaiDate(t);
+                if (e)
+                    return e;
+            }
+            var r = t instanceof Date ? t : new Date(t || Date.now());
+            return isNaN(r.getTime()) && (r = new Date), String(r.getDate()).padStart(2, "0") + "/" + String(r.getMonth() + 1).padStart(2, "0") + "/" + (r.getFullYear() + 543);
+        };
+        // P4: data-action print clicks are owned exclusively by AppActionHub.
+        function measuredPrintWithProfile(e, r) { var n = root.AppPerformanceGate; return n && __appIsFn(n.measure) ? n.measure("printPreview", function () { return printWithProfile(e, r || {}); }, { profile: String(e || "default"), owner: t }) : printWithProfile(e, r || {}); }
+        root.sanitizePrintHtml = standardizePrintHtml, root.ensurePrintAssets = ensureAssets, root.closeSystemInfoPrintPopups = closeSystemInfoPrintPopups, root.AppPrintStandard = { owner: t, stamp: e, organizationFull: r, printedAtLabel: "วันเดือนปีพิมพ์", snapshot: function () { return { owner: t, stamp: e, organizationFull: r, printedAtLabel: "วันเดือนปีพิมพ์", logoUrl: logoSrc(), title: n, previewMode: !0 }; } };
+        var g = root.AppPrint || {};
+        Object.assign(g, { __canonicalOwner: t, __fullPrintEngine: !0, __singlePrintOwner: !0, __finalOwner: !0, __printPlaceholderOnly: !1, contractStamp: e, contract: d, ensureAssets: ensureAssets, print: function (t, e) { return "object" == typeof t && null !== t ? measuredPrintWithProfile(t.profile || t.profileName || "default", t) : measuredPrintWithProfile(t || "default", e || {}); }, printOfficial: function (t, e) { return root.AppPrint.print(t, e); }, printWithProfile: measuredPrintWithProfile, renderPrintProfile: function renderPrintProfile(t, e, r) { return r = Object.assign({}, r || {}, { profile: t || r && r.profile || "default" }), e && e.bodyHtml && !r.bodyHtml && (r.bodyHtml = e.bodyHtml), e && e.html && !r.bodyHtml && (r.bodyHtml = e.html), e && e.title && !r.title && (r.title = e.title), r.title = titleFromProfile(r.profile, r), renderStandardDocument(r); }, printElement: printElement, printHtml: printHtml, buildPayload: buildPrintPayload, closeSystemInfoPopups: closeSystemInfoPrintPopups, openPreview: function (t, e) { return measuredPrintWithProfile(e && e.profile || "default", Object.assign({}, e || {}, { bodyHtml: t || "", autoPrint: !1 })); }, closePreview: closePreview, dispatch: dispatch, status: printPathStatus, getContract: function () { return Object.assign({}, d, printPathStatus()); }, getStandardHeader: function () { return root.AppPrintStandard.snapshot(); }, getPrintPathStatus: function () { return root.AppPrintActionDispatcher.status(); } }), root.AppPrint || (root.AppPrint = g);
+        var v = root.AppPrintActionDispatcher || {};
+        Object.assign(v, { dispatch: dispatch, status: printPathStatus, contract: function () { return root.AppPrint.getContract(); } }), root.AppPrintActionDispatcher || (root.AppPrintActionDispatcher = v);
+        var y = root.MasterPrintTemplate || {};
+        Object.assign(y, { normalizePayload: function (t) { return t || {}; }, render: function (t) { return { html: renderStandardDocument({ title: (t = t || {}).title, bodyHtml: t.bodyHtml || "", profile: t.profile || t.profileName || "default" }), payload: t }; } }), root.MasterPrintTemplate || (root.MasterPrintTemplate = y), registerActions();
+    }
+    function logoSrc() { var t = root.APP_LOGO || {}; return c(root.__APP_PARLIAMENT_LOGO__ || root.currentLogoUrl || root.LOGO_URL || root.__SAFE_LOGO_URL__ || t.active || t.png96 || t.svg || ""); }
+    function arabicDigits(t) { return s(t).replace(/[๐-๙]/g, function (t) { var e = "๐๑๒๓๔๕๖๗๘๙".indexOf(t); return e < 0 ? t : String(e); }); }
+    function standardizePrintHtml(t) {
+        if (!root.AppSafeHtml || !root.AppSafeHtml.sanitizeHtml)
+            throw new Error("APP_SAFE_HTML_OWNER_REQUIRED");
+        return arabicDigits(root.AppSafeHtml.sanitizeHtml(t));
+    }
+    function visible(t) {
+        if (!t)
+            return !1;
+        if (t.classList && (t.classList.contains("d-none") || t.classList.contains("app-row-paged-hidden")))
+            return !1;
+        try {
+            var e = root.getComputedStyle ? root.getComputedStyle(t) : null;
+            return !e || "none" !== e.display && "hidden" !== e.visibility;
+        }
+        catch (t) {
+            return !0;
+        }
+    }
+    function htmlOf(t) {
+        var e = u(t) || t;
+        if (!e)
+            return "";
+        try {
+            var r = e.cloneNode(!0);
+            return function restorePagedRowsForPrint(t) {
+                if (!t || !t.querySelectorAll)
+                    return;
+                Array.prototype.slice.call(t.querySelectorAll("tr.app-row-paged-hidden,tr[data-app-row-hidden]")).forEach(function (e) {
+                    try {
+                        e.classList && e.classList.remove("app-row-paged-hidden", "d-none", "visually-hidden"), e.removeAttribute && (e.removeAttribute("hidden"), e.removeAttribute("aria-hidden"), e.removeAttribute("data-app-row-hidden")), e.style && (e.style.display = "", e.style.visibility = "", e.style.opacity = "");
+                    }
+                    catch (t) {
+                        __appObserve(t, "print.restorePagedRows");
+                    }
+                }), Array.prototype.slice.call(t.querySelectorAll("table[data-app-local-dom-paging],table[data-app-pager-bound],table[data-app-pager]")).forEach(function (e) {
+                    try {
+                        e.removeAttribute("data-app-local-dom-paging"), e.removeAttribute("data-app-pager-bound"), e.removeAttribute("data-app-pager"), e.removeAttribute("data-page-size");
+                    }
+                    catch (t) {
+                        __appObserve(t, "print.restorePagedTable");
+                    }
+                });
+            }(r), function removeNoise(t) {
+                t && t.querySelectorAll && ([".no-print", ".print-preview-toolbar", ".app-table-pager", "[data-app-standard-pager]", ".modal-backdrop", ".swal2-container", ".toast-container", ".tooltip", ".popover", "button", ".btn", "input", "select", "textarea", '[data-action="closePrintView"]'].forEach(function (e) {
+                    Array.prototype.slice.call(t.querySelectorAll(e)).forEach(function (t) {
+                        try {
+                            t && t.parentNode && t.parentNode.removeChild(t);
+                        }
+                        catch (t) {
+                            __appObserve(t, "ec");
+                        }
+                    });
+                }), Array.prototype.slice.call(t.querySelectorAll("[style]")).forEach(function (t) {
+                    try {
+                        t.style.maxWidth = "", t.style.overflow = "", t.style.overflowX = "", t.style.height = "";
+                    }
+                    catch (t) {
+                        __appObserve(t, "ec");
+                    }
+                }));
+            }(r), standardizePrintHtml(r.outerHTML || r.innerHTML || "");
+        }
+        catch (t) {
+            return warn("print.htmlOf.cloneDefault", t), standardizePrintHtml(e.outerHTML || e.innerHTML || "");
+        }
+    }
+    function findVisiblePage() {
+        for (var t = 0; t < a.length; t++) {
+            var e = u(a[t]);
+            if (visible(e))
+                return e;
+        }
+        for (var pages = doc && doc.querySelectorAll ? Array.prototype.slice.call(doc.querySelectorAll('.page[id^="p-"]')) : [], r = 0; r < pages.length; r++)
+            if (visible(pages[r]))
+                return pages[r];
+        return doc && doc.body;
+    }
+    function titleFromProfile(t, e) { return c((e = e || {}).title || e.meta && e.meta.title || i[t || "default"] || n); }
+    function renderStandardDocument(t) { var e = arabicDigits(c((t = t || {}).title || t.meta && t.meta.title || n)), a = c(t.profile || t.profileName || "default"), i = standardizePrintHtml(t.bodyHtml || t.html || ""); !i && t.target && (i = htmlOf(t.target)); var p = logoSrc(), o = arabicDigits(thaiDate(new Date)), d = '<div class="app-standard-print-header">' + (p ? '<img class="app-standard-print-logo print-logo-img" data-logo="parliament" alt="ตรารัฐสภา" src="' + f(p) + '">' : '<div class="app-standard-print-logo-directDefault">ตรารัฐสภา</div>') + '<div class="app-standard-print-committee">' + f(r) + '</div><div class="app-standard-print-title">' + f(e) + "</div></div>", l = '<div class="app-standard-print-footer">' + f("วันเดือนปีพิมพ์") + " " + f(o) + "</div>"; return '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>' + f(e) + "</title>" + function standardStyle(t) { return "<style>@page{size:A4 " + (/landscape/i.test(s(t && (t.layoutMode || t.pageSize))) ? "landscape" : "portrait") + ';margin:14mm 12mm 16mm 12mm}html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:"TH Sarabun New","TH SarabunPSK",Sarabun,Arial,sans-serif;font-size:14pt;line-height:1.38}.app-standard-print-document{width:100%;box-sizing:border-box}.app-standard-print-header{text-align:center;border-bottom:1px solid #111827;padding-bottom:8px;margin-bottom:12px;break-after:avoid;page-break-after:avoid}.app-standard-print-logo{display:block;margin:0 auto 6px;width:72px;height:72px;object-fit:contain}.app-standard-print-logo-directDefault{display:inline-flex;align-items:center;justify-content:center;margin:0 auto 6px;width:72px;height:72px;border:1px solid #94a3b8;border-radius:50%;font-size:11pt;color:#475569}.app-standard-print-committee{font-weight:700;font-size:16pt;line-height:1.25}.app-standard-print-title{font-weight:700;font-size:15pt;line-height:1.25;margin-top:4px}.app-standard-print-body{min-height:40mm}.app-standard-print-footer{border-top:1px solid #111827;margin-top:12px;padding-top:6px;text-align:right;font-size:12pt}.app-standard-print-body table,.app-standard-print-table,.app-print-preview-table{width:100%;max-width:100%;border-collapse:collapse!important;border-spacing:0!important;table-layout:auto!important;font-size:12.5pt;line-height:1.18}.app-standard-print-body thead,.app-standard-print-table thead,.app-print-preview-table thead{display:table-header-group}.app-standard-print-body tfoot,.app-standard-print-table tfoot,.app-print-preview-table tfoot{display:table-footer-group}.app-standard-print-body tr,.app-standard-print-table tr,.app-print-preview-table tr{break-inside:avoid;page-break-inside:avoid}.app-standard-print-body th,.app-standard-print-body td,.app-standard-print-table th,.app-standard-print-table td,.app-print-preview-table th,.app-print-preview-table td{border:1px solid #111827!important;padding:3.8px 4.8px!important;vertical-align:top!important;word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;line-height:1.16!important}.app-standard-print-body th,.app-standard-print-table th,.app-print-preview-table th{font-weight:700!important;background:#f3f4f6!important;text-align:center!important;vertical-align:middle!important;font-size:12.2pt!important;line-height:1.1!important}.app-standard-print-body td.text-end,.app-standard-print-table td.text-end,.app-print-preview-table td.text-end,.app-standard-print-body td[align="right"],.app-standard-print-table td[align="right"],.app-print-preview-table td[align="right"]{text-align:right!important;white-space:nowrap!important}.app-standard-print-body .text-center,.app-standard-print-table .text-center,.app-print-preview-table .text-center{text-align:center!important}.app-standard-print-body .text-start,.app-standard-print-table .text-start,.app-print-preview-table .text-start{text-align:left!important}.app-standard-print-body .table-responsive,.app-standard-print-body .app-table-scroll{overflow:visible!important;max-width:100%!important}.case-official-card{border:1px solid #111827;margin-bottom:8px;break-inside:avoid;page-break-inside:avoid}.case-official-title{font-weight:700;background:#f3f4f6;border-bottom:1px solid #111827;padding:4px 6px}.case-official-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.case-official-row{display:grid;grid-template-columns:42mm 1fr;border-bottom:1px solid #d1d5db;min-height:24px}.case-official-label{font-weight:700;background:#f9fafb;border-right:1px solid #d1d5db;padding:3px 5px}.case-official-value{padding:3px 5px;white-space:pre-wrap}.no-print,.print-preview-toolbar,.app-table-pager,[data-app-standard-pager],button,.btn,input,select,textarea{display:none!important}@media print{.app-standard-print-document{box-shadow:none}.case-official-card{break-inside:avoid;page-break-inside:avoid}}</style>'; }(t) + '</head><body><article class="app-standard-print-document" data-print-profile="' + f(a) + '">' + d + '<section class="app-standard-print-body">' + i + "</section>" + l + "</article></body></html>"; }
+    function closeSystemInfoPrintPopups() {
+        try {
+            (doc && doc.querySelectorAll ? Array.prototype.slice.call(doc.querySelectorAll('#app-print-current-window-preview-v9,#app-report-print-selection-dialog,.app-report-print-selection-dialog,.swal2-container,.modal.show,.modal[aria-modal="true"],.app-print-preview-modal,.app-generated-print-popup,#app-standard-print-preview-final')) : []).forEach(function (t) {
+                var e = c(t.textContent || ""), r = t.id || "", n = t.classList;
+                if (/ข้อมูลระบบ|ตัวอย่างเอกสารสำหรับพิมพ์|เอกสารสำหรับพิมพ์|เลือกข้อมูลพิมพ์|เลือกหัวตารางและข้อมูล/.test(e) || "app-standard-print-preview-final" === r || "app-print-current-window-preview-v9" === r || "app-report-print-selection-dialog" === r || n && (n.contains("app-report-print-selection-dialog") || n.contains("app-print-preview-modal") || n.contains("app-generated-print-popup")) || n && n.contains("swal2-container")) {
+                    try {
+                        root.Swal && root.Swal.close && n && n.contains("swal2-container") && root.Swal.close();
+                    }
+                    catch (t) {
+                        __appObserve(t, "ec");
+                    }
+                    try {
+                        t && t.parentNode && t.parentNode.removeChild(t);
+                    }
+                    catch (t) {
+                        __appObserve(t, "ec");
+                    }
+                }
+            });
+            var activeSystemModal = doc && doc.querySelector ? doc.querySelector('.modal.show:not(#app-standard-print-preview-final),.modal[aria-modal="true"]:not(#app-standard-print-preview-final)') : null;
+            if (!activeSystemModal) {
+                Array.prototype.slice.call(doc.querySelectorAll ? doc.querySelectorAll(".modal-backdrop") : []).forEach(function (t) { t && t.parentNode && t.parentNode.removeChild(t); });
+            }
+            if (doc && doc.body) {
+                doc.body.classList.remove("swal2-shown", "swal2-height-auto", "app-report-print-selection-open", "app-standard-print-preview-open", "app-ui-locked");
+                if (!activeSystemModal) {
+                    doc.body.classList.remove("modal-open");
+                    doc.body.style.removeProperty("overflow");
+                    doc.body.style.removeProperty("padding-right");
+                    doc.body.style.removeProperty("position");
+                    doc.body.style.removeProperty("top");
+                    doc.body.style.removeProperty("width");
+                }
+            }
+        }
+        catch (t) {
+            warn("print.closePopups", t);
+        }
+    }
+    function closePreview() {
+        var t = u("app-standard-print-preview-final");
+        t && t.parentNode && t.parentNode.removeChild(t);
+        if (doc && doc.body) {
+            var activeSystemModal = doc.querySelector ? doc.querySelector('.modal.show,.modal[aria-modal="true"]') : null;
+            doc.body.classList.remove("swal2-shown", "swal2-height-auto", "app-report-print-selection-open", "app-standard-print-preview-open", "app-ui-locked");
+            if (!activeSystemModal) {
+                doc.body.classList.remove("modal-open");
+                doc.body.style.removeProperty("overflow");
+                doc.body.style.removeProperty("padding-right");
+                doc.body.style.removeProperty("position");
+                doc.body.style.removeProperty("top");
+                doc.body.style.removeProperty("width");
+            }
+        }
+    }
+    function buildPrintPayload(r, n) { return (n = Object.assign({}, n || {})).profile = r || n.profile || n.profileName || "default", n.title = n.title || titleFromProfile(n.profile, n), n.meta = Object.assign({ title: n.title, printOwner: t, printStamp: e }, n.meta || {}), n; }
+    function printHtml(t) {
+        return function openPreview(t, e) {
+            if (e = e || {}, !doc || !doc.body)
+                return !1;
+            closeSystemInfoPrintPopups();
+            var r = String(t || "");
+            r.replace(/<[^>]+>/g, "").replace(/\s+/g, "").trim() || (r = renderStandardDocument(Object.assign({}, e, { bodyHtml: '<div class="text-muted">ไม่พบข้อมูลสำหรับพิมพ์</div>' }))), function ensurePreviewShell() {
+                var t = u("app-standard-print-preview-final");
+                if (t)
+                    return t;
+                (t = doc.createElement("div")).id = "app-standard-print-preview-final", t.setAttribute("role", "dialog"), t.setAttribute("aria-modal", "true");
+                var e = doc.createElement("div");
+                e.className = "app-standard-print-preview-panel";
+                var r = doc.createElement("div");
+                r.className = "app-standard-print-preview-toolbar";
+                var n = doc.createElement("strong");
+                n.id = "app-standard-print-preview-title", n.textContent = "เอกสารสำหรับพิมพ์";
+                var a = doc.createElement("span");
+                a.className = "app-standard-print-preview-hint", a.textContent = "ตรวจสอบข้อมูลก่อนสั่งพิมพ์";
+                var i = doc.createElement("button");
+                i.type = "button", i.className = "btn btn-primary", i.id = "app-standard-print-preview-print", i.textContent = "พิมพ์";
+                var p = doc.createElement("button");
+                p.type = "button", p.className = "btn btn-light", p.id = "app-standard-print-preview-close", p.textContent = "ปิด";
+                var o = doc.createElement("iframe");
+                o.id = "app-standard-print-preview-frame", o.title = "ตัวอย่างเอกสารสำหรับพิมพ์", o.setAttribute("data-app-print-frame", "standard"), r.appendChild(n), r.appendChild(a), r.appendChild(i), r.appendChild(p), e.appendChild(r), e.appendChild(o), t.appendChild(e);
+                var d = u("app-standard-print-preview-final-style");
+                d || ((d = doc.createElement("style")).id = "app-standard-print-preview-final-style", d.textContent = "#app-standard-print-preview-final{position:fixed;inset:0;z-index:2147483200;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:18px}#app-standard-print-preview-final .app-standard-print-preview-panel{width:min(1180px,96vw);height:min(92vh,920px);background:#fff;border-radius:14px;box-shadow:0 24px 80px rgba(15,23,42,.28);display:flex;flex-direction:column;overflow:hidden}#app-standard-print-preview-final .app-standard-print-preview-toolbar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #e5e7eb;background:#f8fafc}#app-standard-print-preview-final .app-standard-print-preview-toolbar strong{font-size:15px;color:#0f172a}#app-standard-print-preview-final .app-standard-print-preview-hint{font-size:12px;color:#64748b;margin-right:auto}#app-standard-print-preview-final .btn{display:inline-flex!important;align-items:center;justify-content:center;border:1px solid #cbd5e1;border-radius:8px;padding:7px 14px;font-size:14px;line-height:1.2;cursor:pointer}#app-standard-print-preview-final .btn-primary{background:#1d4ed8;color:#fff;border-color:#1d4ed8}#app-standard-print-preview-final .btn-light{background:#fff;color:#0f172a}#app-standard-print-preview-final iframe{flex:1;width:100%;border:0;background:#fff}@media print{#app-standard-print-preview-final{display:none!important}}", doc.head && doc.head.appendChild(d)), doc.body.appendChild(t), p.onclick = closePreview, i.onclick = function () {
+                    var t = u("app-standard-print-preview-frame");
+                    try {
+                        var e = t && (t.contentWindow || t.contentDocument && t.contentDocument.defaultView), go = function () {
+                            try {
+                                if (e)
+                                    return e.focus(), e.print(), !0;
+                                if (root.print)
+                                    return root.focus && root.focus(), root.print(), !0;
+                                throw new Error("print context not ready");
+                            }
+                            catch (t) {
+                                try {
+                                    warn("print.preview.printContext", t);
+                                }
+                                catch (t) {
+                                    __appObserve(t, "prt.s");
+                                }
+                                return m("พิมพ์ไม่สำเร็จ", "ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาลองอีกครั้ง", "error"), !1;
+                            }
+                        };
+                        t && t.dataset && "1" === t.dataset.printReady ? setTimeout(go, 30) : (t && (t.onload = function () {
+                            try {
+                                t.dataset.printReady = "1";
+                            }
+                            catch (t) {
+                                __appObserve(t, "prt.s");
+                            }
+                            e = t.contentWindow || t.contentDocument && t.contentDocument.defaultView || e, setTimeout(go, 30);
+                        }), setTimeout(go, 320));
+                    }
+                    catch (t) {
+                        try {
+                            if (root.print)
+                                return root.print(), !0;
+                        }
+                        catch (t) {
+                            warn("print.preview.rootPrint", t);
+                        }
+                        m("พิมพ์ไม่สำเร็จ", "ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาลองอีกครั้ง", "error");
+                    }
+                };
+            }();
+            var n = u("app-standard-print-preview-title");
+            n && (n.textContent = titleFromProfile(e.profile || e.profileName || "default", e));
+            var a = function writePreviewFrame(t, e) {
+                if (!t)
+                    return !1;
+                e = String(e || "");
+                try {
+                    t.dataset && (t.dataset.printReady = "0");
+                }
+                catch (t) {
+                    __appObserve(t, "prt.s");
+                }
+                try {
+                    var r = t.contentDocument || t.contentWindow && t.contentWindow.document;
+                    if (r) {
+                        r.open(), r.write(e), r.close();
+                        try {
+                            t.dataset && (t.dataset.printReady = "1");
+                        }
+                        catch (t) {
+                            __appObserve(t, "prt.s");
+                        }
+                        try {
+                            t.__appPrintHtml = e;
+                        }
+                        catch (t) {
+                            __appObserve(t, "prt.s");
+                        }
+                        return !0;
+                    }
+                }
+                catch (t) {
+                    warn("print.preview.documentWrite", t);
+                }
+                try {
+                    return t.onload = function () {
+                        try {
+                            t.dataset && (t.dataset.printReady = "1");
+                        }
+                        catch (t) {
+                            __appObserve(t, "prt.s");
+                        }
+                    }, t.srcdoc = e, !0;
+                }
+                catch (t) {
+                    return warn("print.preview.srcdoc", t), !1;
+                }
+            }(u("app-standard-print-preview-frame"), r);
+            return doc.body.classList.add("modal-open", "app-standard-print-preview-open"), a || m("พิมพ์ไม่สำเร็จ", "ไม่สามารถแสดงตัวอย่างเอกสารสำหรับพิมพ์ได้", "error"), !!a;
+        }(renderStandardDocument(t = buildPrintPayload(t && t.profile || t && t.profileName || "default", t)), t);
+    }
+    function printElement(t, e) {
+        e = Object.assign({}, e || {});
+        var r = u(t) || t || findVisiblePage();
+        return e.title = function titleFromElement(t, e) {
+            var r = c((e = e || {}).title || e.meta && e.meta.title);
+            if (r)
+                return r;
+            var a = t && t.id;
+            if (a && p[a])
+                return p[a];
+            if (t && t.querySelector) {
+                var i = t.querySelector("h1,h2,h3,.page-title,.section-title,.card-title");
+                if (i && c(i.textContent))
+                    return c(i.textContent);
+            }
+            return n;
+        }(r, e), e.bodyHtml = htmlOf(r), printHtml(e);
+    }
+    function printWithProfile(t, e) { return printHtml(buildPrintPayload(t, e)); }
+    function ensureAssets() { return Promise.resolve(!0); }
+    function printPathStatus() { return { ok: !(!root.AppPrint || !root.AppPrint.printWithProfile), phase: "current", stamp: e, owner: t, singleOwner: !0, finalOwner: !0, profileOwner: "AppPrint.printWithProfile", profileGateway: "AppPrint.printWithProfile", profiles: Object.keys(i).length, actions: Object.keys(o).length, pagePrintEngineAllowed: !1, directWindowPrintAllowed: !1 }; }
+    function standardCurrent(t, e, r) {
+        return printElement(function printTarget(t) {
+            if (t && t.closest) {
+                var e = t.closest("#summary-view,#pet-summary-view,#ps-print-view,#p-search,#p-report,#p-track,#p-petitioner,#p-personnel,#p-budget,#p-meeting,#p-dash,.page,.card,.table-responsive,section,main");
+                if (e && visible(e))
+                    return e;
+            }
+            return findVisiblePage();
+        }(r), { title: t || n, profile: e || "default", autoPrint: !1 });
+    }
+    function dispatch(e, r, a) {
+        if (a = a || {}, !(e = c(e)))
+            return !1;
+        closeSystemInfoPrintPopups();
+        try {
+            var i = r && r.getAttribute ? r.getAttribute("data-id") : "";
+            return "printPage" === e ? r && r.closest && r.closest("#pet-summary-view,#p-petitioner") && __appIsFn(root.printPetitionerSummary) ? root.printPetitionerSummary() : r && r.closest && r.closest("#pet-summary-view,#p-petitioner") && __appIsFn(root.printPetitionerDetailStandard) ? root.printPetitionerDetailStandard() : r && r.closest && r.closest("#summary-view,#p-search") && __appIsFn(root.printSearchPage) ? root.printSearchPage({ target: r, source: t }) : r && r.closest && r.closest("#ps-print-view,#p-personnel") && __appIsFn(root.printPersonnelReportMenu) ? root.printPersonnelReportMenu() : r && r.closest && r.closest("#p-budget") && __appIsFn(root.printBudgetSummary) ? root.printBudgetSummary() : standardCurrent(n, "default", r) : "printReportPdf" === e && __appIsFn(root.printReportPdf) ? root.printReportPdf() : "printTrack" === e && __appIsFn(root.printTrack) ? root.printTrack() : "printBudgetSummary" === e && __appIsFn(root.printBudgetSummary) ? root.printBudgetSummary() : "printTypeSummary" === e && __appIsFn(root.printTypeSummary) ? root.printTypeSummary() : "printBudgetImportRecord" === e && __appIsFn(root.printBudgetImportRecord) ? root.printBudgetImportRecord(i) : "printPersonnelReportMenu" === e && __appIsFn(root.printPersonnelReportMenu) ? root.printPersonnelReportMenu() : "printSalaryReportOnly" === e && __appIsFn(root.printSalaryReportOnly) ? root.printSalaryReportOnly() : "printWorkloadReport" === e && __appIsFn(root.printWorkloadReport) ? root.printWorkloadReport() : "searchPrintCase" === e && __appIsFn(root.searchPrintCase) ? root.searchPrintCase(i) : standardCurrent(n, "default", r);
+        }
+        catch (t) {
+            return m("พิมพ์ไม่สำเร็จ", t && t.message ? t.message : String(t), "error"), !1;
+        }
+    }
+    function registerActions() {
+        if (root.AppPages && __appIsFn(root.AppPages.registerSharedActions)) {
+            var t = {};
+            Object.keys(o).forEach(function (e) { t[e] = function (t) { return (t = t || {}).action = t.action || e, dispatch(e, t.target || t.button || null, t); }; }), root.AppPages.registerSharedActions("print", t, { silent: !0 });
+        }
+    }
+}(window);
+</script>

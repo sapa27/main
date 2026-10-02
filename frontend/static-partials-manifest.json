@@ -1,0 +1,27 @@
+{
+  "version": "cloud-run-static-partials-p0-20261002",
+  "source": "GAS2_tracking_sequence_staff_fixed.zip",
+  "assets": {
+    "Scripts_Core_Runtime": "./static-partials/Scripts_Core_Runtime.html",
+    "Runtime_01_Request_Lifecycle": "./static-partials/Runtime_01_Request_Lifecycle.html",
+    "Runtime_02_Date_Time": "./static-partials/Runtime_02_Date_Time.html",
+    "Runtime_03_Table_UI": "./static-partials/Runtime_03_Table_UI.html",
+    "Runtime_04_Thailand_Location": "./static-partials/Runtime_04_Thailand_Location.html",
+    "Runtime_05_Status_Aging": "./static-partials/Runtime_05_Status_Aging.html",
+    "Runtime_06_Print": "./static-partials/Runtime_06_Print.html",
+    "Runtime_08_AI_Bridge": "./static-partials/Runtime_08_AI_Bridge.html",
+    "Scripts_Page_Dashboard": "./static-partials/Scripts_Page_Dashboard.html",
+    "Scripts_Page_ReportTrack::reporttrack-common": "./static-partials/Scripts_Page_ReportTrack__reporttrack-common.html",
+    "Scripts_Page_ReportTrack::print": "./static-partials/Runtime_06_Print.html",
+    "Scripts_Page_Search": "./static-partials/Scripts_Page_Search.html",
+    "Scripts_Page_Report": "./static-partials/Scripts_Page_Report.html",
+    "Scripts_Page_Tracking": "./static-partials/Scripts_Page_Tracking.html",
+    "Scripts_Page_Petitioner": "./static-partials/Scripts_Page_Petitioner.html",
+    "Scripts_Page_People": "./static-partials/Scripts_Page_People.html",
+    "Scripts_Page_Budget": "./static-partials/Scripts_Page_Budget.html",
+    "Scripts_Page_Admin": "./static-partials/Scripts_Page_Admin.html",
+    "Scripts_Page_Meeting::meeting-common": "./meeting-controller.html",
+    "Scripts_Page_Meeting::meeting": "./meeting-controller.html",
+    "Scripts_Page_Meeting::committee": "./static-partials/Scripts_Page_Meeting__committee.html"
+  }
+}

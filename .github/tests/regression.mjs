@@ -657,7 +657,7 @@ ok('production gate verifies routed Staff page owners from GAS',()=>{
   assert.ok(workflow.includes('for page_owner in track search report petitioner people budget; do'),'routed Staff page owner loop incomplete');
   assert.ok(workflow.includes("html.includes('registerActions(\"'+page+'\"')"),'page owner action registration check missing');
   assert.ok(workflow.includes("html.includes('register(\"'+page+'\"')"),'page lifecycle registration check missing');
-  assert.ok(workflow.includes('Search / Track / Report / Petitioner / People / Budget deferred page owners from GAS: PASS'),'page owner production summary marker missing');
+  assert.ok(workflow.includes('Search / Track / Report / Petitioner / People / Budget static page owners from Cloud Run: PASS'),'page owner production summary marker missing');
 });
 
 ok('P11 production deployment quality gate fails closed',()=>{
@@ -1324,14 +1324,14 @@ ok('P4 login and session resume complete after Dashboard controller and usable d
 ok('P3 authenticated edge gate reaches session, Dashboard controller, and Dashboard data',()=>{
   assert.ok(workflow.includes("method:'apiLogin'"),'P3 must start from authenticated login');
   assert.ok(workflow.includes("method:'apiSessionCheck'"),'P3 session verification missing');
-  assert.ok(workflow.includes("method:'getDeferredInclude'"),'P3 authenticated Dashboard controller fetch missing');
-  assert.ok(workflow.includes("name:'Scripts_Page_Dashboard'"),'P3 must fetch the canonical Dashboard controller');
+  assert.ok(workflow.includes('static-partials/Scripts_Page_Dashboard.html'),'P0 static Dashboard controller fetch missing');
+  assert.ok(workflow.includes('static page owners from Cloud Run: PASS'),'P0 static page-owner gate missing');
   assert.ok(workflow.includes("method:'apiGetDashboardBundle'"),'P3 authenticated Dashboard data fetch missing');
   assert.ok(workflow.includes("P3 login/session/Dashboard contract: PASS"),'P3 success marker missing');
   assert.ok(!workflow.includes("P3 login/session/Dashboard contract: NOT CONFIGURED"),'P3 must fail closed instead of reporting unconfigured');
-  assert.ok(workflow.includes("Scripts_Page_Dashboard authenticated controller fetch: PASS"),'P3 controller summary missing');
+  assert.ok(workflow.includes("Scripts_Page_Dashboard static Cloud Run controller fetch: PASS"),'P0 static controller summary missing');
   assert.ok(workflow.includes("apiGetDashboardBundle authenticated data fetch: PASS"),'P3 data summary missing');
-  assert.ok(workflow.includes("P3 Dashboard controller fetch failed"),'P3 controller gate must fail closed');
+  assert.ok(workflow.includes("P3 static Dashboard controller fetch failed"),'P0 static controller gate must fail closed');
   assert.ok(workflow.includes("P3 Dashboard data fetch failed"),'P3 data gate must fail closed');
   assert.ok(workflow.includes("access-control-allow-origin"),'P3 authenticated calls must retain CORS verification');
   assert.ok(!workflow.includes('echo "$E2E_SMOKE_USERNAME"'),'P3 username must not be echoed');
@@ -1351,6 +1351,13 @@ ok('interaction paths avoid blocking work on tap',()=>{
   assert.ok(index.includes('stopFeedbackObserver()'));
 });
 
+ok('P0/P1 production architecture keeps controllers static and browser data on one API ingress',()=>{
+  assert.ok(index.includes('function staticPartialUrlCurrent(name)'));
+  assert.ok(index.includes('function fetchStaticPartialCurrent(name,url)'));
+  assert.ok(index.includes('"sourceOwner":"cloud-run-static"'));
+  assert.ok(!index.includes('root2.AppApi.call("getDeferredInclude"'));
+  assert.ok(transport.includes('u+"/api/router"'));
+});
 ok('frontend performance cache policy remains bounded',()=>{
   for(const token of ['REQUEST_TIMEOUT_MS:60000','WRITE_REQUEST_TIMEOUT_MS:120000','AI_DOCUMENT_TIMEOUT_MS:300000','RPC_READ_CACHE_MAX_ENTRIES:96','apiGetDashboardBundle:70000','apiGetDashboardBundle:180000','apiGetMeetingLookupOptions:300000'])assert.ok(config.includes(token),token);
 });
@@ -1397,20 +1404,29 @@ ok('frontend performance cache policy remains bounded',()=>{
 {
   const ctx={txt:v=>v==null?'':String(v),htmlCache:{},inflight:{},RT:{recordWarning(){}},deferredStatusCurrent(){},isStaticMeetingPartial:()=>false,patchDashboardControllerContractCurrent:(_n,h)=>h,__appObserve(){}};
   let attempts=0;
-  ctx.store={get:(k,d)=>k==='auth.token'?'fixture-token':d};
-  ctx.root2={__APP_ASSET_STAMP__:'fixture-r353',AppApi:{call:async()=> ++attempts===1?{unexpected:true}:{data:{html:'<script>/* recovered */</script>'}}}};
+  ctx.root2={
+    __APP_ASSET_STAMP__:'fixture-r470',
+    fetch:async url=>{
+      attempts++;
+      if(attempts===1)return {ok:false,status:503,text:async()=>''};
+      return {ok:true,status:200,text:async()=>'<script>/* recovered static dashboard */</script>'};
+    }
+  };
   const start=index.indexOf('function deferredHtmlCurrent('),end=index.indexOf('function prefetchPartial(',start);
   vm.runInNewContext(index.slice(start,end),ctx);
-  await assert.rejects(ctx.fetchPartialHtml('Scripts_Page_Dashboard'),e=>e.code==='DEFERRED_INCLUDE_INVALID_HTML');
-  assert.equal(await ctx.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* recovered */</script>');
-  ok('invalid deferred responses cannot mark a controller loaded or poison its retry',()=>{
+  assert.equal(ctx.staticPartialUrlCurrent('Scripts_Page_Dashboard'),'./static-partials/Scripts_Page_Dashboard.html');
+  assert.equal(ctx.staticPartialUrlCurrent('Scripts_Page_ReportTrack::reporttrack-common'),'./static-partials/Scripts_Page_ReportTrack__reporttrack-common.html');
+  assert.equal(ctx.staticPartialUrlCurrent('not-mapped'),'');
+  await assert.rejects(ctx.fetchPartialHtml('Scripts_Page_Dashboard'),e=>e.code==='STATIC_PARTIAL_HTTP_503');
+  assert.equal(await ctx.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* recovered static dashboard */</script>');
+  await assert.rejects(ctx.fetchPartialHtml('not-mapped'),e=>e.code==='STATIC_PARTIAL_NOT_MAPPED');
+  ok('P0 static controller failures remain retryable and never fall back to GAS',()=>{
     assert.equal(attempts,2);
     assert.deepEqual(Object.keys(ctx.inflight),[]);
-    assert.throws(()=>ctx.deferredHtmlCurrent({ok:false,data:{code:'ASSET_DENIED'}},'fixture'),e=>e.code==='ASSET_DENIED');
-    assert.equal(ctx.deferredHtmlCurrent({result:{data:{html:'<script>/* nested */</script>'}}},'fixture'),'<script>/* nested */</script>');
+    assert.ok(!index.includes('root2.AppApi.call("getDeferredInclude"'));
+    assert.ok(index.includes('"sourceOwner":"cloud-run-static"'));
   });
 }
-
 // Keep the real strict-mode closure: extracting helper declarations on their own
 // would hide a helper accidentally scoped inside the initialization block.
 {
@@ -1418,22 +1434,27 @@ ok('frontend performance cache policy remains bounded',()=>{
   const w={
     __APP_CRITICAL_LOGIN_RUNTIME_READY__:true,
     AppRuntime:{recordWarning(){}},
-    AppApi:{call:async(method,payload)=>{calls.push([method,payload.name]);return {html:'<script>/* dashboard fixture */</script>'}}},
-    fetch:async url=>{calls.push(['static',url]);return {ok:true,text:async()=>'<script>window.initMeetingPage=function(){};AppPages.register("meeting",{});</script>'}},
+    fetch:async url=>{
+      calls.push(String(url));
+      if(String(url).includes('meeting-controller.html'))return {ok:true,status:200,text:async()=>'<script>window.initMeetingPage=function(){};AppPages.register("meeting",{});</script>'};
+      return {ok:true,status:200,text:async()=>'<script>/* dashboard static fixture */</script>'};
+    },
     document:{documentElement:{setAttribute(){}}}
   };
   const critical=scripts(index).find(s=>s.includes('function fetchPartialHtml(n)'));
   const instrumented=critical.replace('function ns(name,seed)', 'htmlCache={};inflight={};loaded={};doc=root2.document;RT=root2.AppRuntime;store={get:function(k,d){return k==="auth.token"?"fixture-token":d}};root2.scopeTest={fetchPartialHtml:fetchPartialHtml,invalidatePartial:function(n){return invalidatePartial(n)}};function ns(name,seed)');
   vm.runInNewContext(instrumented,{window:w,document:w.document,__appIsFn:v=>typeof v==='function',__appObserve(){}});
-  assert.equal(await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* dashboard fixture */</script>');
+  assert.equal(await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard'),'<script>/* dashboard static fixture */</script>');
   assert.ok((await w.scopeTest.fetchPartialHtml('Scripts_Page_Meeting::meeting')).includes('window.initMeetingPage'));
   w.scopeTest.invalidatePartial('Scripts_Page_Dashboard');
   await w.scopeTest.fetchPartialHtml('Scripts_Page_Dashboard');
-  ok('strict-mode deferred loader can access both asset transports and invalidate its cache',()=>{
-    assert.deepEqual(calls.map(c=>c[0]),['getDeferredInclude','static','getDeferredInclude']);
+  ok('strict-mode controller loader uses same-origin static assets only',()=>{
+    assert.equal(calls.length,3);
+    assert.ok(calls[0].includes('/static-partials/Scripts_Page_Dashboard.html'));
+    assert.ok(calls[1].includes('/meeting-controller.html'));
+    assert.ok(calls[2].includes('/static-partials/Scripts_Page_Dashboard.html'));
   });
 }
-
 ok('early warning reporting terminates and excludes request secrets',()=>{
   const messages=[],attrs={};
   const root={console:{warn:(...args)=>messages.push(args)},document:{documentElement:{setAttribute:(k,v)=>{attrs[k]=v}}}};
