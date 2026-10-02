@@ -643,19 +643,20 @@ ok('P10 UI runtime keeps unique DOM ids and canonical interaction owners',()=>{
   assert.ok(workflow.includes('P10 canonical action/mobile/print owners at public edge: PASS'),'P10 deployment summary marker missing');
 });
 
-ok('production gate verifies routed Staff page owners from GAS',()=>{
-  assert.ok(workflow.includes("['AUTH_TRACK_OWNER_REQ','Scripts_Page_Tracking']"),'Tracking owner live request missing');
-  assert.ok(workflow.includes("['AUTH_SEARCH_OWNER_REQ','Scripts_Page_Search']"),'Search owner live request missing');
-  assert.ok(workflow.includes("['AUTH_REPORT_OWNER_REQ','Scripts_Page_Report']"),'Report owner live request missing');
-  assert.ok(workflow.includes("['AUTH_PETITIONER_OWNER_REQ','Scripts_Page_Petitioner']"),'Petitioner owner live request missing');
-  assert.ok(workflow.includes("['AUTH_PEOPLE_OWNER_REQ','Scripts_Page_People']"),'People owner live request missing');
-  assert.ok(workflow.includes("['AUTH_BUDGET_OWNER_REQ','Scripts_Page_Budget']"),'Budget owner live request missing');
-  assert.ok(workflow.includes('for page_owner in track search report petitioner people budget; do'),'routed Staff page owner loop incomplete');
-  assert.ok(workflow.includes("html.includes('registerActions(\"'+page+'\"')"),'page owner action registration check missing');
-  assert.ok(workflow.includes("html.includes('register(\"'+page+'\"')"),'page lifecycle registration check missing');
+ok('production gate verifies routed Staff page owners from Cloud Run static assets',()=>{
+  for(const spec of [
+    'track|Scripts_Page_Tracking.html|register("track"',
+    'search|Scripts_Page_Search.html|register("search"',
+    'report|Scripts_Page_Report.html|register("report"',
+    'petitioner|Scripts_Page_Petitioner.html|register("petitioner"',
+    'people|Scripts_Page_People.html|register("people"',
+    'budget|Scripts_Page_Budget.html|register("budget"'
+  ]) assert.ok(workflow.includes(spec),'static page owner probe missing '+spec);
+  assert.ok(workflow.includes('$edge_origin/static-partials/$static_asset'),'static page-owner endpoint missing');
+  assert.ok(workflow.includes('P3 static $page_owner owner marker missing'),'static page-owner marker gate missing');
+  assert.ok(workflow.includes("grep -q '<?!='"),'unresolved GAS-template guard missing');
   assert.ok(workflow.includes('Search / Track / Report / Petitioner / People / Budget static page owners from Cloud Run: PASS'),'page owner production summary marker missing');
 });
-
 ok('P11 production deployment quality gate fails closed',()=>{
   for(const name of ['CLOUDFLARE_ACCOUNT_ID','CLOUDFLARE_API_TOKEN','CF_WORKER_NAME','CF_WORKERS_SUBDOMAIN','E2E_SMOKE_USERNAME','E2E_SMOKE_PASSWORD']){
     assert.ok(workflow.includes(name),'required production gate variable missing '+name);
