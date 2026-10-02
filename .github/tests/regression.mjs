@@ -1134,10 +1134,10 @@ ok('Dashboard critical-first controller accepts canonical data before Core',()=>
   assert.ok(index.includes('Object.prototype.hasOwnProperty.call(res,"ok")'));
   assert.ok(index.includes('root.AppApi&&__appIsFn(root.AppApi.call)?root.AppApi.call(method,payload'));
   assert.ok(index.includes('dashboard.controller.contract.notMatched'));
-  const fetchStart=index.indexOf('function fetchPartialHtml(n)');
-  const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
-  const fetchBlock=index.slice(fetchStart,fetchEnd);
-  assert.ok(fetchBlock.includes('h=patchDashboardControllerContractCurrent(n,h)'));
+  const staticFetchStart=index.indexOf('function fetchStaticPartialCurrent(name,url)');
+  const staticFetchEnd=index.indexOf('function fetchPartialHtml(n)',staticFetchStart);
+  const staticFetchBlock=index.slice(staticFetchStart,staticFetchEnd);
+  assert.ok(staticFetchBlock.includes('h=patchDashboardControllerContractCurrent(name,h)'),'static Dashboard controller must retain the canonical contract patch before execution');
   assert.ok(config.includes('P0-F Network Access Compatibility'));
   assert.ok(config.includes('p0-f-network-access-compatibility-r354'));
   assert.ok(transport.includes('return x.result'),'GAS application envelope must remain transport-owned and unchanged');
