@@ -61,8 +61,29 @@ jobs:
           cd cloud-run-gateway
           npm run check
           npm test
-      - name: Validate container build
-        run: docker build --file cloud-run-gateway/Dockerfile cloud-run-gateway
+      - name: Validate container build and startup
+        run: |
+          set -euo pipefail
+          image="sapa27-gateway-validation:$GITHUB_SHA"
+          container="sapa27-gateway-validation-$GITHUB_RUN_ID"
+          docker build --tag "$image" --file cloud-run-gateway/Dockerfile cloud-run-gateway
+          cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run --detach --name "$container" --publish 127.0.0.1:18080:8080 --env PORT=8080 "$image" >/dev/null
+          ready=0
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --max-time 2 -fsS http://127.0.0.1:18080/health | grep -q '"ok":true'; then
+              ready=1
+              break
+            fi
+            if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
+              echo "Container exited before listening on PORT=8080" >&2
+              docker logs "$container" >&2 || true
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$ready" = "1" || { docker logs "$container" >&2 || true; echo "Container did not become healthy on PORT=8080" >&2; exit 1; }
 
   deploy:
     needs: validate
