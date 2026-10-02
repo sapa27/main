@@ -272,28 +272,22 @@ ok('application APIs use canonical GAS apiRouter wire',()=>{
   apiCtx.root2.AppSecurity={setSessionTokens(){}};
   apiCtx.root2.AppRouteContract={absorb(){}};
   vm.runInNewContext(index.slice(baseStart,baseEnd),apiCtx);
-  await apiCtx.base('getDeferredInclude',{name:'Scripts_Page_Dashboard'});
-  await apiCtx.base('apiGetDashboardBundle',{source:'fixture-r353'});
-  ok('login token is committed before Dashboard asset and business requests',()=>{
-    assert.equal(raw[0].method,'getDeferredInclude');
-    assert.equal(raw[0].payload.token,'fixture-login-token');
-    assert.equal(raw[1].method,'apiRouter');
-    assert.equal(raw[1].payload.method,'apiGetDashboardBundle');
-    assert.equal(raw[1].payload.payload.token,'fixture-login-token');
+  await apiCtx.base('apiGetDashboardBundle',{source:'fixture-r470'});
+  ok('login token is committed before authenticated Dashboard data requests',()=>{
+    assert.equal(raw[0].method,'apiRouter');
+    assert.equal(raw[0].payload.method,'apiGetDashboardBundle');
+    assert.equal(raw[0].payload.payload.token,'fixture-login-token');
   });
 
-  store.set('auth.token','');
-  store.set('auth.csrfToken','');
-  assert.throws(()=>reqCtx.deferredRequestPayloadCurrent('Scripts_Page_Dashboard'),e=>e.code==='DASHBOARD_AUTH_TOKEN_NOT_READY');
-  ok('Dashboard deferred asset fails fast before GAS when auth token is not ready',()=>{
-    assert.equal(root2.__APP_DEFERRED_AUTH_HANDOFF_CURRENT__.tokenReady,false);
-    assert.equal(root2.__APP_DEFERRED_AUTH_HANDOFF_CURRENT__.dashboard,true);
+  ok('Dashboard controller is a same-origin static asset and does not require an auth token',()=>{
+    assert.ok(index.includes('"Scripts_Page_Dashboard":"./static-partials/Scripts_Page_Dashboard.html"'));
+    assert.ok(!index.includes('root2.AppApi.call("getDeferredInclude"'));
   });
 }
 
-ok('auth session and deferred assets bypass the application router',()=>{
+ok('auth session bypasses the application router while static assets bypass API transport entirely',()=>{
   assert.ok(index.includes('__APP_DIRECT_BOOTSTRAP_TRANSPORT_CURRENT__="direct-bootstrap-r349"'));
-  assert.ok(index.includes('directTransportMethod=/^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck|getDeferredInclude)$/i.test(a)'));
+  assert.ok(index.includes('directTransportMethod=/^(apiLogin|apiLogout|apiSessionResume|apiSessionCheck)$/i.test(a)'));
   const baseStart=index.indexOf('function base(m,p,options)');
   const baseEnd=index.indexOf('function saveResume',baseStart);
   assert.ok(baseStart>=0&&baseEnd>baseStart,'critical API base missing');
@@ -301,10 +295,9 @@ ok('auth session and deferred assets bypass the application router',()=>{
   assert.ok(baseBlock.includes('directTransportMethod?RT.rawRun(a,q,options)'));
   assert.ok(baseBlock.includes('RT.rawRun("apiRouter",{method:a,payload:q},options)'));
   assert.ok(baseBlock.includes('syncAuthPayloadCrit(q,q.__actionTokenIssued===!0)'),'canonical AppStore auth must be applied to every authenticated request');
-  assert.ok(index.includes('function deferredRequestPayloadCurrent(name)'));
-  assert.ok(index.includes('deferred-auth-handoff-r353'));
-  assert.ok(index.includes('DASHBOARD_AUTH_TOKEN_NOT_READY'));
-  assert.ok(index.includes('root2.AppApi.call("getDeferredInclude",requestPayload)'));
+  assert.ok(index.includes('function staticPartialUrlCurrent(name)'));
+  assert.ok(index.includes('function fetchStaticPartialCurrent(name,url)'));
+  assert.ok(!index.includes('root2.AppApi.call("getDeferredInclude",requestPayload)'));
   assert.ok(gateway.includes('read:+env.GAS_READ_TIMEOUT_MS||75000'));
   assert.ok(config.includes('REQUEST_TIMEOUT_MS:60000'));
   assert.ok(config.includes('apiGetDashboardBundle:70000'));
@@ -450,7 +443,7 @@ ok('P7 read-data pipeline uses the production baseline contract',()=>{
   assert.ok(workflow.includes('Public edge → Cloud Run → GAS read contract: PASS'),'P7 deployment summary marker missing');
 });
 
-ok('Case status reason payload keeps rejection, closure, and pending reasons isolated',()=>{  const start=meetingController.indexOf('function Ge()');  const end=meetingController.indexOf('function meetingHistoryCommitteeType()',start);  assert.ok(start>=0&&end>start,'case payload builder missing');  const block=meetingController.slice(start,end);  assert.ok(block.includes('statusValue = normalizeMeetingStatusValue(T("meeting-status"))'),'case payload must normalize status once');  assert.ok(block.includes('"ยุติเรื่อง" === statusValue')&&block.includes('? closedReasonValue'),'closed reason must only belong to ended cases');  assert.ok(block.includes('"ไม่รับเรื่อง" === statusValue')&&block.includes('? rejectionReasonValue'),'rejection reason must only belong to rejected cases');  assert.ok(block.includes('"รอพิจารณา" === statusValue')&&block.includes('? pendingReasonValue'),'pending reason must only belong to pending cases');  assert.ok(block.includes('statusReason: statusReasonValue'),'statusReason must use the status-specific owner');  assert.ok(!block.includes('T("meeting-closedReason") || T("meeting-rejectionReason")'),'hidden stale reasons must never compete in the payload');});ok('Deferred page timeout stays inside the page activation envelope and GAS retries share one deadline',()=>{  assert.ok(config.includes('RPC_READ_TIMEOUT_BY_METHOD_MS:{getDeferredInclude:50000'),'deferred include browser RPC ceiling must stay at 50 seconds');  assert.ok(config.includes('pageScriptLoadTimeoutMs:55000'),'page script owner must allow the bounded RPC to settle first');  assert.ok(config.includes('pageActivationTimeoutMs:75000'),'page activation must remain above the page script ceiling');  assert.ok(gateway.includes('const budgetMs=timeout(effectiveMethod(method,payload),want,c);'),'gateway retry budget owner missing');  assert.ok(gateway.includes('const deadline=started+budgetMs;'),'gateway retry deadline owner missing');  assert.ok(gateway.includes('const remainingMs=deadline-Date.now();'),'each GAS retry must consume the same total deadline');  assert.ok(gateway.includes("if(remainingMs<=0)throw fail('GAS upstream timeout','GAS_UPSTREAM_TIMEOUT',504);"),'retry deadline must fail closed');});ok('P8 write path classification timeout cache and retry contract is consistent',()=>{
+ok('Case status reason payload keeps rejection, closure, and pending reasons isolated',()=>{  const start=meetingController.indexOf('function Ge()');  const end=meetingController.indexOf('function meetingHistoryCommitteeType()',start);  assert.ok(start>=0&&end>start,'case payload builder missing');  const block=meetingController.slice(start,end);  assert.ok(block.includes('statusValue = normalizeMeetingStatusValue(T("meeting-status"))'),'case payload must normalize status once');  assert.ok(block.includes('"ยุติเรื่อง" === statusValue')&&block.includes('? closedReasonValue'),'closed reason must only belong to ended cases');  assert.ok(block.includes('"ไม่รับเรื่อง" === statusValue')&&block.includes('? rejectionReasonValue'),'rejection reason must only belong to rejected cases');  assert.ok(block.includes('"รอพิจารณา" === statusValue')&&block.includes('? pendingReasonValue'),'pending reason must only belong to pending cases');  assert.ok(block.includes('statusReason: statusReasonValue'),'statusReason must use the status-specific owner');  assert.ok(!block.includes('T("meeting-closedReason") || T("meeting-rejectionReason")'),'hidden stale reasons must never compete in the payload');});ok('Static page loading stays inside the page activation envelope and GAS data retries share one deadline',()=>{  assert.ok(index.includes('fetchStaticPartialCurrent'),'static page loader owner missing');  assert.ok(config.includes('pageScriptLoadTimeoutMs:55000'),'page script activation ceiling must remain bounded');  assert.ok(config.includes('pageActivationTimeoutMs:75000'),'page activation must remain above the page script ceiling');  assert.ok(gateway.includes('const budgetMs=timeout(effectiveMethod(method,payload),want,c);'),'gateway retry budget owner missing');  assert.ok(gateway.includes('const deadline=started+budgetMs;'),'gateway retry deadline owner missing');  assert.ok(gateway.includes('const remainingMs=deadline-Date.now();'),'each GAS data retry must consume the same total deadline');  assert.ok(gateway.includes("if(remainingMs<=0)throw fail('GAS upstream timeout','GAS_UPSTREAM_TIMEOUT',504);"),'retry deadline must fail closed');});ok('P8 write path classification timeout cache and retry contract is consistent',()=>{
   const writeMethods=[
     'apiSaveCase','apiDeleteCase','apiSavePetitioner','apiDeletePetitioner',
     'apiSavePersonnelComm','apiSavePersonnelOp','apiSavePersonnelStaff','apiSavePersonnelSubcommittee',
@@ -873,7 +866,8 @@ ok('Meeting controller code is served by Cloud Run, not fetched from GAS',()=>{
   const fetchEnd=index.indexOf('function prefetchPartial(n)',fetchStart);
   const fetchBlock=index.slice(fetchStart,fetchEnd);
   assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')>=0);
-  assert.ok(fetchBlock.indexOf('isStaticMeetingPartial(n)')<fetchBlock.indexOf('AppApi.call("getDeferredInclude"'),'Meeting must resolve locally before GAS deferred include');
+  assert.ok(fetchBlock.includes('var staticUrl=staticPartialUrlCurrent(n)'),'non-Meeting controllers must also resolve locally');
+  assert.ok(!fetchBlock.includes('AppApi.call("getDeferredInclude"'),'page-controller loader must never fall back to GAS');
 });
 
 ok('Meeting integrity tools visibility follows canonical role and late auth hydration',()=>{
