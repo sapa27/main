@@ -25,7 +25,10 @@ const CLOUDFLARE_ACCOUNT_ENV_REF='CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACC
 ok('P0-F repository layout remains Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
   assert.ok(!fs.existsSync(path.join(ROOT,'github-pages')));
-  assert.deepEqual(fs.readdirSync(path.join(ROOT,'frontend')).sort(),['app-config.js','cloud-run-transport.js','index.html','meeting-controller.html']);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT,'frontend')).sort(),['app-config.js','cloud-run-transport.js','index.html','meeting-controller.html','static-partials','static-partials-manifest.json']);
+  assert.ok(fs.statSync(path.join(ROOT,'frontend','static-partials')).isDirectory());
+  assert.ok(fs.existsSync(path.join(ROOT,'frontend','static-partials','Scripts_Core_Runtime.html')));
+  assert.ok(fs.existsSync(path.join(ROOT,'frontend','static-partials','Scripts_Page_Dashboard.html')));
 });
 
 ok('frontend runtime has no retired GitHub/GAS browser dependency',()=>{
