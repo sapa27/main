@@ -567,12 +567,23 @@ var e=n[t].sort(function(t,e){
 return new Date(e.startDate||0).getTime()-new Date(t.startDate||0).getTime()
 }).map(function(t){
 var e="ดำรงตำแหน่ง"===t.status?'<span class="badge bg-success">ดำรงตำแหน่ง</span>':'<span class="badge bg-secondary">พ้นจากตำแหน่ง</span>';
-return"<tr><td>"+personnelEscapeHtml(t.position||"-")+'</td><td class="text-center text-nowrap">'+__peopleHistoryDateRange(t.startDate,t.endDate,t.status)+'</td><td class="text-center">'+e+"</td></tr>"
+var id=personnelText(t.id).trim(),editButton=id?'<button type="button" class="btn btn-sm btn-outline-primary" data-personnel-history-edit="'+personnelEscapeHtml(t.type)+'" data-id="'+personnelEscapeHtml(id)+'"><i class="fas fa-edit" aria-hidden="true"></i> แก้ไข</button>':'<span class="text-muted">-</span>';
+return"<tr><td>"+personnelEscapeHtml(t.position||"-")+'</td><td class="text-center text-nowrap">'+__peopleHistoryDateRange(t.startDate,t.endDate,t.status)+'</td><td class="text-center">'+e+'</td><td class="text-center no-print">'+editButton+"</td></tr>"
 }).join("");
-return'<h6 class="text-primary fw-bold mt-3 text-start"><i class="fas fa-user-circle me-1"></i> '+personnelEscapeHtml(t)+'</h6><div class="app-table-scroll"><table class="table table-bordered small text-start"><thead class="table-light text-center"><tr><th>ตำแหน่ง</th><th>ระหว่างวันที่</th><th>สถานะ</th></tr></thead><tbody>'+e+"</tbody></table></div>"
+return'<h6 class="text-primary fw-bold mt-3 text-start"><i class="fas fa-user-circle me-1"></i> '+personnelEscapeHtml(t)+'</h6><div class="app-table-scroll"><table class="table table-bordered small text-start"><thead class="table-light text-center"><tr><th>ตำแหน่ง</th><th>ระหว่างวันที่</th><th>สถานะ</th><th class="no-print">จัดการ</th></tr></thead><tbody>'+e+"</tbody></table></div>"
 }).join("");
 return personnelRoot.appSwalFire({
-title:"ประวัติการดำรงตำแหน่ง",html:r,width:750,confirmButtonText:"ปิดหน้าต่าง"
+title:"ประวัติการดำรงตำแหน่ง",html:r,width:750,confirmButtonText:"ปิดหน้าต่าง",didOpen:function(popup){
+popup.addEventListener("click",function(event){
+var button=event.target&&event.target.closest?event.target.closest("[data-personnel-history-edit]"):null;
+if(!button||!popup.contains(button))return;
+event.preventDefault();event.stopPropagation();
+var kind=button.getAttribute("data-personnel-history-edit"),id=button.getAttribute("data-id"),editors={comm:"editPsComm",staff:"editPsStaff",op:"editPsOp"},editor=personnelRoot[editors[kind]],recordFound=Object.keys(n).some(function(name){return n[name].some(function(row){return row.type===kind&&personnelText(row.id).trim()===id})});
+if(!recordFound||typeof editor!=="function")return personnelRoot.appSwalFire("ไม่สามารถแก้ไขได้","ไม่พบข้อมูลหรือฟอร์มแก้ไขรายการนี้","error");
+personnelRoot.Swal.close();
+return editor.call(personnelRoot,id)
+})
+}
 })
 },window.showPersonHistory=function(e){
 function n(t){
