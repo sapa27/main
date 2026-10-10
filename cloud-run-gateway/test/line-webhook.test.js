@@ -75,7 +75,7 @@ test('P0 parser is deterministic and write-free',()=>{
   assert.deepEqual(parseIntent('ครบกำหนดวันนี้'),{type:'due-today'});
   assert.deepEqual(parseIntent('ใกล้ครบกำหนด'),{type:'due-soon'});
   assert.deepEqual(parseIntent('เกินกำหนด'),{type:'overdue'});
-  assert.equal(parseIntent('ลบเรื่อง 123').type,'case-summary');
+  assert.equal(parseIntent('ลบเรื่อง 123').type,'blocked-write');
 });
 
 test('Thai Buddhist and ISO dates normalize to same date key',()=>{
