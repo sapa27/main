@@ -53,6 +53,7 @@ function normalizeKey(value){return normalizeText(value).toLowerCase()}
 function parseIntent(text){
   const q=normalizeText(text);
   if(!q)return{type:'help'};
+  if(/(?:ลบ|แก้ไข|บันทึก|อัปเดต|เพิ่ม|เปลี่ยนสถานะ|อนุมัติ|ยกเลิก)/.test(q))return{type:'blocked-write',query:q};
   let m;
   if((m=q.match(/(?:เจ้าหน้าที่|ผู้รับผิดชอบ)(?:เรื่อง|ลำดับเรื่อง)?\s*(\d+)\b/i)))return{type:'case-officer',caseNum:m[1]};
   if((m=q.match(/(?:สถานะ|เลขรับเรื่อง|เลขรับ)?\s*(\d+\/\d{4})\b/i))&&q.includes('สถานะ'))return{type:'case-status',recNo:m[1]};
@@ -203,6 +204,7 @@ function answerDue(model,intent,env=process.env){
 }
 
 function answer(model,intent,env=process.env){
+  if(intent.type==='blocked-write')return 'LINE Q&A เปิดใช้งานแบบอ่านอย่างเดียว ไม่อนุญาตให้เพิ่ม แก้ไข ลบ หรือเปลี่ยนสถานะข้อมูล';
   if(intent.type==='help'||intent.type==='unknown')return helpText();
   if(/^case-/.test(intent.type))return answerCase(model,intent);
   return answerDue(model,intent,env);
@@ -233,8 +235,8 @@ async function processEvent(event,options={}){
   const replyToken=normalizeText(event.replyToken);
   if(!replyToken)return{handled:false,reason:'REPLY_TOKEN_MISSING'};
   const intent=parseIntent(event.message.text);
-  if(intent.type==='help'||intent.type==='unknown'){
-    await replyText(replyToken,helpText(),c,fetchImpl);
+  if(intent.type==='help'||intent.type==='unknown'||intent.type==='blocked-write'){
+    await replyText(replyToken,intent.type==='blocked-write'?answer({},intent,env):helpText(),c,fetchImpl);
     return{handled:true,intent:intent.type};
   }
   try{
