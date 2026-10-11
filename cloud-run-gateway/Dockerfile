@@ -2,7 +2,7 @@ FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./
-COPY server.js cloud-domain-router.js google-sheets-repository.js ./
+COPY server.js cloud-domain-router.js google-sheets-repository.js line-webhook.js ./
 COPY public ./public
 USER node
 EXPOSE 8080
