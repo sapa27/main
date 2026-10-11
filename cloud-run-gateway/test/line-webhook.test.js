@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
 const {
-  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,processEvent
+  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,dataAccessProbe,processEvent
 }=require('../line-webhook');
 const {createServer}=require('../server');
 
@@ -65,6 +65,15 @@ test('LINE Q&A Sheets timeout defaults to repository-safe 30 seconds',()=>{
   assert.equal(c.sheetTimeoutMs,30000);
   assert.equal(config({LINE_QA_SHEETS_TIMEOUT_MS:'1000'}).sheetTimeoutMs,5000);
   assert.equal(config({LINE_QA_SHEETS_TIMEOUT_MS:'60000'}).sheetTimeoutMs,45000);
+});
+
+test('LINE data-access probe returns safe error code without exposing data',async()=>{
+  const env={...ENV,GOOGLE_SHEETS_SPREADSHEET_ID:'sheet-test',GOOGLE_OAUTH_ACCESS_TOKEN:'oauth-test'};
+  const bad=await dataAccessProbe(env,async()=>({ok:false,status:403,text:async()=>JSON.stringify({error:{message:'permission denied'}})}),Number.MAX_SAFE_INTEGER-1000);
+  assert.equal(bad.checked,true);
+  assert.equal(bad.ok,false);
+  assert.equal(bad.errorCode,'GOOGLE_API_HTTP_403');
+  assert.equal(Object.prototype.hasOwnProperty.call(bad,'message'),false);
 });
 
 test('LINE signature uses HMAC-SHA256 base64 and rejects tampering',()=>{

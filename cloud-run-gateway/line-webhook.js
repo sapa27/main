@@ -5,6 +5,8 @@ const sheets=require('./google-sheets-repository');
 
 const LINE_REPLY_ENDPOINT='https://api.line.me/v2/bot/message/reply';
 const TZ='Asia/Bangkok';
+const DATA_PROBE_TTL_MS=60000;
+let dataProbeCache={expiresAt:0,value:null,promise:null};
 
 function txt(v){return v==null?'':String(v)}
 function fail(message,code='LINE_QA_ERROR',status=500){const e=new Error(message);e.code=code;e.status=status;return e}
@@ -119,6 +121,25 @@ async function readModel(env=process.env,fetchImpl=fetch){
     cases:sheets.tableFromValues(ranges[0]||{}).rows.filter(active),
     letters:sheets.tableFromValues(ranges[1]||{}).rows.filter(active)
   };
+}
+
+async function dataAccessProbe(env=process.env,fetchImpl=fetch,now=Date.now()){
+  if(dataProbeCache.value&&now<dataProbeCache.expiresAt)return dataProbeCache.value;
+  if(dataProbeCache.promise)return dataProbeCache.promise;
+  const started=Date.now();
+  dataProbeCache.promise=(async()=>{
+    try{
+      await readModel(env,fetchImpl);
+      const value={checked:true,ok:true,errorCode:'',durationMs:Date.now()-started};
+      dataProbeCache={expiresAt:Date.now()+DATA_PROBE_TTL_MS,value,promise:null};
+      return value;
+    }catch(error){
+      const value={checked:true,ok:false,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED',durationMs:Date.now()-started};
+      dataProbeCache={expiresAt:Date.now()+DATA_PROBE_TTL_MS,value,promise:null};
+      return value;
+    }
+  })();
+  return dataProbeCache.promise;
 }
 
 function matchCases(rows,intent){
@@ -262,5 +283,5 @@ async function handleWebhook(raw,headers={},options={}){
 
 module.exports={
   LINE_REPLY_ENDPOINT,TZ,config,status,signatureFor,verifySignature,parseIntent,bangkokDateKey,parseSheetDate,dateKey,dayDiff,
-  readModel,matchCases,dueRows,answer,helpText,replyText,processEvent,handleWebhook
+  readModel,dataAccessProbe,matchCases,dueRows,answer,helpText,replyText,processEvent,handleWebhook
 };
