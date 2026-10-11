@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
 const {
-  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,dataAccessProbe,processEvent
+  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,classifyDataAccessError,dataAccessProbe,processEvent
 }=require('../line-webhook');
 const {createServer}=require('../server');
 
@@ -65,6 +65,11 @@ test('LINE Q&A Sheets timeout defaults to repository-safe 30 seconds',()=>{
   assert.equal(c.sheetTimeoutMs,30000);
   assert.equal(config({LINE_QA_SHEETS_TIMEOUT_MS:'1000'}).sheetTimeoutMs,5000);
   assert.equal(config({LINE_QA_SHEETS_TIMEOUT_MS:'60000'}).sheetTimeoutMs,45000);
+});
+
+test('LINE data-access error classifier distinguishes permission and disabled API',()=>{
+  assert.equal(classifyDataAccessError({code:'GOOGLE_API_HTTP_403',message:'The caller does not have permission'}),'SPREADSHEET_ACCESS_DENIED');
+  assert.equal(classifyDataAccessError({code:'GOOGLE_API_HTTP_403',message:'Google Sheets API has not been used in project before or it is disabled'}),'SHEETS_API_DISABLED');
 });
 
 test('LINE data-access probe returns safe error code without exposing data',async()=>{

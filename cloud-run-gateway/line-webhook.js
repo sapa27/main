@@ -123,6 +123,16 @@ async function readModel(env=process.env,fetchImpl=fetch){
   };
 }
 
+function classifyDataAccessError(error){
+  const code=txt(error&&error.code)||'LINE_QA_READ_FAILED';
+  const message=normalizeKey(error&&error.message);
+  if(code==='GOOGLE_API_HTTP_403'){
+    if(/has not been used|is disabled|api has not been used|access not configured/.test(message))return'SHEETS_API_DISABLED';
+    if(/permission|forbidden|does not have access|insufficient/.test(message))return'SPREADSHEET_ACCESS_DENIED';
+  }
+  return code;
+}
+
 async function dataAccessProbe(env=process.env,fetchImpl=fetch,now=Date.now()){
   if(dataProbeCache.value&&now<dataProbeCache.expiresAt)return dataProbeCache.value;
   if(dataProbeCache.promise)return dataProbeCache.promise;
@@ -136,7 +146,7 @@ async function dataAccessProbe(env=process.env,fetchImpl=fetch,now=Date.now()){
       dataProbeCache={expiresAt:Date.now()+DATA_PROBE_TTL_MS,value,promise:null};
       return value;
     }catch(error){
-      const value={checked:true,ok:false,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED',runtimeIdentity,durationMs:Date.now()-started};
+      const value={checked:true,ok:false,errorCode:classifyDataAccessError(error),runtimeIdentity,durationMs:Date.now()-started};
       dataProbeCache={expiresAt:Date.now()+DATA_PROBE_TTL_MS,value,promise:null};
       return value;
     }
@@ -285,5 +295,5 @@ async function handleWebhook(raw,headers={},options={}){
 
 module.exports={
   LINE_REPLY_ENDPOINT,TZ,config,status,signatureFor,verifySignature,parseIntent,bangkokDateKey,parseSheetDate,dateKey,dayDiff,
-  readModel,dataAccessProbe,matchCases,dueRows,answer,helpText,replyText,processEvent,handleWebhook
+  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,answer,helpText,replyText,processEvent,handleWebhook
 };
