@@ -129,12 +129,15 @@ async function dataAccessProbe(env=process.env,fetchImpl=fetch,now=Date.now()){
   const started=Date.now();
   dataProbeCache.promise=(async()=>{
     try{
+      const runtimeIdentity=await sheets.identityEmail(fetchImpl);
       await readModel(env,fetchImpl);
-      const value={checked:true,ok:true,errorCode:'',durationMs:Date.now()-started};
+      const value={checked:true,ok:true,errorCode:'',runtimeIdentity,durationMs:Date.now()-started};
       dataProbeCache={expiresAt:Date.now()+DATA_PROBE_TTL_MS,value,promise:null};
       return value;
     }catch(error){
-      const value={checked:true,ok:false,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED',durationMs:Date.now()-started};
+      let runtimeIdentity='';
+      try{runtimeIdentity=await sheets.identityEmail(fetchImpl)}catch(_){}
+      const value={checked:true,ok:false,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED',runtimeIdentity,durationMs:Date.now()-started};
       dataProbeCache={expiresAt:Date.now()+DATA_PROBE_TTL_MS,value,promise:null};
       return value;
     }

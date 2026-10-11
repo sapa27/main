@@ -24,6 +24,13 @@ async function fetchJson(url,options={},timeoutMs=30000,fetchImpl=fetch){
   }catch(e){if(ac.signal.aborted)throw fail('Google Sheets request timeout','GOOGLE_SHEETS_TIMEOUT',504);throw e}
   finally{clearTimeout(timer)}
 }
+async function identityEmail(fetchImpl=fetch){
+  const r=await fetchImpl('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email',{headers:{'Metadata-Flavor':'Google'}});
+  if(!r.ok)throw fail('Cloud Run service account email unavailable','GOOGLE_IDENTITY_EMAIL_UNAVAILABLE',503);
+  const email=txt(await r.text()).trim();
+  if(!email)throw fail('Cloud Run service account email unavailable','GOOGLE_IDENTITY_EMAIL_UNAVAILABLE',503);
+  return email;
+}
 async function accessToken(c=config(),fetchImpl=fetch){
   if(c.accessToken)return c.accessToken;
   const r=await fetchJson(METADATA_TOKEN_URL,{headers:{'Metadata-Flavor':'Google'}},10000,fetchImpl);
@@ -69,4 +76,4 @@ async function readTable(sheetName,options={}){
 function status(env=process.env){
   const c=config(env);return{configured:!!c.spreadsheetId,spreadsheetIdConfigured:!!c.spreadsheetId,authMode:c.accessToken?'explicit-token':'cloud-run-metadata-service-account',timeoutMs:c.timeoutMs};
 }
-module.exports={METADATA_TOKEN_URL,SHEETS_ROOT,config,accessToken,getValues,batchGetValues,updateValues,appendValues,tableFromValues,readTable,status,fail};
+module.exports={METADATA_TOKEN_URL,SHEETS_ROOT,config,identityEmail,accessToken,getValues,batchGetValues,updateValues,appendValues,tableFromValues,readTable,status,fail};
