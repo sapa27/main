@@ -2,6 +2,7 @@
 
 const crypto=require('node:crypto');
 const sheets=require('./google-sheets-repository');
+const intentAi=require('./line-intent-ai');
 
 const LINE_REPLY_ENDPOINT='https://api.line.me/v2/bot/message/reply';
 const TZ='Asia/Bangkok';
@@ -30,7 +31,8 @@ function status(env=process.env){
     allowedGroupCount:c.allowedGroupIds.size,
     readOnly:true,
     sheets:['MainData','Letters'],
-    intents:['case-status','case-summary','case-officer','due-today','due-soon','overdue']
+    intents:['case-status','case-summary','case-officer','due-today','due-soon','overdue'],
+    naturalLanguage:intentAi.status(env)
   };
 }
 
@@ -267,19 +269,21 @@ async function processEvent(event,options={}){
   if(!c.allowedGroupIds.has(groupId))return{handled:false,reason:'GROUP_NOT_ALLOWED'};
   const replyToken=normalizeText(event.replyToken);
   if(!replyToken)return{handled:false,reason:'REPLY_TOKEN_MISSING'};
-  const intent=parseIntent(event.message.text);
+  const baseIntent=parseIntent(event.message.text);
+  const resolved=await intentAi.resolveIntent(event.message.text,baseIntent,{env,fetchImpl:options.aiFetchImpl||fetchImpl});
+  const intent=resolved.intent;
   if(intent.type==='help'||intent.type==='unknown'||intent.type==='blocked-write'){
     await replyText(replyToken,intent.type==='blocked-write'?answer({},intent,env):helpText(),c,fetchImpl);
-    return{handled:true,intent:intent.type};
+    return{handled:true,intent:intent.type,intentSource:resolved.source};
   }
   try{
     const model=await readModel(env,fetchImpl);
     const message=answer(model,intent,env);
     await replyText(replyToken,message,c,fetchImpl);
-    return{handled:true,intent:intent.type};
+    return{handled:true,intent:intent.type,intentSource:resolved.source};
   }catch(error){
     try{await replyText(replyToken,'ไม่สามารถค้นข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',c,fetchImpl)}catch(_){}
-    return{handled:true,intent:intent.type,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED'};
+    return{handled:true,intent:intent.type,intentSource:resolved.source,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED'};
   }
 }
 

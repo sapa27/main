@@ -7,6 +7,7 @@ const {
   config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,classifyDataAccessError,dataAccessProbe,processEvent
 }=require('../line-webhook');
 const {createServer}=require('../server');
+const intentAi=require('../line-intent-ai');
 
 const GROUP='C0123456789';
 const SECRET='test-channel-secret';
@@ -59,6 +60,52 @@ async function withServer(fn,env=ENV){
   try{return await fn('http://127.0.0.1:'+server.address().port)}
   finally{await new Promise(resolve=>server.close(resolve))}
 }
+
+test('P1 AI intent contract only permits approved read intents',()=>{
+  assert.deepEqual(intentAi.sanitizeIntent({type:'case-status',recNo:'265/2569',extra:'ignored'}),{type:'case-status',recNo:'265/2569'});
+  assert.deepEqual(intentAi.sanitizeIntent({type:'case-officer',caseNum:'123'}),{type:'case-officer',caseNum:'123'});
+  assert.deepEqual(intentAi.sanitizeIntent({type:'delete-case',caseNum:'123'}),{type:'unknown'});
+  assert.deepEqual(intentAi.sanitizeIntent({type:'case-status',recNo:'bad'}),{type:'unknown'});
+});
+
+test('P1 never calls AI for mutation-like requests',async()=>{
+  let calls=0;
+  const resolved=await intentAi.resolveIntent('ช่วยลบเรื่อง 123',{type:'blocked-write',query:'ช่วยลบเรื่อง 123'},{
+    env:{LINE_QA_AI_ENABLED:'Y',GEMINI_API_KEY:'test-key'},
+    fetchImpl:async()=>{calls++;throw new Error('AI must not be called')}
+  });
+  assert.equal(resolved.intent.type,'blocked-write');
+  assert.equal(resolved.aiAttempted,false);
+  assert.equal(calls,0);
+});
+
+test('P1 AI maps natural language to allowlisted intent without reading Sheets',async()=>{
+  let calls=0;
+  const resolved=await intentAi.resolveIntent('ตอนนี้เรื่องเลขรับนี้อยู่ขั้นตอนไหน',{type:'unknown',query:'ตอนนี้เรื่องเลขรับนี้อยู่ขั้นตอนไหน'},{
+    env:{LINE_QA_AI_ENABLED:'Y',GEMINI_API_KEY:'test-key',LINE_QA_AI_MODEL:'test-model'},
+    fetchImpl:async(url,opt={})=>{
+      calls++;
+      assert.match(String(url),/generativelanguage\.googleapis\.com/);
+      const body=JSON.parse(opt.body);
+      assert.equal(Array.isArray(body.contents),true);
+      return {ok:true,status:200,text:async()=>JSON.stringify({candidates:[{content:{parts:[{text:'{"type":"help"}'}]}}]})};
+    }
+  });
+  assert.equal(resolved.intent.type,'help');
+  assert.equal(resolved.source,'ai-intent');
+  assert.equal(calls,1);
+});
+
+test('P1 AI failure degrades to deterministic unknown without blocking LINE',async()=>{
+  const fallback={type:'unknown',query:'ถามแบบภาษาธรรมชาติ'};
+  const resolved=await intentAi.resolveIntent('ถามแบบภาษาธรรมชาติ',fallback,{
+    env:{LINE_QA_AI_ENABLED:'Y',GEMINI_API_KEY:'test-key'},
+    fetchImpl:async()=>{throw new Error('network down')}
+  });
+  assert.deepEqual(resolved.intent,fallback);
+  assert.equal(resolved.source,'ai-fallback');
+  assert.equal(resolved.aiAttempted,true);
+});
 
 test('LINE Q&A Sheets timeout defaults to repository-safe 30 seconds',()=>{
   const c=config({});
