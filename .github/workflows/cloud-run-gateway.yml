@@ -371,8 +371,8 @@ jobs:
           for secret_name in "$LINE_CHANNEL_SECRET_NAME" "$LINE_CHANNEL_ACCESS_TOKEN_NAME"; do
             gcloud secrets versions describe 1 --secret "$secret_name" --project "$PROJECT_ID" --format='value(name)' >/dev/null
           done
-          gcloud secrets versions describe latest --secret "$GEMINI_API_KEY_NAME" --project "$PROJECT_ID" --format='value(name)' >/dev/null
-
+          # Do not require secretmanager.versions.get on the deploy identity for Gemini.
+          # The canary secret binding below is the authoritative existence/access gate.
           test "$LINE_QA_AI_ENABLED" = "Y" || { echo "LINE_QA_AI_ENABLED must be Y for P1-B deploy" >&2; exit 1; }
           test -n "$LINE_QA_AI_MODEL" || { echo "LINE_QA_AI_MODEL is required for P1-B deploy" >&2; exit 1; }
 
@@ -380,7 +380,7 @@ jobs:
           echo "- Group allowlist configured: yes" >> "$GITHUB_STEP_SUMMARY"
           echo "- Spreadsheet configured: yes" >> "$GITHUB_STEP_SUMMARY"
           echo "- LINE secret versions present: yes" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Gemini intent secret present: yes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gemini intent secret: validated by canary binding" >> "$GITHUB_STEP_SUMMARY"
           echo "- Gemini mode: intent-only" >> "$GITHUB_STEP_SUMMARY"
           echo "- Secret values: not exposed" >> "$GITHUB_STEP_SUMMARY"
 
