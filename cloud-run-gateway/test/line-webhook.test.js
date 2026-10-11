@@ -77,7 +77,7 @@ test('LINE data-access probe returns safe error code without exposing data',asyn
   const bad=await dataAccessProbe(env,async()=>({ok:false,status:403,text:async()=>JSON.stringify({error:{message:'permission denied'}})}),Number.MAX_SAFE_INTEGER-1000);
   assert.equal(bad.checked,true);
   assert.equal(bad.ok,false);
-  assert.equal(bad.errorCode,'GOOGLE_API_HTTP_403');
+  assert.equal(bad.errorCode,'SPREADSHEET_ACCESS_DENIED');
   assert.equal(Object.prototype.hasOwnProperty.call(bad,'message'),false);
 });
 
