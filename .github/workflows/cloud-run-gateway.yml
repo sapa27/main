@@ -318,6 +318,13 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v3
         with:
           project_id: ${{ env.PROJECT_ID }}
+      - name: Ensure Google Sheets API for LINE Q&A
+        run: |
+          set -euo pipefail
+          gcloud services enable sheets.googleapis.com --project "$PROJECT_ID"
+          gcloud services list --enabled --project "$PROJECT_ID" --filter='config.name:sheets.googleapis.com' --format='value(config.name)' | grep -qx 'sheets.googleapis.com'
+          echo "### LINE Q&A Google API Gate" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Google Sheets API: enabled" >> "$GITHUB_STEP_SUMMARY"
       - name: Resolve LINE Q&A production configuration
         run: |
           set -euo pipefail
