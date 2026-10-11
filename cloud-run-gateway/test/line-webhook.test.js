@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
 const {
-  signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,processEvent
+  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,processEvent
 }=require('../line-webhook');
 const {createServer}=require('../server');
 
@@ -59,6 +59,13 @@ async function withServer(fn,env=ENV){
   try{return await fn('http://127.0.0.1:'+server.address().port)}
   finally{await new Promise(resolve=>server.close(resolve))}
 }
+
+test('LINE Q&A Sheets timeout defaults to repository-safe 30 seconds',()=>{
+  const c=config({});
+  assert.equal(c.sheetTimeoutMs,30000);
+  assert.equal(config({LINE_QA_SHEETS_TIMEOUT_MS:'1000'}).sheetTimeoutMs,5000);
+  assert.equal(config({LINE_QA_SHEETS_TIMEOUT_MS:'60000'}).sheetTimeoutMs,45000);
+});
 
 test('LINE signature uses HMAC-SHA256 base64 and rejects tampering',()=>{
   const raw=Buffer.from(JSON.stringify(webhook('สถานะ 265/2569')));

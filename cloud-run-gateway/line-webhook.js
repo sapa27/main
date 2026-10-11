@@ -15,7 +15,7 @@ function config(env=process.env){
     channelAccessToken:txt(env.LINE_CHANNEL_ACCESS_TOKEN).trim(),
     allowedGroupIds:new Set(txt(env.LINE_ALLOWED_GROUP_IDS).split(',').map(x=>x.trim()).filter(Boolean)),
     maxReplyChars:Math.max(500,Math.min(4900,+env.LINE_QA_MAX_REPLY_CHARS||4000)),
-    sheetTimeoutMs:Math.max(1000,Math.min(10000,+env.LINE_QA_SHEETS_TIMEOUT_MS||3500))
+    sheetTimeoutMs:Math.max(5000,Math.min(45000,+env.LINE_QA_SHEETS_TIMEOUT_MS||30000))
   };
 }
 
