@@ -116,6 +116,9 @@ jobs:
       GOOGLE_SHEETS_SPREADSHEET_ID: ${{ vars.GOOGLE_SHEETS_SPREADSHEET_ID }}
       LINE_CHANNEL_SECRET_NAME: LINE_CHANNEL_SECRET
       LINE_CHANNEL_ACCESS_TOKEN_NAME: LINE_CHANNEL_ACCESS_TOKEN
+      GEMINI_API_KEY_NAME: GEMINI_API_KEY
+      LINE_QA_AI_ENABLED: Y
+      LINE_QA_AI_MODEL: ${{ vars.LINE_QA_AI_MODEL || 'gemini-2.5-flash' }}
     steps:
       - uses: actions/checkout@v4
       - name: Stage production frontend
@@ -368,17 +371,23 @@ jobs:
           for secret_name in "$LINE_CHANNEL_SECRET_NAME" "$LINE_CHANNEL_ACCESS_TOKEN_NAME"; do
             gcloud secrets versions describe 1 --secret "$secret_name" --project "$PROJECT_ID" --format='value(name)' >/dev/null
           done
+          gcloud secrets versions describe latest --secret "$GEMINI_API_KEY_NAME" --project "$PROJECT_ID" --format='value(name)' >/dev/null
+
+          test "$LINE_QA_AI_ENABLED" = "Y" || { echo "LINE_QA_AI_ENABLED must be Y for P1-B deploy" >&2; exit 1; }
+          test -n "$LINE_QA_AI_MODEL" || { echo "LINE_QA_AI_MODEL is required for P1-B deploy" >&2; exit 1; }
 
           echo "### LINE Q&A Config" >> "$GITHUB_STEP_SUMMARY"
           echo "- Group allowlist configured: yes" >> "$GITHUB_STEP_SUMMARY"
           echo "- Spreadsheet configured: yes" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Secret versions present: yes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- LINE secret versions present: yes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gemini intent secret present: yes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gemini mode: intent-only" >> "$GITHUB_STEP_SUMMARY"
           echo "- Secret values: not exposed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy CR-8 GAS-canonical canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 4             --min-instances 1 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1"
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 4             --min-instances 1 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID@LINE_QA_AI_ENABLED=$LINE_QA_AI_ENABLED@LINE_QA_AI_MODEL=$LINE_QA_AI_MODEL"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1,GEMINI_API_KEY=$GEMINI_API_KEY_NAME:latest"
           canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
 
@@ -409,7 +418,7 @@ jobs:
           echo "Canary network: $network"
           echo "Canary upstream: $upstream"
           node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true&&x.lineQa.naturalLanguage?.enabled===true&&x.lineQa.naturalLanguage?.configured===true&&x.lineQa.naturalLanguage?.mode==="intent-only"&&x.lineQa.naturalLanguage?.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$CANARY_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
@@ -454,7 +463,7 @@ jobs:
       - name: Promote CR-8 GAS-canonical to production
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 6             --min-instances 1 --max-instances 4 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1"
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 6             --min-instances 1 --max-instances 4 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID@LINE_QA_AI_ENABLED=$LINE_QA_AI_ENABLED@LINE_QA_AI_MODEL=$LINE_QA_AI_MODEL"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1,GEMINI_API_KEY=$GEMINI_API_KEY_NAME:latest"
 
       - name: Remove retired transport environment variables
         run: |
@@ -483,7 +492,7 @@ jobs:
           echo "Network: $network"
           echo "Upstream: $upstream"
           node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="same-origin"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true&&x.lineQa.naturalLanguage?.enabled===true&&x.lineQa.naturalLanguage?.configured===true&&x.lineQa.naturalLanguage?.mode==="intent-only"&&x.lineQa.naturalLanguage?.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="same-origin"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$url/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
