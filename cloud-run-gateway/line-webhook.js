@@ -259,24 +259,41 @@ function groundedEvidence(model,intent,query,env=process.env){
     petitioner:normalizeText(first(row,['petitioners','petitioner','ผู้ร้อง','ผู้เสนอญัตติ']))||'-',
     respondent:normalizeText(first(row,['respondent','agency','หน่วยงานที่เกี่ยวข้อง']))||'-'
   });
-  const safeLetter=row=>({
+  const safeLetter=(row,linkedCase)=>({
     letterNo:normalizeText(first(row,['letterNo','bookNo']))||'-',
-    caseNum:normalizeText(first(row,['caseNum']))||'-',
+    caseNum:normalizeText(first(row,['caseNum']))||normalizeText(linkedCase&&first(linkedCase,['caseNum','caseNo','runningNo','ลำดับเรื่อง']))||'-',
     subject:normalizeText(first(row,['subject','issue']))||'-',
     agency:normalizeText(first(row,['agency']))||'-',
     dueDate:dateKey(first(row,['extendDate','dueDate']))||'-',
     status:normalizeText(first(row,['letterStatus','status']))||'-'
   });
+  const relatedLetters=caseRows=>{
+    const ids=new Set(caseRows.map(r=>normalizeText(first(r,['caseId','id']))).filter(Boolean));
+    const nums=new Set(caseRows.map(r=>normalizeText(first(r,['caseNum','caseNo','runningNo','ลำดับเรื่อง']))).filter(Boolean));
+    const byId=new Map(caseRows.map(r=>[normalizeText(first(r,['caseId','id'])),r]).filter(x=>x[0]));
+    const byNum=new Map(caseRows.map(r=>[normalizeText(first(r,['caseNum','caseNo','runningNo','ลำดับเรื่อง'])),r]).filter(x=>x[0]));
+    return model.letters.filter(row=>{
+      const id=normalizeText(first(row,['caseId'])),num=normalizeText(first(row,['caseNum','caseNo','runningNo','ลำดับเรื่อง']));
+      return (id&&ids.has(id))||(num&&nums.has(num));
+    }).slice(0,20).map(row=>{
+      const id=normalizeText(first(row,['caseId'])),num=normalizeText(first(row,['caseNum','caseNo','runningNo','ลำดับเรื่อง']));
+      return safeLetter(row,byId.get(id)||byNum.get(num));
+    });
+  };
   if(intent.type==='due-today'||intent.type==='due-soon'||intent.type==='overdue'){
-    return{intent:intent.type,items:dueRows(model,intent,env).slice(0,10)};
+    const items=dueRows(model,intent,env).slice(0,10);
+    return{intent:intent.type,meta:{caseCount:0,letterCount:items.length},items};
   }
   if(intent.type==='due-today-officer'){
     const rows=dueRows(model,{type:'due-today'},env).slice(0,10);
     const nums=new Set(rows.map(r=>normalizeText(r.caseNum)).filter(x=>x&&x!=='-'));
-    return{intent:intent.type,dueToday:rows,cases:model.cases.filter(r=>nums.has(normalizeText(first(r,['caseNum','caseNo','runningNo','ลำดับเรื่อง'])))).slice(0,10).map(safeCase)};
+    const cases=model.cases.filter(r=>nums.has(normalizeText(first(r,['caseNum','caseNo','runningNo','ลำดับเรื่อง'])))).slice(0,10).map(safeCase);
+    return{intent:intent.type,meta:{caseCount:cases.length,letterCount:rows.length},dueToday:rows,cases};
   }
   if(/^case-/.test(intent.type)){
-    return{intent:intent.type,cases:matchCases(model.cases,intent).slice(0,5).map(safeCase)};
+    const caseRows=matchCases(model.cases,intent).slice(0,5);
+    const cases=caseRows.map(safeCase),letters=relatedLetters(caseRows);
+    return{intent:intent.type,meta:{caseCount:cases.length,letterCount:letters.length},cases,letters};
   }
   const q=normalizeKey(query),tokens=q.split(/\s+/).map(x=>x.trim()).filter(x=>x.length>=2);
   const score=row=>{
@@ -285,9 +302,18 @@ function groundedEvidence(model,intent,query,env=process.env){
     for(const t of tokens)if(blob.includes(t))n++;
     return n;
   };
-  const cases=model.cases.map(r=>({r,s:score(r)})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,12).map(x=>safeCase(x.r));
-  const letters=model.letters.map(r=>({r,s:score(r)})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,12).map(x=>safeLetter(x.r));
-  return{intent:'grounded-query',cases,letters};
+  const rankedCaseRows=model.cases.map(r=>({r,s:score(r)})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,12).map(x=>x.r);
+  const cases=rankedCaseRows.map(safeCase);
+  const directLetters=model.letters.map(r=>({r,s:score(r)})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,12).map(x=>safeLetter(x.r));
+  const linkedLetters=relatedLetters(rankedCaseRows);
+  const seen=new Set(),letters=[];
+  for(const row of directLetters.concat(linkedLetters)){
+    const key=[row.caseNum,row.letterNo,row.subject,row.dueDate].join('|');
+    if(seen.has(key))continue;
+    seen.add(key);letters.push(row);
+    if(letters.length>=20)break;
+  }
+  return{intent:'grounded-query',meta:{caseCount:cases.length,letterCount:letters.length},cases,letters};
 }
 
 function answer(model,intent,env=process.env){
@@ -314,7 +340,34 @@ async function replyText(replyToken,textValue,c=config(),fetchImpl=fetch){
   return{ok:true,status:r.status};
 }
 
+function evidenceCounts(evidence){
+  const cases=Array.isArray(evidence&&evidence.cases)?evidence.cases.length:0;
+  const letters=Array.isArray(evidence&&evidence.letters)?evidence.letters.length:Array.isArray(evidence&&evidence.items)?evidence.items.length:Array.isArray(evidence&&evidence.dueToday)?evidence.dueToday.length:0;
+  return{caseCount:cases,letterCount:letters};
+}
+
+function emitAnswerTelemetry(value,logger=console){
+  const safe={
+    event:'line_qa_answer',
+    requestId:normalizeText(value&&value.requestId),
+    intent:normalizeText(value&&value.intent),
+    intentSource:normalizeText(value&&value.intentSource),
+    answerSource:normalizeText(value&&value.answerSource),
+    geminiAttempted:!!(value&&value.geminiAttempted),
+    geminiSucceeded:!!(value&&value.geminiSucceeded),
+    fallbackReason:normalizeText(value&&value.fallbackReason),
+    evidence:{
+      caseCount:Number(value&&value.evidence&&value.evidence.caseCount)||0,
+      letterCount:Number(value&&value.evidence&&value.evidence.letterCount)||0
+    },
+    latencyMs:Math.max(0,Number(value&&value.latencyMs)||0)
+  };
+  if(logger&&typeof logger.info==='function')logger.info('[line-qa] '+JSON.stringify(safe));
+  return safe;
+}
+
 async function processEvent(event,options={}){
+  const started=Date.now(),requestId=normalizeText(options.requestId)||crypto.randomUUID();
   const env=options.env||process.env,c=options.config||config(env),fetchImpl=options.fetchImpl||fetch;
   if(!event||event.type!=='message'||!event.message||event.message.type!=='text')return{handled:false,reason:'UNSUPPORTED_EVENT'};
   const source=event.source||{},groupId=normalizeText(source.groupId);
@@ -336,7 +389,12 @@ async function processEvent(event,options={}){
     const evidence=groundedEvidence(model,intent,event.message.text,env);
     const natural=await intentAi.answerGrounded(event.message.text,evidence,fallback,{env,fetchImpl:options.aiFetchImpl||fetchImpl});
     await replyText(replyToken,natural.answer,c,fetchImpl);
-    return{handled:true,intent:intent.type,intentSource:resolved.source,answerSource:natural.source};
+    const telemetry=emitAnswerTelemetry({
+      requestId,intent:intent.type,intentSource:resolved.source,answerSource:natural.source,
+      geminiAttempted:natural.aiAttempted,geminiSucceeded:natural.source==='ai-grounded',
+      fallbackReason:natural.errorCode||'',evidence:evidenceCounts(evidence),latencyMs:Date.now()-started
+    },options.logger);
+    return{handled:true,intent:intent.type,intentSource:resolved.source,answerSource:natural.source,telemetry};
   }catch(error){
     try{await replyText(replyToken,'ไม่สามารถค้นข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',c,fetchImpl)}catch(_){}
     return{handled:true,intent:intent.type,intentSource:resolved.source,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED'};
@@ -355,5 +413,5 @@ async function handleWebhook(raw,headers={},options={}){
 
 module.exports={
   LINE_REPLY_ENDPOINT,TZ,config,status,signatureFor,verifySignature,parseIntent,bangkokDateKey,parseSheetDate,dateKey,dayDiff,
-  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,groundedEvidence,answerDueTodayOfficer,answer,helpText,replyText,processEvent,handleWebhook
+  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,groundedEvidence,evidenceCounts,emitAnswerTelemetry,answerDueTodayOfficer,answer,helpText,replyText,processEvent,handleWebhook
 };
