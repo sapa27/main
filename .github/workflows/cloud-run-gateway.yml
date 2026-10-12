@@ -710,6 +710,7 @@ jobs:
                 -H "Origin: $edge_origin" \
                 --data "$payload" \
                 "$edge_origin/api/router" || true)"
+              echo "P2 $label attempt $attempt HTTP $http_code"
               if [ "$http_code" = "200" ]; then
                 break
               fi
@@ -717,21 +718,31 @@ jobs:
             done
             test "$http_code" = "200" || { echo "P2 $label POST failed (HTTP $http_code)" >&2; exit 1; }
 
-            P2_BODY_FILE="$body_file" P2_HEADER_FILE="$header_file" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
+            P2_BODY_FILE="$body_file" P2_HEADER_FILE="$header_file" P2_EDGE_ORIGIN="$edge_origin" P2_LABEL="$label" node <<'NODE'
           const fs=require('fs');
-          const body=JSON.parse(fs.readFileSync(process.env.P2_BODY_FILE,'utf8'));
+          let body=null;
+          try{body=JSON.parse(fs.readFileSync(process.env.P2_BODY_FILE,'utf8'))}catch(_){}
           const headers=fs.readFileSync(process.env.P2_HEADER_FILE,'utf8').split(/\r?\n/);
           const get=name=>{
             const prefix=name.toLowerCase()+':';
             const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
             return line?line.slice(line.indexOf(':')+1).trim():'';
           };
-          if(body?.transportOk!==true||!Object.prototype.hasOwnProperty.call(body,'result')) process.exit(1);
-          if(get('x-gas-response-contract')!=='gas-direct-json-v1') process.exit(1);
-          if(get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-          if(get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN) process.exit(1);
           const requestId=get('x-request-id');
-          if(!/^[A-Za-z0-9_.:-]{6,128}$/.test(requestId)) process.exit(1);
+          const safe={
+            label:process.env.P2_LABEL,
+            json:!!body&&typeof body==='object'&&!Array.isArray(body),
+            transportOk:body?.transportOk===true,
+            hasResult:!!body&&Object.prototype.hasOwnProperty.call(body,'result'),
+            responseContract:get('x-gas-response-contract'),
+            edge:get('x-p0f-edge'),
+            cors:get('access-control-allow-origin'),
+            corsMatch:get('access-control-allow-origin')===process.env.P2_EDGE_ORIGIN,
+            requestIdValid:/^[A-Za-z0-9_.:-]{6,128}$/.test(requestId),
+            errorCode:String(body?.error?.code||'')
+          };
+          console.log('P2 contract metadata: '+JSON.stringify(safe));
+          if(!safe.json||!safe.transportOk||!safe.hasResult||safe.responseContract!=='gas-direct-json-v1'||safe.edge!=='cloudflare-workers-dev'||!safe.corsMatch||!safe.requestIdValid) process.exit(1);
           NODE
           }
 
