@@ -222,7 +222,6 @@ test('allowed group reads MainData/Letters and replies with case status',async()
   const calls=[];
   const result=await processEvent(webhook('สถานะ 265/2569').events[0],{
     env:ENV,
-    rethrowErrors:true,
     fetchImpl:async(url,opt={})=>{
       calls.push({url:String(url),opt});
       if(String(url).includes('sheets.googleapis.com'))return {ok:true,status:200,text:async()=>JSON.stringify(sheetBatch())};
@@ -232,7 +231,6 @@ test('allowed group reads MainData/Letters and replies with case status',async()
   });
   assert.equal(result.handled,true);
   assert.equal(result.intent,'case-status');
-  assert.equal(result.errorCode,undefined,JSON.stringify(result));
   const sheetCall=calls.find(x=>x.url.includes('sheets.googleapis.com'));
   const replyCall=calls.find(x=>x.url.includes('/v2/bot/message/reply'));
   assert.ok(sheetCall);

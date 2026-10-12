@@ -276,7 +276,7 @@ function groundedEvidence(model,intent,query,env=process.env){
     return{intent:intent.type,dueToday:rows,cases:model.cases.filter(r=>nums.has(normalizeText(first(r,['caseNum','caseNo','runningNo','ลำดับเรื่อง'])))).slice(0,10).map(safeCase)};
   }
   if(/^case-/.test(intent.type)){
-    return{intent:intent.type,cases:matchCases(model,intent).slice(0,5).map(safeCase)};
+    return{intent:intent.type,cases:matchCases(model.cases,intent).slice(0,5).map(safeCase)};
   }
   const q=normalizeKey(query),tokens=q.split(/\s+/).map(x=>x.trim()).filter(x=>x.length>=2);
   const score=row=>{
@@ -338,7 +338,6 @@ async function processEvent(event,options={}){
     await replyText(replyToken,natural.answer,c,fetchImpl);
     return{handled:true,intent:intent.type,intentSource:resolved.source,answerSource:natural.source};
   }catch(error){
-    if(options.rethrowErrors===true)throw error;
     try{await replyText(replyToken,'ไม่สามารถค้นข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',c,fetchImpl)}catch(_){}
     return{handled:true,intent:intent.type,intentSource:resolved.source,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED'};
   }
