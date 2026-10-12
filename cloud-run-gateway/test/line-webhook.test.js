@@ -231,6 +231,7 @@ test('allowed group reads MainData/Letters and replies with case status',async()
   });
   assert.equal(result.handled,true);
   assert.equal(result.intent,'case-status');
+  assert.equal(result.errorCode,undefined,JSON.stringify(result));
   const sheetCall=calls.find(x=>x.url.includes('sheets.googleapis.com'));
   const replyCall=calls.find(x=>x.url.includes('/v2/bot/message/reply'));
   assert.ok(sheetCall);
