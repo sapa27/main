@@ -131,6 +131,36 @@ test('P1-D grounded evidence exposes only approved case and letter fields',()=>{
   assert.equal(raw.includes('ห้ามส่ง'),false);
 });
 
+test('P1-D case summary evidence includes linked letters from the same case',()=>{
+  const evidence=groundedEvidence({
+    cases:[{caseId:'case-86',caseNum:'86',recNo:'10/2569',title:'เรื่องทดสอบ',status:'ดำเนินการ',staffs:'เจ้าหน้าที่ ก'}],
+    letters:[
+      {letterId:'l1',caseId:'case-86',letterNo:'กมธ 86/1',subject:'ติดตามเรื่อง 86',dueDate:'2026-10-12',status:'รอ'},
+      {letterId:'l2',caseId:'other',letterNo:'กมธ 99/1',subject:'เรื่องอื่น',dueDate:'2026-10-13',status:'รอ'}
+    ]
+  },{type:'case-summary',caseNum:'86'},'หนังสือของเรื่อง 86');
+  assert.equal(evidence.cases.length,1);
+  assert.equal(evidence.letters.length,1);
+  assert.equal(evidence.letters[0].caseNum,'86');
+  assert.equal(evidence.letters[0].letterNo,'กมธ 86/1');
+  assert.deepEqual(evidence.meta,{caseCount:1,letterCount:1});
+});
+
+test('P1-D rejects Gemini answer that introduces unsupported numeric facts',async()=>{
+  const out=await intentAi.answerGrounded(
+    'สรุปข้อมูลเรื่อง 86',
+    {intent:'case-summary',meta:{caseCount:1,letterCount:0},cases:[{caseNum:'86',status:'ดำเนินการ'}],letters:[]},
+    'ลำดับเรื่อง 86 สถานะ: ดำเนินการ',
+    {
+      env:{LINE_QA_AI_ENABLED:'Y',GEMINI_API_KEY:'test-key',LINE_QA_AI_MODEL:'test-model'},
+      fetchImpl:async()=>({ok:true,status:200,text:async()=>JSON.stringify({candidates:[{content:{parts:[{text:'เรื่อง 86 จะแล้วเสร็จวันที่ 31/12/2569'}]}}]})})
+    }
+  );
+  assert.equal(out.source,'ai-answer-fallback');
+  assert.equal(out.errorCode,'LINE_QA_AI_ANSWER_UNGROUNDED_FACT');
+  assert.match(out.answer,/ลำดับเรื่อง 86/);
+});
+
 test('P1 AI failure degrades to deterministic unknown without blocking LINE',async()=>{
   const fallback={type:'unknown',query:'ถามแบบภาษาธรรมชาติ'};
   const resolved=await intentAi.resolveIntent('ถามแบบภาษาธรรมชาติ',fallback,{
