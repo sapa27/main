@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
 const {
-  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,classifyDataAccessError,dataAccessProbe,processEvent
+  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,classifyDataAccessError,dataAccessProbe,answerDueTodayOfficer,processEvent
 }=require('../line-webhook');
 const {createServer}=require('../server');
 const intentAi=require('../line-intent-ai');
@@ -145,9 +145,26 @@ test('P0 parser is deterministic and write-free',()=>{
   assert.deepEqual(parseIntent('วันนี้มีหนังสือถึงกำหนดอะไรบ้าง'),{type:'due-today'});
   assert.deepEqual(parseIntent('มีหนังสือกำลังจะครบกำหนดไหม'),{type:'due-soon'});
   assert.deepEqual(parseIntent('มีหนังสือพ้นกำหนดกี่รายการ'),{type:'overdue'});
+  assert.deepEqual(parseIntent('ใครรับผิดชอบ'),{type:'due-today-officer'});
+  assert.deepEqual(parseIntent('ใครเป็นเจ้าหน้าที่'),{type:'due-today-officer'});
   assert.deepEqual(parseIntent('ใกล้ครบกำหนด'),{type:'due-soon'});
   assert.deepEqual(parseIntent('เกินกำหนด'),{type:'overdue'});
   assert.equal(parseIntent('ลบเรื่อง 123').type,'blocked-write');
+});
+
+test('P1-D follow-up officer uses the single due-today case and never guesses when ambiguous',()=>{
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const model={
+    cases:[
+      {caseId:'case-86',caseNum:'86',recNo:'',title:'เรื่องทดสอบ',status:'อยู่ระหว่างดำเนินการ',staffs:'เจ้าหน้าที่ ก'}
+    ],
+    letters:[
+      {letterId:'letter-1',caseId:'case-86',letterNo:'001',subject:'เรื่องทดสอบ',dueDate:today,status:'ยังไม่ได้รับ'}
+    ]
+  };
+  assert.match(answerDueTodayOfficer(model),/เจ้าหน้าที่ ก/);
+  const ambiguous={...model,letters:[...model.letters,{letterId:'letter-2',caseId:'case-86',letterNo:'002',subject:'เรื่องทดสอบ 2',dueDate:today,status:'ยังไม่ได้รับ'}]};
+  assert.match(answerDueTodayOfficer(ambiguous),/กรุณาระบุเลขเรื่อง/);
 });
 
 test('Thai Buddhist and ISO dates normalize to same date key',()=>{

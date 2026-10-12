@@ -60,6 +60,7 @@ function parseIntent(text){
   if(/(?:ลบ|แก้ไข|บันทึก|อัปเดต|เพิ่ม|เปลี่ยนสถานะ|อนุมัติ|ยกเลิก)/.test(q))return{type:'blocked-write',query:q};
   let m;
   if((m=q.match(/(?:เจ้าหน้าที่|ผู้รับผิดชอบ)(?:เรื่อง|ลำดับเรื่อง)?\s*(\d+)\b/i)))return{type:'case-officer',caseNum:m[1]};
+  if(/^(?:ใครรับผิดชอบ|ใครเป็นผู้รับผิดชอบ|ใครเป็นเจ้าหน้าที่|เจ้าหน้าที่คือใคร|ผู้รับผิดชอบคือใคร)[?？ ]*$/i.test(q))return{type:'due-today-officer'};
   if((m=q.match(/(?:สถานะ|เลขรับเรื่อง|เลขรับ)?\s*(\d+\/\d{4})\b/i))&&q.includes('สถานะ'))return{type:'case-status',recNo:m[1]};
   if((m=q.match(/\b(\d+\/\d{4})\b/)))return{type:'case-summary',recNo:m[1]};
   if((m=q.match(/(?:เรื่อง|ลำดับเรื่อง)\s*(\d+)\b/i)))return{type:'case-summary',caseNum:m[1]};
@@ -221,6 +222,7 @@ function dueRows(model,intent,env=process.env){
       letterNo:normalizeText(first(row,['letterNo','bookNo']))||'-',
       subject:normalizeText(first(row,['subject','issue']))||c.title||'-',
       agency:normalizeText(first(row,['agency']))||'-',
+      caseId,
       caseNum:c.caseNum||normalizeText(first(row,['caseNum']))||'-'
     });
   }
@@ -238,9 +240,19 @@ function answerDue(model,intent,env=process.env){
   return lines.join('\n');
 }
 
+function answerDueTodayOfficer(model,env=process.env){
+  const rows=dueRows(model,{type:'due-today'},env);
+  if(!rows.length)return'วันนี้ไม่มีหนังสือครบกำหนด จึงไม่มีรายการสำหรับระบุผู้รับผิดชอบ';
+  if(rows.length>1)return'วันนี้มีหนังสือครบกำหนด '+rows.length+' รายการ กรุณาระบุเลขเรื่อง เช่น “เจ้าหน้าที่เรื่อง 86”';
+  const caseNum=normalizeText(rows[0].caseNum);
+  if(!caseNum||caseNum==='-')return'พบหนังสือครบกำหนดวันนี้ แต่ไม่พบเลขเรื่องสำหรับค้นหาผู้รับผิดชอบ';
+  return answerCase(model,{type:'case-officer',caseNum});
+}
+
 function answer(model,intent,env=process.env){
   if(intent.type==='blocked-write')return 'LINE Q&A เปิดใช้งานแบบอ่านอย่างเดียว ไม่อนุญาตให้เพิ่ม แก้ไข ลบ หรือเปลี่ยนสถานะข้อมูล';
   if(intent.type==='help'||intent.type==='unknown')return helpText();
+  if(intent.type==='due-today-officer')return answerDueTodayOfficer(model,env);
   if(/^case-/.test(intent.type))return answerCase(model,intent);
   return answerDue(model,intent,env);
 }
@@ -299,5 +311,5 @@ async function handleWebhook(raw,headers={},options={}){
 
 module.exports={
   LINE_REPLY_ENDPOINT,TZ,config,status,signatureFor,verifySignature,parseIntent,bangkokDateKey,parseSheetDate,dateKey,dayDiff,
-  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,answer,helpText,replyText,processEvent,handleWebhook
+  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,answerDueTodayOfficer,answer,helpText,replyText,processEvent,handleWebhook
 };

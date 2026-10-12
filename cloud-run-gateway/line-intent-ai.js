@@ -1,6 +1,6 @@
 'use strict';
 
-const ALLOWED_TYPES=new Set(['case-status','case-summary','case-officer','due-today','due-soon','overdue','help','unknown']);
+const ALLOWED_TYPES=new Set(['case-status','case-summary','case-officer','due-today','due-soon','overdue','due-today-officer','help','unknown']);
 const MUTATION_RE=/(?:ลบ|แก้ไข|บันทึก|อัปเดต|เพิ่ม|เปลี่ยนสถานะ|อนุมัติ|ยกเลิก)/;
 
 function txt(v){return v==null?'':String(v)}
@@ -60,7 +60,8 @@ async function callGemini(query,c,fetchImpl=fetch){
   const prompt=[
     'You are an intent classifier for a Thai parliamentary committee internal LINE read-only Q&A system.',
     'Return JSON only. Never answer the user and never invent data.',
-    'Allowed types: case-status, case-summary, case-officer, due-today, due-soon, overdue, help, unknown.',
+    'Allowed types: case-status, case-summary, case-officer, due-today, due-soon, overdue, due-today-officer, help, unknown.',
+    'Use due-today-officer for short follow-up questions such as ใครรับผิดชอบ or ใครเป็นเจ้าหน้าที่ when no case number is present.',
     'For case-status/case-summary include exactly one of recNo (digits/digits, e.g. 265/2569) or caseNum (digits only).',
     'For case-officer include caseNum only.',
     'Never classify any create/update/delete/approve/cancel request as a read intent; use unknown.',
