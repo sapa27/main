@@ -338,6 +338,7 @@ async function processEvent(event,options={}){
     await replyText(replyToken,natural.answer,c,fetchImpl);
     return{handled:true,intent:intent.type,intentSource:resolved.source,answerSource:natural.source};
   }catch(error){
+    if(options.rethrowErrors===true)throw error;
     try{await replyText(replyToken,'ไม่สามารถค้นข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',c,fetchImpl)}catch(_){}
     return{handled:true,intent:intent.type,intentSource:resolved.source,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED'};
   }
