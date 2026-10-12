@@ -789,23 +789,36 @@ jobs:
 
             AUTH_LOGIN_BODY="$auth_dir/login.body.json" AUTH_LOGIN_HEADERS="$auth_dir/login.headers.txt" AUTH_SESSION_REQ="$auth_dir/session.request.json" AUTH_DASHBOARD_DATA_REQ="$auth_dir/dashboard-data.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE'
           const fs=require('fs');
-          const body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'));
+          let body=null;
+          try{body=JSON.parse(fs.readFileSync(process.env.AUTH_LOGIN_BODY,'utf8'))}catch(_){}
           const headers=fs.readFileSync(process.env.AUTH_LOGIN_HEADERS,'utf8').split(/\r?\n/);
           const get=name=>{
             const prefix=name.toLowerCase()+':';
             const line=headers.find(x=>x.toLowerCase().startsWith(prefix));
             return line?line.slice(line.indexOf(':')+1).trim():'';
           };
-          if(get('x-gas-response-contract')!=='gas-direct-json-v1'||get('x-p0f-edge')!=='cloudflare-workers-dev') process.exit(1);
-          if(get('access-control-allow-origin')!==process.env.P2_EDGE_ORIGIN) process.exit(1);
-          if(body?.transportOk!==true) process.exit(1);
-          const candidates=[body.result,body.result?.result,body.result?.data,body.result?.data?.data];
+          const candidates=[body?.result,body?.result?.result,body?.result?.data,body?.result?.data?.data];
           const auth=candidates.find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.token||x.nextToken||x.sessionToken));
-          if(!auth) process.exit(1);
-          const token=String(auth.token||auth.nextToken||auth.sessionToken||'');
-          const csrf=String(auth.csrfToken||auth.csrf||'');
-          const user=auth.user||auth.account;
-          if(!token||!user||typeof user!=='object') process.exit(1);
+          const token=String(auth?.token||auth?.nextToken||auth?.sessionToken||'');
+          const csrf=String(auth?.csrfToken||auth?.csrf||'');
+          const user=auth?.user||auth?.account;
+          const safe={
+            json:!!body&&typeof body==='object'&&!Array.isArray(body),
+            transportOk:body?.transportOk===true,
+            responseContract:get('x-gas-response-contract'),
+            edge:get('x-p0f-edge'),
+            corsMatch:get('access-control-allow-origin')===process.env.P2_EDGE_ORIGIN,
+            authFound:!!auth,
+            tokenPresent:!!token,
+            csrfPresent:!!csrf,
+            userObject:!!user&&typeof user==='object'&&!Array.isArray(user),
+            resultKeys:body?.result&&typeof body.result==='object'&&!Array.isArray(body.result)?Object.keys(body.result).slice(0,20):[],
+            nestedResultKeys:body?.result?.result&&typeof body.result.result==='object'&&!Array.isArray(body.result.result)?Object.keys(body.result.result).slice(0,20):[],
+            dataKeys:body?.result?.data&&typeof body.result.data==='object'&&!Array.isArray(body.result.data)?Object.keys(body.result.data).slice(0,20):[],
+            errorCode:String(body?.error?.code||body?.result?.error?.code||'')
+          };
+          console.log('Authenticated login contract metadata: '+JSON.stringify(safe));
+          if(!safe.json||!safe.transportOk||safe.responseContract!=='gas-direct-json-v1'||safe.edge!=='cloudflare-workers-dev'||!safe.corsMatch||!safe.authFound||!safe.tokenPresent||!safe.userObject) process.exit(1);
           fs.writeFileSync(process.env.AUTH_SESSION_REQ,JSON.stringify({
             method:'apiSessionCheck',
             payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf},
