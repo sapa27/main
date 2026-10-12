@@ -815,7 +815,11 @@ jobs:
             resultKeys:body?.result&&typeof body.result==='object'&&!Array.isArray(body.result)?Object.keys(body.result).slice(0,20):[],
             nestedResultKeys:body?.result?.result&&typeof body.result.result==='object'&&!Array.isArray(body.result.result)?Object.keys(body.result.result).slice(0,20):[],
             dataKeys:body?.result?.data&&typeof body.result.data==='object'&&!Array.isArray(body.result.data)?Object.keys(body.result.data).slice(0,20):[],
-            errorCode:String(body?.error?.code||body?.result?.error?.code||'')
+            applicationOk:body?.result?.ok===true,
+            messagePresent:!!String(body?.result?.msg||''),
+            errorPresent:!!body?.result?.error,
+            errorType:body?.result?.error==null?'':typeof body.result.error,
+            errorCode:String(body?.error?.code||body?.result?.error?.code||body?.result?.errorCode||'')
           };
           console.log('Authenticated login contract metadata: '+JSON.stringify(safe));
           if(!safe.json||!safe.transportOk||safe.responseContract!=='gas-direct-json-v1'||safe.edge!=='cloudflare-workers-dev'||!safe.corsMatch||!safe.authFound||!safe.tokenPresent||!safe.userObject) process.exit(1);
