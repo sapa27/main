@@ -665,14 +665,35 @@ jobs:
             edge_http="$(curl --max-time 75 -sS -o "$edge_upstream_diag" -w '%{http_code}' "$edge_origin/upstream-health" || true)"
             candidate="$(cat "$edge_upstream_diag" 2>/dev/null || true)"
             echo "Edge upstream attempt $attempt HTTP $edge_http"
-            if [ "$edge_http" = "200" ]; then
+            edge_contract_ok=false
+            if [ "$edge_http" = "200" ] && [ -n "$candidate" ]; then
+              if node -e 'let u;try{u=JSON.parse(process.argv[1])}catch(_){process.exit(2)};if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$candidate"; then
+                edge_contract_ok=true
+              else
+                EDGE_UPSTREAM_BODY="$edge_upstream_diag" node <<'NODE'
+          const fs=require('fs');
+          let x=null;
+          try{x=JSON.parse(fs.readFileSync(process.env.EDGE_UPSTREAM_BODY,'utf8'))}catch(_){}
+          const safe={
+            json:!!x&&typeof x==='object'&&!Array.isArray(x),
+            ok:x?.ok===true,
+            responseContract:String(x?.responseContract||''),
+            checked:x?.upstream?.checked===true,
+            upstreamOk:x?.upstream?.ok===true,
+            transport:String(x?.upstream?.transport||''),
+            errorCode:String(x?.error?.code||'')
+          };
+          console.log('Edge upstream contract not ready: '+JSON.stringify(safe));
+          NODE
+              fi
+            fi
+            if [ "$edge_contract_ok" = "true" ]; then
               edge_upstream="$candidate"
               break
             fi
             test "$attempt" -lt 5 && sleep 5
           done
-          test -n "$edge_upstream" || { echo "P0-F-B1 edge upstream-health unavailable" >&2; exit 1; }
-          node -e 'const u=JSON.parse(process.argv[1]);if(u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$edge_upstream"
+          test -n "$edge_upstream" || { echo "P0-F-B1 edge upstream-health contract unavailable after retries" >&2; exit 1; }
 
           # P2 mandatory E2E POST gate: public edge -> Cloud Run -> GAS.
           p2_rpc_dir="$(mktemp -d)"
