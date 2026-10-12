@@ -141,6 +141,10 @@ test('P0 parser is deterministic and write-free',()=>{
   assert.deepEqual(parseIntent('เรื่อง 123'),{type:'case-summary',caseNum:'123'});
   assert.deepEqual(parseIntent('เจ้าหน้าที่เรื่อง 123'),{type:'case-officer',caseNum:'123'});
   assert.deepEqual(parseIntent('ครบกำหนดวันนี้'),{type:'due-today'});
+  assert.deepEqual(parseIntent('วันนี้มีหนังสือครบกำหนดกี่เรื่อง'),{type:'due-today'});
+  assert.deepEqual(parseIntent('วันนี้มีหนังสือถึงกำหนดอะไรบ้าง'),{type:'due-today'});
+  assert.deepEqual(parseIntent('มีหนังสือกำลังจะครบกำหนดไหม'),{type:'due-soon'});
+  assert.deepEqual(parseIntent('มีหนังสือพ้นกำหนดกี่รายการ'),{type:'overdue'});
   assert.deepEqual(parseIntent('ใกล้ครบกำหนด'),{type:'due-soon'});
   assert.deepEqual(parseIntent('เกินกำหนด'),{type:'overdue'});
   assert.equal(parseIntent('ลบเรื่อง 123').type,'blocked-write');

@@ -63,9 +63,9 @@ function parseIntent(text){
   if((m=q.match(/(?:สถานะ|เลขรับเรื่อง|เลขรับ)?\s*(\d+\/\d{4})\b/i))&&q.includes('สถานะ'))return{type:'case-status',recNo:m[1]};
   if((m=q.match(/\b(\d+\/\d{4})\b/)))return{type:'case-summary',recNo:m[1]};
   if((m=q.match(/(?:เรื่อง|ลำดับเรื่อง)\s*(\d+)\b/i)))return{type:'case-summary',caseNum:m[1]};
-  if(/ครบกำหนดวันนี้/.test(q))return{type:'due-today'};
-  if(/ใกล้ครบกำหนด|ใกล้ถึงกำหนด/.test(q))return{type:'due-soon'};
-  if(/เกินกำหนด|เลยกำหนด/.test(q))return{type:'overdue'};
+  if(/ครบกำหนดวันนี้/.test(q)||(/วันนี้/.test(q)&&/ครบกำหนด|ถึงกำหนด/.test(q)))return{type:'due-today'};
+  if(/ใกล้ครบกำหนด|ใกล้ถึงกำหนด|กำลังจะครบกำหนด|กำลังจะถึงกำหนด/.test(q))return{type:'due-soon'};
+  if(/เกินกำหนด|เลยกำหนด|พ้นกำหนด|ค้างเกินกำหนด/.test(q))return{type:'overdue'};
   if(/^(?:ช่วย|คำสั่ง|help|เมนู)$/i.test(q))return{type:'help'};
   return{type:'unknown',query:q};
 }
