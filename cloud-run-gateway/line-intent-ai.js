@@ -105,6 +105,19 @@ async function resolveIntent(text,fallbackIntent,options={}){
   }
 }
 
+function factTokens(value){
+  return new Set((txt(value).match(/[0-9]+(?:[\\/.-][0-9]+)*/g)||[]).map(normalize));
+}
+
+function validateGroundedAnswer(answer,evidence,query=''){
+  const allowed=factTokens(JSON.stringify(evidence||{})+' '+normalize(query));
+  const used=factTokens(answer);
+  for(const token of used){
+    if(!allowed.has(token))throw fail('AI answer contains unsupported numeric fact','LINE_QA_AI_ANSWER_UNGROUNDED_FACT');
+  }
+  return true;
+}
+
 async function answerGrounded(query,evidence,fallbackAnswer,options={}){
   const env=options.env||process.env,c=options.config||config(env),fetchImpl=options.fetchImpl||fetch;
   if(!c.enabled)return{answer:fallbackAnswer,source:'deterministic-fallback',aiAttempted:false};
@@ -113,9 +126,12 @@ async function answerGrounded(query,evidence,fallbackAnswer,options={}){
   const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(c.model)+':generateContent?key='+encodeURIComponent(c.apiKey);
   const prompt=[
     'You answer Thai questions for an internal parliamentary committee LINE read-only system.',
+    'Your only job is to REPHRASE facts already present in EVIDENCE into natural Thai.',
     'Answer in natural Thai, concise and clear for LINE chat.',
-    'Use ONLY the EVIDENCE JSON below. Never invent, infer, assume, or add facts not present in EVIDENCE.',
-    'If EVIDENCE is insufficient, say exactly what information is missing or say ไม่พบข้อมูลเพียงพอในระบบ.',
+    'Use ONLY the EVIDENCE JSON below. Never invent, infer, assume, calculate, combine into a new fact, or add any fact not explicitly present in EVIDENCE.',
+    'Case and tracking-letter facts for the same matter may be present together. Use those linked facts when the question asks for a summary or tracking information.',
+    'If a requested fact is absent from EVIDENCE, say that the system does not contain that information. Do not guess.',
+    'Do not introduce a name, date, number, status, agency, person, event, deadline, or identifier unless it appears in EVIDENCE.',
     'Do not claim that you changed, saved, approved, deleted, or updated anything.',
     'Do not expose internal IDs unless they are normal business identifiers shown in evidence.',
     'USER QUESTION: '+normalize(query),
@@ -128,7 +144,7 @@ async function answerGrounded(query,evidence,fallbackAnswer,options={}){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         contents:[{role:'user',parts:[{text:prompt}]}],
-        generationConfig:{temperature:0.1}
+        generationConfig:{temperature:0}
       })
     });
     const raw=await r.text();
@@ -136,10 +152,11 @@ async function answerGrounded(query,evidence,fallbackAnswer,options={}){
     let body;try{body=raw?JSON.parse(raw):{}}catch(_){throw fail('AI answer envelope invalid','LINE_QA_AI_ANSWER_ENVELOPE_INVALID')}
     const answer=normalize(body?.candidates?.[0]?.content?.parts?.map(p=>txt(p.text)).join('')||'');
     if(!answer)throw fail('AI answer empty','LINE_QA_AI_ANSWER_EMPTY');
+    validateGroundedAnswer(answer,evidence,query);
     return{answer,source:'ai-grounded',aiAttempted:true};
   }catch(error){
     return{answer:fallbackAnswer,source:'ai-answer-fallback',aiAttempted:true,errorCode:txt(error&&error.code)||'LINE_QA_AI_ANSWER_FAILED'};
   }finally{clearTimeout(timer)}
 }
 
-module.exports={ALLOWED_TYPES,config,status,sanitizeIntent,extractJson,callGemini,resolveIntent,answerGrounded};
+module.exports={ALLOWED_TYPES,config,status,sanitizeIntent,extractJson,callGemini,resolveIntent,factTokens,validateGroundedAnswer,answerGrounded};
