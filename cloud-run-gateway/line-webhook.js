@@ -249,6 +249,47 @@ function answerDueTodayOfficer(model,env=process.env){
   return answerCase(model,{type:'case-officer',caseNum});
 }
 
+function groundedEvidence(model,intent,query,env=process.env){
+  const safeCase=row=>({
+    caseNum:normalizeText(first(row,['caseNum','caseNo','runningNo','ลำดับเรื่อง']))||'-',
+    recNo:normalizeText(first(row,['recNo','receiveNo','เลขรับเรื่อง','เลขรับ']))||'-',
+    title:normalizeText(first(row,['caseTitle','title','subject','considerationTitle','ชื่อเรื่อง']))||'-',
+    status:normalizeText(first(row,['status','สถานะ']))||'-',
+    officer:normalizeText(first(row,['staffs','assignees','officer','เจ้าหน้าที่','เจ้าหน้าที่ฝ่ายเลขานุการ']))||'-',
+    petitioner:normalizeText(first(row,['petitioners','petitioner','ผู้ร้อง','ผู้เสนอญัตติ']))||'-',
+    respondent:normalizeText(first(row,['respondent','agency','หน่วยงานที่เกี่ยวข้อง']))||'-'
+  });
+  const safeLetter=row=>({
+    letterNo:normalizeText(first(row,['letterNo','bookNo']))||'-',
+    caseNum:normalizeText(first(row,['caseNum']))||'-',
+    subject:normalizeText(first(row,['subject','issue']))||'-',
+    agency:normalizeText(first(row,['agency']))||'-',
+    dueDate:dateKey(first(row,['extendDate','dueDate']))||'-',
+    status:normalizeText(first(row,['letterStatus','status']))||'-'
+  });
+  if(intent.type==='due-today'||intent.type==='due-soon'||intent.type==='overdue'){
+    return{intent:intent.type,items:dueRows(model,intent,env).slice(0,10)};
+  }
+  if(intent.type==='due-today-officer'){
+    const rows=dueRows(model,{type:'due-today'},env).slice(0,10);
+    const nums=new Set(rows.map(r=>normalizeText(r.caseNum)).filter(x=>x&&x!=='-'));
+    return{intent:intent.type,dueToday:rows,cases:model.cases.filter(r=>nums.has(normalizeText(first(r,['caseNum','caseNo','runningNo','ลำดับเรื่อง'])))).slice(0,10).map(safeCase)};
+  }
+  if(/^case-/.test(intent.type)){
+    return{intent:intent.type,cases:matchCases(model,intent).slice(0,5).map(safeCase)};
+  }
+  const q=normalizeKey(query),tokens=q.split(/\s+/).map(x=>x.trim()).filter(x=>x.length>=2);
+  const score=row=>{
+    const blob=normalizeKey(Object.values(row||{}).join(' '));
+    let n=0;
+    for(const t of tokens)if(blob.includes(t))n++;
+    return n;
+  };
+  const cases=model.cases.map(r=>({r,s:score(r)})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,12).map(x=>safeCase(x.r));
+  const letters=model.letters.map(r=>({r,s:score(r)})).sort((a,b)=>b.s-a.s).filter(x=>x.s>0).slice(0,12).map(x=>safeLetter(x.r));
+  return{intent:'grounded-query',cases,letters};
+}
+
 function answer(model,intent,env=process.env){
   if(intent.type==='blocked-write')return 'LINE Q&A เปิดใช้งานแบบอ่านอย่างเดียว ไม่อนุญาตให้เพิ่ม แก้ไข ลบ หรือเปลี่ยนสถานะข้อมูล';
   if(intent.type==='help'||intent.type==='unknown')return helpText();
@@ -283,16 +324,19 @@ async function processEvent(event,options={}){
   if(!replyToken)return{handled:false,reason:'REPLY_TOKEN_MISSING'};
   const baseIntent=parseIntent(event.message.text);
   const resolved=await intentAi.resolveIntent(event.message.text,baseIntent,{env,fetchImpl:options.aiFetchImpl||fetchImpl});
-  const intent=resolved.intent;
-  if(intent.type==='help'||intent.type==='unknown'||intent.type==='blocked-write'){
+  let intent=resolved.intent;
+  if(intent.type==='help'||intent.type==='blocked-write'){
     await replyText(replyToken,intent.type==='blocked-write'?answer({},intent,env):helpText(),c,fetchImpl);
     return{handled:true,intent:intent.type,intentSource:resolved.source};
   }
+  if(intent.type==='unknown')intent={type:'grounded-query'};
   try{
     const model=await readModel(env,fetchImpl);
-    const message=answer(model,intent,env);
-    await replyText(replyToken,message,c,fetchImpl);
-    return{handled:true,intent:intent.type,intentSource:resolved.source};
+    const fallback=intent.type==='grounded-query'?'ไม่พบข้อมูลเพียงพอในระบบสำหรับคำถามนี้':answer(model,intent,env);
+    const evidence=groundedEvidence(model,intent,event.message.text,env);
+    const natural=await intentAi.answerGrounded(event.message.text,evidence,fallback,{env,fetchImpl:options.aiFetchImpl||fetchImpl});
+    await replyText(replyToken,natural.answer,c,fetchImpl);
+    return{handled:true,intent:intent.type,intentSource:resolved.source,answerSource:natural.source};
   }catch(error){
     try{await replyText(replyToken,'ไม่สามารถค้นข้อมูลได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',c,fetchImpl)}catch(_){}
     return{handled:true,intent:intent.type,intentSource:resolved.source,errorCode:txt(error&&error.code)||'LINE_QA_READ_FAILED'};
@@ -311,5 +355,5 @@ async function handleWebhook(raw,headers={},options={}){
 
 module.exports={
   LINE_REPLY_ENDPOINT,TZ,config,status,signatureFor,verifySignature,parseIntent,bangkokDateKey,parseSheetDate,dateKey,dayDiff,
-  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,answerDueTodayOfficer,answer,helpText,replyText,processEvent,handleWebhook
+  readModel,classifyDataAccessError,dataAccessProbe,matchCases,dueRows,groundedEvidence,answerDueTodayOfficer,answer,helpText,replyText,processEvent,handleWebhook
 };

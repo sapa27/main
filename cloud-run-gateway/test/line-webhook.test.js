@@ -4,7 +4,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
 const {
-  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,classifyDataAccessError,dataAccessProbe,answerDueTodayOfficer,processEvent
+  config,signatureFor,verifySignature,parseIntent,parseSheetDate,dateKey,classifyDataAccessError,dataAccessProbe,groundedEvidence,answerDueTodayOfficer,processEvent
 }=require('../line-webhook');
 const {createServer}=require('../server');
 const intentAi=require('../line-intent-ai');
@@ -94,6 +94,41 @@ test('P1 AI maps natural language to allowlisted intent without reading Sheets',
   assert.equal(resolved.intent.type,'help');
   assert.equal(resolved.source,'ai-intent');
   assert.equal(calls,1);
+});
+
+test('P1-D grounded AI answer uses only supplied evidence and returns natural Thai',async()=>{
+  let seenPrompt='';
+  const out=await intentAi.answerGrounded('ใครรับผิดชอบ',{cases:[{caseNum:'86',officer:'เจ้าหน้าที่ ก'}]},'เจ้าหน้าที่ ก',{
+    env:{LINE_QA_AI_ENABLED:'Y',GEMINI_API_KEY:'test-key',LINE_QA_AI_MODEL:'test-model'},
+    fetchImpl:async(url,opt={})=>{
+      seenPrompt=JSON.parse(opt.body).contents[0].parts[0].text;
+      return {ok:true,status:200,text:async()=>JSON.stringify({candidates:[{content:{parts:[{text:'เรื่องนี้รับผิดชอบโดยเจ้าหน้าที่ ก'}]}}]})};
+    }
+  });
+  assert.equal(out.source,'ai-grounded');
+  assert.match(out.answer,/เจ้าหน้าที่ ก/);
+  assert.match(seenPrompt,/EVIDENCE:/);
+  assert.match(seenPrompt,/caseNum/);
+});
+
+test('P1-D grounded AI failure falls back to deterministic answer',async()=>{
+  const out=await intentAi.answerGrounded('สถานะเรื่อง 123',{cases:[{caseNum:'123',status:'อยู่ระหว่างดำเนินการ'}]},'สถานะ: อยู่ระหว่างดำเนินการ',{
+    env:{LINE_QA_AI_ENABLED:'Y',GEMINI_API_KEY:'test-key'},
+    fetchImpl:async()=>{throw new Error('offline')}
+  });
+  assert.equal(out.source,'ai-answer-fallback');
+  assert.match(out.answer,/อยู่ระหว่างดำเนินการ/);
+});
+
+test('P1-D grounded evidence exposes only approved case and letter fields',()=>{
+  const evidence=groundedEvidence({
+    cases:[{caseId:'x',caseNum:'86',recNo:'10/2569',title:'ทดสอบ',status:'ดำเนินการ',staffs:'เจ้าหน้าที่ ก',secretNote:'ห้ามส่ง'}],
+    letters:[{letterId:'l',caseId:'x',letterNo:'กมธ 1',subject:'ติดตาม',agency:'หน่วยงาน ก',dueDate:'2026-10-12',status:'รอ',privateField:'ห้ามส่ง'}]
+  },{type:'grounded-query'},'เรื่อง 86');
+  const raw=JSON.stringify(evidence);
+  assert.equal(raw.includes('secretNote'),false);
+  assert.equal(raw.includes('privateField'),false);
+  assert.equal(raw.includes('ห้ามส่ง'),false);
 });
 
 test('P1 AI failure degrades to deterministic unknown without blocking LINE',async()=>{

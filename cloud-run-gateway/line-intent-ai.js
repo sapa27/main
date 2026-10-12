@@ -1,6 +1,6 @@
 'use strict';
 
-const ALLOWED_TYPES=new Set(['case-status','case-summary','case-officer','due-today','due-soon','overdue','due-today-officer','help','unknown']);
+const ALLOWED_TYPES=new Set(['case-status','case-summary','case-officer','due-today','due-soon','overdue','due-today-officer','grounded-query','help','unknown']);
 const MUTATION_RE=/(?:ลบ|แก้ไข|บันทึก|อัปเดต|เพิ่ม|เปลี่ยนสถานะ|อนุมัติ|ยกเลิก)/;
 
 function txt(v){return v==null?'':String(v)}
@@ -12,6 +12,7 @@ function config(env=process.env){
     apiKey:txt(env.GEMINI_API_KEY).trim(),
     model:txt(env.LINE_QA_AI_MODEL).trim()||'gemini-2.5-flash',
     timeoutMs:Math.max(500,Math.min(5000,+env.LINE_QA_AI_TIMEOUT_MS||2500)),
+    answerTimeoutMs:Math.max(1000,Math.min(8000,+env.LINE_QA_AI_ANSWER_TIMEOUT_MS||5000)),
     maxInputChars:Math.max(80,Math.min(1000,+env.LINE_QA_AI_MAX_INPUT_CHARS||400))
   };
 }
@@ -21,8 +22,9 @@ function status(env=process.env){
   return {
     enabled:c.enabled,
     configured:!!c.apiKey,
-    mode:'intent-only',
+    mode:'grounded-read-only',
     readOnly:true,
+    answerMode:'grounded-data-only',
     allowedIntents:Array.from(ALLOWED_TYPES).filter(x=>x!=='unknown')
   };
 }
@@ -60,7 +62,8 @@ async function callGemini(query,c,fetchImpl=fetch){
   const prompt=[
     'You are an intent classifier for a Thai parliamentary committee internal LINE read-only Q&A system.',
     'Return JSON only. Never answer the user and never invent data.',
-    'Allowed types: case-status, case-summary, case-officer, due-today, due-soon, overdue, due-today-officer, help, unknown.',
+    'Allowed types: case-status, case-summary, case-officer, due-today, due-soon, overdue, due-today-officer, grounded-query, help, unknown.',
+    'Use grounded-query for any other read-only question about case or tracking-letter data that should be answered from stored data.',
     'Use due-today-officer for short follow-up questions such as ใครรับผิดชอบ or ใครเป็นเจ้าหน้าที่ when no case number is present.',
     'For case-status/case-summary include exactly one of recNo (digits/digits, e.g. 265/2569) or caseNum (digits only).',
     'For case-officer include caseNum only.',
@@ -102,4 +105,41 @@ async function resolveIntent(text,fallbackIntent,options={}){
   }
 }
 
-module.exports={ALLOWED_TYPES,config,status,sanitizeIntent,extractJson,callGemini,resolveIntent};
+async function answerGrounded(query,evidence,fallbackAnswer,options={}){
+  const env=options.env||process.env,c=options.config||config(env),fetchImpl=options.fetchImpl||fetch;
+  if(!c.enabled)return{answer:fallbackAnswer,source:'deterministic-fallback',aiAttempted:false};
+  const evidenceJson=JSON.stringify(evidence||{});
+  const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),c.answerTimeoutMs);
+  const url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(c.model)+':generateContent?key='+encodeURIComponent(c.apiKey);
+  const prompt=[
+    'You answer Thai questions for an internal parliamentary committee LINE read-only system.',
+    'Answer in natural Thai, concise and clear for LINE chat.',
+    'Use ONLY the EVIDENCE JSON below. Never invent, infer, assume, or add facts not present in EVIDENCE.',
+    'If EVIDENCE is insufficient, say exactly what information is missing or say ไม่พบข้อมูลเพียงพอในระบบ.',
+    'Do not claim that you changed, saved, approved, deleted, or updated anything.',
+    'Do not expose internal IDs unless they are normal business identifiers shown in evidence.',
+    'USER QUESTION: '+normalize(query),
+    'EVIDENCE: '+evidenceJson
+  ].join('\n');
+  try{
+    const r=await fetchImpl(url,{
+      method:'POST',
+      signal:ac.signal,
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{role:'user',parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.1}
+      })
+    });
+    const raw=await r.text();
+    if(!r.ok)throw fail('AI answer HTTP '+r.status,'LINE_QA_AI_ANSWER_HTTP_'+r.status);
+    let body;try{body=raw?JSON.parse(raw):{}}catch(_){throw fail('AI answer envelope invalid','LINE_QA_AI_ANSWER_ENVELOPE_INVALID')}
+    const answer=normalize(body?.candidates?.[0]?.content?.parts?.map(p=>txt(p.text)).join('')||'');
+    if(!answer)throw fail('AI answer empty','LINE_QA_AI_ANSWER_EMPTY');
+    return{answer,source:'ai-grounded',aiAttempted:true};
+  }catch(error){
+    return{answer:fallbackAnswer,source:'ai-answer-fallback',aiAttempted:true,errorCode:txt(error&&error.code)||'LINE_QA_AI_ANSWER_FAILED'};
+  }finally{clearTimeout(timer)}
+}
+
+module.exports={ALLOWED_TYPES,config,status,sanitizeIntent,extractJson,callGemini,resolveIntent,answerGrounded};
