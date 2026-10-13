@@ -929,14 +929,13 @@
                     showConfirmButton: !1,
                     didOpen: showCommitteeLoadingSpinner,
                   }),
-                fileToBase64(file)
-                  .then(function (base64) {
-                    return api("apiExtractMeetingAgendaPdf", {
-                      base64: base64,
-                      fileName: file.name || "",
-                      mimeType: file.type || "application/pdf",
-                    });
-                  })
+                Promise.resolve().then(function () {
+                  if (!root.ensureAiBridgeAssets) throw new Error("ตัวโหลด AI Bridge ไม่พร้อมใช้งาน");
+                  return root.ensureAiBridgeAssets();
+                }).then(function () {
+                  if (!root.AiBridgeDiagnostics || !root.AiBridgeDiagnostics.uploadPdfForAi) throw new Error("ตัวส่ง PDF ของ AI Bridge ไม่พร้อมใช้งาน");
+                  return root.AiBridgeDiagnostics.uploadPdfForAi("apiExtractMeetingAgendaPdf", file, "meeting");
+                })
                   .then(function (res) {
                     closeSwal();
                     var data = unwrap(res) || {},
