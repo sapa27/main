@@ -55,3 +55,5 @@ The early warning owner now reports once instead of recursing into itself. Repor
 ## CR-8.12 Deferred Loader Scope Fix
 
 The static Meeting asset helpers now live in the critical runtime function scope. Their previous declarations were inside a strict-mode initialization block, making them invisible to the deferred loader and stopping every page load with `isStaticMeetingPartial is not defined`. The regression suite executes the actual strict-mode closure to verify both GAS deferred assets and the Cloud Run Meeting controller, including cache invalidation.
+
+Deployment trigger: P1-D grounded evidence telemetry.
