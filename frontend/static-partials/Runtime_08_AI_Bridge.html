@@ -199,7 +199,7 @@ bindAiPopupPrint("budget-ai-risk-print","ผลวิเคราะห์คว
 return loading&&loading.classList.add("d-none"),summary&&(summary.className="small mt-2 alert alert-warning border-0",summary.textContent=friendlyAiError(err)),closeAiPopup(),notifyError("AI วิเคราะห์ความเสี่ยงงบประมาณไม่สำเร็จ",err)
 })
 },registerAiActions(),root.AiBridgeDiagnostics={
-isRateLimitMessage:isRateLimitMessage,cacheKey:cacheKey,readCache:readCache,writeCache:writeCache,callApi:callApi,showAiPopup:showAiPopup,showAiWorking:showAiWorking,registerAiActions:registerAiActions
+isRateLimitMessage:isRateLimitMessage,cacheKey:cacheKey,readCache:readCache,writeCache:writeCache,callApi:callApi,showAiPopup:showAiPopup,showAiWorking:showAiWorking,registerAiActions:registerAiActions,uploadPdfForAi:uploadPdfForAiCurrent
 },root.loadAiDashboardInsights=function(){
 return callApi("apiAiDashboardInsights",{
 token:token(),aiUserAction:!0,source:"ai-lazy-user-action-dashboard-insights"
@@ -486,7 +486,7 @@ var end=Math.min(file.size,offset+chunkBytes),final=end>=file.size,chunk=file.sl
 return readBlobAsBase64Current(chunk).then(function(chunkBase64){
 return callApi(method,{transferOp:"chunk",transferId:transferId,offset:sentOffset,chunkBase64:chunkBase64,final:final,mode:mode||"letter",transport:"gemini-inline-pdf-base64"},{retries:2,retryDelay:600,timeoutMs:final?finalTimeoutMs:9e4})
 }).then(function(result){
-offset=end,updateAiUploadProgressCurrent(offset,file.size);
+offset=end,mode!=="meeting"&&updateAiUploadProgressCurrent(offset,file.size);
 return final?result:next()
 })
 }
