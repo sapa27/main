@@ -118,7 +118,7 @@ jobs:
       LINE_CHANNEL_SECRET_NAME: LINE_CHANNEL_SECRET
       LINE_CHANNEL_ACCESS_TOKEN_NAME: LINE_CHANNEL_ACCESS_TOKEN
       GEMINI_API_KEY_NAME: GEMINI_API_KEY
-      LINE_QA_AI_ENABLED: Y
+      LINE_QA_AI_ENABLED: N
       LINE_QA_AI_MODEL: ${{ vars.LINE_QA_AI_MODEL || 'gemini-2.5-flash' }}
     steps:
       - uses: actions/checkout@v4
@@ -374,7 +374,7 @@ jobs:
           done
           # Do not require secretmanager.versions.get on the deploy identity for Gemini.
           # The canary secret binding below is the authoritative existence/access gate.
-          test "$LINE_QA_AI_ENABLED" = "Y" || { echo "LINE_QA_AI_ENABLED must be Y for P1-B deploy" >&2; exit 1; }
+          test "$LINE_QA_AI_ENABLED" = "N" || { echo "LINE_QA_AI_ENABLED must remain N while LINE AI is disabled" >&2; exit 1; }
           test -n "$LINE_QA_AI_MODEL" || { echo "LINE_QA_AI_MODEL is required for P1-B deploy" >&2; exit 1; }
 
           echo "### LINE Q&A Config" >> "$GITHUB_STEP_SUMMARY"
@@ -382,13 +382,13 @@ jobs:
           echo "- Spreadsheet configured: yes" >> "$GITHUB_STEP_SUMMARY"
           echo "- LINE secret versions present: yes" >> "$GITHUB_STEP_SUMMARY"
           echo "- Gemini intent secret: validated by canary binding" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Gemini mode: grounded-read-only / grounded-data-only" >> "$GITHUB_STEP_SUMMARY"
+          echo "- LINE AI: disabled; existing GAS scheduled notifications unchanged" >> "$GITHUB_STEP_SUMMARY"
           echo "- Secret values: not exposed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy CR-8 GAS-canonical canary
         run: |
           set -euo pipefail
-          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 4             --min-instances 1 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID@LINE_QA_AI_ENABLED=$LINE_QA_AI_ENABLED@LINE_QA_AI_MODEL=$LINE_QA_AI_MODEL"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1,GEMINI_API_KEY=$GEMINI_API_KEY_NAME:latest"
+          gcloud run deploy "$CANARY_SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 4             --min-instances 0 --max-instances 2 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID@LINE_QA_AI_ENABLED=$LINE_QA_AI_ENABLED@LINE_QA_AI_MODEL=$LINE_QA_AI_MODEL"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1,GEMINI_API_KEY=$GEMINI_API_KEY_NAME:latest"
           canary_url="$(gcloud run services describe "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
           echo "CANARY_URL=$canary_url" >> "$GITHUB_ENV"
 
@@ -419,7 +419,7 @@ jobs:
           echo "Canary network: $network"
           echo "Canary upstream: $upstream"
           node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true&&x.lineQa.naturalLanguage?.enabled===true&&x.lineQa.naturalLanguage?.configured===true&&x.lineQa.naturalLanguage?.mode==="grounded-read-only"&&x.lineQa.naturalLanguage?.answerMode==="grounded-data-only"&&x.lineQa.naturalLanguage?.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true&&x.lineQa.naturalLanguage?.enabled===false&&x.lineQa.naturalLanguage?.configured===true&&x.lineQa.naturalLanguage?.mode==="grounded-read-only"&&x.lineQa.naturalLanguage?.answerMode==="grounded-data-only"&&x.lineQa.naturalLanguage?.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$CANARY_URL/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$CANARY_URL/app-config.js" -o "$tmp_dir/app-config.js"
@@ -461,10 +461,45 @@ jobs:
           grep -q 'window.initMeetingPage' "$tmp_dir/meeting-controller.html"
           grep -q 'AppPages.register("meeting"' "$tmp_dir/meeting-controller.html"
 
+      - name: Require authenticated canary session before promotion
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const candidatesOf=body=>[body?.result,body?.result?.result,body?.result?.data,body?.result?.data?.data];
+          async function probe(method,payload){
+            const response=await fetch(process.env.CANARY_URL+'/api/router',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Origin':process.env.PUBLIC_APP_ORIGIN},
+              body:JSON.stringify({method,payload,timeoutMs:45000}),
+              signal:AbortSignal.timeout(65000)
+            });
+            let body=null;
+            try{body=await response.json()}catch(_){}
+            if(response.status!==200||body?.transportOk!==true)throw new Error('CANARY_AUTH_TRANSPORT_FAILED');
+            return body;
+          }
+          async function main(){
+            const username=process.env.E2E_SMOKE_USERNAME,password=process.env.E2E_SMOKE_PASSWORD;
+            if(!username||!password)throw new Error('CANARY_AUTH_CREDENTIALS_MISSING');
+            const body=await probe('apiLogin',{username,email:username,password,clientContext:{source:'github-actions-canary-auth',headless:true}});
+            const auth=candidatesOf(body).find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.token||x.nextToken||x.sessionToken));
+            const token=String(auth?.token||auth?.nextToken||auth?.sessionToken||''),user=auth?.user||auth?.account;
+            const safe={applicationOk:body?.result?.ok===true,tokenPresent:!!token,userObject:!!user&&typeof user==='object'&&!Array.isArray(user)};
+            console.log('Canary login gate: '+JSON.stringify(safe));
+            if(!safe.applicationOk||!safe.tokenPresent||!safe.userObject)throw new Error('CANARY_LOGIN_APPLICATION_FAILED');
+            const csrf=String(auth?.csrfToken||auth?.csrf||'');
+            const session=await probe('apiSessionCheck',{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf});
+            const sessionAuth=candidatesOf(session).find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.user||x.account||x.role||x.authenticated===true||x.valid===true));
+            if(session.result?.ok===false||!sessionAuth)throw new Error('CANARY_SESSION_APPLICATION_FAILED');
+            console.log('Authenticated canary session: PASS');
+          }
+          main().catch(error=>{console.error(/^(CANARY_[A-Z_]+)$/.test(error.message)?error.message:'CANARY_AUTH_PROBE_FAILED');process.exitCode=1});
+          NODE
+
       - name: Promote CR-8 GAS-canonical to production
         run: |
           set -euo pipefail
-          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 6             --min-instances 1 --max-instances 4 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID@LINE_QA_AI_ENABLED=$LINE_QA_AI_ENABLED@LINE_QA_AI_MODEL=$LINE_QA_AI_MODEL"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1,GEMINI_API_KEY=$GEMINI_API_KEY_NAME:latest"
+          gcloud run deploy "$SERVICE"             --project "$PROJECT_ID" --region "$REGION"             --source cloud-run-gateway --allow-unauthenticated             --cpu 1 --memory 512Mi --concurrency 6             --min-instances 0 --max-instances 4 --timeout 300             --set-env-vars "^@^GAS_WEB_APP_URL=$GAS_WEB_APP_URL@ANTI_GAS_WEB_APP_URL=$ANTI_GAS_WEB_APP_URL@GATEWAY_ALLOWED_ORIGINS=$CLOUD_RUN_ORIGIN,$ANTI_PUBLIC_ORIGIN,$PUBLIC_APP_ORIGIN@PUBLIC_APP_ORIGIN=$PUBLIC_APP_ORIGIN@APP_SOURCE_SHA=$GITHUB_SHA@LINE_ALLOWED_GROUP_IDS=$LINE_ALLOWED_GROUP_IDS@GOOGLE_SHEETS_SPREADSHEET_ID=$GOOGLE_SHEETS_SPREADSHEET_ID@LINE_QA_AI_ENABLED=$LINE_QA_AI_ENABLED@LINE_QA_AI_MODEL=$LINE_QA_AI_MODEL"             --set-secrets "LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET_NAME:1,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN_NAME:1,GEMINI_API_KEY=$GEMINI_API_KEY_NAME:latest"
 
       - name: Remove retired transport environment variables
         run: |
@@ -493,7 +528,7 @@ jobs:
           echo "Network: $network"
           echo "Upstream: $upstream"
           node -e 'const n=JSON.parse(process.argv[1]);if(n.ok!==true||n.status!=="reachable"||n.network?.gate!=="P0-F"||n.network?.sameOriginBrowser!==true||n.upstream?.checked!==false)process.exit(1)' "$network"
-          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true&&x.lineQa.naturalLanguage?.enabled===true&&x.lineQa.naturalLanguage?.configured===true&&x.lineQa.naturalLanguage?.mode==="grounded-read-only"&&x.lineQa.naturalLanguage?.answerMode==="grounded-data-only"&&x.lineQa.naturalLanguage?.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="same-origin"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
+          node -e 'const r=JSON.parse(process.argv[1]),v=JSON.parse(process.argv[2]),h=JSON.parse(process.argv[3]),u=JSON.parse(process.argv[4]),sha=process.argv[5];const lineOk=x=>x?.lineQa?.enabled===true&&x.lineQa.signatureConfigured===true&&x.lineQa.replyTokenConfigured===true&&x.lineQa.allowedGroupCount>=1&&x.lineQa.readOnly===true&&x.lineQa.naturalLanguage?.enabled===false&&x.lineQa.naturalLanguage?.configured===true&&x.lineQa.naturalLanguage?.mode==="grounded-read-only"&&x.lineQa.naturalLanguage?.answerMode==="grounded-data-only"&&x.lineQa.naturalLanguage?.readOnly===true;if(r.gateway!=="cr8.15-p0f-network-gate"||r.antiPublic?.configured!==true||r.antiPublic?.path!=="/api/anti"||!lineOk(r)||r.legacyFallbackEnabled!==false||r.sourceSha!==sha||v.frontendHost!=="same-origin"||v.gasTransport!=="direct-json-primary"||v.responseContract!=="gas-direct-json-v1"||v.antiPublic?.responseContract!=="anti-public-json-v1"||!lineOk(v)||v.legacyFallbackEnabled!==false||v.sourceSha!==sha||h.status!=="healthy"||u.ok!==true||u.responseContract!=="gas-direct-json-v1"||u.upstream?.checked!==true||u.upstream?.ok!==true||u.upstream?.transport!=="gas-direct-json")process.exit(1)' "$ready" "$version" "$health" "$upstream" "$GITHUB_SHA"
           tmp_dir="$(mktemp -d)"
           curl --max-time 30 -fsS "$url/" -o "$tmp_dir/index.html"
           curl --max-time 30 -fsS "$url/app-config.js" -o "$tmp_dir/app-config.js"
@@ -599,6 +634,13 @@ jobs:
           export default {
             async fetch(request, env) {
               const incoming = new URL(request.url);
+              // Stop inbound LINE Q&A only. GAS scheduled push notifications do not use this route.
+              if (request.method === "POST" && incoming.pathname === "/line/webhook") {
+                return new Response("OK", {
+                  status: 200,
+                  headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }
+                });
+              }
               const upstreamBase = new URL(env.CLOUD_RUN_ORIGIN);
               const target = new URL(incoming.pathname + incoming.search, upstreamBase);
               const headers = new Headers(request.headers);
@@ -1167,3 +1209,4 @@ jobs:
         if: always()
         run: |
           gcloud run services delete "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --quiet || true
+
