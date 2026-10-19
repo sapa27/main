@@ -14,3 +14,10 @@ test('failed application login stops canary gate without credential or response 
 test('successful login must still pass authenticated session',async()=>{const p=probe([{transportOk:true,result:{ok:true,data:{token:'fixture-token',user:{role:'staff'}}}},{transportOk:true,result:{ok:false}}]);await assert.rejects(p.run(),/CANARY_SESSION_APPLICATION_FAILED/);assert.equal(p.calls.length,2);assert.doesNotMatch(p.logs.join('\n'),/fixture-token/)});
 test('login and positive session evidence allow promotion gate',async()=>{const p=probe([{transportOk:true,result:{ok:true,data:{token:'fixture-token',csrfToken:'fixture-csrf',user:{role:'staff'}}}},{transportOk:true,result:{ok:true,data:{authenticated:true}}}]);await p.run();assert.equal(p.calls.length,2);assert.equal(JSON.parse(p.calls[1].init.body).payload.token,'fixture-token');assert.doesNotMatch(p.logs.join('\n'),/fixture-token|fixture-csrf|fixture-password/)});
 test('missing test credentials stop before network access',async()=>{const p=probe([],{E2E_SMOKE_PASSWORD:''});await assert.rejects(p.run(),/CANARY_AUTH_CREDENTIALS_MISSING/);assert.equal(p.calls.length,0)});
+for(const [error,expected] of [
+ ['username หรือ password ไม่ถูกต้อง หรือบัญชีถูกระงับ','INVALID_CREDENTIALS_OR_INACTIVE_ACCOUNT'],
+ ['Users schema ต้องมีคอลัมน์ passwordHash สำหรับ Production Current','USERS_SCHEMA_INVALID'],
+ ['PASSWORD_PEPPER unavailable: private-detail','PASSWORD_PEPPER_UNAVAILABLE'],
+ ['พยายามเข้าสู่ระบบมากเกินไป กรุณาลองใหม่อีกครั้งภายใน 5 นาที','LOGIN_RATE_LIMITED'],
+ ['arbitrary-sensitive-error-fixture','UNCLASSIFIED_LOGIN_FAILURE']
+])test('canary login emits only fixed category '+expected,async()=>{const p=probe([{transportOk:true,result:{ok:false,error}}]);await assert.rejects(p.run(),/CANARY_LOGIN_APPLICATION_FAILED/);const metadata=JSON.parse(p.logs[0].slice('Canary login gate: '.length));assert.equal(metadata.failureClass,expected);assert(!p.logs.join('\n').includes(error));});

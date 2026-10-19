@@ -478,13 +478,24 @@ jobs:
             if(response.status!==200||body?.transportOk!==true)throw new Error('CANARY_AUTH_TRANSPORT_FAILED');
             return body;
           }
+          function loginFailureClass(result){
+            const message=typeof result?.error==='string'?result.error:String(result?.msg||'');
+            if(message==='username หรือ password ไม่ถูกต้อง หรือบัญชีถูกระงับ')return 'INVALID_CREDENTIALS_OR_INACTIVE_ACCOUNT';
+            if(message==='กรุณากรอก username และ password')return 'MISSING_LOGIN_INPUT';
+            if(message.startsWith('พยายามเข้าสู่ระบบมากเกินไป'))return 'LOGIN_RATE_LIMITED';
+            if(message.startsWith('พบผู้ใช้งานซ้ำสำหรับ principal นี้'))return 'DUPLICATE_LOGIN_PRINCIPAL';
+            if(message.startsWith('Users schema ต้องมีคอลัมน์'))return 'USERS_SCHEMA_INVALID';
+            if(message.startsWith('PASSWORD_PEPPER'))return 'PASSWORD_PEPPER_UNAVAILABLE';
+            if(message==='ระบบป้องกันการเข้าสู่ระบบไม่พร้อมใช้งาน กรุณาลองใหม่อีกครั้ง')return 'LOGIN_SECURITY_UNAVAILABLE';
+            return 'UNCLASSIFIED_LOGIN_FAILURE';
+          }
           async function main(){
             const username=process.env.E2E_SMOKE_USERNAME,password=process.env.E2E_SMOKE_PASSWORD;
             if(!username||!password)throw new Error('CANARY_AUTH_CREDENTIALS_MISSING');
             const body=await probe('apiLogin',{username,email:username,password,clientContext:{source:'github-actions-canary-auth',headless:true}});
             const auth=candidatesOf(body).find(x=>x&&typeof x==='object'&&!Array.isArray(x)&&(x.token||x.nextToken||x.sessionToken));
             const token=String(auth?.token||auth?.nextToken||auth?.sessionToken||''),user=auth?.user||auth?.account;
-            const safe={applicationOk:body?.result?.ok===true,tokenPresent:!!token,userObject:!!user&&typeof user==='object'&&!Array.isArray(user)};
+            const safe={applicationOk:body?.result?.ok===true,tokenPresent:!!token,userObject:!!user&&typeof user==='object'&&!Array.isArray(user),failureClass:body?.result?.ok===true?'':loginFailureClass(body?.result)};
             console.log('Canary login gate: '+JSON.stringify(safe));
             if(!safe.applicationOk||!safe.tokenPresent||!safe.userObject)throw new Error('CANARY_LOGIN_APPLICATION_FAILED');
             const csrf=String(auth?.csrfToken||auth?.csrf||'');
