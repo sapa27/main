@@ -1147,6 +1147,7 @@ jobs:
             const body = await response.json();
             assert.equal(body.ok, true, 'SUBCOMMITTEE_TRANSPORT_FAILED');
             const result = body.result || body;
+            console.log('Subcommittee request '+method+': '+JSON.stringify({applicationOk:result.ok!==false,rowCount:rows(result).length}));
             assert.notEqual(result.ok, false, 'SUBCOMMITTEE_APPLICATION_FAILED');
             return result;
           }
@@ -1181,7 +1182,7 @@ jobs:
           const repeated = await call('apiSearchCasesLite',cachedPayload);
           assert.deepEqual(rows(repeated).map(r=>r.caseId || r.id),items.map(r=>r.caseId || r.id),'SUBCOMMITTEE_CACHE_COLLISION');
           console.log('Case subcommittee read gate: PASS '+JSON.stringify({statusRows:all.length,selectedRows:expected.length,pageRows:items.length,exportRows:exported.length,cacheIsolation:true}));
-          })().catch(error => { console.error('SUBCOMMITTEE_READ_GATE_FAILED: '+String(error.code || error.message || 'UNKNOWN')); process.exitCode = 1; });
+          })().catch(error => { console.error('SUBCOMMITTEE_READ_GATE_FAILED: '+String((String(error.message || '').match(/SUBCOMMITTEE_[A-Z_]+/) || [])[0] || error.code || 'UNKNOWN')); process.exitCode = 1; });
           NODE_SUBCOMMITTEE
 
             rm -rf "$auth_dir"
@@ -1275,3 +1276,41 @@ jobs:
         run: |
           gcloud run services delete "$CANARY_SERVICE" --project "$PROJECT_ID" --region "$REGION" --quiet || true
 
+
+  verify_subcommittee:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '[verify-subcommittee]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    env:
+      PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+      E2E_SMOKE_USERNAME: ${{ secrets.E2E_SMOKE_USERNAME }}
+      E2E_SMOKE_PASSWORD: ${{ secrets.E2E_SMOKE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify current subcommittee API without deployment
+        shell: bash
+        run: |
+          node --input-type=commonjs <<'NODE_READ_LOGIN'
+          const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),cp=require('node:child_process');
+          (async function(){
+            const origin=process.env.PUBLIC_APP_ORIGIN || 'https://sapa27.anti27.workers.dev';
+            const username=process.env.E2E_SMOKE_USERNAME,password=process.env.E2E_SMOKE_PASSWORD;
+            if(!username||!password) throw Error('SUBCOMMITTEE_CREDENTIALS_MISSING');
+            const response=await fetch(origin+'/api/router',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({method:'apiLogin',payload:{username,email:username,password,clientContext:{source:'github-actions-subcommittee-read',headless:true}},timeoutMs:45000}),signal:AbortSignal.timeout(65000)});
+            const body=await response.json(),result=body.result||{},data=result.data||result,token=result.token||data.token,csrf=result.csrfToken||data.csrfToken||'';
+            if(response.status!==200||body.ok!==true||result.ok!==true||!token) throw Error('SUBCOMMITTEE_LOGIN_FAILED');
+            const dir=fs.mkdtempSync(path.join(os.tmpdir(),'subcommittee-read-'));
+            try{
+              const request=path.join(dir,'session.json'),script=path.join(dir,'gate.cjs');
+              fs.writeFileSync(request,JSON.stringify({payload:{token,sessionToken:token,csrfToken:csrf,csrf,_csrf:csrf}}),{mode:0o600});
+              const workflow=fs.readFileSync('.github/workflows/cloud-run-gateway.yml','utf8');
+              const start=workflow.indexOf("node <<'NODE_SUBCOMMITTEE'\n")+"node <<'NODE_SUBCOMMITTEE'\n".length,end=workflow.indexOf('          NODE_SUBCOMMITTEE',start);
+              if(end<start) throw Error('SUBCOMMITTEE_GATE_NOT_FOUND');
+              fs.writeFileSync(script,workflow.slice(start,end),{mode:0o600});
+              const run=cp.spawnSync(process.execPath,[script],{stdio:'inherit',env:{...process.env,AUTH_SESSION_REQ:request,P2_EDGE_ORIGIN:origin}});
+              if(run.status!==0) process.exitCode=1;
+            }finally{fs.rmSync(dir,{recursive:true,force:true});}
+          })().catch(error=>{console.error(String((String(error.message||'').match(/SUBCOMMITTEE_[A-Z_]+/)||[])[0]||error.code||'SUBCOMMITTEE_READ_FAILED'));process.exitCode=1;});
+          NODE_READ_LOGIN
