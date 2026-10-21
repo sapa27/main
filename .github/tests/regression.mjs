@@ -1681,6 +1681,7 @@ ok('Report subcommittee filter is carried in page and export cache scopes',()=>{
  assert.match(report,/payload.subcommitteeName = requestedSubcommittee/);
  assert.match(report,/subcommitteeName: reportSubcommitteeValue\(\)/);
  assert.match(workflow,/SUBCOMMITTEE_CACHE_COLLISION/);
+ assert.ok(workflow.indexOf("node <<'NODE_SUBCOMMITTEE'") < workflow.indexOf('rm -rf "$auth_dir"'),'session cleanup must follow the subcommittee gate');
 });
 console.log('# '+passed+' CR-7 regression groups passed');
 
