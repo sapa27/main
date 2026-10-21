@@ -1147,7 +1147,7 @@ jobs:
             const body = await response.json();
             assert.equal(body.transportOk, true, 'SUBCOMMITTEE_TRANSPORT_FAILED');
             const result = body.result || body;
-            console.log('Subcommittee request '+method+': '+JSON.stringify({applicationOk:result.ok!==false,rowCount:rows(result).length}));
+            console.log('Subcommittee request '+method+': '+JSON.stringify({applicationOk:result.ok!==false,rowCount:rows(result).length,readModel:result.readModel||'',source:result.source||'',fieldPresentRows:rows(result).filter(row=>Object.hasOwn(row,'subcommitteeName')).length,firstRowKeys:Object.keys(rows(result)[0]||{})}));
             assert.notEqual(result.ok, false, 'SUBCOMMITTEE_APPLICATION_FAILED');
             return result;
           }
