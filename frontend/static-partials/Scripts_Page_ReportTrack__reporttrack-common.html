@@ -334,6 +334,20 @@
                       "/" +
                       (d.getFullYear() + 543);
               };
+      root.updateReportSubcommitteeFilter = function () {
+        var select = byId("report-subcommittee"),
+          visible = clean((byId("report-type") || {}).value) === "status" &&
+            clean((byId("report-group-value") || {}).value).replace(/\s+/g, "") === "อนุฯพิจารณา";
+        if (!select) return Promise.resolve([]);
+        select.disabled = !visible;
+        select.classList.toggle("d-none", !visible);
+        if (!visible) { select.value = ""; return Promise.resolve([]); }
+        return root.AppCaseSubcommitteeOptions.load(select);
+      };
+      function reportSubcommitteeValue() {
+        var select = byId("report-subcommittee");
+        return select && !select.disabled ? clean(select.value) : "";
+      }
       ((root.updateReportGroupOptions = function () {
         var type = clean((byId("report-type") || {}).value || "all"),
           sel = byId("report-group-value"),
@@ -3124,12 +3138,14 @@
           "report" === mode
             ? clean((byId("report-group-value") || {}).value || "")
             : "",
+        requestedSubcommittee = "report" === mode ? reportSubcommitteeValue() : "",
         cacheBaseKey = [
           mode,
           requestedPageSize,
           requestedQuery,
           requestedReportType,
           requestedReportValue,
+          requestedSubcommittee,
           "caseNum",
           "asc",
           "performance-k-report-readmodel-r330",
@@ -3259,7 +3275,8 @@
         return (
           "report" === mode &&
             ((payload.reportType = requestedReportType),
-            (payload.reportValue = requestedReportValue)),
+            (payload.reportValue = requestedReportValue),
+            (payload.subcommittee = requestedSubcommittee)),
           payload
         );
       }
@@ -5134,6 +5151,7 @@
         query,
         reportType,
         reportValue,
+        "report" === kind ? reportSubcommitteeValue() : "",
         Number(state.total || 0),
       ].join("|");
       if (
@@ -5150,6 +5168,7 @@
           query: query,
           reportType: reportType,
           reportValue: reportValue,
+          subcommittee: reportSubcommitteeValue(),
           page: 1,
           limit: 5e3,
           pageSize: 5e3,

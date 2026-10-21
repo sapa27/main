@@ -1486,6 +1486,7 @@
                       ]),
                     ),
                     E("meeting-subCat", N(t, ["subCat", "subCategory"])));
+                  meetingRoot.AppCaseSubcommitteeOptions.set(meetingById("meeting-caseSubcommittee"), t.subcommittee || "");
                   var a = N(t, [
                     "petitioners",
                     "petitionerName",
@@ -1781,6 +1782,8 @@
             isClosed = "ยุติเรื่อง" === status,
             isAgency = "ส่งหน่วยงาน" === status,
             isPending = "รอพิจารณา" === status,
+            isSubcommittee = "อนุฯ พิจารณา" === status,
+            subcommitteeEl = meetingById("meeting-caseSubcommittee"),
             rejectEl = meetingById("meeting-rejectionReason"),
             closedEl = meetingById("meeting-closedReason"),
             agencyEl = meetingById("meeting-agencyName"),
@@ -1792,6 +1795,13 @@
           showMeetingStatusField("meeting-div-closedReason", isClosed);
           showMeetingStatusField("meeting-div-rejectionReason", isReject);
           showMeetingStatusField("meeting-div-pendingRemark", isPending);
+          showMeetingStatusField("meeting-div-subcommittee", isSubcommittee);
+          if (subcommitteeEl) {
+            subcommitteeEl.disabled = !isSubcommittee;
+            if (isSubcommittee) meetingRoot.AppCaseSubcommitteeOptions.load(subcommitteeEl).catch(function (err) {
+              meetingRoot.AppRuntime.handleError(err, "อ่านรายชื่อคณะอนุกรรมาธิการไม่สำเร็จ");
+            });
+          }
           rejectEl &&
             ((rejectEl.required = isReject),
             (rejectEl.disabled = !isReject),
@@ -5487,6 +5497,7 @@
           "meeting-respondent",
           "meeting-assignees",
           "meeting-coAssignees",
+          "meeting-caseSubcommittee",
           "meeting-staffs",
           "meeting-opStaff",
           "meeting-keySummary",
@@ -6272,6 +6283,7 @@
         respondent: T("meeting-respondent"),
         assignees: T("meeting-assignees"),
         coAssignees: T("meeting-coAssignees"),
+        subcommittee: T("meeting-caseSubcommittee"),
         staffs: T("meeting-staffs"),
         keySummary: T("meeting-keySummary"),
         remark: T("meeting-remark"),
@@ -7971,6 +7983,7 @@
             "responsibleCommissioners",
           ]),
           "meeting-coAssignees": pick(seed, ["coAssignees", "coOwners"]),
+          "meeting-caseSubcommittee": pick(seed, ["subcommittee"]),
           "meeting-staffs": pick(seed, ["staffs", "staff", "officer"]),
           "meeting-opStaff": pick(seed, [
             "opStaff",
@@ -8033,6 +8046,10 @@
           ]),
         };
       Object.keys(map).forEach(function (k) {
+        if (k === "meeting-caseSubcommittee") {
+          root.AppCaseSubcommitteeOptions.set(byId(k), map[k] || "");
+          return;
+        }
         setVal(k, map[k] || "");
       });
       try {
@@ -8603,3 +8620,4 @@
     }
   })(window, document);
 </script>
+
