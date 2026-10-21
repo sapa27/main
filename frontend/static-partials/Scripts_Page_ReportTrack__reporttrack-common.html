@@ -3276,7 +3276,7 @@
           "report" === mode &&
             ((payload.reportType = requestedReportType),
             (payload.reportValue = requestedReportValue),
-            (payload.subcommittee = requestedSubcommittee)),
+            (payload.subcommitteeName = requestedSubcommittee)),
           payload
         );
       }
@@ -5168,7 +5168,7 @@
           query: query,
           reportType: reportType,
           reportValue: reportValue,
-          subcommittee: reportSubcommitteeValue(),
+          subcommitteeName: reportSubcommitteeValue(),
           page: 1,
           limit: 5e3,
           pageSize: 5e3,

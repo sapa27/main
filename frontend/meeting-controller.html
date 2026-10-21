@@ -1486,7 +1486,7 @@
                       ]),
                     ),
                     E("meeting-subCat", N(t, ["subCat", "subCategory"])));
-                  meetingRoot.AppCaseSubcommitteeOptions.set(meetingById("meeting-caseSubcommittee"), t.subcommittee || "");
+                  meetingRoot.AppCaseSubcommitteeOptions.set(meetingById("meeting-caseSubcommittee"), t.subcommitteeName || "");
                   var a = N(t, [
                     "petitioners",
                     "petitionerName",
@@ -6283,7 +6283,7 @@
         respondent: T("meeting-respondent"),
         assignees: T("meeting-assignees"),
         coAssignees: T("meeting-coAssignees"),
-        subcommittee: T("meeting-caseSubcommittee"),
+        subcommitteeName: T("meeting-caseSubcommittee"),
         staffs: T("meeting-staffs"),
         keySummary: T("meeting-keySummary"),
         remark: T("meeting-remark"),
@@ -7983,7 +7983,7 @@
             "responsibleCommissioners",
           ]),
           "meeting-coAssignees": pick(seed, ["coAssignees", "coOwners"]),
-          "meeting-caseSubcommittee": pick(seed, ["subcommittee"]),
+          "meeting-caseSubcommittee": pick(seed, ["subcommitteeName"]),
           "meeting-staffs": pick(seed, ["staffs", "staff", "officer"]),
           "meeting-opStaff": pick(seed, [
             "opStaff",

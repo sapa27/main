@@ -1671,15 +1671,15 @@ console.log('PASS shared endpoint / single-flight / dedup / historical selection
 
 });
 ok('Case subcommittee selection uses the existing string field on form load/save/reset',()=>{
- assert.match(meetingController,/subcommittee: T\("meeting-caseSubcommittee"\)/);
- assert.match(meetingController,/Options.set\(meetingById\("meeting-caseSubcommittee"\), t.subcommittee/);
- assert.match(index,/name="subcommittee"/);
+ assert.match(meetingController,/subcommitteeName: T\("meeting-caseSubcommittee"\)/);
+ assert.match(meetingController,/Options.set\(meetingById\("meeting-caseSubcommittee"\), t.subcommitteeName/);
+ assert.match(index,/name="subcommitteeName"/);
 });
 ok('Report subcommittee filter is carried in page and export cache scopes',()=>{
  const report=file('frontend/static-partials/Scripts_Page_ReportTrack__reporttrack-common.html');
  assert.match(report,/requestedSubcommittee,[\s\S]*?caseNum/);
- assert.match(report,/payload.subcommittee = requestedSubcommittee/);
- assert.match(report,/subcommittee: reportSubcommitteeValue\(\)/);
+ assert.match(report,/payload.subcommitteeName = requestedSubcommittee/);
+ assert.match(report,/subcommitteeName: reportSubcommitteeValue\(\)/);
  assert.match(workflow,/SUBCOMMITTEE_CACHE_COLLISION/);
 });
 console.log('# '+passed+' CR-7 regression groups passed');
