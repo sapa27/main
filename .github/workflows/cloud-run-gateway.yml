@@ -1135,6 +1135,7 @@ jobs:
             AUTH_SESSION_REQ="$auth_dir/session.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE_SUBCOMMITTEE'
           const fs = require('fs');
           const assert = require('node:assert/strict');
+          (async function () {
           const auth = JSON.parse(fs.readFileSync(process.env.AUTH_SESSION_REQ, 'utf8')).payload;
           const origin = process.env.P2_EDGE_ORIGIN;
           async function call(method, payload) {
@@ -1181,6 +1182,7 @@ jobs:
           const repeated = await call('apiSearchCasesLite',cachedPayload);
           assert.deepEqual(rows(repeated).map(r=>r.caseId || r.id),items.map(r=>r.caseId || r.id),'SUBCOMMITTEE_CACHE_COLLISION');
           console.log('Case subcommittee read gate: PASS '+JSON.stringify({statusRows:all.length,selectedRows:expected.length,pageRows:items.length,exportRows:exported.length,cacheIsolation:true}));
+          })().catch(error => { console.error('SUBCOMMITTEE_READ_GATE_FAILED: '+String(error.code || error.message || 'UNKNOWN')); process.exitCode = 1; });
           NODE_SUBCOMMITTEE
 
             echo "P2 auth smoke: PASS"
