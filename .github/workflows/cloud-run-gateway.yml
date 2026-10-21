@@ -1295,11 +1295,12 @@ jobs:
           node --input-type=commonjs <<'NODE_READ_LOGIN'
           const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),cp=require('node:child_process');
           (async function(){
-            const origin=process.env.PUBLIC_APP_ORIGIN || 'https://sapa27.anti27.workers.dev';
+            const origin=new URL(process.env.PUBLIC_APP_ORIGIN || 'https://sapa27.anti27.workers.dev').origin;
             const username=process.env.E2E_SMOKE_USERNAME,password=process.env.E2E_SMOKE_PASSWORD;
             if(!username||!password) throw Error('SUBCOMMITTEE_CREDENTIALS_MISSING');
-            const response=await fetch(origin+'/api/router',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({method:'apiLogin',payload:{username,email:username,password,clientContext:{source:'github-actions-subcommittee-read',headless:true}},timeoutMs:45000}),signal:AbortSignal.timeout(65000)});
+            const response=await fetch(origin+'/api/router',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify({method:'apiLogin',payload:{username,email:username,password,clientContext:{source:'github-actions-p2-e2e',headless:true}},timeoutMs:45000}),signal:AbortSignal.timeout(65000)});
             const body=await response.json(),result=body.result||{},data=result.data||result,token=result.token||data.token,csrf=result.csrfToken||data.csrfToken||'';
+            console.log('Subcommittee login metadata: '+JSON.stringify({http:response.status,transportOk:body.ok===true,applicationOk:result.ok===true,tokenPresent:!!token,resultKeys:Object.keys(result).slice(0,20)}));
             if(response.status!==200||body.ok!==true||result.ok!==true||!token) throw Error('SUBCOMMITTEE_LOGIN_FAILED');
             const dir=fs.mkdtempSync(path.join(os.tmpdir(),'subcommittee-read-'));
             try{
