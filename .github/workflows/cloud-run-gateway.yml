@@ -1131,7 +1131,6 @@ jobs:
             echo "- Budget summary read: PASS" >> "$GITHUB_STEP_SUMMARY"
             echo "- Public edge → Cloud Run → GAS read contract: PASS" >> "$GITHUB_STEP_SUMMARY"
 
-            rm -rf "$auth_dir"
             AUTH_SESSION_REQ="$auth_dir/session.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE_SUBCOMMITTEE'
           const fs = require('fs');
           const assert = require('node:assert/strict');
@@ -1185,6 +1184,7 @@ jobs:
           })().catch(error => { console.error('SUBCOMMITTEE_READ_GATE_FAILED: '+String(error.code || error.message || 'UNKNOWN')); process.exitCode = 1; });
           NODE_SUBCOMMITTEE
 
+            rm -rf "$auth_dir"
             echo "P2 auth smoke: PASS"
             echo "P3 login/session/Dashboard contract: PASS"
             echo "- Authenticated apiLogin → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"
