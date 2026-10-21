@@ -1683,5 +1683,25 @@ ok('Report subcommittee filter is carried in page and export cache scopes',()=>{
  assert.match(workflow,/SUBCOMMITTEE_CACHE_COLLISION/);
  assert.ok(workflow.indexOf("node <<'NODE_SUBCOMMITTEE'") < workflow.indexOf('rm -rf "$auth_dir"'),'session cleanup must follow the subcommittee gate');
 });
+
+await okAsync('Subcommittee live gate checks transportOk and page/export/cache contracts',async()=>{
+ const marker="node <<'NODE_SUBCOMMITTEE'\n", start=workflow.indexOf(marker)+marker.length;
+ const end=workflow.indexOf('\n          NODE_SUBCOMMITTEE',start);
+ assert.ok(start>=marker.length&&end>start);
+ const source=workflow.slice(start,end);
+ async function run(transportOk){
+  const logs=[], calls=[], proc={env:{AUTH_SESSION_REQ:'mock-session',P2_EDGE_ORIGIN:'https://example.test'},exitCode:0};
+  const assigned={caseId:'TEST-A',subcommitteeName:'คณะ ก'},blank={caseId:'TEST-B',subcommitteeName:''};
+  const results=[{rows:[assigned,blank]},{data:[{name:'คณะ ก'}]},{rows:[assigned]},{rows:[assigned],totalRecords:1},{rows:[assigned,blank],totalRecords:2},{rows:[assigned],totalRecords:1}];
+  const ctx={require:name=>{if(name==='fs')return {readFileSync:()=>JSON.stringify({payload:{token:'private-mock-token'}})};if(name==='node:assert/strict')return assert;throw Error(name)},process:proc,AbortSignal,console:{log:x=>logs.push(x),error:x=>logs.push(x)},fetch:async(url,opts)=>{calls.push(JSON.parse(opts.body).payload);return {status:200,json:async()=>({transportOk,result:{ok:true,...results[calls.length-1]}})}}};
+  await vm.runInNewContext(source,ctx);
+  assert.ok(!logs.join('\n').includes('private-mock-token'));
+  return {logs,calls,proc};
+ }
+ const pass=await run(true);assert.equal(pass.proc.exitCode,0);assert.equal(pass.calls.length,6);assert.ok(pass.logs.some(x=>x.startsWith('Case subcommittee read gate: PASS')));
+ assert.equal(pass.calls[3].payload.subcommitteeName,'คณะ ก');assert.equal(pass.calls[4].payload.subcommitteeName,'');
+ const fail=await run(false);assert.equal(fail.proc.exitCode,1);assert.equal(fail.calls.length,1);assert.ok(fail.logs.some(x=>x.includes('SUBCOMMITTEE_TRANSPORT_FAILED')));
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
