@@ -1131,6 +1131,57 @@ jobs:
             echo "- Public edge → Cloud Run → GAS read contract: PASS" >> "$GITHUB_STEP_SUMMARY"
 
             rm -rf "$auth_dir"
+            AUTH_SESSION_REQ="$auth_dir/session.request.json" P2_EDGE_ORIGIN="$edge_origin" node <<'NODE_SUBCOMMITTEE'
+          const fs = require('fs');
+          const assert = require('node:assert/strict');
+          const auth = JSON.parse(fs.readFileSync(process.env.AUTH_SESSION_REQ, 'utf8')).payload;
+          const origin = process.env.P2_EDGE_ORIGIN;
+          async function call(method, payload) {
+            const response = await fetch(origin + '/api/router', {
+              method: 'POST', headers: {'Content-Type':'application/json', Origin:origin},
+              body: JSON.stringify({method:'apiRouter', payload:{method, payload:{...auth,...payload}}, timeoutMs:90000}),
+              signal: AbortSignal.timeout(100000)
+            });
+            assert.equal(response.status, 200, 'SUBCOMMITTEE_HTTP_FAILED');
+            const body = await response.json();
+            assert.equal(body.ok, true, 'SUBCOMMITTEE_TRANSPORT_FAILED');
+            const result = body.result || body;
+            assert.notEqual(result.ok, false, 'SUBCOMMITTEE_APPLICATION_FAILED');
+            return result;
+          }
+          function rows(value) {
+            if (Array.isArray(value)) return value;
+            if (!value || typeof value !== 'object') return [];
+            for (const key of ['rows','items','records','list','data','result']) if (value[key]) return rows(value[key]);
+            return [];
+          }
+          const base = {reportType:'status', reportValue:'อนุฯ พิจารณา', forceFresh:true, noCache:true, maxRows:5000, includeMeetingHistory:false};
+          const all = rows(await call('apiGetCaseReportExportRows', base));
+          assert.ok(all.every(row => Object.hasOwn(row,'subcommittee')), 'SUBCOMMITTEE_READ_FIELD_MISSING');
+          const options = rows(await call('apiBudgetGetSubcommitteeOptions', {limit:500}));
+          const named = all.find(row => String(row.subcommittee || '').trim());
+          const option = options[0];
+          const name = named ? String(named.subcommittee).trim() : String(typeof option === 'string' ? option : option && (option.subcommitteeName || option.name || option.committeeName || option.title || option.groupName || option['ชื่อคณะอนุกรรมาธิการ'] || option['คณะอนุกรรมาธิการ'] || option['ชื่อคณะ'] || option['ชื่อ']) || '').trim();
+          assert.ok(name, 'SUBCOMMITTEE_OPTIONS_EMPTY');
+          const expected = all.filter(row => String(row.subcommittee || '').trim() === name);
+          const selected = {...base, subcommittee:name};
+          const exported = rows(await call('apiGetCaseReportExportRows', selected));
+          assert.equal(exported.length, expected.length, 'SUBCOMMITTEE_EXPORT_COUNT_MISMATCH');
+          assert.ok(exported.every(row => String(row.subcommittee || '').trim() === name), 'SUBCOMMITTEE_EXPORT_LEAK');
+          const cachedPayload = {...selected,forceFresh:false,noCache:false,bypassCache:false,page:1,limit:20,pageSize:20,compactReadModel:true};
+          const filtered = await call('apiSearchCasesLite', cachedPayload);
+          const items = rows(filtered);
+          assert.ok(items.every(row => String(row.subcommittee || '').trim() === name), 'SUBCOMMITTEE_PAGE_LEAK');
+          assert.equal(items.length, Math.min(20,expected.length), 'SUBCOMMITTEE_PAGE_COUNT_MISMATCH');
+          const total = Number(filtered.totalRecords ?? filtered.total ?? filtered.data?.totalRecords ?? filtered.data?.total);
+          assert.equal(total, expected.length, 'SUBCOMMITTEE_TOTAL_MISMATCH');
+          const unfiltered = await call('apiSearchCasesLite', {...cachedPayload,subcommittee:''});
+          assert.equal(rows(unfiltered).length, Math.min(20,all.length), 'SUBCOMMITTEE_CLEAR_FILTER_FAILED');
+          const repeated = await call('apiSearchCasesLite',cachedPayload);
+          assert.deepEqual(rows(repeated).map(r=>r.caseId || r.id),items.map(r=>r.caseId || r.id),'SUBCOMMITTEE_CACHE_COLLISION');
+          console.log('Case subcommittee read gate: PASS '+JSON.stringify({statusRows:all.length,selectedRows:expected.length,pageRows:items.length,exportRows:exported.length,cacheIsolation:true}));
+          NODE_SUBCOMMITTEE
+
             echo "P2 auth smoke: PASS"
             echo "P3 login/session/Dashboard contract: PASS"
             echo "- Authenticated apiLogin → apiSessionCheck: PASS" >> "$GITHUB_STEP_SUMMARY"

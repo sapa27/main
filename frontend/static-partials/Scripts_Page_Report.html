@@ -23,7 +23,9 @@
   }
   function updateGroupAndReload() {
     return Promise.resolve(isFn(root.updateReportGroupOptions) ? root.updateReportGroupOptions() : true).then(function () {
-      return loadFresh("report-type-change-p5");
+      return Promise.resolve(root.updateReportSubcommitteeFilter()).then(function () {
+        return loadFresh("report-type-change-p5");
+      });
     });
   }
   function onKeydown(ev) {
@@ -34,8 +36,12 @@
   }
   function onChange(ev) {
     var t = ev && ev.target;
-    if (!t || t.id !== "report-group-value" || !(t.closest && t.closest("#p-report"))) return;
-    return loadFresh("report-group-change-p5");
+    if (!t || !(t.closest && t.closest("#p-report"))) return;
+    if (t.id === "report-subcommittee") return loadFresh("report-subcommittee-change");
+    if (t.id !== "report-group-value") return;
+    return Promise.resolve(root.updateReportSubcommitteeFilter()).then(function () {
+      return loadFresh("report-group-change-p5");
+    });
   }
   function bindEvents() {
     if (!root.AppEvents || !isFn(root.AppEvents.on)) return false;
@@ -67,7 +73,9 @@
         bindEvents();
         applyHeaders();
         return Promise.resolve(isFn(root.updateReportGroupOptions) ? root.updateReportGroupOptions() : true).then(function () {
-          return callShared("loadReportData", [1, { forceFresh: false, source: "report.lifecycle.mount-p5" }]);
+          return Promise.resolve(root.updateReportSubcommitteeFilter()).then(function () {
+            return callShared("loadReportData", [1, { forceFresh: false, source: "report.lifecycle.mount-p5" }]);
+          });
         });
       },
       reload: function () {

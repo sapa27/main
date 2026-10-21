@@ -2262,4 +2262,56 @@ var pageKit=mark(obj("AppPageKit"),OWNER_MAP_helper,"thin-helper-facade",{__runt
     }
   });
 })(window);
+// Case assignment and report filter share the existing subcommittee options API.
+window.AppCaseSubcommitteeOptions = (function (root) {
+  var pending = null;
+  function rows(value) {
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== "object") return [];
+    for (var keys = ["rows", "items", "records", "list", "data", "result"], i = 0; i < keys.length; i++) {
+      if (value[keys[i]]) return rows(value[keys[i]]);
+    }
+    return [];
+  }
+  function set(select, value) {
+    if (!select) return;
+    value = String(value || "").trim();
+    if (value && !Array.prototype.some.call(select.options, function (o) { return o.value === value; })) {
+      var option = document.createElement("option");
+      option.value = option.textContent = value;
+      select.appendChild(option);
+    }
+    select.value = value;
+  }
+  function load(select) {
+    if (!select) return Promise.resolve([]);
+    if (!pending) pending = Promise.resolve(root.AppApi.call("apiBudgetGetSubcommitteeOptions", {
+      limit: 500, forceFresh: false, cacheTtlSeconds: 600,
+      source: "case-subcommittee-options"
+    })).then(function (res) {
+      if (res && res.ok === false) throw new Error("อ่านรายชื่อคณะอนุกรรมาธิการไม่สำเร็จ");
+      var names = [];
+      rows(res).forEach(function (r) {
+        var name = String(typeof r === "string" ? r : r && (r.subcommitteeName || r.name || r.committeeName || r.title || r.groupName || r["ชื่อคณะอนุกรรมาธิการ"] || r["คณะอนุกรรมาธิการ"] || r["ชื่อคณะ"] || r["ชื่อ"]) || "").trim();
+        if (name && names.indexOf(name) < 0) names.push(name);
+      });
+      return names;
+    }).catch(function (err) { pending = null; throw err; });
+    select.setAttribute("aria-busy", "true");
+    return pending.then(function (names) {
+      var value = select.value, first = select.options[0].textContent;
+      select.textContent = "";
+      var placeholder = document.createElement("option");
+      placeholder.value = ""; placeholder.textContent = first; select.appendChild(placeholder);
+      names.forEach(function (name) {
+        var option = document.createElement("option");
+        option.value = option.textContent = name; select.appendChild(option);
+      });
+      set(select, value);
+      return names;
+    }).finally(function () { select.setAttribute("aria-busy", "false"); });
+  }
+  return { set: set, load: load };
+})(window);
 window.__APP_COMMON_RUNTIME_DATA_ROUTER_CURRENT__="r330-api-router-single-entry-visible-read-errors";</script>
+

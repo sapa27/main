@@ -1656,4 +1656,31 @@ ok('Meeting status selection and edit round-trip use canonical option values',()
   assert.equal(options.find(o=>o.value==='กมธ. พิจารณา').label,'กมธ.พิจารณา','preserve displayed label');
 });
 
+await okAsync('Case assignment and report share safe deduplicated subcommittee options',async()=>{
+const core=file('frontend/static-partials/Scripts_Core_Runtime.html');
+const src=core.slice(core.indexOf('window.AppCaseSubcommitteeOptions ='),core.indexOf('window.__APP_COMMON_RUNTIME_DATA_ROUTER_CURRENT__='));
+let count=0,fail=false;
+const ctx={window:{AppApi:{call:async(method,payload)=>{count++;assert.equal(method,'apiBudgetGetSubcommitteeOptions');if(fail)throw Error('unavailable');return {data:[{name:'คณะ ก'},{subcommitteeName:'คณะ ข'},{name:'คณะ ก'},{name:'<img onerror=alert(1)>'}]}}}},document:{createElement:()=>({value:'',textContent:''})},Promise};
+vm.createContext(ctx);vm.runInContext(src,ctx);
+function select(){return {options:[{value:'',textContent:'เลือกคณะอนุกรรมาธิการ'}],value:'',setAttribute(){},appendChild(x){this.options.push(x)},set textContent(v){this.options=[]}}}
+const a=select(),b=select(),owner=ctx.window.AppCaseSubcommitteeOptions;
+owner.set(a,'คณะเดิม');await Promise.all([owner.load(a),owner.load(b)]);
+assert.equal(count,1);assert.equal(a.value,'คณะเดิม');assert.equal(b.value,'');assert.equal(a.options.filter(o=>o.value==='คณะ ก').length,1);assert.equal(a.options.find(o=>o.value.startsWith('<img')).textContent,'<img onerror=alert(1)>');
+owner.set(a,'');assert.equal(a.value,'');
+console.log('PASS shared endpoint / single-flight / dedup / historical selection / empty selection / text-only options');
+
+});
+ok('Case subcommittee selection uses the existing string field on form load/save/reset',()=>{
+ assert.match(meetingController,/subcommittee: T\("meeting-caseSubcommittee"\)/);
+ assert.match(meetingController,/Options.set\(meetingById\("meeting-caseSubcommittee"\), t.subcommittee/);
+ assert.match(index,/name="subcommittee"/);
+});
+ok('Report subcommittee filter is carried in page and export cache scopes',()=>{
+ const report=file('frontend/static-partials/Scripts_Page_ReportTrack__reporttrack-common.html');
+ assert.match(report,/requestedSubcommittee,[\s\S]*?caseNum/);
+ assert.match(report,/payload.subcommittee = requestedSubcommittee/);
+ assert.match(report,/subcommittee: reportSubcommitteeValue\(\)/);
+ assert.match(workflow,/SUBCOMMITTEE_CACHE_COLLISION/);
+});
 console.log('# '+passed+' CR-7 regression groups passed');
+
