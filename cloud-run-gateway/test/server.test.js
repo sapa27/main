@@ -199,6 +199,23 @@ test('upstream health fails closed when GAS is unavailable',async()=>withServer(
   assert.equal(j.error.code,'GAS_URL_NOT_CONFIGURED');
 },{...ENV,GAS_WEB_APP_URL:''}));
 
+test('CORS never trusts forwarded hosts or request hosts as an origin allowlist',async()=>withServer(async base=>{
+  for(const pathname of ['/api/router','/api/anti']) {
+    for(const method of ['OPTIONS','POST']) {
+      const response=await fetch(base+pathname,{method,headers:{Origin:'https://unlisted.example','X-Forwarded-Host':'unlisted.example','X-Forwarded-Proto':'https','Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})});
+      assert.equal(response.status,403);
+      assert.equal(response.headers.get('access-control-allow-origin'),null);
+      assert.equal((await response.json()).error.code,'ORIGIN_NOT_ALLOWED');
+    }
+  }
+  assert.equal(allowed('https://unlisted.example',cfg(ENV),{headers:{host:'unlisted.example'}}),false);
+  assert.equal(allowed(ORIGIN,cfg({}),{headers:{host:new URL(ORIGIN).host}}),false);
+  assert.equal(allowed('http://app.example.test',cfg(ENV),{headers:{host:'app.example.test'}}),false);
+  const accepted=await fetch(base+'/api/router',{method:'OPTIONS',headers:{Origin:ENV.PUBLIC_APP_ORIGIN,'X-Forwarded-Host':'app.example.test','Access-Control-Request-Method':'POST'}});
+  assert.equal(accepted.status,204);
+  assert.equal(accepted.headers.get('access-control-allow-origin'),ENV.PUBLIC_APP_ORIGIN);
+}));
+
 test('CORS accepts same Cloud Run origin and rejects unknown origin',async()=>withServer(async base=>{
   const denied=await fetch(base+'/api/router',{method:'OPTIONS',headers:{Origin:'https://evil.invalid','Access-Control-Request-Method':'POST'}});
   assert.equal(denied.status,403);
@@ -364,3 +381,4 @@ test('api/anti permits GitHub Pages and rejects non-public actions before GAS',a
     });
   }finally{global.fetch=original}
 });
+
