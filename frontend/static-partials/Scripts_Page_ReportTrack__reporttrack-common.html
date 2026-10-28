@@ -344,10 +344,6 @@
         if (!visible) { select.value = ""; return Promise.resolve([]); }
         return root.AppCaseSubcommitteeOptions.load(select);
       };
-      function reportSubcommitteeValue() {
-        var select = byId("report-subcommittee");
-        return select && !select.disabled ? clean(select.value) : "";
-      }
       ((root.updateReportGroupOptions = function () {
         var type = clean((byId("report-type") || {}).value || "all"),
           sel = byId("report-group-value"),
@@ -2929,6 +2925,10 @@
         warn("reportTrack.pager.readPageSize", _sizeErr);
       }
       return state;
+    }
+    function reportSubcommitteeValue() {
+      var select = byId("report-subcommittee");
+      return select && !select.disabled ? clean(select.value) : "";
     }
     function queryFor(mode) {
       return clean(
