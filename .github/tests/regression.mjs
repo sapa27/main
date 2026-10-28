@@ -1703,5 +1703,38 @@ await okAsync('Subcommittee live gate checks transportOk and page/export/cache c
  const fail=await run(false);assert.equal(fail.proc.exitCode,1);assert.equal(fail.calls.length,1);assert.ok(fail.logs.some(x=>x.includes('SUBCOMMITTEE_TRANSPORT_FAILED')));
 });
 
+
+await okAsync('Report lifecycle mounts with subcommittee reader visible to shared loaders', async()=>{
+  const shared=file('frontend/static-partials/Scripts_Page_ReportTrack__reporttrack-common.html');
+  const owner=file('frontend/static-partials/Scripts_Page_Report.html');
+  async function run(selection, disabled) {
+    let adapter; const calls=[], warnings=[];
+    const elements={'report-type':{value:'all'},'report-subcommittee':{value:'',disabled:true,classList:{toggle(){}}}};
+    const doc={querySelector:()=>null,createElement:()=>({appendChild(){}}),createTextNode:()=>({}),head:{appendChild(){}}};
+    const kit={byId:id=>elements[id]||null,text:x=>String(x??''),trim:x=>String(x??'').trim(),esc:String,
+      apiRunner:(method,payload)=>{calls.push({method,payload});return Promise.resolve({ok:true,rows:[],total:0,page:1,totalPages:1,serverPaged:true});}};
+    const root={AppRuntimeModules:{requirePageKit:()=>kit},AppPageKit:kit,
+      AppPages:{register(id,a){if(id==='report')adapter=a;},registerActions(){}},
+      AppEvents:{disposePage(){},on(){}},APP_CONFIG:{searchPagePrefetchEnabled:false},
+      AppRuntime:{recordWarning:(...args)=>warnings.push(args)}};
+    const context={window:root,document:doc,navigator:{},__appIsFn:x=>typeof x==='function',
+      __appObserve:(error,label)=>warnings.push([label,error]),console,setTimeout,clearTimeout};
+    vm.createContext(context);
+    for(const source of scripts(shared+'\n'+owner)) vm.runInContext(source,context);
+    assert.ok(adapter,'report lifecycle must register');
+    await adapter.mount();
+    elements['report-subcommittee'].disabled=disabled;
+    elements['report-subcommittee'].value=selection;
+    await root.loadReportData(1,{forceFresh:true});
+    assert.equal(warnings.length,0,warnings.map(x=>String(x[1])).join(','));
+    const requests=calls.filter(x=>x.method==='apiSearchCasesLite');
+    assert.ok(requests.length>0,'report mount must reach canonical read API');
+    assert.equal(requests.at(-1).payload.subcommitteeName,disabled?'':selection);
+  }
+  await run('',true);
+  await run('คณะอนุกรรมาธิการทดสอบ',false);
+  await run('ค่าที่ปิดใช้งาน',true);
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
