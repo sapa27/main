@@ -1753,5 +1753,20 @@ ok('Meeting initialization can call the shared auth helper without weakening aut
  }
 });
 
+
+await okAsync('Print assets use the canonical partial loader and preserve loader failures',async()=>{
+ const prefix='AL.ensurePrintAssets=AL.ensurePrintAssets||';
+ const begin=index.indexOf(prefix),end=index.indexOf(',AL.ensureThailandAssets',begin);
+ assert.ok(begin>=0&&end>begin);
+ const expression=index.slice(begin+prefix.length,end);
+ const calls=[];const context={ensureCore:()=>{calls.push('core');return Promise.resolve(true);},loadPartial:name=>{calls.push(name);return Promise.resolve(true);},loadPage:()=>{throw Error('print is an asset, not a page');}};
+ const ensure=vm.runInNewContext('('+expression+')',context);
+ assert.equal(await ensure(),true);
+ assert.deepEqual(calls,['core','Runtime_06_Print']);
+ const failure=new Error('PRINT_ASSET_LOAD_FAILED');
+ context.loadPartial=()=>Promise.reject(failure);
+ await assert.rejects(ensure(),error=>error===failure);
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
