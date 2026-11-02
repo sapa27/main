@@ -1736,5 +1736,22 @@ await okAsync('Report lifecycle mounts with subcommittee reader visible to share
   await run('ค่าที่ปิดใช้งาน',true);
 });
 
+
+ok('Meeting initialization can call the shared auth helper without weakening auth checks',()=>{
+ const match=meetingController.match(/^    function meetingAuthReadyCanonical_\(\) \{/m);
+ assert.ok(match,'auth helper must be a declaration in the shared Meeting scope');
+ const begin=match.index,end=meetingController.indexOf('    function Je() {',begin);
+ assert.ok(end>begin);
+ const helper=meetingController.slice(begin,end);
+ const init=meetingController.indexOf('(window.initMeetingPage = function (t) {');
+ const guard=meetingController.slice(init).match(/if \(\(\(t = t \|\| \{\}\), !meetingAuthReadyCanonical_\(\)\)\) return !1;/);
+ assert.ok(guard,'retain canonical auth guard');
+ for(const state of [{}, {'auth.token':'mock-session'}, {'auth.status':'authenticated'}, {'auth.loginOk':true}, {'auth.bootstrapOk':true}]){
+  const context={window:{},meetingRoot:{},meetingText:v=>String(v??'').trim(),meetingStoreGet:(key,fallback)=>Object.prototype.hasOwnProperty.call(state,key)?state[key]:fallback,__appObserve:()=>{}};
+  vm.runInNewContext('(function(){window.initMeetingPage=function(t){'+guard[0]+'return true;};'+helper+'})();',context);
+  assert.equal(context.window.initMeetingPage({}),Object.keys(state).length>0);
+ }
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
