@@ -316,6 +316,9 @@ jobs:
           echo "CF_WORKERS_SUBDOMAIN=$selected_subdomain" >> "$GITHUB_ENV"
           echo "PUBLIC_APP_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
           echo "P0FB_EDGE_ORIGIN=$edge_origin" >> "$GITHUB_ENV"
+      - name: Record public GAS deployment fingerprint
+        run: |
+          node -e 'const c=require("node:crypto");const u=new URL(process.env.ANTI_GAS_WEB_APP_URL);console.log("Public GAS deployment fingerprint: "+c.createHash("sha256").update(u.origin+u.pathname).digest("hex"))'
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
@@ -653,6 +656,32 @@ jobs:
                   headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }
                 });
               }
+              if (request.method === "POST" && incoming.pathname === "/api/anti") {
+                const limitedResponse = (code, retryAfterSeconds) => {
+                  const responseHeaders = new Headers({
+                    "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store",
+                    "X-Content-Type-Options": "nosniff", "X-GAS-Response-Contract": "anti-public-json-v1",
+                    "X-P0F-Edge": "cloudflare-workers-dev", "Retry-After": String(retryAfterSeconds), "Vary": "Origin"
+                  });
+                  if (request.headers.get("Origin") === "https://sapa27.github.io") {
+                    responseHeaders.set("Access-Control-Allow-Origin", "https://sapa27.github.io");
+                    responseHeaders.set("Access-Control-Expose-Headers", "X-GAS-Response-Contract,Retry-After");
+                  }
+                  // Keep the existing application-error envelope so the public UI does not retry a throttle as a network failure.
+                  return new Response(JSON.stringify({ ok: false, apiVersion: "1", code,
+                    requestId: "REQ-" + crypto.randomUUID(), retryAfterSeconds,
+                    msg: "มีคำขอค้นหามากเกินไป กรุณารอสักครู่แล้วลองใหม่"
+                  }), { status: 200, headers: responseHeaders });
+                };
+                const clientIp = request.headers.get("CF-Connecting-IP");
+                if (!clientIp || !env.PUBLIC_API_RATE_LIMITER) return limitedResponse("RATE_LIMIT_UNAVAILABLE", 5);
+                try {
+                  const decision = await env.PUBLIC_API_RATE_LIMITER.limit({ key: "anti:" + clientIp });
+                  if (!decision.success) return limitedResponse("RATE_LIMITED", 60);
+                } catch (_) {
+                  return limitedResponse("RATE_LIMIT_UNAVAILABLE", 5);
+                }
+              }
               const upstreamBase = new URL(env.CLOUD_RUN_ORIGIN);
               const target = new URL(incoming.pathname + incoming.search, upstreamBase);
               const headers = new Headers(request.headers);
@@ -694,7 +723,7 @@ jobs:
           };
           EDGE_WORKER
 
-          node -e 'const fs=require("fs");const p=process.argv[1],name=process.argv[2],origin=process.argv[3];fs.writeFileSync(p,JSON.stringify({name,main:"./worker.mjs",compatibility_date:"2026-09-22",workers_dev:true,preview_urls:false,vars:{CLOUD_RUN_ORIGIN:origin}},null,2))'             "$tmp_edge/wrangler.jsonc" "$CF_WORKER_NAME" "$CLOUD_RUN_ORIGIN"
+          node -e 'const fs=require("fs");const p=process.argv[1],name=process.argv[2],origin=process.argv[3];fs.writeFileSync(p,JSON.stringify({name,main:"./worker.mjs",compatibility_date:"2026-09-22",workers_dev:true,preview_urls:false,ratelimits:[{name:"PUBLIC_API_RATE_LIMITER",namespace_id:"27032026",simple:{limit:60,period:60}}],vars:{CLOUD_RUN_ORIGIN:origin}},null,2))'             "$tmp_edge/wrangler.jsonc" "$CF_WORKER_NAME" "$CLOUD_RUN_ORIGIN"
 
           node --check "$tmp_edge/worker.mjs"
           npx --yes wrangler@4.136.1 deploy --config "$tmp_edge/wrangler.jsonc"
@@ -1315,3 +1344,4 @@ jobs:
             }finally{fs.rmSync(dir,{recursive:true,force:true});}
           })().catch(error=>{console.error(String((String(error.message||'').match(/SUBCOMMITTEE_[A-Z_]+/)||[])[0]||error.code||'SUBCOMMITTEE_READ_FAILED'));process.exitCode=1;});
           NODE_READ_LOGIN
+
