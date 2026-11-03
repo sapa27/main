@@ -2,6 +2,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {once}=require('node:events');
+const {spawnSync}=require('node:child_process');
 const {REV,GAS_RESPONSE_CONTRACT,ANTI_RESPONSE_CONTRACT,UPSTREAM_HEALTH_TIMEOUT_MS,cfg,gasUrl,allowed,networkProfile,isWrite,effectiveMethod,isRetryableRead,timeout,validateGasEnvelope,validateAntiEnvelope,validateAntiRequest,directRpc,directAnti,createServer}=require('../server');
 
 const ORIGIN='https://sapa27-gateway-asxuzzwspa-eu.a.run.app';
@@ -207,6 +208,64 @@ test('CORS accepts same Cloud Run origin and rejects unknown origin',async()=>wi
   assert.equal(ok.headers.get('access-control-allow-origin'),ORIGIN);
 }));
 
+test('unconfigured origins cannot become trusted through host or forwarded headers',()=>{
+  const c=cfg(ENV),origin='https://unlisted.example';
+  for(const headers of [
+    {host:'unlisted.example'},
+    {host:'gateway.example','x-forwarded-host':'unlisted.example'},
+    {host:'gateway.example','x-forwarded-host':'unlisted.example, app.example.test','cf-ray':'fixture','x-edge-provider':'cloudflare'}
+  ])assert.equal(allowed(origin,c,{headers}),false);
+  assert.equal(allowed(ORIGIN,c,{headers:{host:'gateway.example'}}),true);
+  assert.equal(allowed('https://app.example.test',c,{headers:{host:'gateway.example'}}),true);
+  assert.equal(allowed('http://app.example.test',c,{headers:{host:'app.example.test'}}),false);
+  assert.equal(allowed(ORIGIN,cfg({}),{headers:{host:new URL(ORIGIN).host}}),false);
+});
+
+test('spoofed forwarded origins are rejected before upstream access on both API routes',async()=>{
+  const original=global.fetch;let upstreamCalls=0;
+  global.fetch=async(...args)=>{
+    if(String(args[0]).startsWith('http://127.0.0.1:'))return original(...args);
+    upstreamCalls++;throw new Error('Unexpected upstream request');
+  };
+  try{
+    await withServer(async base=>{
+      for(const route of ['/api/router','/api/anti'])for(const method of ['OPTIONS','POST']){
+        const r=await fetch(base+route,{method,headers:{Origin:'https://unlisted.example','X-Forwarded-Host':'unlisted.example','Content-Type':'application/json'},...(method==='POST'?{body:'{}'}:{})});
+        assert.equal(r.status,403);
+        assert.equal(r.headers.get('access-control-allow-origin'),null);
+        assert.equal((await r.json()).error.code,'ORIGIN_NOT_ALLOWED');
+      }
+    });
+    assert.equal(upstreamCalls,0);
+  }finally{global.fetch=original}
+});
+
+test('malformed URL returns 400 and the same gateway process remains healthy',()=>{
+  // Isolate the old process-crash regression so a failing assertion cannot kill the test runner.
+  const script=`
+    const http=require('node:http');
+    const server=require(${JSON.stringify(require.resolve('../server'))}).createServer({});
+    const get=(port,path)=>new Promise((resolve,reject)=>{
+      const req=http.get({host:'127.0.0.1',port,path},res=>{let raw='';res.on('data',b=>raw+=b);res.on('end',()=>resolve({status:res.statusCode,body:JSON.parse(raw)}))});req.on('error',reject);
+    });
+    server.listen(0,'127.0.0.1',async()=>{try{
+      const port=server.address().port,results=[];
+      for(const path of ['//[','http://['])results.push(await get(port,path));
+      results.push(await get(port,'/health'));
+      console.log(JSON.stringify(results));server.close();
+    }catch(e){console.error(e);server.close();process.exitCode=1}});
+  `;
+  const child=spawnSync(process.execPath,['-e',script],{encoding:'utf8',timeout:5000});
+  assert.ifError(child.error);
+  assert.equal(child.status,0,child.stderr);
+  const results=JSON.parse(child.stdout.trim());
+  for(const r of results.slice(0,2)){
+    assert.equal(r.status,400);assert.equal(r.body.ok,false);
+    assert.equal(r.body.error.code,'REQUEST_URL_INVALID');
+  }
+  assert.equal(results[2].status,200);assert.equal(results[2].body.ok,true);
+});
+
 for (const route of ['staff', 'anti']) {
   test(`${route} GAS deadline remains active while reading the response body`, async t => {
     t.mock.timers.enable({apis:['setTimeout']});
@@ -364,3 +423,4 @@ test('api/anti permits GitHub Pages and rejects non-public actions before GAS',a
     });
   }finally{global.fetch=original}
 });
+
