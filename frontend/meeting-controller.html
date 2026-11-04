@@ -4279,10 +4279,10 @@
     function oe(t, n) {
       var rawNotice = String(n || ""),
         visibleNotice =
-          "success" === t
+          "success" === t || "warning" === t
             ? rawNotice
             : meetingPublicErrorText_(null, rawNotice);
-      if ("success" !== t) {
+      if ("success" !== t && "warning" !== t) {
         try {
           meetingRoot.AppRuntime &&
             meetingRoot.AppRuntime.recordWarning &&
