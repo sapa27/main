@@ -2752,7 +2752,11 @@
             try {
               __appObserve(postSaveError, "meeting.caseSave.postSaveUi");
             } catch (_observeError) { /* Keep the confirmed API outcome. */ }
-            oe("warning", "บันทึกข้อมูลเรื่องพิจารณาแล้ว แต่แสดงผลหลังบันทึกไม่สมบูรณ์ กรุณาโหลดข้อมูลใหม่โดยไม่กดบันทึกซ้ำ");
+            try {
+              oe("warning", "บันทึกข้อมูลเรื่องพิจารณาแล้ว แต่แสดงผลหลังบันทึกไม่สมบูรณ์ กรุณาโหลดข้อมูลใหม่โดยไม่กดบันทึกซ้ำ");
+            } catch (noticeError) {
+              try { __appObserve(noticeError, "meeting.caseSave.postSaveNotice"); } catch (_noticeObserveError) { /* Keep the confirmed API outcome. */ }
+            }
             return !0;
           });
         });
@@ -4304,7 +4308,7 @@
       if (!(a && a.signature === i && r - Number(a.at || 0) < 2200)) {
         if ((G({ lastNotice: { signature: i, at: r } }), meetingRoot.Swal))
           return appSwalFire({
-            icon: "success" === t ? "success" : "error",
+            icon: "success" === t ? "success" : "warning" === t ? "warning" : "error",
             title: visibleNotice,
             timer: 1800,
             showConfirmButton: !1,
