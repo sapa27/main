@@ -1810,7 +1810,7 @@ await okAsync('Confirmed case saves survive UI failures without retrying the wri
   const noticeEnd=meetingController.indexOf('    function se()',noticeBegin);
   assert.ok(noticeBegin>=0&&noticeEnd>noticeBegin);
   for(const severity of ['success','warning','error']){
-    const icons=[],ctx={B:()=>({}),G:()=>{},meetingRoot:{Swal:{}},appSwalFire:options=>icons.push(options.icon)};
+    const icons=[],ctx={meetingPublicErrorText_:(error,text)=>text,B:()=>({}),G:()=>{},meetingRoot:{Swal:{}},appSwalFire:options=>icons.push(options.icon)};
     vm.createContext(ctx);vm.runInContext(meetingController.slice(noticeBegin,noticeEnd),ctx);
     ctx.oe(severity,'Synthetic notice');assert.deepEqual(icons,[severity]);
   }
