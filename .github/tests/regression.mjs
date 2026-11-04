@@ -1768,5 +1768,53 @@ await okAsync('Print assets use the canonical partial loader and preserve loader
  await assert.rejects(ensure(),error=>error===failure);
 });
 
+
+await okAsync('Confirmed case saves survive UI failures without retrying the write',async()=>{
+  const begin=meetingController.indexOf('function meetingSaveCaseSinglePath_()');
+  const end=meetingController.indexOf('      ((window.meetingSharedSave =',begin);
+  const validateBegin=meetingController.indexOf('function meetingApiSaveOk_(');
+  const validateEnd=meetingController.indexOf('function meetingSaveData_(',validateBegin);
+  assert.ok(begin>=0&&end>begin&&validateBegin>=0&&validateEnd>validateBegin);
+  const source=meetingController.slice(validateBegin,validateEnd)+'\n'+meetingController.slice(begin,end);
+  async function run(mode){
+    const calls=[],notices=[],warnings=[];
+    const record={caseId:'SYNTHETIC-CASE',caseNum:'900001',status:'อนุฯ พิจารณา',subcommitteeName:'Synthetic committee'};
+    function ui(stage){if(mode===stage)throw new Error('SYNTHETIC_'+stage);}
+    const context={Promise,Ge:()=>({...record}),
+      callMeetingApi:async(name,payload)=>{calls.push({name,payload});if(mode==='transport')throw new Error('SYNTHETIC_TRANSPORT');return mode==='rejected'?{ok:false,msg:'SYNTHETIC_REJECTED'}:{ok:true,data:record};},
+      meetingSaveData_:res=>res.data,meetingCommitSavedCaseState_:(saved)=>{ui('commit');return saved;},
+      T:()=>'',E:()=>{},V:()=>{},Le:()=>ui('mode'),Te:()=>{},
+      meetingSaveSucceeded_:()=>{ui('notice');notices.push('success');return Promise.resolve(true);},
+      __appObserve:(error,label)=>warnings.push(label),
+      oe:kind=>{if(mode==='warningNotice')throw new Error('SYNTHETIC_WARNING_NOTICE');notices.push(kind);}
+    };
+    if(mode==='warningNotice')context.meetingCommitSavedCaseState_=()=>{throw new Error('SYNTHETIC_COMMIT');};
+    vm.createContext(context);vm.runInContext(source,context);
+    let value,error;try{value=await context.meetingSaveCaseSinglePath_();}catch(e){error=e.message;}
+    assert.equal(calls.length,1,'never retry an already committed write');
+    assert.equal(calls[0].name,'apiSaveCase');
+    assert.equal(calls[0].payload.subcommitteeName,record.subcommitteeName);
+    return{value,error,notices,warnings};
+  }
+  assert.equal((await run('normal')).value,true);
+  for(const mode of ['commit','mode','notice','warningNotice']){
+    const result=await run(mode);assert.equal(result.error,undefined);assert.equal(result.value,true);
+    assert.ok(result.warnings.includes('meeting.caseSave.postSaveUi'));
+    if(mode!=='warningNotice')assert.deepEqual(result.notices,['warning']);
+  }
+  for(const mode of ['transport','rejected']){
+    const result=await run(mode);assert.match(result.error,/SYNTHETIC_(TRANSPORT|REJECTED)/);
+    assert.deepEqual(result.notices,[]);assert.deepEqual(result.warnings,[]);
+  }
+  const noticeBegin=meetingController.indexOf('function oe(t, n) {');
+  const noticeEnd=meetingController.indexOf('    function se()',noticeBegin);
+  assert.ok(noticeBegin>=0&&noticeEnd>noticeBegin);
+  for(const severity of ['success','warning','error']){
+    const icons=[],ctx={B:()=>({}),G:()=>{},meetingRoot:{Swal:{}},appSwalFire:options=>icons.push(options.icon)};
+    vm.createContext(ctx);vm.runInContext(meetingController.slice(noticeBegin,noticeEnd),ctx);
+    ctx.oe(severity,'Synthetic notice');assert.deepEqual(icons,[severity]);
+  }
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
