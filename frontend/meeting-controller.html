@@ -2707,6 +2707,8 @@
         payload.__meetingSaveOwner = "phase2.case.singleSavePath";
         return callMeetingApi("apiSaveCase", payload).then(function (res) {
           meetingApiSaveOk_(res, "apiSaveCase");
+          // The API has confirmed the write; a UI refresh must not report it as a failed save.
+          return Promise.resolve().then(function () {
           var data = meetingSaveData_(res);
           data = meetingCommitSavedCaseState_(data, payload);
           var savedCaseId =
@@ -2746,6 +2748,17 @@
             },
             "บันทึกข้อมูลเรื่องพิจารณาสำเร็จแล้ว",
           );
+          }).catch(function (postSaveError) {
+            try {
+              __appObserve(postSaveError, "meeting.caseSave.postSaveUi");
+            } catch (_observeError) { /* Keep the confirmed API outcome. */ }
+            try {
+              oe("warning", "บันทึกข้อมูลเรื่องพิจารณาแล้ว แต่แสดงผลหลังบันทึกไม่สมบูรณ์ กรุณาโหลดข้อมูลใหม่โดยไม่กดบันทึกซ้ำ");
+            } catch (noticeError) {
+              try { __appObserve(noticeError, "meeting.caseSave.postSaveNotice"); } catch (_noticeObserveError) { /* Keep the confirmed API outcome. */ }
+            }
+            return !0;
+          });
         });
       }
       ((window.meetingSharedSave = function (ev) {
@@ -4266,10 +4279,10 @@
     function oe(t, n) {
       var rawNotice = String(n || ""),
         visibleNotice =
-          "success" === t
+          "success" === t || "warning" === t
             ? rawNotice
             : meetingPublicErrorText_(null, rawNotice);
-      if ("success" !== t) {
+      if ("success" !== t && "warning" !== t) {
         try {
           meetingRoot.AppRuntime &&
             meetingRoot.AppRuntime.recordWarning &&
@@ -4295,7 +4308,7 @@
       if (!(a && a.signature === i && r - Number(a.at || 0) < 2200)) {
         if ((G({ lastNotice: { signature: i, at: r } }), meetingRoot.Swal))
           return appSwalFire({
-            icon: "success" === t ? "success" : "error",
+            icon: "success" === t ? "success" : "warning" === t ? "warning" : "error",
             title: visibleNotice,
             timer: 1800,
             showConfirmButton: !1,
