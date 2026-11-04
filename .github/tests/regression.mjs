@@ -22,6 +22,31 @@ const CANDIDATE_GAS_ENV_REF='GAS_CANDIDATE_WEB_APP_URL: ${{ vars.GAS_WEB_APP_URL
 const ANTI_GAS_ENV_REF='ANTI_GAS_WEB_APP_URL: ${{ vars.ANTI_GAS_WEB_APP_URL }}';
 const CLOUDFLARE_ACCOUNT_ENV_REF='CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}';
 
+ok('Viewer can open Report through the canonical policy without gaining write or Staff access',()=>{
+  const raw=JSON.parse(index.match(/window\.__APP_PERMISSION_MATRIX__=(\{[^\n]+\});/)[1]);
+  const bootPolicy=JSON.parse(index.match(/"permissionMatrix":(\{[^\n]+\}),"permissionMatrixStamp"/)[1]);
+  assert.deepEqual(bootPolicy,raw,'bootstrap and navigation policies must agree');
+  const ctx={window:{__APP_PERMISSION_MATRIX__:raw},document:{documentElement:{setAttribute(){}}}};
+  const owner=scripts(index).find(s=>s.includes('root.AppPermissionMatrix=Object.freeze'));
+  vm.runInNewContext(owner,ctx);
+  const policy=ctx.window.AppPermissionMatrix;
+  assert.equal(policy.canPage('Viewer','report'),true);
+  assert.equal(policy.canPage('Viewer','/report'),true);
+  assert.deepEqual(Array.from(policy.allowedPages('Viewer')),['dashboard','search','report']);
+  for(const page of ['meeting','committee-meeting','track','people','petitioner','budget','admin'])assert.equal(policy.canPage('Viewer',page),false,page);
+  assert.equal(raw.roles.Viewer.allowWrites,false);
+  assert.deepEqual(raw.roles.Viewer.deniedApiGroups,['admin-users','admin-budget','budget','personnel','petitioners']);
+  assert.equal(raw.deferredAssetMinimumRole.Scripts_Page_Report,'Viewer');
+  assert.equal(raw.bundleMinimumRole.pageTrackReport,'Viewer');
+  for(const asset of ['Scripts_Page_Tracking','Scripts_Page_People','Scripts_Page_Meeting::meeting'])assert.equal(raw.deferredAssetMinimumRole[asset],'Staff');
+  assert.ok(index.includes('"pageTrackReport":{"minRole":"viewer"'));
+  assert.ok(index.includes('return !canPageCrit(navKey,role)||'),'critical click path must use the same page policy');
+  assert.ok(!index.includes('role==="Viewer"&&navKey!=='),'no second role-specific navigation allowlist');
+  assert.equal(policy.canPage('Staff','report'),true);
+  assert.equal(policy.canPage('Staff','admin'),false);
+  assert.equal(policy.canPage('Admin','admin'),true);
+});
+
 ok('P0-F repository layout remains Cloud Run source-only',()=>{
   assert.ok(fs.existsSync(path.join(ROOT,'frontend')));
   assert.ok(!fs.existsSync(path.join(ROOT,'github-pages')));
@@ -64,7 +89,7 @@ ok('critical application surfaces remain present',()=>{
 ok('Search Track Report deferred chunks include their explicit page owners',()=>{
   assert.ok(index.includes('"Scripts_Page_Search":"Viewer"'),'Search deferred owner role missing');
   assert.ok(index.includes('"Scripts_Page_Tracking":"Staff"'),'Tracking deferred owner role missing');
-  assert.ok(index.includes('"Scripts_Page_Report":"Staff"'),'Report deferred owner role missing');
+  assert.ok(index.includes('"Scripts_Page_Report":"Viewer"'),'Report deferred owner must allow Viewer');
   assert.ok(index.includes('"search":["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common","Scripts_Page_Search"]'),'Search chunk must load shared implementation then Search owner');
   assert.ok(index.includes('"track":["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common","Scripts_Page_Tracking"]'),'Tracking chunk must load shared implementation then Tracking owner');
   assert.ok(index.includes('"report":["bundle:runtimeDateTable","Runtime_05_Status_Aging","Scripts_Page_ReportTrack::reporttrack-common","Scripts_Page_Report"]'),'Report chunk must load shared implementation then Report owner');
@@ -1817,4 +1842,5 @@ await okAsync('Confirmed case saves survive UI failures without retrying the wri
 });
 
 console.log('# '+passed+' CR-7 regression groups passed');
+
 
