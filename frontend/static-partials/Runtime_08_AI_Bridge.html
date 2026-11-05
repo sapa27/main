@@ -465,10 +465,10 @@ try{resolve(normalizePdfBase64(String(e&&e.target&&e.target.result||"")))}catch(
 },reader.onerror=function(){reject(new Error("อ่านส่วนของไฟล์ PDF ไม่สำเร็จ"))},reader.readAsDataURL(blob)
 })
 }
-function updateAiUploadProgressCurrent(done,total){
+function updateAiUploadProgressCurrent(done,total,message){
 try{
 var pct=total>0?Math.min(100,Math.round(done*100/total)):0;
-if(root.Swal&&root.Swal.getHtmlContainer){var box=root.Swal.getHtmlContainer();box&&(box.textContent="กำลังส่ง PDF แบบแบ่งส่วน "+pct+"%") }
+if(root.Swal&&root.Swal.getHtmlContainer){var box=root.Swal.getHtmlContainer();box&&(box.textContent=message||"กำลังส่ง PDF แบบแบ่งส่วน "+pct+"%") }
 }catch(_progressErr){__appObserve(_progressErr,"ai.pdf.r330.progress")}
 }
 function uploadPdfForAiCurrent(method,file,mode){
@@ -484,9 +484,16 @@ function next(){
 if(offset>=file.size)throw new Error("ส่ง PDF ไม่ครบ กรุณาลองใหม่");
 var end=Math.min(file.size,offset+chunkBytes),final=end>=file.size,chunk=file.slice(offset,end,"application/pdf"),sentOffset=offset;
 return readBlobAsBase64Current(chunk).then(function(chunkBase64){
-return callApi(method,{transferOp:"chunk",transferId:transferId,offset:sentOffset,chunkBase64:chunkBase64,final:final,mode:mode||"letter",transport:"gemini-inline-pdf-base64"},{retries:2,retryDelay:600,timeoutMs:final?finalTimeoutMs:9e4})
+var payload={transferOp:"chunk",transferId:transferId,offset:sentOffset,chunkBase64:chunkBase64,final:final,mode:mode||"letter",transport:"gemini-inline-pdf-base64"};
+if(final)updateAiUploadProgressCurrent(sentOffset,file.size,"กำลังส่ง PDF ส่วนสุดท้ายและสกัดข้อมูล กรุณารอสักครู่");
+return callApi(method,payload,{retries:final?0:2,retryDelay:600,timeoutMs:final?finalTimeoutMs:9e4}).catch(function(err){
+var unavailable=String(err&&err.message||"").indexOf("บริการ Gemini ไม่พร้อมใช้งานชั่วคราว")===0;
+if(!final||mode!=="meeting"||!unavailable)throw err;
+updateAiUploadProgressCurrent(sentOffset,file.size,"บริการ AI ไม่พร้อมใช้งานชั่วคราว กำลังลองสแกนซ้ำอีก 1 ครั้ง");
+return delay(2000).then(function(){return callApi(method,payload,{retries:0,timeoutMs:finalTimeoutMs})})
+})
 }).then(function(result){
-offset=end,mode!=="meeting"&&updateAiUploadProgressCurrent(offset,file.size);
+offset=end,updateAiUploadProgressCurrent(offset,file.size,final?"สกัดข้อมูลจาก PDF เสร็จแล้ว":null);
 return final?result:next()
 })
 }
