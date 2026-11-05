@@ -768,6 +768,7 @@ renderCharts:D
                 }
                 return null;
             }
+            state.lastFreshAt = Number(box.savedAt || 0);
             return setMeta(box.data, { dashboardSessionCacheHit: !0, singleCompletePath: !0, sessionScoped: !0, cacheAgeMs: Math.max(0, Date.now() - Number(box.savedAt || Date.now())), releaseStamp: release });
         }
         catch (e) {
@@ -794,7 +795,6 @@ renderCharts:D
                 warn("dashboard.render.emptyState", renderFallbackErr, { owner: OWNER, errorCode: code });
             }
         }
-        saveCache(data);
         try {
             root.dispatchEvent && root.dispatchEvent(new CustomEvent("dashboard:data", { detail: { owner: OWNER, data: data, errorCode: data && data.meta && data.meta.errorCode || "" } }));
         }
@@ -923,15 +923,16 @@ renderCharts:D
         }
         return renderSkeleton(), state.promise = waitDashboardAuthSnapshotReady(options).then(function (snapshot) { return state.performance.authReadyMs = Date.now() - performanceStartedAt, (!snapshot || !snapshot.ready) && warn("dashboard.authSnapshot.notReady", null, { owner: OWNER, authenticated: !!(snapshot && snapshot.authenticated), role: snapshot && snapshot.role || "", source: options.source || "dashboard" }), state.performance.apiCallCount = 1, apiCall("apiGetDashboardBundle", buildPayload(Object.assign({}, options, { __authSnapshot: snapshot }))); }).then(function (res) {
             state.performance.apiSettledMs = Date.now() - performanceStartedAt;
-            state.lastFreshAt = Date.now();
             if (token !== state.loadToken && state.data)
                 return state.data;
             var responseCode = res && res.ok !== !0 ? dashboardErrorCodeFrom(res, "DASHBOARD_BUNDLE_LOAD_FAILED") : "", responseMessage = responseCode ? dashboardErrorMessageFrom(res, responseCode) : "", data = normalize(res);
             responseCode && (data = attachDashboardErrorMeta(data, responseCode, responseMessage, { source: fresh ? "dashboard-single-complete-refresh-error" : "dashboard-single-complete-error", errorStage: "api-response", completeData: !1 }));
             var complete = isSingleCompleteData(data);
+            if (complete && !responseCode) state.lastFreshAt = Date.now();
             if (!complete && state.data && isSingleCompleteData(state.data) && !fresh)
                 return state.data;
             var rendered = render(data, { source: fresh ? "dashboard-force-fresh-production-current" : "dashboard-single-owner-production-current", errorCode: responseCode || "", completeData: complete, singleCompletePath: !0 });
+            if (complete && !responseCode) saveCache(rendered);
             state.performance.renderedMs = Date.now() - performanceStartedAt, data.meta = Object.assign({}, data.meta || {}, { frontendPerformance: Object.assign({}, state.performance, { targetMs: 6500, status: state.performance.renderedMs > 6500 ? "over-target" : "within-target", stamp: "performance-persistent-dashboard-snapshot-g-r330" }) }), data.dashboardDto && (data.dashboardDto.meta = Object.assign({}, data.dashboardDto.meta || {}, data.meta || {}));
             try {
                 root.AppPerformanceGate && __appIsFn(root.AppPerformanceGate.record) && root.AppPerformanceGate.record("apiGetDashboardBundle", { durationMs: state.performance.renderedMs, ok: !responseCode && complete, source: options.source || "dashboard", cacheHit: !!(data.meta && data.meta.cacheHit), completeData: complete, apiCallCount: 1 });
@@ -974,7 +975,7 @@ renderCharts:D
         var mustRefresh = consumeForceFreshNext();
         var result = load(Object.assign({}, options, { forceFresh: !1 }));
         Promise.resolve(result).then(function () {
-            var usedCache = state.performance && Number(state.performance.apiCallCount || 0) === 0, cacheAgeMs = Number(state.data && state.data.meta && state.data.meta.cacheAgeMs || 0) || Math.max(0, Date.now() - Number(state.lastFreshAt || Date.now()));
+            var usedCache = state.performance && Number(state.performance.apiCallCount || 0) === 0, cacheAgeMs = Math.max(0, Date.now() - Number(state.lastFreshAt || 0));
             if (mustRefresh) backgroundRevalidate("dashboard-after-mutation.current", !0);
             else if (usedCache && cacheAgeMs > 180000) backgroundRevalidate("dashboard-cache-revalidate.current", !1);
         }).catch(function (err) { warn("dashboard.activate.revalidate", err, { owner: OWNER }); });
