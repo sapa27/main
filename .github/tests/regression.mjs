@@ -1841,6 +1841,41 @@ await okAsync('Confirmed case saves survive UI failures without retrying the wri
   }
 });
 
+await okAsync('Dashboard cached renders do not renew freshness and restored memory revalidates as time passes',async()=>{
+ const html=file('frontend/static-partials/Scripts_Page_Dashboard.html');
+ const source=scripts(html).find(s=>s.includes('var OWNER = "dashboard-single-owner-production-current"'));
+ assert.ok(source);
+ let time=1000000,apiError=false;
+ class Clock extends Date{constructor(...args){super(...(args.length?args:[time]));}static now(){return time;}}
+ const storage=new Map(),calls=[],auth={'auth.token':'fixture-token','auth.user':{id:'fixture-user',role:'Viewer'}};
+ function create(){
+  const document={dispatchEvent(){},documentElement:{classList:{remove(){}}}};
+  const root={AppStore:{get:(k,d)=>auth[k]??d,set:(k,v)=>auth[k]=v},AppDashboard:{},sessionStorage:{get length(){return storage.size;},key:i=>Array.from(storage.keys())[i],getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},AppPageKit:{apiRunner:async(m,p)=>{calls.push({m,p});if(apiError)throw new Error('fixture read failed');return {ok:true,data:{summaryStats:{total:42},meta:{dashboardSingleCompletePath:true,completeData:true}}};}},DashboardRender:{renderDashboardAll(){}},setTimeout,clearTimeout};
+  vm.runInNewContext(source,{window:root,document,Date:Clock,CustomEvent:function(){},__appIsFn:v=>typeof v==='function',__appObserve(){}});
+  return root.AppDashboard;
+ }
+ async function settle(d){await Promise.resolve();await Promise.resolve();if(d.__state.backgroundPromise)await d.__state.backgroundPromise;}
+ let dashboard=create();await dashboard.activate();await settle(dashboard);
+ assert.equal(calls.length,1);assert.equal(calls[0].m,'apiGetDashboardBundle');
+ const key=Array.from(storage.keys())[0],initial=JSON.parse(storage.get(key));
+ time+=60000;dashboard=create();await dashboard.activate();await settle(dashboard);
+ assert.equal(calls.length,1,'unexpired session cache may render without an API read');
+ assert.equal(JSON.parse(storage.get(key)).savedAt,initial.savedAt,'cached render must retain original read time');
+ assert.equal(JSON.parse(storage.get(key)).expiresAt,initial.expiresAt,'cached render must not extend expiry');
+ time+=181000;await dashboard.activate();await settle(dashboard);
+ assert.equal(calls.length,2,'restored memory must revalidate once its original read becomes stale');
+ assert.equal(calls[1].p.source,'dashboard-cache-revalidate.current');
+ const refreshed=JSON.parse(storage.get(key));assert.equal(refreshed.savedAt,time);
+ const freshAt=dashboard.__state.lastFreshAt;
+ time+=31000;apiError=true;await dashboard.refresh();await settle(dashboard);
+ assert.equal(calls.length,3);assert.equal(calls[2].p.forceFresh,true);
+ assert.equal(calls[2].p.noCache,true);assert.equal(calls[2].p.bypassCache,true);
+ assert.equal(dashboard.__state.data.summaryStats.total,42,'retain last good data on a failed refresh');
+ assert.equal(dashboard.__state.lastFreshAt,freshAt,'failed refresh must not mark old data fresh');
+ assert.equal(JSON.parse(storage.get(key)).savedAt,refreshed.savedAt,'failed refresh must not renew stored cache');
+ assert.equal(JSON.parse(storage.get(key)).expiresAt,refreshed.expiresAt);
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
 
