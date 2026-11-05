@@ -1957,6 +1957,55 @@ await okAsync('Meeting PDF retries one confirmed provider-unavailable final with
  assert.match(scan,/reportApiError\(\s*msg,/,'retain the specific failure message');
 });
 
+await okAsync('Agenda scan splits real PDF pages and applies only complete ordered results',async()=>{
+ const html=file('frontend/static-partials/Runtime_08_AI_Bridge.html');
+ const start=html.indexOf('var meetingPdfDocumentTypeCurrent;'),end=html.indexOf('function setHidden(',start);
+ assert.ok(start>=0&&end>start);
+ const source=html.slice(start,end);
+ const transfers=[],notices=[];
+ let failAt=-1;
+ const code=new Function('root','callApi','readBlobAsBase64Current','delay','__appObserve',source+';return { scan:scanPdfForAiCurrent, pdf:meetingPdfDocumentCurrent }')(
+  {Swal:{getHtmlContainer:()=>({set textContent(s){notices.push(s)}})}},
+  async(method,p)=>{
+   assert.equal(method,'apiExtractMeetingAgendaPdf');
+   assert.equal(p.mode,'meeting');
+   assert.equal(p.transport,'gemini-inline-pdf-base64');
+   if(p.transferOp==='start'){
+    transfers.push({parts:[],fileSize:p.fileSize});
+    return {transferId:String(transfers.length),chunkBytes:196608};
+   }
+   const t=transfers[Number(p.transferId)-1];
+   assert.equal(p.offset,t.parts.reduce((n,b)=>n+b.length,0));
+   t.parts.push(Buffer.from(p.chunkBase64,'base64'));
+   if(!p.final)return {staged:true};
+   if(Number(p.transferId)===failAt)throw new Error('fixture failure');
+   const bytes=Buffer.concat(t.parts);
+   assert.equal(bytes.length,t.fileSize);
+   const doc=await code.pdf().load(bytes);
+   t.widths=doc.getPages().map(page=>page.getWidth());
+   return {meeting:{meetingNo:p.transferId,title:'',meetingDate:'',note:''},agenda1:[],agenda2:[],agenda3:t.widths.map(width=>({title:String(width)})),agenda4:[]};
+  },async blob=>Buffer.from(await blob.arrayBuffer()).toString('base64'),async()=>{},()=>{}
+ );
+ const pdf=await code.pdf().create();
+ const widths=Array.from({length:19},(_,i)=>600+i);
+ widths.forEach(width=>pdf.addPage([width,800]));
+ const agenda=new File([await pdf.save()],'fixture.pdf',{type:'application/pdf'});
+ const result=await code.scan('apiExtractMeetingAgendaPdf',agenda,'meeting');
+ assert.deepEqual(transfers.map(t=>t.widths),[widths.slice(0,8),widths.slice(8,16),widths.slice(16)]);
+ assert.deepEqual(result.agenda3.map(item=>Number(item.title)),widths);
+ assert.equal(result.meeting.meetingNo,'1');
+ assert.ok(notices.some(s=>s.includes('หน้า 17–19')));
+ transfers.length=0;failAt=2;
+ await assert.rejects(code.scan('apiExtractMeetingAgendaPdf',agenda,'meeting'),/หน้า 9–16.*fixture failure/);
+ assert.equal(transfers.length,2,'failed middle batch stops the scan before next transfer');
+ transfers.length=0;
+ await assert.rejects(code.scan('apiExtractMeetingAgendaPdf',new File(['invalid'],'bad.pdf',{type:'application/pdf'}),'meeting'),/เปิดไฟล์ PDF ไม่สำเร็จ/);
+ assert.equal(transfers.length,0);
+ const small=await code.pdf().create();small.addPage([600,800]);
+ await code.scan('apiExtractMeetingAgendaPdf',new File([await small.save()],'small.pdf',{type:'application/pdf'}),'meeting');
+ assert.equal(transfers.length,1,'short PDF follows the existing single request path');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
 
