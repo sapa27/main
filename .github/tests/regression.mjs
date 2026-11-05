@@ -1925,6 +1925,38 @@ await okAsync('Committee save keeps confirmed writes successful when post-save r
  assert.ok(!eventOwner.includes('notify('),'save click handler must not duplicate the API error notice');
 });
 
+
+await okAsync('Meeting PDF retries one confirmed provider-unavailable final without replaying timeouts or quota failures',async()=>{
+ const html=file('frontend/static-partials/Runtime_08_AI_Bridge.html');
+ const begin=html.indexOf('function uploadPdfForAiCurrent('),end=html.indexOf('\nfunction setHidden(',begin);
+ assert.ok(begin>=0&&end>begin);
+ const source=html.slice(begin,end);
+ for(const mode of ['success','503','persistent503','timeout','429','400']){
+  const calls=[],progress=[];let attempts=0;
+  const expected={meeting:{meetingNo:'fixture'},agenda1:[],agenda2:[],agenda3:[{title:'fixture'}],agenda4:[]};
+  const upload=new Function('root','callApi','readBlobAsBase64Current','updateAiUploadProgressCurrent','delay',source+';return uploadPdfForAiCurrent')({},async(method,payload,options)=>{
+   calls.push({method,payload,options});
+   if(payload.transferOp==='start')return{transferId:'fixture',chunkBytes:196608};
+   if(payload.final){
+    attempts++;
+    if(mode==='persistent503'||mode==='503'&&attempts===1)throw new Error('บริการ Gemini ไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง');
+    if(['timeout','429','400'].includes(mode))throw new Error(mode);
+   }
+   return payload.final?expected:{staged:true};
+  },async()=> 'fixture-base64',(...args)=>progress.push(args),async()=>{});
+  const pdf={name:'fixture.pdf',type:'application/pdf',size:250000,slice:()=>({})};
+  let result,error;try{result=await upload('apiExtractMeetingAgendaPdf',pdf,'meeting')}catch(e){error=e}
+  assert.equal(calls.filter(c=>c.payload.transferOp==='start').length,1);
+  assert.equal(attempts,['503','persistent503'].includes(mode)?2:1);
+  assert.ok(progress.length,'meeting progress must be visible');
+  if(attempts===2){const finals=calls.filter(c=>c.payload.final);assert.strictEqual(finals[0].payload,finals[1].payload);assert.equal(finals[1].options.retries,0)}
+  if(['success','503'].includes(mode)){assert.equal(error,undefined);assert.strictEqual(result,expected)}else assert.ok(error);
+ }
+ const committee=file('frontend/static-partials/Scripts_Page_Meeting__committee.html');
+ const scan=committee.slice(committee.indexOf('function scanAgendaFile('),committee.indexOf('function triggerAgendaAiScan('));
+ assert.match(scan,/reportApiError\(\s*msg,/,'retain the specific failure message');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
 
