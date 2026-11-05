@@ -693,17 +693,27 @@
         api("apiSaveCommitteeMeetingSystem", payload)
           .then(function (res) {
             var data = unwrap(res) || {};
-            return (
+            // API confirmation and post-save UI work have separate outcomes.
+            return Promise.resolve().then(function () {
               setVal(
                 "committee-meetingId",
                 data.meetingId || payload.meeting.meetingId || "",
-              ),
-              closeSwal(),
-              notify("success", "บันทึกการประชุมคณะกรรมาธิการสำเร็จ"),
-              loadList().then(function () {
+              );
+              closeSwal();
+              return loadList({ forceFresh: !0 }).then(function () {
+                notify("success", "บันทึกการประชุมคณะกรรมาธิการสำเร็จ");
                 return res;
-              })
-            );
+              });
+            }).catch(function (postSaveError) {
+              __appObserve(postSaveError, "meeting.committee.save.postSaveUi");
+              closeSwal();
+              try {
+                notify("warning", "บันทึกการประชุมแล้ว แต่แสดงผลหลังบันทึกไม่สำเร็จ กรุณาโหลดรายการใหม่โดยไม่กดบันทึกซ้ำ");
+              } catch (noticeError) {
+                __appObserve(noticeError, "meeting.committee.save.postSaveNotice");
+              }
+              return res;
+            });
           })
           .catch(function (err) {
             throw (
@@ -713,7 +723,11 @@
             );
           })
           .finally(function () {
-            disable(btn, !1);
+            try {
+              disable(btn, !1);
+            } catch (buttonError) {
+              __appObserve(buttonError, "meeting.committee.save.releaseButton");
+            }
           })
       );
     }
@@ -1108,10 +1122,7 @@
                 return (
                   ev.preventDefault(),
                   Promise.resolve(save(btn)).catch(function (err) {
-                    notify(
-                      "error",
-                      errorText(err, "บันทึกข้อมูลการประชุมไม่สำเร็จ"),
-                    );
+                    __appObserve(err, "meeting.committee.save.rejected");
                   }),
                   void 0
                 );
