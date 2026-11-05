@@ -1876,6 +1876,55 @@ await okAsync('Dashboard cached renders do not renew freshness and restored memo
  assert.equal(JSON.parse(storage.get(key)).expiresAt,refreshed.expiresAt);
 });
 
+
+await okAsync('Committee save keeps confirmed writes successful when post-save reload or UI fails',async()=>{
+ const html=file('frontend/static-partials/Scripts_Page_Meeting__committee.html');
+ const begin=html.indexOf('    function save(btn) {'),end=html.indexOf('    function loadToForm(',begin);
+ const unwrapBegin=html.indexOf('        unwrap ='),unwrapEnd=html.indexOf('        api =',unwrapBegin);
+ assert.ok(begin>=0&&end>begin&&unwrapBegin>=0&&unwrapEnd>unwrapBegin);
+ const unwrapSource='var '+html.slice(unwrapBegin,unwrapEnd).trim().replace(/,\s*$/,';');
+ const source=unwrapSource+'\n'+html.slice(begin,end);
+ async function run(mode){
+  const writes=[],reads=[],notices=[],warnings=[],values={},buttonStates=[];
+  const payload={meeting:{meetingId:'',meetingNo:'fixture',meetingDate:'05/11/2569',title:'synthetic meeting',note:''},agenda1:[],agenda2:[],agenda3:[{caseId:'fixture-case',title:'synthetic agenda'}],agenda4:[]};
+  const response={ok:true,data:{meetingId:'fixture-saved-id'}};
+  const ctx={Promise,Kit:{},root:{},text:v=>String(v==null?'':v),errorText:e=>e.message||e.msg||e.error||'fixture-error',
+   formPayload:()=>payload,showCommitteeLoadingSpinner(){},closeSwal(){},
+   api:async(name,p)=>{writes.push({name,p});if(mode==='transport')throw new Error('fixture transport failure');return mode==='rejected'?{ok:false,msg:'fixture API rejected'}:response;},
+   setVal:(id,value)=>{if(mode==='form')throw new Error('fixture form failure');values[id]=value;},
+   loadList:opts=>{reads.push(opts);if(mode==='listSync')throw new Error('fixture list sync failure');return mode==='list'||mode==='warningNotice'?Promise.reject(new Error('fixture list failure')):Promise.resolve({});},
+   notify:(kind,message)=>{if(mode==='successNotice'&&kind==='success'||mode==='warningNotice'&&kind==='warning')throw new Error('fixture notice failure');notices.push({kind,message});},
+   disable:(_btn,flag)=>{buttonStates.push(flag);if(mode==='releaseButton'&&!flag)throw new Error('fixture button release failure');},
+   __appObserve:(_err,label)=>warnings.push(label)
+  };
+  vm.createContext(ctx);vm.runInContext(source,ctx);
+  let result,error;try{result=await ctx.save({});}catch(e){error=e.message;}
+  assert.equal(writes.length,1,'a confirmed write must never be retried');
+  assert.equal(writes[0].name,'apiSaveCommitteeMeetingSystem');
+  assert.equal(writes[0].p,payload,'preserve existing meeting/agenda payload identity');
+  assert.deepEqual(buttonStates,[true,false],'release button for every outcome');
+  if(mode==='transport'||mode==='rejected'){
+   assert.ok(error);assert.equal(result,undefined);assert.equal(reads.length,0);assert.deepEqual(notices.map(n=>n.kind),['error']);return;
+  }
+  assert.equal(error,undefined,mode);assert.equal(result,response,'retain original confirmed API response');
+  if(mode!=='form')assert.equal(values['committee-meetingId'],'fixture-saved-id');
+  if(reads.length)assert.equal(reads[0].forceFresh,true,'reload saved meeting data without stale list cache');
+  if(['form','list','listSync','successNotice','warningNotice'].includes(mode)){
+   assert.ok(warnings.includes('meeting.committee.save.postSaveUi'));
+   assert.ok(!notices.some(n=>n.kind==='error'));
+   if(mode!=='warningNotice')assert.deepEqual(notices.map(n=>n.kind),['warning']);
+  }else assert.deepEqual(notices.map(n=>n.kind),['success']);
+  if(mode==='warningNotice')assert.ok(warnings.includes('meeting.committee.save.postSaveNotice'));
+  if(mode==='releaseButton')assert.ok(warnings.includes('meeting.committee.save.releaseButton'));
+ }
+ for(const mode of ['normal','form','list','listSync','successNotice','warningNotice','releaseButton','transport','rejected'])await run(mode);
+ const eventBegin=html.indexOf('if ("committee-meeting-save-btn" === btn.id)'),eventEnd=html.indexOf('if ("committee-meeting-new-btn"',eventBegin);
+ assert.ok(eventBegin>=0&&eventEnd>eventBegin);
+ const eventOwner=html.slice(eventBegin,eventEnd);
+ assert.ok(eventOwner.includes('meeting.committee.save.rejected'));
+ assert.ok(!eventOwner.includes('notify('),'save click handler must not duplicate the API error notice');
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
 
