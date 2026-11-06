@@ -175,14 +175,14 @@ function dashboardSetChartLoading(active){
 try{
 Array.prototype.forEach.call(document.querySelectorAll("#p-dash .modern-dash-chart"),function(box){
 if(!box)return;
-var markers=Array.prototype.slice.call(box.querySelectorAll(".app-dashboard-chart-loading")),marker=markers.shift(),canvas=box.querySelector("canvas");
+var markers=Array.prototype.slice.call(box.querySelectorAll(".app-dashboard-chart-loading")),marker=markers.shift(),chart=box.querySelector("[data-dashboard-chart]");
 markers.forEach(function(el){el&&el.parentNode&&el.parentNode.removeChild(el)});
 if(active){
 if(!marker){marker=document.createElement("div");marker.className="app-dashboard-chart-loading text-center text-muted py-5";marker.setAttribute("role","status");marker.setAttribute("aria-live","polite");marker.innerHTML='<span class="modern-dash-loader mini me-2" aria-hidden="true"></span>กำลังโหลดข้อมูล';box.insertBefore(marker,box.firstChild||null)}
-canvas&&(canvas.style.visibility="hidden")
+chart&&(chart.hidden=true)
 }else{
 marker&&marker.parentNode&&marker.parentNode.removeChild(marker);
-canvas&&(canvas.style.visibility="")
+chart&&(chart.hidden=false)
 }
 })
 }catch(err){dashboardWarn("dashboard.chartLoading",err,{owner:"DashboardRender"})}
@@ -497,46 +497,75 @@ renderDashboardHtml("table-budget-status-summary",f+(S?"":y(2,"ยังไม�
 setDashboardText("dash-budget-fy-label","ปีงบประมาณ "+String(n||"-"));
 return{fy:n,data:a}
 }
-function C(e,a,s,r,l){
-var o=dashboardById(e);
-if(!o||!o.getContext)return!1;
-var d=o.getContext("2d"),c=o.parentElement||o,u=Math.max(320,c.clientWidth||420),m=Math.max(240,c.clientHeight||280),p=dashboardRoot.devicePixelRatio||1;
-if(o.width=u*p,o.height=m*p,o.style.width=u+"px",o.style.height=m+"px",d.setTransform(p,0,0,p,0,0),d.clearRect(0,0,u,m),s=s||[],!(a=a||[]).length||!s.length||!s.some(function(t){
-return dashboardNumber(t)>0
-}))return d.fillStyle="#94a3b8",d.font="14px sans-serif",d.textAlign="center",d.fillText("ยังไม่มีข้อมูล",u/2,m/2),!0;
-if("pie"===l){
-var b=s.reduce(function(t,e){
-return t+dashboardNumber(e)
-},0)||1,g=["#2563eb","#14b8a6","#f59e0b","#ef4444","#8b5cf6","#f97316","#06b6d4","#22c55e"],y=Math.min(.34*u,148),h=m/2,f=Math.min(94,m/2-18),w=Math.max(42,.52*f),v=-Math.PI/2;
-return s.forEach(function(t,e){
-var a=dashboardNumber(t)/b*Math.PI*2;
-d.beginPath(),d.moveTo(y,h),d.fillStyle=g[e%g.length],d.arc(y,h,f,v,v+a),d.closePath(),d.fill(),v+=a
-}),d.beginPath(),d.fillStyle="#ffffff",d.arc(y,h,w,0,2*Math.PI),d.fill(),d.fillStyle="#0f172a",d.font="700 22px sans-serif",d.textAlign="center",d.fillText(String(b),y,h+6),d.font="12px sans-serif",d.textAlign="left",a.slice(0,6).forEach(function(t,e){
-var a=22+24*e;
-d.fillStyle=g[e%g.length],d.fillRect(.6*u,a,12,12),d.fillStyle="#334155",d.fillText(String(t).slice(0,28)+" ("+s[e]+")",.6*u+18,a+11)
-}),!0
+function dashboardChartNode(tag,className,label){
+var node=document.createElement(tag);
+if(className)node.className=className;
+if(label!=null)node.textContent=String(label);
+return node
 }
-var S=Math.max.apply(null,s.map(function(t){
-return dashboardNumber(t)
-}))||1,x=116,T=u-x-32,R=m-14-28,A=Math.max(18,Math.min(30,Math.floor(R/a.length)-8));
-return d.font="12px sans-serif",d.textAlign="left",a.forEach(function(t,e){
-var a=14+e*(A+12),n=dashboardNumber(s[e])/S*T,l=d.createLinearGradient(x,0,x+T,0);
-l.addColorStop(0,r||"#2563eb"),l.addColorStop(1,"#38bdf8"),d.fillStyle="#64748b",d.fillText(String(t).slice(0,18),8,a+A-4),d.fillStyle="#e2e8f0",d.fillRect(x,a,T,A),d.fillStyle=l,d.fillRect(x,a,n,A),d.fillStyle="#0f172a",d.fillText(String(s[e]||0),Math.min(x+n+8,u-28),a+A-4)
-}),!0
+function C(id,rows,kind){
+var host=dashboardById(id);
+if(!host)return false;
+host.textContent="";
+var values=rows.map(function(row){return Math.max(0,dashboardNumber(row.count))});
+var sum=values.reduce(function(total,value){return total+value},0);
+if(!sum){
+host.appendChild(dashboardChartNode("p","modern-chart-empty","ยังไม่มีข้อมูล"));
+return true
+}
+var palette=["#2563eb","#0f766e","#d97706","#7c3aed","#be185d","#0369a1"];
+var list=dashboardChartNode("ul","modern-chart-list");
+var max=Math.max.apply(null,values);
+if(kind==="mix"){
+var visual=dashboardChartNode("div","modern-chart-mix");
+var ring=dashboardChartNode("div","modern-chart-ring");
+ring.setAttribute("aria-hidden","true");
+var start=0;
+ring.style.backgroundImage="conic-gradient("+values.map(function(value,index){
+var end=start+100*value/sum,stop=palette[index]+" "+start+"% "+end+"%";
+start=end;
+return stop
+}).join(",")+")";
+var center=dashboardChartNode("div","modern-chart-ring-center");
+center.appendChild(dashboardChartNode("strong","",sum));
+center.appendChild(dashboardChartNode("small","","เรื่องในกราฟ"));
+ring.appendChild(center);
+visual.appendChild(ring);
+visual.appendChild(list);
+host.appendChild(visual)
+}else{
+host.appendChild(list)
+}
+rows.forEach(function(row,index){
+var item=dashboardChartNode("li","modern-chart-item");
+var heading=dashboardChartNode("div","modern-chart-item-head");
+if(kind==="mix"){
+var dot=dashboardChartNode("span","modern-chart-dot");
+dot.setAttribute("aria-hidden","true");
+dot.style.backgroundColor=palette[index];
+heading.appendChild(dot)
+}
+heading.appendChild(dashboardChartNode("span","modern-chart-item-label",row.label));
+heading.appendChild(dashboardChartNode("strong","modern-chart-item-value",values[index]));
+item.appendChild(heading);
+if(kind==="topics"){
+var track=dashboardChartNode("div","modern-chart-track");
+track.setAttribute("aria-hidden","true");
+var fill=dashboardChartNode("span","modern-chart-fill");
+fill.style.width=(100*values[index]/max)+"%";
+track.appendChild(fill);
+item.appendChild(track)
+}
+list.appendChild(item)
+});
+return true
 }
 function D(t,e){
-dashboardSetChartLoading(!1);
-t=asDashboardObject(t),e=asDashboardObject(e);
-var a=asDashboardArray(t.byType).slice(0,6),s=asDashboardArray(t.byTopic).slice(0,6);
-return C("typeChart",a.map(function(t){
-return t.label
-}),a.map(function(t){
-return dashboardNumber(t.count)
-}),"#2563eb","pie"),C("topicChart",s.map(function(t){
-return t.label
-}),s.map(function(t){
-return dashboardNumber(t.count)
-}),"#0f766e","bar"),!0
+dashboardSetChartLoading(false);
+t=asDashboardObject(t);
+C("typeChart",asDashboardArray(t.byType).slice(0,6),"mix");
+C("topicChart",asDashboardArray(t.byTopic).slice(0,6),"topics");
+return true
 }
 function P(t,e){
 var a=w(t),s=((summary=(data=a).summaryStats||{
