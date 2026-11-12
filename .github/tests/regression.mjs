@@ -2006,6 +2006,37 @@ await okAsync('Agenda scan splits real PDF pages and applies only complete order
  assert.equal(transfers.length,1,'short PDF follows the existing single request path');
 });
 
+await okAsync('Case PDF scans ordered short ranges and does not replay a 524',async()=>{
+ const html=file('frontend/static-partials/Runtime_08_AI_Bridge.html');
+ const normalize=html.slice(html.indexOf('function aiExtractTextValue('),html.indexOf('function normalizeTrackingAiExtractResult('));
+ const source=html.slice(html.indexOf('var meetingPdfDocumentTypeCurrent;'),html.indexOf('function setHidden('));
+ const ranges=[],finals=[];
+ let failAt=0;
+ const code=new Function('root','callApi','readBlobAsBase64Current','delay','__appObserve',normalize+source+';return {scan:scanCasePdfForAiCurrent,pdf:meetingPdfDocumentCurrent}')({},async(method,p)=>{
+  assert.equal(method,'apiExtractDocumentPdf');assert.equal(p.mode,'case');
+  if(p.transferOp==='start'){ranges.push([]);return{transferId:String(ranges.length),chunkBytes:196608}}
+  const id=Number(p.transferId),parts=ranges[id-1];
+  assert.equal(p.offset,parts.reduce((n,b)=>n+b.length,0));
+  parts.push(Buffer.from(p.chunkBase64,'base64'));
+  if(!p.final)return{staged:true};
+  finals.push(id);
+  if(id===failAt)throw Object.assign(new Error('Cloud Run HTTP 524'),{code:'CLOUD_RUN_HTTP_524',httpStatus:524,requestId:'fixture-524'});
+  const pages=(await code.pdf().load(Buffer.concat(parts))).getPages();
+  return{subject:'Fixture',petitioners:['Name'],abstract:pages.map(page=>page.getWidth()).join(',')};
+ },async blob=>Buffer.from(await blob.arrayBuffer()).toString('base64'),async()=>{},()=>{});
+ const pdf=await code.pdf().create();
+ for(let i=0;i<11;i++)pdf.addPage([600+i,800]);
+ const sample=new File([await pdf.save()],'fixture.pdf',{type:'application/pdf'});
+ const result=await code.scan(sample);
+ assert.equal(result.petitioner,'Name');
+ assert.equal(result.summary,'600,601,602,603\n\n604,605,606,607\n\n608,609,610');
+ assert.deepEqual(finals,[1,2,3]);
+ ranges.length=finals.length=0;failAt=2;
+ await assert.rejects(code.scan(sample),e=>e.code==='CLOUD_RUN_HTTP_524'&&e.requestId==='fixture-524'&&/หน้า 5–8/.test(e.message));
+ assert.deepEqual(finals,[1,2]);
+ assert.equal(ranges.length,2);
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
 
