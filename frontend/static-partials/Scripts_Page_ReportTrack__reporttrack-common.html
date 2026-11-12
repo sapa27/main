@@ -654,7 +654,7 @@
           options = {
             bodyHtml: landscape
               ? html
-              : '<style>.case-detail{font-family:"TH SarabunPSK","TH Sarabun New",Sarabun,sans-serif;color:#111827;font-size:12pt;line-height:1.35}.case-detail .case-official-card{border:1px solid #d8dee8;background:#fff;margin-bottom:10px;break-inside:avoid;page-break-inside:avoid}.case-detail .case-official-title{padding:6px 8px;background:#f3f6fb;border-bottom:1px solid #d8dee8;color:#0f3d72;font-weight:700;font-size:13pt}.case-detail .case-official-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.case-detail .case-official-row{display:grid;grid-template-columns:42mm 1fr;min-height:26px;border-bottom:1px solid #eef2f7}.case-detail .case-official-label{background:#fafbfe;color:#475569;font-weight:700;padding:4px 6px;border-right:1px solid #eef2f7}.case-detail .case-official-value{padding:4px 6px;white-space:pre-wrap}@media print{.case-detail .case-official-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>' +
+              : "<style>.case-detail{font-family:\"TH SarabunPSK\",\"TH Sarabun New\",Sarabun,sans-serif;color:#172334;font-size:11.5pt;line-height:1.48}\n.case-detail .case-official-card{border:1px solid #d4dce6;margin-bottom:4mm}\n.case-detail .case-official-title{padding:1.8mm 3mm;background:#edf2f7;border-bottom:1px solid #d4dce6;color:#17365b;font-size:12pt;font-weight:700;break-after:avoid;page-break-after:avoid}\n.case-detail .case-official-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}\n.case-detail .case-official-row{display:grid;grid-template-columns:35% minmax(0,1fr);border-bottom:1px solid #e6ebf1;break-inside:avoid;page-break-inside:avoid}\n.case-detail .case-official-label{background:#f7f9fc;color:#334155;font-weight:700;padding:1.4mm 2.4mm}\n.case-detail .case-official-value{padding:1.4mm 2.4mm;white-space:pre-wrap;overflow-wrap:anywhere}\n.case-detail .case-print-summary{display:block;padding:2.8mm 3.5mm;border-block:1px solid #d4dce6}\n.case-detail .case-print-summary-title{font-size:12pt;font-weight:700;color:#17365b;margin:0 0 1.5mm;break-after:avoid;page-break-after:avoid}\n.case-detail .case-print-summary p{font-size:12pt;line-height:1.62;margin:0 0 1.6mm;white-space:pre-wrap;overflow-wrap:anywhere;orphans:3;widows:3}\n.case-detail .case-print-summary p:last-child{margin-bottom:0}</style>" +
                 html,
             meta: {
               title: title,
@@ -690,7 +690,7 @@
                 return (
                   !!sel &&
                   printOfficial(
-                    renderDetail(bundle, sel),
+                    renderDetail(bundle, sel, true),
                     "รายละเอียดเรื่องพิจารณา",
                     !1,
                   )
@@ -1946,6 +1946,9 @@
         ""
       );
     }
+    function caseSummaryValue(row) {
+      return pick(row, ["keySummary", "summary", "description", "สรุปสาระสำคัญ"]);
+    }
     function normalizeCase(row) {
       var caseNum = ((root.AppCaseRelation || window.AppCaseRelation) && (root.AppCaseRelation || window.AppCaseRelation).sequenceFrom
           ? (root.AppCaseRelation || window.AppCaseRelation).sequenceFrom((row = flattenCaseRow(row)) || {})
@@ -2218,9 +2221,7 @@
             "หน่วยงาน",
           ]),
         ),
-        keySummary: clean(
-          pick(row, ["keySummary", "summary", "description", "สรุปสาระสำคัญ"]),
-        ),
+        keySummary: clean(caseSummaryValue(row)),
         remark: clean(pick(row, ["remark", "note", "หมายเหตุ"])),
         assignees: clean(
           pick(row, [
@@ -4381,7 +4382,42 @@
         key,
       );
     }
-    function renderDetail(bundle, selected) {
+    function detailPrintSummary(value) {
+      var summary = String(value || "-");
+      // Only split an existing sequence, so isolated numbers stay in the prose.
+      var marker = /(^|[ \t])([1-9][0-9]?)\.[ \t]+(?=[A-Za-z\u0e01-\u0e2e])/gm,
+        positions = [],
+        match;
+      while ((match = marker.exec(summary))) {
+        if (Number(match[2]) !== positions.length + 1) {
+          positions = [];
+          break;
+        }
+        positions.push(match.index + match[1].length);
+      }
+      var parts = [],
+        from = 0;
+      if (positions.length > 1) {
+        positions.forEach(function (to) {
+          if (to > from) parts.push(summary.slice(from, to).trim());
+          from = to;
+        });
+      }
+      parts.push(summary.slice(from).trim());
+      return (
+        '<div class="case-print-summary"><div class="case-print-summary-title">สรุปสาระสำคัญ</div>' +
+        parts.filter(Boolean).map(function (part) {
+          return "<p>" + esc(part) + "</p>";
+        }).join("") +
+        "</div>"
+      );
+    }
+    function detailCaseFields(fields, summary, remark, printLayout) {
+      var remarkField = ["หมายเหตุ", remark];
+      if (!printLayout) return detailGrid(fields.concat([["สรุปสาระสำคัญ", summary], remarkField]));
+      return detailGrid(fields) + detailPrintSummary(summary) + detailGrid([remarkField]);
+    }
+    function renderDetail(bundle, selected, printLayout) {
       var explicitSelection = !!(selected = selected || {}).__explicit,
         hasAnySelection = !1;
       (DETAIL_SECTIONS.forEach(function (s) {
@@ -4408,12 +4444,17 @@
             phone: c.petitionerPhone,
           },
         ]);
-      var html = '<div class="case-detail">';
+      var html = '<div class="case-detail">',
+        summary = c.keySummary;
+      if (printLayout && selected.case) {
+        var originalSummary = caseSummaryValue(raw);
+        if (originalSummary && clean(originalSummary) === clean(summary)) summary = originalSummary;
+      }
       if (
         (selected.case &&
           (html += detailCard(
             "ข้อมูลเรื่องร้องเรียน",
-            detailGrid([
+            detailCaseFields([
               ["ลำดับเรื่อง", runningNo(raw)],
               ["ประเภท", c.cat],
               ["ประเด็นพิจารณา", c.subCat],
@@ -4423,9 +4464,7 @@
               ["ชื่อเรื่อง", c.title],
               ["ชื่อเรื่องพิจารณา (ถ้ามี)", c.considerationTitle],
               ["หน่วยงาน / ผู้ถูกร้อง", c.respondent],
-              ["สรุปสาระสำคัญ", c.keySummary],
-              ["หมายเหตุ", c.remark],
-            ]),
+            ], summary, c.remark, printLayout),
             "case",
           )),
         selected.petitioners &&
