@@ -693,6 +693,14 @@
         api("apiSaveCommitteeMeetingSystem", payload)
           .then(function (res) {
             var data = unwrap(res) || {};
+            // Never switch an edit to a different meeting returned by the write.
+            var requestedId = text(payload.meeting.meetingId || "").trim(),
+              savedId = text(data.meetingId || "").trim();
+            if (requestedId && savedId && requestedId !== savedId) {
+              closeSwal();
+              notify("warning", "ผลบันทึกอ้างถึงรายการประชุมอื่น กรุณาตรวจสอบรายการเดิมและรายการใหม่ก่อนบันทึกซ้ำ");
+              return res;
+            }
             // API confirmation and post-save UI work have separate outcomes.
             return Promise.resolve().then(function () {
               setVal(
@@ -782,35 +790,29 @@
         }
     }
     function editMeeting(id) {
-      return (
-        showMeetingEditLoading(),
-        api("apiGetCommitteeMeetingSystem", { meetingId: id })
-          .then(function (res) {
-            var data = unwrap(res) || {};
-            if (data.meeting) return loadToForm(data.meeting, data.items || []);
-            var cache = root.__committeeMeetingCache || {},
-              meeting;
-            return loadToForm(
-              (cache.meetings || []).filter(function (m) {
-                return String(m.meetingId || "") === String(id || "");
-              })[0] || null,
-              (cache.itemsByMeetingId || {})[String(id || "")] || [],
-            );
-          })
-          .then(function (out) {
-            return (closeMeetingEditLoading(), out);
-          })
-          .catch(function (err) {
-            throw (
-              closeMeetingEditLoading(),
-              notify(
-                "error",
-                text((err && err.message) || err || "โหลดข้อมูลไม่สำเร็จ"),
-              ),
-              err
-            );
-          })
-      );
+      id = text(id || "").trim();
+      if (!id) {
+        notify("error", "ไม่พบรหัสรายการประชุมที่เลือก กรุณาโหลดรายการใหม่");
+        return Promise.resolve(!1);
+      }
+      showMeetingEditLoading();
+      return api("apiGetCommitteeMeetingSystem", {
+        meetingId: id, forceFresh: !0, noCache: !0, bypassCache: !0
+      }).then(function (res) {
+        var data = unwrap(res) || {};
+        if (!data.meeting || text(data.meeting.meetingId || "").trim() !== id || !Array.isArray(data.items))
+          throw new Error("ยืนยันข้อมูลการประชุมเดิมไม่สำเร็จ กรุณาโหลดรายการใหม่ก่อนแก้ไข");
+        loadToForm(data.meeting, data.items);
+        return !0;
+      }).then(function (result) {
+        closeMeetingEditLoading();
+        return result;
+      }, function (err) {
+        closeMeetingEditLoading();
+        __appObserve(err, "meeting.committee.edit.rejected");
+        notify("error", "โหลดการประชุมเดิมไม่สำเร็จ กรุณาโหลดรายการใหม่ก่อนแก้ไข");
+        return !1;
+      });
     }
     function setAiAgendaStatus(msg, tone) {
       var el = byId("committee-meeting-ai-agenda-status");
