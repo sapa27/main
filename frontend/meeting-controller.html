@@ -2812,8 +2812,12 @@
           window.__meetingSharedSaveInFlight = !1;
           G({ isSaving: !1 });
           re(btn, !1, "บันทึกข้อมูล", "fas fa-floppy-disk");
-          meetingPublicErrorText_(err, "บันทึกข้อมูลไม่สำเร็จ");
-          oe("error", "บันทึกข้อมูลไม่สำเร็จ");
+          var notice = "#content-case-data" === target && err &&
+            err.code === "CASE_SUMMARY_EQUALS_REMARK"
+            ? meetingDistinctSummaryError_
+            : "บันทึกข้อมูลไม่สำเร็จ";
+          meetingPublicErrorText_(err, notice);
+          oe("error", notice);
           throw err;
         }
         var target = meetingResolveActiveSaveTarget(ev);
@@ -6232,13 +6236,16 @@
       var d = t.match(/^(\d+)\s*[\-–—]\s*((?:19|20|25)?\d{2})$/);
       return d ? d[1] + "/" + d[2] : "";
     }
+    var meetingDistinctSummaryError_ =
+      "สรุปสาระสำคัญของเรื่อง และหมายเหตุ ต้องเป็นคนละรายการ ห้ามคัดลอกข้อความเดียวกัน";
     function Ye(e) {
       var i = Xe(e.keySummary || ""),
         r = Xe(e.remark || "");
-      if (i && r && i === r)
-        throw new Error(
-          "สรุปสาระสำคัญของเรื่อง และหมายเหตุ ต้องเป็นคนละรายการ ห้ามคัดลอกข้อความเดียวกัน",
-        );
+      if (i && r && i === r) {
+        var err = new Error(meetingDistinctSummaryError_);
+        err.code = "CASE_SUMMARY_EQUALS_REMARK";
+        throw err;
+      }
       return e;
     }
     function Ge() {
