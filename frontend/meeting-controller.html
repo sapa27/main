@@ -1486,7 +1486,7 @@
                       ]),
                     ),
                     E("meeting-subCat", N(t, ["subCat", "subCategory"])));
-                  meetingRoot.AppCaseSubcommitteeOptions.set(meetingById("meeting-caseSubcommittee"), t.subcommitteeName || "");
+                  meetingRoot.AppCaseSubcommitteeOptions.set(meetingById("meeting-caseSubcommittee"), meetingRoot.AppCaseSubcommitteeOptions.caseName(t));
                   var a = N(t, [
                     "petitioners",
                     "petitionerName",
@@ -1685,10 +1685,12 @@
                     break;
                   }
                   if (cur.record && "object" == typeof cur.record) {
+                    bundle = cur;
                     row = I(e, cur.record);
                     break;
                   }
                   if (cur.row && "object" == typeof cur.row) {
+                    bundle = cur;
                     row = I(e, cur.row);
                     break;
                   }
@@ -7996,7 +7998,7 @@
             "responsibleCommissioners",
           ]),
           "meeting-coAssignees": pick(seed, ["coAssignees", "coOwners"]),
-          "meeting-caseSubcommittee": pick(seed, ["subcommitteeName"]),
+          "meeting-caseSubcommittee": root.AppCaseSubcommitteeOptions.caseName(seed),
           "meeting-staffs": pick(seed, ["staffs", "staff", "officer"]),
           "meeting-opStaff": pick(seed, [
             "opStaff",
