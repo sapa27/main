@@ -1689,7 +1689,13 @@ const ctx={window:{AppApi:{call:async(method,payload)=>{count++;assert.equal(met
 vm.createContext(ctx);vm.runInContext(src,ctx);
 function select(){return {options:[{value:'',textContent:'เลือกคณะอนุกรรมาธิการ'}],value:'',setAttribute(){},appendChild(x){this.options.push(x)},set textContent(v){this.options=[]}}}
 const a=select(),b=select(),owner=ctx.window.AppCaseSubcommitteeOptions;
-owner.set(a,'คณะเดิม');await Promise.all([owner.load(a),owner.load(b)]);
+const saved={__canonicalBundle:{case:{caseNum:'1'},rawCase:{'ชื่อคณะอนุกรรมาธิการ':' คณะเดิม '}}};
+assert.equal(owner.caseName(saved),'คณะเดิม');
+assert.equal(owner.caseName({subcommitteeName:'คณะเก่า'},{case:{subcommitteeName:''}}),'','an explicitly cleared name wins over cached data');
+assert.equal(owner.caseName({subcommitteeName:'คณะเก่า'},{record:{subcommitteeName:'คณะใหม่'}}),'คณะใหม่');
+assert.equal(owner.caseName({subcommitteeName:'คณะปัจจุบัน'}),'คณะปัจจุบัน');
+assert.equal(owner.caseName({subcommitteeName:42}),'');
+owner.set(a,owner.caseName(saved));await Promise.all([owner.load(a),owner.load(b)]);
 assert.equal(count,1);assert.equal(a.value,'คณะเดิม');assert.equal(b.value,'');assert.equal(a.options.filter(o=>o.value==='คณะ ก').length,1);assert.equal(a.options.find(o=>o.value.startsWith('<img')).textContent,'<img onerror=alert(1)>');
 owner.set(a,'');assert.equal(a.value,'');
 console.log('PASS shared endpoint / single-flight / dedup / historical selection / empty selection / text-only options');
@@ -1697,7 +1703,8 @@ console.log('PASS shared endpoint / single-flight / dedup / historical selection
 });
 ok('Case subcommittee selection uses the existing string field on form load/save/reset',()=>{
  assert.match(meetingController,/subcommitteeName: T\("meeting-caseSubcommittee"\)/);
- assert.match(meetingController,/Options.set\(meetingById\("meeting-caseSubcommittee"\), t.subcommitteeName/);
+ assert.match(meetingController,/Options.set\(meetingById\("meeting-caseSubcommittee"\), meetingRoot.AppCaseSubcommitteeOptions.caseName\(t\)/);
+ assert.match(meetingController,/"meeting-caseSubcommittee": root.AppCaseSubcommitteeOptions.caseName\(seed\)/);
  assert.match(index,/name="subcommitteeName"/);
 });
 ok('Report subcommittee filter is carried in page and export cache scopes',()=>{
