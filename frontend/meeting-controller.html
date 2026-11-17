@@ -775,6 +775,10 @@
             });
             Object.keys(fresh).forEach(function (k) {
               var v = fresh[k];
+              if (k === "remark") {
+                out[k] = v;
+                return;
+              }
               if (
                 Array.isArray(v)
                   ? v.length
@@ -1054,8 +1058,7 @@
             );
           }
           function needsFreshLetterDetails(row) {
-            if (!row) return !0;
-            return !hasDetails(row);
+            return meetingLetterRemark_(row) === null || !hasDetails(row);
           }
           function fetchFresh(base) {
             base = base || {};
@@ -1139,7 +1142,7 @@
                 "meeting-letterStatus",
                 row.letterStatus || row.status || "ยังไม่ได้รับ",
               ),
-              E("meeting-letterRemark", row.remark || ""));
+              E("meeting-letterRemark", meetingLetterRemark_(row) || ""));
             var extList = meetingById("meeting-extensions-list");
             extList && meetingClearElement(extList);
             var extensions = extensionItems(row);
@@ -5748,11 +5751,17 @@
         }
       }
     }
+    function meetingLetterRemark_(row) {
+      if (!row || typeof row !== "object") return null;
+      if (!Object.prototype.hasOwnProperty.call(row, "remark")) return null;
+      return meetingText(row.remark == null ? "" : row.remark);
+    }
     function qe(e) {
       ((e = Array.isArray(e) ? e : []), (meetingRelatedState.letters = e.slice()));
       var t = e
         .map(function (e) {
           var t = [e.subject || "-", e.issue || ""].filter(Boolean).join(" / "),
+            remark = meetingLetterRemark_(e),
             n = KeMeetingHistoryDate(e.letterDate || "-") || "-",
             i = (function (e) {
               var t = meetingText((e = e || {}).letterStatus || "").trim(),
@@ -5829,6 +5838,7 @@
             meetingEscapeHtml(e.agency || "-") +
             "</td><td>" +
             meetingEscapeHtml(t || "-") +
+            (remark ? '<div class="small text-muted">หมายเหตุ: ' + meetingEscapeHtml(remark) + "</div>" : "") +
             "</td><td>" +
             meetingEscapeHtml(e.opStaff || "-") +
             '</td><td class="text-center">' +
