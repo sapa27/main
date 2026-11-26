@@ -783,6 +783,8 @@
                 out[k] = v;
               else if (!(k in out)) out[k] = v;
             });
+            var freshRemark = meetingLetterRemark_(fresh);
+            if (freshRemark !== null) out.remark = freshRemark;
             return out;
           }
           function parseJsonArray(value) {
@@ -920,12 +922,12 @@
           function findLetter(rows, ref) {
             var target = "object" == typeof ref && ref ? ref : null,
               id = text(
-                (target &&
-                  (target.letterId ||
+                target
+                  ? target.letterId ||
                     target.id ||
                     target.recordId ||
-                    target.rowId)) ||
-                  ref,
+                    target.rowId || ""
+                  : ref,
               );
             function norm(v) {
               return text(v)
@@ -953,18 +955,10 @@
             }
             return (
               (rows || []).find(function (row) {
-                return (
-                  (id &&
-                    [
-                      text(row && row.letterId),
-                      text(row && row.id),
-                      text(row && row.recordId),
-                      text(row && row.rowId),
-                    ].some(function (v) {
-                      return v && v === id;
-                    })) ||
-                  sameBiz(row)
-                );
+                var rowIds = [row && row.letterId, row && row.id, row && row.recordId, row && row.rowId]
+                  .map(text).filter(Boolean);
+                if (id && rowIds.length) return rowIds.indexOf(id) !== -1;
+                return sameBiz(row);
               }) || null
             );
           }
@@ -1054,8 +1048,7 @@
             );
           }
           function needsFreshLetterDetails(row) {
-            if (!row) return !0;
-            return !hasDetails(row);
+            return meetingLetterRemark_(row) === null || !hasDetails(row);
           }
           function fetchFresh(base) {
             base = base || {};
@@ -1139,7 +1132,7 @@
                 "meeting-letterStatus",
                 row.letterStatus || row.status || "ยังไม่ได้รับ",
               ),
-              E("meeting-letterRemark", row.remark || ""));
+              E("meeting-letterRemark", meetingLetterRemark_(row) || ""));
             var extList = meetingById("meeting-extensions-list");
             extList && meetingClearElement(extList);
             var extensions = extensionItems(row);
@@ -1213,7 +1206,7 @@
                 letterNo: (td[0] && td[0].textContent) || "",
                 letterDate: (td[1] && td[1].textContent) || "",
                 agency: (td[2] && td[2].textContent) || "",
-                subject: (td[3] && td[3].textContent) || "",
+                subject: (td[3] && td[3].querySelector(".meeting-letter-subject") || td[3] || {}).textContent || "",
                 opStaff: (td[4] && td[4].textContent) || "",
                 letterStatus: (td[6] && td[6].textContent) || "",
               };
@@ -1224,6 +1217,10 @@
           }
           if (!needsFreshLetterDetails(cached)) return fill(cached);
           return fetchFresh(cached).then(function (row) {
+            if (row && meetingLetterRemark_(row) === null) {
+              oe("warning", "ยังตรวจสอบหมายเหตุเดิมไม่ได้ กรุณาโหลดหนังสือติดตามมติใหม่ก่อนแก้ไข");
+              return !1;
+            }
             return fill(row);
           });
         }),
@@ -2814,8 +2811,12 @@
           window.__meetingSharedSaveInFlight = !1;
           G({ isSaving: !1 });
           re(btn, !1, "บันทึกข้อมูล", "fas fa-floppy-disk");
-          meetingPublicErrorText_(err, "บันทึกข้อมูลไม่สำเร็จ");
-          oe("error", "บันทึกข้อมูลไม่สำเร็จ");
+          var notice = "#content-case-data" === target && err &&
+            err.code === "CASE_SUMMARY_EQUALS_REMARK"
+            ? meetingDistinctSummaryError_
+            : "บันทึกข้อมูลไม่สำเร็จ";
+          meetingPublicErrorText_(err, notice);
+          oe("error", notice);
           throw err;
         }
         var target = meetingResolveActiveSaveTarget(ev);
@@ -5750,11 +5751,18 @@
         }
       }
     }
+    function meetingLetterRemark_(row) {
+      if (!row || typeof row !== "object") return null;
+      if (Object.prototype.hasOwnProperty.call(row, "remark")) return meetingText(row.remark);
+      if (Object.prototype.hasOwnProperty.call(row, "หมายเหตุ")) return meetingText(row["หมายเหตุ"]);
+      return null;
+    }
     function qe(e) {
       ((e = Array.isArray(e) ? e : []), (meetingRelatedState.letters = e.slice()));
       var t = e
         .map(function (e) {
           var t = [e.subject || "-", e.issue || ""].filter(Boolean).join(" / "),
+            remark = meetingLetterRemark_(e),
             n = KeMeetingHistoryDate(e.letterDate || "-") || "-",
             i = (function (e) {
               var t = meetingText((e = e || {}).letterStatus || "").trim(),
@@ -5830,7 +5838,8 @@
             "</td><td>" +
             meetingEscapeHtml(e.agency || "-") +
             "</td><td>" +
-            meetingEscapeHtml(t || "-") +
+            '<span class="meeting-letter-subject">' + meetingEscapeHtml(t || "-") + "</span>" +
+            (remark ? '<div class="small text-muted">หมายเหตุ: ' + meetingEscapeHtml(remark) + "</div>" : "") +
             "</td><td>" +
             meetingEscapeHtml(e.opStaff || "-") +
             '</td><td class="text-center">' +
@@ -6234,13 +6243,16 @@
       var d = t.match(/^(\d+)\s*[\-–—]\s*((?:19|20|25)?\d{2})$/);
       return d ? d[1] + "/" + d[2] : "";
     }
+    var meetingDistinctSummaryError_ =
+      "สรุปสาระสำคัญของเรื่อง และหมายเหตุ ต้องเป็นคนละรายการ ห้ามคัดลอกข้อความเดียวกัน";
     function Ye(e) {
       var i = Xe(e.keySummary || ""),
         r = Xe(e.remark || "");
-      if (i && r && i === r)
-        throw new Error(
-          "สรุปสาระสำคัญของเรื่อง และหมายเหตุ ต้องเป็นคนละรายการ ห้ามคัดลอกข้อความเดียวกัน",
-        );
+      if (i && r && i === r) {
+        var err = new Error(meetingDistinctSummaryError_);
+        err.code = "CASE_SUMMARY_EQUALS_REMARK";
+        throw err;
+      }
       return e;
     }
     function Ge() {
@@ -6698,26 +6710,27 @@
         })
         .then(function (savedRow) {
           if (!savedRow || !savedRow.name) return !1;
-          var name = J(savedRow),
-            phone = K(savedRow),
-            current = X(T("meeting-petitioners"));
-          name && E("meeting-petitioners", Z(current.concat([name])));
-          phone && !meetingText(T("meeting-petitionerPhone") || "").trim() &&
-            E("meeting-petitionerPhone", normalizeMeetingPhone(phone));
-          Ie();
-          return Q(!0)
+          return Promise.resolve().then(function () {
+              var name = J(savedRow),
+                phone = K(savedRow),
+                current = X(T("meeting-petitioners"));
+              name && E("meeting-petitioners", Z(current.concat([name])));
+              phone && !meetingText(T("meeting-petitionerPhone") || "").trim() &&
+                E("meeting-petitionerPhone", normalizeMeetingPhone(phone));
+              Ie();
+              return Q(!0);
+            })
             .then(function () {
               _e();
               return savedRow;
             })
             .catch(function (refreshErr) {
-              meetingRoot.AppRuntime &&
-                __appIsFn(meetingRoot.AppRuntime.recordWarning) &&
-                meetingRoot.AppRuntime.recordWarning(
-                  "meeting.petitionerCreate.lookupRefresh",
-                  refreshErr,
-                  { name: name },
-                );
+              __appObserve(refreshErr, "meeting.petitionerCreate.postSaveUi");
+              try {
+                oe("warning", "บันทึกผู้ร้องแล้ว แต่ปรับข้อมูลในฟอร์มไม่สำเร็จ กรุณาเลือกชื่อที่บันทึกไว้โดยไม่เพิ่มซ้ำ");
+              } catch (noticeErr) {
+                __appObserve(noticeErr, "meeting.petitionerCreate.postSaveNotice");
+              }
               return savedRow;
             });
         })

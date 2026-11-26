@@ -423,14 +423,27 @@ function apiSavePetitionerRecord(payload,options){
 options=options&&"object"==typeof options?options:{};
 var savePayload=petitionerPayload(payload);savePayload.actionMethod="apiSavePetitioner",savePayload.forceFresh=!0,savePayload.noCache=!0,savePayload.bypassCache=!0;
 return apiCall("apiSavePetitioner",savePayload).then(function(res){
+var envelope=res;
+for(var depth=0;depth<3&&envelope&&typeof envelope==="object";depth++){
+if(envelope.ok===false)throw new Error(envelope.msg||envelope.message||"บันทึกข้อมูลผู้ร้องเรียนไม่สำเร็จ");
+envelope=envelope.data;
+}
 var saved=unwrapPetitionerSaveResponse(res),savedRow;
 saved.petId&&!savePayload.petId&&(savePayload.petId=saved.petId);
 savedRow=Object.assign({},savePayload,saved||{});
 savedRow=Object.assign({},savedRow,canonicalPetitionerAddress(savedRow||{}),{phone:formatPetitionerPhone(savedRow.phone||savePayload.phone||"")});
-upsertPetitionerLocalRow(savedRow),__appIsFn(root.renderPetitionerList)&&root.renderPetitionerList();
+return Promise.resolve().then(function(){
+upsertPetitionerLocalRow(savedRow);
+if(byId("pet-table-res")&&__appIsFn(root.renderPetitionerList))root.renderPetitionerList();
 if(__appIsFn(options.onSaved))try{options.onSaved(savedRow)}catch(callbackErr){warn("petitioner.save.onSaved",callbackErr,{source:text(options.source||"")})}
 var notice=!root.Swal?Promise.resolve(!0):appSwalFire("สำเร็จ","บันทึกข้อมูลผู้ร้องเรียนแล้ว","success");
 return Promise.resolve(notice).then(function(){return savedRow})
+}).catch(function(postSaveError){
+warn("petitioner.save.postSaveUi",postSaveError);
+return Promise.resolve().then(function(){
+return root.Swal?appSwalFire("แจ้งเตือน","บันทึกข้อมูลผู้ร้องเรียนแล้ว แต่แสดงผลหลังบันทึกไม่สมบูรณ์ กรุณาโหลดข้อมูลใหม่โดยไม่กดบันทึกซ้ำ","warning"):null
+}).catch(function(noticeError){warn("petitioner.save.postSaveNotice",noticeError)}).then(function(){return savedRow})
+})
 }).catch(function(err){
 if(root.Swal)return appSwalFire("ผิดพลาด",String(err&&err.message?err.message:err),"error").then(function(){return!1});
 throw err

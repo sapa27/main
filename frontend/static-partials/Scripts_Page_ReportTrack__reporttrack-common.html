@@ -4061,7 +4061,15 @@
           out[k] = v;
         }
       });
+      var remark = letterRemarkValue(fresh);
+      if (remark !== null) out.remark = remark;
       return out;
+    }
+    function letterRemarkValue(row) {
+      row = obj(row);
+      if (Object.prototype.hasOwnProperty.call(row, "remark")) return text(row.remark).trim();
+      if (Object.prototype.hasOwnProperty.call(row, "หมายเหตุ")) return text(row["หมายเหตุ"]).trim();
+      return null;
     }
     function enrichBundleLetterDetails(bundle, id, localCaseRow) {
       bundle = bundle || {};
@@ -4214,10 +4222,12 @@
       var payload = identityPayload();
       var relatedPartial = bundle.degraded === !0 || bundle.partialRelatedData === !0 || bundle.relatedLoadOk === !1;
       var authoritativeRelated = bundle.relatedLoadOk === !0 && !relatedPartial;
+      var missingRemark = letters.some(function (row) { return letterRemarkValue(row) === null; });
       var shouldRefresh =
         (!letters.length && !authoritativeRelated && bundle.__relatedFreshAttempted !== !0) ||
-        (letters.length > 0 && !letters.every(hasActualSubdetails));
+        missingRemark || (letters.length > 0 && !letters.every(hasActualSubdetails));
       if (!shouldRefresh) return Promise.resolve(bundle);
+      if (missingRemark) Object.assign(payload, { forceFresh: !0, noCache: !0, bypassCache: !0, cacheTtlSeconds: 0 });
       return api("apiGetLetters", payload)
         .then(function (res) {
           var fresh = rowsDeep(res);
@@ -4664,6 +4674,10 @@
                     .filter(Boolean)
                     .join(" / ");
                 },
+              },
+              {
+                label: "หมายเหตุ",
+                value: letterRemarkValue,
               },
               {
                 label: "ครบกำหนดตอบ",
@@ -5545,6 +5559,7 @@
           ) || "-",
         caseNum: relatedCaseNum || "-",
         operationOfficer: operationOfficer || "-",
+        remark: letterRemarkValue(row),
         dueDateText: thaiDate(due),
         extendDateText: thaiDate(ext),
         status: statusInfo.text || rawStatus,
@@ -5567,6 +5582,7 @@
           rows.map(function (row, i) {
             var dto = normalizeTrack(row, i);
             return TRACK_HEADERS.map(function (h) {
+              if (h.key === "subject" && dto.remark) return dto.subject + "\nหมายเหตุ: " + dto.remark;
               return dto[h.key] || "";
             });
           }),
@@ -5651,6 +5667,9 @@
                         (cls ? ' class="' + cls + '"' : "") +
                         ">" +
                         esc(dto[h.key] || "-") +
+                        (h.key === "subject" && dto.remark
+                          ? '<div class="small text-muted">หมายเหตุ: ' + esc(dto.remark) + "</div>"
+                          : "") +
                         "</td>";
                 }).join("") +
                 "</tr>"
