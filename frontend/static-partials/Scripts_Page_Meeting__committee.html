@@ -695,14 +695,16 @@
             var data = unwrap(res) || {};
             // Never switch an edit to a different meeting returned by the write.
             var requestedId = text(payload.meeting.meetingId || "").trim(),
-              savedId = text(data.meetingId || "").trim();
-            if (requestedId && savedId && requestedId !== savedId) {
-              closeSwal();
-              notify("warning", "ผลบันทึกอ้างถึงรายการประชุมอื่น กรุณาตรวจสอบรายการเดิมและรายการใหม่ก่อนบันทึกซ้ำ");
-              return res;
-            }
+              savedId = text(data.meetingId || "").trim(),
+              differentRecord = requestedId && savedId && requestedId !== savedId,
+              identityWarning = "ผลบันทึกอ้างถึงรายการประชุมอื่น กรุณาตรวจสอบรายการเดิมและรายการใหม่ก่อนบันทึกซ้ำ";
             // API confirmation and post-save UI work have separate outcomes.
             return Promise.resolve().then(function () {
+              if (differentRecord) {
+                closeSwal();
+                notify("warning", identityWarning);
+                return res;
+              }
               setVal(
                 "committee-meetingId",
                 data.meetingId || payload.meeting.meetingId || "",
@@ -716,7 +718,7 @@
               __appObserve(postSaveError, "meeting.committee.save.postSaveUi");
               closeSwal();
               try {
-                notify("warning", "บันทึกการประชุมแล้ว แต่แสดงผลหลังบันทึกไม่สำเร็จ กรุณาโหลดรายการใหม่โดยไม่กดบันทึกซ้ำ");
+                notify("warning", differentRecord ? identityWarning : "บันทึกการประชุมแล้ว แต่แสดงผลหลังบันทึกไม่สำเร็จ กรุณาโหลดรายการใหม่โดยไม่กดบันทึกซ้ำ");
               } catch (noticeError) {
                 __appObserve(noticeError, "meeting.committee.save.postSaveNotice");
               }
@@ -789,25 +791,29 @@
           __appObserve(_e, "ec");
         }
     }
+    var meetingEditRequest = 0;
     function editMeeting(id) {
       id = text(id || "").trim();
       if (!id) {
         notify("error", "ไม่พบรหัสรายการประชุมที่เลือก กรุณาโหลดรายการใหม่");
         return Promise.resolve(!1);
       }
+      var request = ++meetingEditRequest;
       showMeetingEditLoading();
       return api("apiGetCommitteeMeetingSystem", {
         meetingId: id, forceFresh: !0, noCache: !0, bypassCache: !0
       }).then(function (res) {
+        if (request !== meetingEditRequest) return !1;
         var data = unwrap(res) || {};
         if (!data.meeting || text(data.meeting.meetingId || "").trim() !== id || !Array.isArray(data.items))
           throw new Error("ยืนยันข้อมูลการประชุมเดิมไม่สำเร็จ กรุณาโหลดรายการใหม่ก่อนแก้ไข");
         loadToForm(data.meeting, data.items);
         return !0;
       }).then(function (result) {
-        closeMeetingEditLoading();
+        if (request === meetingEditRequest) closeMeetingEditLoading();
         return result;
       }, function (err) {
+        if (request !== meetingEditRequest) return !1;
         closeMeetingEditLoading();
         __appObserve(err, "meeting.committee.edit.rejected");
         notify("error", "โหลดการประชุมเดิมไม่สำเร็จ กรุณาโหลดรายการใหม่ก่อนแก้ไข");

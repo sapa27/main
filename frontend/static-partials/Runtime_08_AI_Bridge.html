@@ -81,8 +81,7 @@ getVal("meeting-title")||(setFieldValue("meeting-title",values.title),values.tit
 return!0
 },root.handleCaseAiPdfUpload=function(input){
 var file=input&&input.files&&input.files[0];
-return!!file&&(root.resetCaseAiResult(),setHidden("case-ai-status-reading",!1),showAiWorking("AI อ่านเอกสารเรื่องพิจารณา","กำลังส่ง PDF แบบแบ่งส่วนและสกัดชื่อเรื่อง ผู้ร้อง หน่วยงาน และสรุปเรื่อง"),uploadPdfForAiCurrent("apiExtractDocumentPdf",file,"case").then(function(data){
-var normalized=normalizeCaseAiExtractResult(data);
+return!!file&&(root.resetCaseAiResult(),setHidden("case-ai-status-reading",!1),showAiWorking("AI อ่านเอกสารเรื่องพิจารณา","กำลังส่ง PDF แบบแบ่งส่วนและสกัดชื่อเรื่อง ผู้ร้อง หน่วยงาน และสรุปเรื่อง"),scanCasePdfForAiCurrent(file).then(function(normalized){
 if(!normalized.extractedFieldCount)throw new Error("AI อ่านเอกสารสำเร็จแต่ไม่พบข้อมูลที่นำมาแสดงได้ กรุณาตรวจสอบว่า PDF มีข้อความชัดเจนแล้วลองใหม่");
 setFieldValue("case-ai-result-title",normalized.title),setFieldValue("case-ai-result-petitioner",normalized.petitioner),setFieldValue("case-ai-result-respondent",normalized.respondent),setFieldValue("case-ai-result-summary",normalized.summary),setHidden("case-ai-status-reading",!0),setHidden("case-ai-status-error",!0),setHidden("case-ai-status-done",!1),setHidden("case-ai-result-fields",!1),closeAiPopup(),showAiPopup("AI อ่านเอกสารสำเร็จ","สกัดข้อมูลได้ "+normalized.extractedFieldCount+" รายการ กรุณาตรวจสอบก่อนนำไปใช้ในฟอร์ม",{
 icon:"success"
@@ -512,30 +511,30 @@ SOFTWARE.
 
 return meetingPdfDocumentTypeCurrent=module.exports.PDFDocument
 }
-async function splitMeetingPdfCurrent(file){
+async function splitAiPdfPagesCurrent(file,mode){
 if(!file||!(/pdf$/i.test(String(file.type||""))||/\.pdf$/i.test(String(file.name||""))))throw new Error("รองรับเฉพาะไฟล์ PDF เท่านั้น");
 if(!file.size||file.size>6291456)throw new Error("ไฟล์ PDF ต้องมีขนาดไม่เกิน 6 MB และไม่เป็นไฟล์ว่าง");
 var PDFDocument=meetingPdfDocumentCurrent(),source;
 try{source=await PDFDocument.load(await file.arrayBuffer(),{updateMetadata:false,throwOnInvalidObject:true})}
 catch(err){throw new Error("เปิดไฟล์ PDF ไม่สำเร็จ กรุณาตรวจสอบว่าไฟล์ไม่เสียหายและไม่ได้ล็อกด้วยรหัสผ่าน")}
-var count=source.getPageCount(),pagesPerBatch=8,maxBatches=12,batches=[];
+var count=source.getPageCount(),caseMode=mode==="case",pagesPerBatch=caseMode?4:8,maxBatches=caseMode?24:12,maxBatchBytes=caseMode?2097152:6291456,batches=[];
 if(!count)throw new Error("ไม่พบหน้าในไฟล์ PDF");
-if(count>pagesPerBatch*maxBatches)throw new Error("รองรับ PDF ระเบียบวาระไม่เกิน 96 หน้า กรุณาแยกเอกสารแนบออกก่อนสแกน");
-if(count<=pagesPerBatch)return [{file:file,first:1,last:count}];
+if(count>pagesPerBatch*maxBatches)throw new Error("รองรับ PDF"+(caseMode?" เรื่องพิจารณา":" ระเบียบวาระ")+" ไม่เกิน 96 หน้า กรุณาแยกเอกสารแนบออกก่อนสแกน");
+if(count<=pagesPerBatch&&(count===1||file.size<=maxBatchBytes))return [{file:file,first:1,last:count}];
 async function addRange(first,end){
 var part=await PDFDocument.create(),indices=[];
 for(var i=first;i<end;i++)indices.push(i);
 var pages=await part.copyPages(source,indices);
 pages.forEach(function(page){part.addPage(page)});
 var bytes=await part.save({addDefaultPage:false});
-if(bytes.length>6291456){
-if(end-first===1)throw new Error("PDF หน้า "+(first+1)+" มีขนาดเกิน 6 MB หลังแบ่งหน้า");
+if(bytes.length>maxBatchBytes&&end-first>1){
 var mid=first+Math.floor((end-first)/2);
 await addRange(first,mid);
 await addRange(mid,end);
 return
 }
-if(batches.length>=maxBatches)throw new Error("PDF ต้องแบ่งเกิน 12 ช่วง กรุณาลดขนาดเอกสารก่อนสแกน");
+if(bytes.length>6291456)throw new Error("PDF หน้า "+(first+1)+" มีขนาดเกิน 6 MB หลังแบ่งหน้า");
+if(batches.length>=maxBatches)throw new Error("PDF ต้องแบ่งเกิน "+maxBatches+" ช่วง กรุณาลดขนาดเอกสารก่อนสแกน");
 batches.push({first:first+1,last:end,file:new File([bytes],file.name||"agenda.pdf",{type:"application/pdf"})})
 }
 for(var first=0;first<count;first+=pagesPerBatch)await addRange(first,Math.min(count,first+pagesPerBatch));
@@ -544,7 +543,7 @@ return batches
 async function scanPdfForAiCurrent(method,file,mode){
 if(method!=="apiExtractMeetingAgendaPdf"||mode!=="meeting")return uploadPdfForAiCurrent(method,file,mode);
 updateAiUploadProgressCurrent(0,0,"กำลังเตรียมช่วงหน้าของ PDF");
-var parts=await splitMeetingPdfCurrent(file);
+var parts=await splitAiPdfPagesCurrent(file,"meeting");
 if(parts.length===1)return uploadPdfForAiCurrent(method,file,mode);
 var merged={meeting:{meetingNo:"",meetingDate:"",title:"",note:""},agenda1:[],agenda2:[],agenda3:[],agenda4:[]};
 var agendaKeys=["agenda1","agenda2","agenda3","agenda4"];
@@ -563,6 +562,36 @@ if(!merged.meeting[key]&&typeof result.meeting[key]==="string")merged.meeting[ke
 agendaKeys.forEach(function(key){merged[key]=merged[key].concat(result[key])})
 }catch(err){throw new Error("สแกน "+label+" ไม่สำเร็จ: "+String(err&&err.message||"ไม่ทราบสาเหตุ"))}
 }
+return merged
+}
+
+async function scanCasePdfForAiCurrent(file){
+var method="apiExtractDocumentPdf",mode="case";
+updateAiUploadProgressCurrent(0,0,"กำลังเตรียมช่วงหน้าของ PDF");
+var parts=await splitAiPdfPagesCurrent(file,mode);
+var merged={title:"",petitioner:"",respondent:"",summary:""},fields={petitioner:[],respondent:[],summary:[]};
+for(var i=0;i<parts.length;i++){
+var part=parts[i],label="ช่วง "+(i+1)+"/"+parts.length+" (หน้า "+part.first+"–"+part.last+")";
+updateAiUploadProgressCurrent(0,0,"กำลังอ่านเอกสาร "+label);
+try{
+var normalized=normalizeCaseAiExtractResult(await uploadPdfForAiCurrent(method,part.file,mode,function(done,total,message){
+updateAiUploadProgressCurrent(done,total,label+" — "+(message||"ส่งข้อมูล "+Math.round(done*100/total)+"%"))
+}));
+if(!merged.title)merged.title=normalized.title;
+Object.keys(fields).forEach(function(key){
+if(normalized[key]&&fields[key].indexOf(normalized[key])===-1)fields[key].push(normalized[key])
+});
+}catch(err){
+var isEdgeTimeout=err&&(err.httpStatus===524||err.code==="CLOUD_RUN_HTTP_524"||/^Cloud Run HTTP 524$/.test(String(err.message||"")));
+if(!isEdgeTimeout)throw err;
+var timeout=new Error("AI อ่านเอกสาร "+label+" ไม่ทันเวลา (524) กรุณาลองใช้ PDF เฉพาะช่วงหน้าที่ต้องการ",{cause:err});
+timeout.code=err.code;
+timeout.requestId=err.requestId;
+throw timeout
+}
+}
+Object.keys(fields).forEach(function(key){merged[key]=fields[key].join(key==="summary"?"\n\n":", ")});
+merged.extractedFieldCount=Object.keys(merged).filter(function(key){return !!merged[key]}).length;
 return merged
 }
 

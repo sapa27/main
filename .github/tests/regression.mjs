@@ -1848,16 +1848,169 @@ await okAsync('Confirmed case saves survive UI failures without retrying the wri
   }
 });
 
+await okAsync('Case save explains matching summary and remark before sending a write', async () => {
+  const saveStart = meetingController.indexOf('window.meetingSharedSave =');
+  const saveEnd = meetingController.indexOf('}),\n        (window.meetingSharedDelete', saveStart);
+  const ruleStart = meetingController.indexOf('var meetingDistinctSummaryError_');
+  const ruleEnd = meetingController.indexOf('function Ge()', ruleStart);
+  const normStart = meetingController.indexOf('function Xe(e)');
+  const normEnd = meetingController.indexOf('function normalizeMeetingPhone', normStart);
+  const source = meetingController.slice(normStart, normEnd) + meetingController.slice(ruleStart, ruleEnd) + meetingController.slice(saveStart, saveEnd + 1);
+  async function run(summary, remark, rejectWrite) {
+    const notices = [], writes = [], state = {};
+    const ctx = {
+      window: {}, meetingRoot: {}, B: () => state, G: update => Object.assign(state, update),
+      meetingById: () => null, re() {}, meetingResolveActiveSaveTarget: () => '#content-case-data',
+      meetingSaveCaseSinglePath_() {
+        writes.push(ctx.Ye({ keySummary: summary, remark }));
+        if (rejectWrite) throw new Error('fixture transport rejection');
+        return true;
+      },
+      meetingPublicErrorText_() {}, oe: (kind, message) => notices.push({ kind, message })
+    };
+    vm.runInNewContext(source, ctx);
+    const save = ctx.window.meetingSharedSave();
+    if (summary.trim() === remark || rejectWrite) await assert.rejects(save);
+    else assert.equal(await save, true);
+    assert.equal(state.isSaving, false);
+    return { notices, writes };
+  }
+  const equal = await run(' ข้อความเดียวกัน ', 'ข้อความเดียวกัน');
+  assert.equal(equal.writes.length, 0);
+  assert.match(equal.notices[0].message, /ต้องเป็นคนละรายการ/);
+  assert.equal((await run('สรุป', 'หมายเหตุ')).writes.length, 1);
+  assert.equal((await run('สรุป', 'หมายเหตุ', true)).notices[0].message, 'บันทึกข้อมูลไม่สำเร็จ');
+});
+
+await okAsync('Tracking remark reload preserves saved text and explicit clearing', async () => {
+  const start = meetingController.indexOf('window.meetingEditLetter =');
+  const end = meetingController.indexOf('}),\n        (window.meetingDeleteLetterSinglePath', start);
+  const remarkStart = meetingController.indexOf('function meetingLetterRemark_(');
+  const renderEnd = meetingController.indexOf('function Be(input)', remarkStart);
+  const values = {}, calls = [], notices = [];
+  let response, rendered;
+  const row = { letterId: 'FIXTURE-LETTER', letterNo: 'TEST-1', subject: 'หัวข้อ', replies: [{ date: '2026-11-26' }] };
+  const ctx = {
+    window: {}, meetingRoot: {}, T: () => '', E: (id, value) => { values[id] = value; },
+    A: () => '', M() {}, q() {}, meetingById: () => null,
+    meetingText: value => String(value ?? ''), KeMeetingHistoryDate: value => value,
+    meetingSetHtml: (_id, html) => { rendered = html; }, meetingEscapeHtml: value => String(value).replace(/</g, '&lt;'),
+    meetingRelatedState: { letters: [row] }, __appObserve() {},
+    oe: (kind, message) => notices.push({ kind, message }),
+    async callMeetingApi(method, payload) { calls.push({ method, payload }); return { data: { rows: response } }; }
+  };
+  vm.runInNewContext(meetingController.slice(remarkStart, renderEnd) + meetingController.slice(start, end + 1), ctx);
+  response = [{ ...row, 'หมายเหตุ': 'ข้อความใหม่ <ตัวอย่าง>' }];
+  assert.equal(await ctx.window.meetingEditLetter(row.letterId), true);
+  assert.equal(calls[0].method, 'apiGetLetters');
+  assert.equal(calls[0].payload.forceFresh, true);
+  assert.equal(values['meeting-letterRemark'], 'ข้อความใหม่ <ตัวอย่าง>');
+  ctx.qe(response);
+  assert.match(rendered, /หมายเหตุ: ข้อความใหม่ &lt;ตัวอย่าง>/);
+  assert.equal([...rendered.matchAll(/<td\b/g)].length, 8);
+  ctx.meetingRelatedState.letters = [{ letterId: row.letterId, remark: 'ข้อความเก่า' }];
+  response = [{ ...row, remark: '', 'หมายเหตุ': 'ข้อมูลเก่าที่ไม่ควรกลับมา' }];
+  assert.equal(await ctx.window.meetingEditLetter(row.letterId), true);
+  assert.equal(values['meeting-letterRemark'], '');
+  ctx.meetingRelatedState.letters = [row];
+  response = [{ ...row, letterId: 'OTHER-LETTER', remark: 'หมายเหตุของรายการอื่น' }];
+  assert.equal(await ctx.window.meetingEditLetter(row.letterId), false);
+  assert.equal(values['meeting-letterId'], row.letterId);
+  assert.equal(values['meeting-letterRemark'], '');
+  assert.deepEqual(notices.map(({ kind }) => kind), ['warning']);
+});
+
+await okAsync('Petitioner write retains its confirmed ID and attaches to the case form', async () => {
+  const html = file('frontend/static-partials/Scripts_Page_Petitioner.html');
+  const saveStart = html.indexOf('function unwrapPetitionerSaveResponse(');
+  const saveEnd = html.indexOf('function normalizeRelatedText(', saveStart);
+  const formStart = meetingController.indexOf('function meetingOpenAddPetitioner_()');
+  const formEnd = meetingController.indexOf('function _e()', formStart);
+  for (const scenario of ['success', 'cache-failure', 'form-failure', 'api-failure']) {
+    const writes = [], alerts = [], selected = [];
+    const row = { petId: 'FIXTURE-PET', name: 'ผู้ร้องทดสอบ', phone: '0100000000' };
+    const ctx = {
+      root: { Swal: {}, renderPetitionerList() { throw new Error('table must not render on the case page'); } },
+      meetingRoot: {}, text: value => String(value ?? ''), byId: () => null,
+      __appIsFn: value => typeof value === 'function', warn() {}, __appObserve() {},
+      petitionerPayload: fixture => ({ ...fixture }), canonicalPetitionerAddress: () => ({}), formatPetitionerPhone: value => value,
+      storeGet: () => [], storeSet: () => { if (scenario === 'cache-failure') throw new Error('fixture cache'); },
+      apiCall: async (method, payload) => {
+        writes.push({ method, payload });
+        return { ok: true, data: scenario === 'api-failure' ? { ok: false, message: 'fixture API denial' } : { data: row } };
+      },
+      appSwalFire: async (_title, _message, kind) => { alerts.push(kind); },
+      ensureMeetingPetitionerCreateButton_: () => null, meetingById: () => null,
+      meetingEnsurePetitionerOwner_: async () => ({ open: () => ctx.apiSavePetitionerRecord({ name: row.name }) }),
+      J: saved => saved.name, K: saved => saved.phone, X: () => [], T: () => '', Z: list => list.join(', '),
+      meetingText: value => String(value ?? ''), normalizeMeetingPhone: value => value,
+      E: (id, value) => {
+        if (scenario === 'form-failure') throw new Error('fixture form');
+        if (id === 'meeting-petitioners') selected.push(value);
+      },
+      Ie() {}, Q: async () => [], _e() {}, oe: kind => alerts.push(kind)
+    };
+    vm.runInNewContext(html.slice(saveStart, saveEnd) + meetingController.slice(formStart, formEnd), ctx);
+    const result = await ctx.meetingOpenAddPetitioner_();
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0].method, 'apiSavePetitioner');
+    if (scenario === 'api-failure') {
+      assert.equal(result, false);
+      assert.deepEqual(alerts, ['error']);
+    } else {
+      assert.equal(result.petId, row.petId);
+      assert.deepEqual(selected, scenario === 'form-failure' ? [] : [row.name]);
+      assert.equal(alerts.includes('warning'), scenario !== 'success');
+      assert.ok(!alerts.includes('error'));
+    }
+  }
+});
+
+await okAsync('Tracking detail and print keep remarks without mixing them with replies', async () => {
+  const shared = file('frontend/static-partials/Scripts_Page_ReportTrack__reporttrack-common.html');
+  const detailStart = shared.indexOf('function mergeLetterDetailRow(');
+  const detailEnd = shared.indexOf('function formatLetterReplies(', detailStart);
+  const displayStart = shared.indexOf('function normalizeTrack(');
+  const displayEnd = shared.indexOf('function removeDuplicateManualPagers(', displayStart);
+  const row = { letterId: 'FIXTURE-LETTER', caseId: 'CASE-A', caseNum: '123', subject: 'หัวข้อ', detailsAuthoritative: true };
+  const calls = [], nodes = { 'track-thead': {}, 'track-tbody': {} };
+  let fetched = { ...row, remark: 'ข้อความใหม่ <ตัวอย่าง>' };
+  const ctx = {
+    root: {}, text: value => String(value ?? ''), clean: value => String(value ?? '').trim(),
+    obj: value => value && typeof value === 'object' ? value : {}, arr: value => Array.isArray(value) ? value : [],
+    pick: (item, fields) => fields.map(field => item[field]).find(Boolean) || '',
+    normalizeCase: value => value, normalizeCaseSequenceKey: value => value,
+    letterDetailIdentity: item => item.letterId, dedupeDetailLettersCurrent: value => value,
+    api: async (name, payload) => { calls.push({ name, payload }); return { rows: [fetched] }; },
+    thaiDate: value => value || '-', trackingStatusText: () => ({}), trackingTimelineText: () => '',
+    TRACK_HEADERS: [{ key: 'subject', label: 'เรื่อง / ประเด็น' }],
+    trackState: { rows: [row], serverPaged: true }, renderTrackPager() {},
+    byId: id => nodes[id], setHtml: (node, html) => { node.html = html; }, esc: value => String(value).replace(/</g, '&lt;')
+  };
+  vm.runInNewContext(shared.slice(detailStart, detailEnd) + shared.slice(displayStart, displayEnd), ctx);
+  const bundle = { case: { caseId: 'CASE-A', caseNum: '123' }, letters: [row] };
+  await ctx.enrichBundleLetterDetails(bundle, 'CASE-A', bundle.case);
+  assert.equal(calls[0].name, 'apiGetLetters');
+  assert.equal(calls[0].payload.forceFresh, true);
+  assert.equal(bundle.letters[0].remark, fetched.remark);
+  ctx.trackState.rows = bundle.letters;
+  ctx.renderTrack();
+  assert.match(nodes['track-tbody'].html, /หมายเหตุ: ข้อความใหม่ &lt;ตัวอย่าง>/);
+  assert.equal(ctx.trackAoa(bundle.letters)[1][0], 'หัวข้อ\nหมายเหตุ: ข้อความใหม่ <ตัวอย่าง>');
+  assert.equal(ctx.mergeLetterDetailRow(fetched, { 'หมายเหตุ': '' }).remark, '');
+  assert.equal(ctx.letterRemarkValue({ ...row, replyNote: 'เอกสารตอบรับ' }), null);
+});
+
 await okAsync('Dashboard cached renders do not renew freshness and restored memory revalidates as time passes',async()=>{
  const html=file('frontend/static-partials/Scripts_Page_Dashboard.html');
  const source=scripts(html).find(s=>s.includes('var OWNER = "dashboard-single-owner-production-current"'));
  assert.ok(source);
- let time=1000000,apiError=false;
+ let time=1000000,apiError=false,total=42;
  class Clock extends Date{constructor(...args){super(...(args.length?args:[time]));}static now(){return time;}}
  const storage=new Map(),calls=[],auth={'auth.token':'fixture-token','auth.user':{id:'fixture-user',role:'Viewer'}};
  function create(){
   const document={dispatchEvent(){},documentElement:{classList:{remove(){}}}};
-  const root={AppStore:{get:(k,d)=>auth[k]??d,set:(k,v)=>auth[k]=v},AppDashboard:{},sessionStorage:{get length(){return storage.size;},key:i=>Array.from(storage.keys())[i],getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},AppPageKit:{apiRunner:async(m,p)=>{calls.push({m,p});if(apiError)throw new Error('fixture read failed');return {ok:true,data:{summaryStats:{total:42},meta:{dashboardSingleCompletePath:true,completeData:true}}};}},DashboardRender:{renderDashboardAll(){}},setTimeout,clearTimeout};
+  const root={AppStore:{get:(k,d)=>auth[k]??d,set:(k,v)=>auth[k]=v},AppDashboard:{},sessionStorage:{get length(){return storage.size;},key:i=>Array.from(storage.keys())[i],getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},AppPageKit:{apiRunner:async(m,p)=>{calls.push({m,p});if(apiError)throw new Error('fixture read failed');return {ok:true,data:{summaryStats:{total},meta:{dashboardSingleCompletePath:true,completeData:true}}};}},DashboardRender:{renderDashboardAll(){}},setTimeout,clearTimeout};
   vm.runInNewContext(source,{window:root,document,Date:Clock,CustomEvent:function(){},__appIsFn:v=>typeof v==='function',__appObserve(){}});
   return root.AppDashboard;
  }
@@ -1881,6 +2034,10 @@ await okAsync('Dashboard cached renders do not renew freshness and restored memo
  assert.equal(dashboard.__state.lastFreshAt,freshAt,'failed refresh must not mark old data fresh');
  assert.equal(JSON.parse(storage.get(key)).savedAt,refreshed.savedAt,'failed refresh must not renew stored cache');
  assert.equal(JSON.parse(storage.get(key)).expiresAt,refreshed.expiresAt);
+ time+=11000;apiError=false;total=43;await dashboard.refresh();await settle(dashboard);
+ assert.equal(calls.length,4);
+ assert.equal(dashboard.__state.data.summaryStats.total,43,'a successful refresh must replace the prior total');
+ assert.equal(JSON.parse(storage.get(key)).data.summaryStats.total,43);
 });
 
 
@@ -1893,14 +2050,14 @@ await okAsync('Committee save keeps confirmed writes successful when post-save r
  const source=unwrapSource+'\n'+html.slice(begin,end);
  async function run(mode){
   const writes=[],reads=[],notices=[],warnings=[],values={},buttonStates=[];
-  const payload={meeting:{meetingId:'',meetingNo:'fixture',meetingDate:'05/11/2569',title:'synthetic meeting',note:''},agenda1:[],agenda2:[],agenda3:[{caseId:'fixture-case',title:'synthetic agenda'}],agenda4:[]};
-  const response={ok:true,data:{meetingId:'fixture-saved-id'}};
+  const payload={meeting:{meetingId:'fixture-saved-id',meetingNo:'fixture',meetingDate:'05/11/2569',title:'synthetic meeting',note:''},agenda1:[],agenda2:[],agenda3:[{caseId:'fixture-case',title:'synthetic agenda'}],agenda4:[]};
+  const response={ok:true,data:{meetingId:mode.startsWith('mismatch')?'fixture-unexpected-id':'fixture-saved-id'}};
   const ctx={Promise,Kit:{},root:{},text:v=>String(v==null?'':v),errorText:e=>e.message||e.msg||e.error||'fixture-error',
    formPayload:()=>payload,showCommitteeLoadingSpinner(){},closeSwal(){},
    api:async(name,p)=>{writes.push({name,p});if(mode==='transport')throw new Error('fixture transport failure');return mode==='rejected'?{ok:false,msg:'fixture API rejected'}:response;},
    setVal:(id,value)=>{if(mode==='form')throw new Error('fixture form failure');values[id]=value;},
    loadList:opts=>{reads.push(opts);if(mode==='listSync')throw new Error('fixture list sync failure');return mode==='list'||mode==='warningNotice'?Promise.reject(new Error('fixture list failure')):Promise.resolve({});},
-   notify:(kind,message)=>{if(mode==='successNotice'&&kind==='success'||mode==='warningNotice'&&kind==='warning')throw new Error('fixture notice failure');notices.push({kind,message});},
+   notify:(kind,message)=>{if(mode==='successNotice'&&kind==='success'||['warningNotice','mismatchNotice'].includes(mode)&&kind==='warning')throw new Error('fixture notice failure');notices.push({kind,message});},
    disable:(_btn,flag)=>{buttonStates.push(flag);if(mode==='releaseButton'&&!flag)throw new Error('fixture button release failure');},
    __appObserve:(_err,label)=>warnings.push(label)
   };
@@ -1914,6 +2071,13 @@ await okAsync('Committee save keeps confirmed writes successful when post-save r
    assert.ok(error);assert.equal(result,undefined);assert.equal(reads.length,0);assert.deepEqual(notices.map(n=>n.kind),['error']);return;
   }
   assert.equal(error,undefined,mode);assert.equal(result,response,'retain original confirmed API response');
+  if(mode.startsWith('mismatch')){
+   assert.equal(values['committee-meetingId'],undefined,'do not replace the selected meeting ID');
+   assert.equal(reads.length,0);
+   if(mode==='mismatch')assert.match(notices[0].message,/อ้างถึงรายการประชุมอื่น/);
+   else assert.ok(warnings.includes('meeting.committee.save.postSaveNotice'));
+   return;
+  }
   if(mode!=='form')assert.equal(values['committee-meetingId'],'fixture-saved-id');
   if(reads.length)assert.equal(reads[0].forceFresh,true,'reload saved meeting data without stale list cache');
   if(['form','list','listSync','successNotice','warningNotice'].includes(mode)){
@@ -1924,12 +2088,43 @@ await okAsync('Committee save keeps confirmed writes successful when post-save r
   if(mode==='warningNotice')assert.ok(warnings.includes('meeting.committee.save.postSaveNotice'));
   if(mode==='releaseButton')assert.ok(warnings.includes('meeting.committee.save.releaseButton'));
  }
- for(const mode of ['normal','form','list','listSync','successNotice','warningNotice','releaseButton','transport','rejected'])await run(mode);
+ for(const mode of ['normal','form','list','listSync','successNotice','warningNotice','releaseButton','transport','rejected','mismatch','mismatchNotice'])await run(mode);
  const eventBegin=html.indexOf('if ("committee-meeting-save-btn" === btn.id)'),eventEnd=html.indexOf('if ("committee-meeting-new-btn"',eventBegin);
  assert.ok(eventBegin>=0&&eventEnd>eventBegin);
  const eventOwner=html.slice(eventBegin,eventEnd);
  assert.ok(eventOwner.includes('meeting.committee.save.rejected'));
  assert.ok(!eventOwner.includes('notify('),'save click handler must not duplicate the API error notice');
+});
+
+await okAsync('Committee editor keeps the latest selection and rejects an unexpected meeting ID', async () => {
+  const html = file('frontend/static-partials/Scripts_Page_Meeting__committee.html');
+  const start = html.indexOf('var meetingEditRequest =');
+  const end = html.indexOf('function setAiAgendaStatus(', start);
+  const requests = new Map(), selected = [], errors = [];
+  let closes = 0;
+  const ctx = {
+    text: value => String(value ?? ''), unwrap: result => result.data,
+    showMeetingEditLoading() {}, closeMeetingEditLoading() { closes++; },
+    loadToForm: meeting => selected.push(meeting.meetingId),
+    notify: (_kind, message) => errors.push(message), __appObserve() {},
+    api(name, payload) {
+      assert.equal(name, 'apiGetCommitteeMeetingSystem');
+      assert.equal(payload.forceFresh, true);
+      return new Promise(resolve => requests.set(payload.meetingId, resolve));
+    }
+  };
+  vm.runInNewContext(html.slice(start, end), ctx);
+  const older = ctx.editMeeting('MEETING-A'), latest = ctx.editMeeting('MEETING-B');
+  requests.get('MEETING-B')({ data: { meeting: { meetingId: 'MEETING-B' }, items: [] } });
+  assert.equal(await latest, true);
+  requests.get('MEETING-A')({ data: { meeting: { meetingId: 'MEETING-A' }, items: [] } });
+  assert.equal(await older, false);
+  assert.equal(closes, 1);
+  const mismatch = ctx.editMeeting('MEETING-C');
+  requests.get('MEETING-C')({ data: { meeting: { meetingId: 'MEETING-D' }, items: [] } });
+  assert.equal(await mismatch, false);
+  assert.deepEqual(selected, ['MEETING-B']);
+  assert.equal(errors.length, 1);
 });
 
 
@@ -2011,6 +2206,43 @@ await okAsync('Agenda scan splits real PDF pages and applies only complete order
  const small=await code.pdf().create();small.addPage([600,800]);
  await code.scan('apiExtractMeetingAgendaPdf',new File([await small.save()],'small.pdf',{type:'application/pdf'}),'meeting');
  assert.equal(transfers.length,1,'short PDF follows the existing single request path');
+});
+
+await okAsync('Case PDF scans ordered short ranges and does not replay a 524',async()=>{
+ const html=file('frontend/static-partials/Runtime_08_AI_Bridge.html');
+ const normalize=html.slice(html.indexOf('function aiExtractTextValue('),html.indexOf('function normalizeTrackingAiExtractResult('));
+ const source=html.slice(html.indexOf('var meetingPdfDocumentTypeCurrent;'),html.indexOf('function setHidden('));
+ const ranges=[],finals=[];
+ let failAt=0;
+ const code=new Function('root','callApi','readBlobAsBase64Current','delay','__appObserve',normalize+source+';return {scan:scanCasePdfForAiCurrent,pdf:meetingPdfDocumentCurrent}')({},async(method,p)=>{
+  assert.equal(method,'apiExtractDocumentPdf');assert.equal(p.mode,'case');
+  if(p.transferOp==='start'){ranges.push([]);return{transferId:String(ranges.length),chunkBytes:196608}}
+  const id=Number(p.transferId),parts=ranges[id-1];
+  assert.equal(p.offset,parts.reduce((n,b)=>n+b.length,0));
+  parts.push(Buffer.from(p.chunkBase64,'base64'));
+  if(!p.final)return{staged:true};
+  finals.push(id);
+  if(id===failAt)throw Object.assign(new Error('Cloud Run HTTP 524'),{code:'CLOUD_RUN_HTTP_524',httpStatus:524,requestId:'fixture-524'});
+  const pages=(await code.pdf().load(Buffer.concat(parts))).getPages();
+  return{subject:'Fixture',petitioners:['Name'],abstract:pages.map(page=>page.getWidth()).join(',')};
+ },async blob=>Buffer.from(await blob.arrayBuffer()).toString('base64'),async()=>{},()=>{});
+ const pdf=await code.pdf().create();
+ for(let i=0;i<11;i++)pdf.addPage([600+i,800]);
+ const sample=new File([await pdf.save()],'fixture.pdf',{type:'application/pdf'});
+ const result=await code.scan(sample);
+ assert.equal(result.petitioner,'Name');
+ assert.equal(result.summary,'600,601,602,603\n\n604,605,606,607\n\n608,609,610');
+ assert.deepEqual(finals,[1,2,3]);
+ ranges.length=finals.length=0;failAt=2;
+ await assert.rejects(code.scan(sample),e=>e.code==='CLOUD_RUN_HTTP_524'&&e.requestId==='fixture-524'&&/หน้า 5–8/.test(e.message));
+ assert.deepEqual(finals,[1,2]);
+ assert.equal(ranges.length,2);
+ ranges.length=finals.length=0;failAt=0;
+ const onePage=await code.pdf().create();
+ onePage.addPage([700,800]);
+ const one=await code.scan(new File([await onePage.save()],'one.pdf',{type:'application/pdf'}));
+ assert.equal(one.summary,'700');
+ assert.deepEqual(finals,[1]);
 });
 
 console.log('# '+passed+' CR-7 regression groups passed');
