@@ -919,6 +919,38 @@ html body .mobile-topbar .mobile-menu-btn,html body .mobile-topbar button,html b
   #p-meeting .ai-card-track .btn-ai-upload{width:100%;text-align:center}
 }
 </style>
+<style id="app-case-timeline-style">
+  .case-workspace-heading { border-top: 3px solid var(--app-primary, #0d3763); border-radius: 16px; }
+  .case-timeline { border: 1px solid #cedbeb; border-radius: 14px; background: #fff; color: #17324f; margin-bottom: 1rem; }
+  .case-timeline-summary { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1.25rem; padding: .8rem 1rem; border-radius: 13px; background: #edf4fb; }
+  details.case-timeline > summary { cursor: pointer; list-style: none; }
+  details.case-timeline > summary::-webkit-details-marker { display: none; }
+  details.case-timeline > summary::after { content: ''; width: .55rem; height: .55rem; margin-left: .15rem; border: solid #355b81; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  details.case-timeline[open] > summary::after { transform: rotate(225deg); }
+  .case-timeline-summary:focus-visible { outline: 3px solid #2361a2; outline-offset: 2px; }
+  .case-timeline-heading { font-size: 1.1rem; font-weight: 750; margin-right: auto; }
+  .case-timeline-metric { display: flex; align-items: baseline; flex-wrap: wrap; gap: .2rem .55rem; }
+  .case-timeline-metric strong { color: #173e6b; font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+  .case-timeline-metric span, .case-timeline-note, .case-timeline-detail { color: #465b72; }
+  .case-timeline-body { padding: .8rem 1rem 1rem; }
+  .case-timeline-note { margin: 0 0 .7rem; font-size: .875rem; }
+  .case-timeline-events { margin: 0 0 0 .3rem; padding: 0; list-style: none; border-left: 2px solid #cddced; }
+  .case-timeline-event { position: relative; display: grid; grid-template-columns: 8rem minmax(0, 1fr) auto; gap: .2rem .8rem; padding: .34rem 0 .45rem .9rem; overflow-wrap: anywhere; }
+  .case-timeline-event::before { position: absolute; top: .82rem; left: -.37rem; content: ''; width: .65rem; height: .65rem; border-radius: 50%; background: #386a9c; border: 2px solid #fff; }
+  .case-timeline-event[data-kind="received"]::before, .case-timeline-event[data-kind="closed"]::before { background: #167d71; }
+  .case-timeline-event time { color: #355b81; font-weight: 650; }
+  .case-timeline-days { align-self: start; justify-self: start; border-radius: .4rem; padding: .08rem .42rem; color: #204c73; background: #eef4fa; white-space: nowrap; font-size: .875rem; }
+  #meeting-case-timeline[hidden] { display: none; }
+  @media (max-width: 575.98px) {
+    .case-timeline-event { grid-template-columns: minmax(0, 1fr) auto; }
+    .case-timeline-event > div { grid-column: 1 / -1; grid-row: 2; }
+  }
+  @media print {
+    .case-timeline { box-shadow: none; color: #111; }
+    .case-timeline-event { break-inside: avoid; }
+    .case-timeline-summary, .case-timeline-days { background: none; }
+  }
+</style>
 </head>
 <body class="vue3-preserve-body">
 <script>var __APP_BUILD_P=window.APP_BUILD_PROVENANCE||{};window.__APP_BOOTSTRAP__={"ok":true,"authenticated":false,"page":"login","requestedPage":"login","session":null,"user":null,"source":String(__APP_BUILD_P.hostArtifact||"cloud-run-canonical-frontend"),"hostMode":"cloud-run","appStamp":String(__APP_BUILD_P.releaseStamp||""),"assetStamp":String(__APP_BUILD_P.assetStamp||""),"sourceFingerprint":String(__APP_BUILD_P.sourceFingerprint||""),"contractStamp":String(__APP_BUILD_P.qualityGate||""),"buildName":String(__APP_BUILD_P.buildName||""),"defaultRoute":"/dashboard","sessionRestoreSupported":true,"permissionMatrix":{"stamp":"permission-matrix-p0-2026-07-30-r330","owner":"Code_02_Platform_Permissions.APP_PERMISSION_MATRIX","defaultRole":"Viewer","roles":{"Viewer":{"pages":["dashboard","search","report"],"deniedApiGroups":["admin-users","admin-budget","budget","personnel","petitioners"],"allowWrites":false},"Staff":{"pages":["dashboard","meeting","committee-meeting","search","track","report","people","petitioner","budget"],"deniedApiGroups":["admin-users","admin-budget"],"allowWrites":true},"Admin":{"pages":["*"],"deniedApiGroups":[],"allowWrites":true}},"pageAliases":{"dash":"dashboard","personnel":"people","committee":"committee-meeting","committeemeeting":"committee-meeting","committee_meeting":"committee-meeting","tracking":"track"},"apiGroupMinimumRole":{"budget":"Staff","personnel":"Staff","petitioners":"Staff","admin-users":"Admin","admin-budget":"Admin","admin-diagnostics":"Admin","admin-release":"Admin","admin-go-live":"Admin","admin-maintenance-final":"Admin"},"deferredAssetMinimumRole":{"Scripts_Page_Dashboard":"Viewer","Runtime_01_Request_Lifecycle":"Viewer","Runtime_02_Date_Time":"Viewer","Runtime_03_Table_UI":"Viewer","Runtime_04_Thailand_Location":"Staff","Runtime_05_Status_Aging":"Viewer","Runtime_08_AI_Bridge":"Viewer","Scripts_Page_ReportTrack::reporttrack-common":"Viewer","Scripts_Page_Search":"Viewer","Scripts_Page_Report":"Viewer","Scripts_Page_Tracking":"Staff","Runtime_06_Print":"Viewer","Scripts_Page_Meeting::meeting-common":"Staff","Scripts_Page_Meeting::meeting":"Staff","Scripts_Page_Meeting::committee":"Staff","Scripts_Page_Petitioner":"Staff","Scripts_Page_People":"Staff","Scripts_Page_Budget":"Staff","Scripts_Page_Admin":"Admin"},"bundleMinimumRole":{"appCritical":"Viewer","appCore":"Viewer","runtimeDateTable":"Viewer","runtimeThailandLocation":"Staff","runtimeStatusAging":"Viewer","runtimeAiBridge":"Viewer","pageDashboard":"Viewer","pageMeeting":"Staff","pageCommitteeMeeting":"Staff","pageTrackReport":"Viewer","pagePetitioner":"Staff","pagePeople":"Staff","pageBudget":"Staff","pageAdmin":"Admin","pageAiPrint":"Viewer"}},"permissionMatrixStamp":"permission-matrix-p0-2026-07-30-r330"};
@@ -1419,7 +1451,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="mt-3 no-print app-table-footer d-none"id="meeting-pagination-container"aria-hidden="true"></div>
 </div>
 <div class="d-none"id="meeting-workspace">
-<div class="card border-0 shadow-sm mb-3 app-card"style="background:linear-gradient(135deg,#f8fafc 0%,#fff 100%);">
+<div class="card shadow-sm mb-3 app-card case-workspace-heading">
 <div class="card-body p-3">
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
 <div>
@@ -1470,6 +1502,7 @@ html[data-user-role="viewer"] #p-dash [data-dashboard-viewer-hidden="tracking"]{
 <div class="tab-content border border-top-0 rounded-bottom bg-white p-3 p-md-4 shadow-sm mb-4"id="meeting-tab-content">
 <div class="tab-pane fade show active"id="content-case-data"role="tabpanel">
 <h6 class="fw-bold text-navy mb-3"><i class="fas fa-edit me-2"></i>ข้อมูลเรื่องพิจารณา</h6>
+<div id="meeting-case-timeline" hidden></div>
 <div class="ai-card-track mb-3 no-print app-card"id="case-ai-section">
 <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
 <div class="d-flex gap-2 align-items-start">

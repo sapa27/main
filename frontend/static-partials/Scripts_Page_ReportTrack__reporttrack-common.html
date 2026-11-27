@@ -122,6 +122,7 @@
           },
         ],
         DETAIL_SECTIONS = [
+          ["timeline", "ไทม์ไลน์และจำนวนวัน"],
           ["case", "ข้อมูลเรื่องร้องเรียน"],
           ["petitioners", "ข้อมูลผู้เสนอญัตติ/ผู้ร้อง"],
           ["owners", "ผู้รับผิดชอบเรื่อง"],
@@ -4456,6 +4457,15 @@
         ]);
       var html = '<div class="case-detail">',
         summary = c.keySummary;
+      if (selected.timeline && root.AppCaseTimeline) {
+        var timelineRow = Object.assign({}, raw, c, {
+          recDate: caseCanonicalRecDateRaw(c) || caseCanonicalRecDateRaw(raw),
+          recNo: receiveNo(raw) || c.recNo
+        });
+        var model = root.AppCaseTimeline.build(timelineRow, bundle && bundle.history, bundle && bundle.letters);
+        var partial = !!(bundle && (bundle.degraded || bundle.partialRelatedData || bundle.relatedLoadOk === false));
+        html += root.AppCaseTimeline.render(model, true, partial, printLayout);
+      }
       if (printLayout && selected.case) {
         var originalSummary = caseSummaryValue(raw);
         if (originalSummary && clean(originalSummary) === clean(summary)) summary = originalSummary;
