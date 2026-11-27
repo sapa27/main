@@ -344,3 +344,168 @@
     }
 }(window);
 </script>
+<script id="app-case-timeline">
+(function (root) {
+    "use strict";
+    if (root.AppCaseTimeline) return;
+
+    var dayMs = 86400000;
+    var bangkokOffset = 7 * 3600000;
+    var dateFormat = new Intl.DateTimeFormat("th-TH-u-ca-buddhist", {
+        timeZone: "UTC", day: "numeric", month: "short", year: "numeric"
+    });
+    var numberFormat = new Intl.NumberFormat("th-TH");
+
+    function text(value) { return String(value == null ? "" : value).trim(); }
+
+    function pick(row, keys) {
+        for (var key of keys) {
+            var value = row && row[key];
+            if (text(value) && !/^(?:-|null|undefined)$/i.test(text(value))) return value;
+        }
+        return "";
+    }
+
+    function dateDay(value) {
+        if (Object.prototype.toString.call(value) === "[object Date]")
+            return Number.isFinite(value.getTime()) ? Math.floor((value.getTime() + bangkokOffset) / dayMs) : null;
+        if (typeof value === "number")
+            return value > 30000 && value < 70000 ? Math.floor(value) - 25569 : null;
+
+        var date = text(value).replace(/^'+/, "").replace(/[๐-๙]/g, function (digit) {
+            return String("๐๑๒๓๔๕๖๗๘๙".indexOf(digit));
+        });
+        if (!date || /^\d+$|^\d{1,6}\s*\/\s*\d{2,4}$/.test(date)) return null;
+        var canonical = root.AppCoreFormat;
+        var parsed = canonical && canonical.parseDate(date);
+        if (!parsed || !Number.isFinite(parsed.getTime()) || parsed.getFullYear() < 1900 || parsed.getFullYear() > 2300) return null;
+        // ISO instants use the Bangkok day. Date-only source cells keep their stated date.
+        if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(date)) {
+            var instant = Date.parse(date);
+            return Number.isFinite(instant) ? Math.floor((instant + bangkokOffset) / dayMs) : null;
+        }
+        return Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()) / dayMs;
+    }
+
+    function firstDate(row, keys) {
+        for (var key of keys) {
+            var day = dateDay(row && row[key]);
+            if (day !== null) return day;
+        }
+        return null;
+    }
+
+    function records(value) {
+        if (typeof value === "string") {
+            try { value = JSON.parse(value.replace(/^'+/, "")); }
+            catch (_) { return []; }
+        }
+        if (value && !Array.isArray(value)) value = value.rows || value.items || value.data;
+        return Array.isArray(value) ? value.filter(function (row) { return row && typeof row === "object"; }) : [];
+    }
+
+    function relatedRows(row, keys) {
+        for (var key of keys) {
+            var rows = records(row[key]);
+            if (rows.length) return rows;
+        }
+        return [];
+    }
+
+    function build(caseRow, meetings, letters, now) {
+        caseRow = caseRow || {};
+        var today = dateDay(now || new Date());
+        var received = firstDate(caseRow, ["recDateText", "receiveDateText", "recDate", "receiveDate", "receivedDate", "receiptDate", "วันที่รับเรื่อง", "วันที่ลงรับ"]);
+        var status = text(pick(caseRow, ["status", "caseStatus", "สถานะ"]));
+        var closed = /^(?:ยุติเรื่อง|ไม่รับเรื่อง|ปิดเรื่อง|เรื่องแล้วเสร็จ|เสร็จสิ้น|ดำเนินการแล้วเสร็จ)$/.test(status);
+        var end = !closed ? null : status === "ไม่รับเรื่อง"
+            ? firstDate(caseRow, ["rejectedDate", "rejectDate", "rejectedAt", "วันที่ไม่รับเรื่อง"])
+            : firstDate(caseRow, ["closedDate", "closeDate", "closedAt", "completedDate", "วันที่ยุติเรื่อง", "วันที่ปิดเรื่อง"]);
+        var events = [];
+        var seen = new Set();
+
+        function add(day, kind, title, detail) {
+            if (day === null) return;
+            var key = JSON.stringify([day, kind, title, detail]);
+            if (seen.has(key)) return;
+            seen.add(key);
+            events.push({ day: day, kind: kind, title: title, detail: detail, elapsed:
+                received !== null && day >= received && day <= today ? day - received : null });
+        }
+
+        add(received, "received", "รับเรื่อง", text(pick(caseRow, ["recNo", "receiveNo", "เลขรับเรื่อง"])));
+        records(meetings).forEach(function (row) {
+            var committee = text(pick(row, ["subcommitteeName", "subcommittee", "ชื่อคณะอนุกรรมาธิการ", "คณะอนุกรรมาธิการ"]));
+            var type = text(pick(row, ["committeeType", "meetingType", "meetingGroup", "ประเภทการประชุม"]));
+            var round = text(pick(row, ["round", "meetingRound", "meetingNo", "ครั้งที่", "การประชุมครั้งที่"]));
+            var name = committee ? "ประชุมคณะอนุกรรมาธิการ" : /อนุกรรมาธิการ/.test(type) ? "ประชุมคณะอนุกรรมาธิการ" : "ประชุมคณะกรรมาธิการ";
+            add(firstDate(row, ["meetingDate", "date", "dateRaw", "meeting_date", "วันที่ประชุม", "วันประชุม"]), "meeting",
+                name + (round ? " ครั้งที่ " + round : ""), committee);
+        });
+        records(letters).forEach(function (row) {
+            var letter = text(pick(row, ["letterNo", "bookNo", "เลขที่หนังสือ", "เลขหนังสือ"]));
+            var agency = text(pick(row, ["agency", "toAgency", "หน่วยงาน", "ถึงหน่วยงาน"]));
+            var descriptor = [letter, agency].filter(Boolean).join(" · ");
+            add(firstDate(row, ["letterDate", "sentDate", "sendDate", "date", "วันเดือนปี (ส่ง)"]), "letter", "ส่งหนังสือติดตามมติ", descriptor);
+
+            var replies = relatedRows(row, ["replies", "replyRows", "replyItems", "replyList", "repliesJSON", "repliesJson", "replyJSON", "replyJson", "ข้อมูลหนังสือตอบรับ"]);
+            if (!replies.length) replies = [{ replyDate: pick(row, ["replyDate", "receivedDate", "receiveDate", "วันที่รับ"]),
+                bookNo: pick(row, ["replyBookNo", "replyLetterNo", "replyNo", "เลขที่หนังสือตอบรับ"]) }];
+            replies.forEach(function (reply) {
+                var ref = text(pick(reply, ["bookNo", "letterNo", "replyNo", "เลขที่หนังสือตอบรับ"]));
+                add(firstDate(reply, ["date", "replyDate", "receivedDate", "receiveDate", "วันที่รับ"]), "reply", "ได้รับหนังสือตอบกลับ", ref || descriptor);
+            });
+
+            var extensions = relatedRows(row, ["extensions", "extensionRows", "extensionItems", "extendItems", "extensionList", "extensionsJSON", "extensionJSON", "กรณีขยายระยะเวลา"]);
+            if (!extensions.length) extensions = [{ date: pick(row, ["extensionLetterDate", "extensionDate", "วันเดือนปีขยายเวลา"]),
+                bookNo: pick(row, ["extensionBookNo", "extensionLetterNo", "เลขที่หนังสือขยายเวลา"]) }];
+            extensions.forEach(function (extension) {
+                var ref = text(pick(extension, ["bookNo", "letterNo", "extensionNo"]));
+                add(firstDate(extension, ["date", "letterDate", "extensionDate"]), "extension", "หนังสือขยายระยะเวลา", ref || descriptor);
+            });
+        });
+        add(end, "closed", status, "");
+        events.sort(function (a, b) { return a.day - b.day; });
+
+        var documented = events.filter(function (event) { return event.day <= today; });
+        var last = documented.length ? documented[documented.length - 1].day : null;
+        var target = closed ? (end !== null && end <= today ? end : last) : today;
+        return {
+            events: events, status: status, closed: closed, today: today,
+            total: received !== null && target !== null && target >= received ? target - received : null,
+            totalLabel: closed ? (target === end && end !== null ? "จากวันรับเรื่องถึงวันสิ้นสุด" : "จากวันรับเรื่องถึงเหตุการณ์ล่าสุด") : "จากวันรับเรื่องถึงวันนี้"
+        };
+    }
+
+    function escape(value) {
+        return text(value).replace(/[&<>"']/g, function (character) {
+            return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character];
+        });
+    }
+
+    function render(model, open, partial, print) {
+        var list = model.events.map(function (event) {
+            var date = new Date(event.day * dayMs);
+            return '<li class="case-timeline-event" data-kind="' + escape(event.kind) + '"><time datetime="' +
+                date.toISOString().slice(0, 10) + '">' + escape(dateFormat.format(date)) + '</time><div><strong>' +
+                escape(event.title) + '</strong>' + (event.detail ? '<div class="case-timeline-detail">' +
+                escape(event.detail) + '</div>' : '') + '</div>' +
+                (event.day > model.today ? '<span class="case-timeline-days">หลังวันนี้</span>' :
+                    event.elapsed === null ? '' : '<span class="case-timeline-days">' +
+                    numberFormat.format(event.elapsed) + ' วันหลังรับเรื่อง</span>') + '</li>';
+        }).join("");
+        var header = '<span class="case-timeline-heading">ไทม์ไลน์เรื่องพิจารณา</span><span class="case-timeline-metric"><strong>' +
+            (model.total === null ? '–' : numberFormat.format(model.total) + ' วัน') + '</strong><span>' +
+            escape(model.totalLabel) + '</span></span>';
+        var body = '<div class="case-timeline-body"><p class="case-timeline-note">นับวันตามปฏิทิน ไม่รวมวันรับเรื่อง' +
+            (partial ? ' · ข้อมูลการประชุมหรือหนังสืออาจยังโหลดไม่ครบ' : '') + '</p>' +
+            (list ? '<ol class="case-timeline-events">' + list + '</ol>' :
+                '<p class="case-timeline-note">ยังไม่มีเหตุการณ์ที่ระบุวันที่</p>') + '</div>';
+        if (print) return '<section class="case-timeline"><div class="case-timeline-summary">' + header + '</div>' + body + '</section>';
+        return '<details class="case-timeline"' + (open ? ' open' : '') +
+            '><summary class="case-timeline-summary">' + header + '</summary>' + body + '</details>';
+    }
+
+    root.AppCaseTimeline = Object.freeze({ build: build, render: render });
+})(window);
+</script>

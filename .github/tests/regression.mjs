@@ -2245,6 +2245,48 @@ await okAsync('Case PDF scans ordered short ranges and does not replay a 524',as
  assert.deepEqual(finals,[1]);
 });
 
+ok('Case timeline orders recorded events and counts Bangkok calendar days', () => {
+  const core = file('frontend/static-partials/Scripts_Core_Runtime.html');
+  const format = scripts(core).find(source => source.includes('function __E2_parseDate_2('));
+  const runtime = file('frontend/static-partials/Runtime_02_Date_Time.html');
+  const timeline = scripts(runtime).find(source => source.includes('root.AppCaseTimeline = Object.freeze'));
+  const root = { AppFormat: { pad2: value => String(value).padStart(2, '0') }, AppPageKit: { text: String } };
+  root.__appSingleOwnerNs = key => root[key] ?? (root[key] = {});
+  vm.runInNewContext(format, { window: root });
+  vm.runInNewContext(timeline, { window: root });
+  const now = new Date('2026-11-26T17:30:00Z');
+  const received = { recNo: 'ทดสอบ/2569', recDate: '๒๓/๑๑/๒๕๖๙', status: 'กมธ. พิจารณา' };
+  const meeting = { meetingDate: '26/11/2569', subcommitteeName: '<คณะทดสอบ>', round: '2' };
+  const letters = [{ letterDate: '2026-11-24', letterNo: 'ทดสอบ 1', dueDate: '2026-12-15',
+    extensionLetterDate: '25/11/2569', repliesJSON: '[{"date":"2026-11-26T18:05:00Z"}]' }];
+  const model = root.AppCaseTimeline.build(received, [meeting, meeting], letters, now);
+  assert.equal(model.total, 4);
+  assert.deepEqual(Array.from(model.events, event => [event.kind, event.elapsed]), [
+    ['received', 0], ['letter', 1], ['extension', 2], ['meeting', 3], ['reply', 4]
+  ]);
+  const html = root.AppCaseTimeline.render(model, true, true, false);
+  assert.match(html, /<details class="case-timeline" open>/);
+  assert.match(html, /&lt;คณะทดสอบ&gt;/);
+  assert.match(html, /ข้อมูลการประชุมหรือหนังสืออาจยังโหลดไม่ครบ/);
+  assert.doesNotMatch(root.AppCaseTimeline.render(model, true, false, true), /<details/);
+  const closed = root.AppCaseTimeline.build({ ...received, status: 'ยุติเรื่อง', closedDate: '26/11/2569' }, [], [], now);
+  assert.equal(closed.total, 3);
+  assert.equal(closed.totalLabel, 'จากวันรับเรื่องถึงวันสิ้นสุด');
+  assert.equal(closed.events.at(-1).kind, 'closed');
+  const closedWithoutDate = root.AppCaseTimeline.build({ ...received, status: 'ยุติเรื่อง', updatedAt: now }, [meeting], [], now);
+  assert.equal(closedWithoutDate.total, 3);
+  assert.equal(closedWithoutDate.totalLabel, 'จากวันรับเรื่องถึงเหตุการณ์ล่าสุด');
+  for (const recDate of ['31/02/2569', '12/2569', '2026-11-28', '']) {
+    const undated = root.AppCaseTimeline.build({ ...received, recDate }, [meeting], [], now);
+    assert.equal(undated.total, null);
+    assert.ok(undated.events.every(event => event.elapsed === null));
+  }
+  assert.match(index, /id="meeting-case-timeline" hidden/);
+  assert.match(meetingController, /timelineRequest === meetingTimelineReadSequence/);
+  const report = file('frontend/static-partials/Scripts_Page_ReportTrack__reporttrack-common.html');
+  assert.match(report, /if \(selected\.timeline && root\.AppCaseTimeline\)/);
+});
+
 console.log('# '+passed+' CR-7 regression groups passed');
 
 

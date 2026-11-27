@@ -5349,7 +5349,14 @@
         meetingReadyState.promise
       );
     }
+    var meetingTimelineReadSequence = 0;
     function Te(t) {
+      ++meetingTimelineReadSequence;
+      var timeline = meetingById("meeting-case-timeline");
+      if (timeline) {
+        timeline.hidden = true;
+        timeline.textContent = "";
+      }
       var n = meetingById("meeting-case-badge");
       if (n)
         if (t) {
@@ -5973,6 +5980,11 @@
         t = makeIdentity(Object.assign({}, savedRow || {}, input || {}));
       if (!(hasCaseIdentity(t) || t.letterId || t.letterNo))
         return (Me([]), qe([]), Promise.resolve(!1));
+      var timelineCaseNum = A(t),
+        timelineFormCase = A({ caseNum: T("meeting-caseNum") }) === timelineCaseNum ? {
+          recDate: P("meeting-recDate"), recNo: T("meeting-recNo"), status: T("meeting-status")
+        } : {},
+        timelineRequest = ++meetingTimelineReadSequence;
       var hardFresh =
         input.forceFresh === !0 ||
         input.forceRefresh === !0 ||
@@ -6050,14 +6062,17 @@
         if (!exists && sameSequenceRow(savedRow, A(t))) rows.unshift(savedRow);
         return strictRows(rows, A(t));
       }
+      var directReadFailed = false;
       function direct(payload) {
         payload = listPayload(payload || t);
         return Promise.all([
           callRows("apiGetMeetingHistory", payload).catch(function (err) {
+            directReadFailed = true;
             __appObserve(err, "meeting.history.reload.r330");
             return [];
           }),
           callRows("apiGetLetters", payload).catch(function (err) {
+            directReadFailed = true;
             __appObserve(err, "meeting.letters.reload.r330");
             return [];
           }),
@@ -6097,11 +6112,22 @@
       var historyBody=meetingById("meeting-history-tbody"),letterBody=meetingById("meeting-letter-tbody");
       historyBody&&!historyBody.children.length&&meetingSetHtml("meeting-history-tbody",'<tr><td colspan="5" class="text-center text-muted py-3">กำลังโหลดข้อมูล</td></tr>');
       letterBody&&!letterBody.children.length&&meetingSetHtml("meeting-letter-tbody",'<tr><td colspan="8" class="text-center text-muted py-3">กำลังโหลดข้อมูล</td></tr>');
-      function renderRelated(hist, letters, caseObj) {
+      function renderRelated(hist, letters, caseObj, partial) {
         hist = strictRows(hist || [], A(t));
         letters = strictRows(mergeSaved(letters || []), A(t));
         Me(hist);
         qe(letters);
+        var host = meetingById("meeting-case-timeline"), timeline = meetingRoot.AppCaseTimeline;
+        if (host && timeline && timelineRequest === meetingTimelineReadSequence && timelineCaseNum &&
+            timelineCaseNum === A({ caseNum: T("meeting-caseNum") })) {
+          var open = !!host.querySelector("details[open]");
+          var row = Object.assign({}, timelineFormCase, input, input.rawCase, caseObj);
+          row.recDate = row.recDate || timelineFormCase.recDate;
+          row.recNo = row.recNo || timelineFormCase.recNo;
+          row.status = row.status || timelineFormCase.status;
+          meetingSetHtml("meeting-case-timeline", timeline.render(timeline.build(row, hist, letters), open, partial));
+          host.hidden = false;
+        }
         return !!(
           (hist || []).length ||
           (letters || []).length ||
@@ -6112,7 +6138,7 @@
       }
       function renderDirectFallback() {
         return direct(t).then(function (rows) {
-          return renderRelated(rows[0] || [], rows[1] || [], t);
+          return renderRelated(rows[0] || [], rows[1] || [], t, directReadFailed);
         });
       }
       var bundleCacheRoot=meetingRoot.__APP_CASE_RELATED_BUNDLE_CACHE__||(meetingRoot.__APP_CASE_RELATED_BUNDLE_CACHE__={}),bundleCacheKey=A(t)||"";
@@ -6154,7 +6180,17 @@
             var payload=listPayload(t),jobs=[],recoveryFailed=!1;
             jobs[0]=missingHistory||partial?callRows("apiGetMeetingHistory",payload).catch(function(){recoveryFailed=!0;return hist}):Promise.resolve(hist);
             jobs[1]=missingLetters||partial?callRows("apiGetLetters",payload).catch(function(){recoveryFailed=!0;return letters}):Promise.resolve(letters);
-            return Promise.all(jobs).then(function(rows){var resolvedHist=rows[0]||hist,resolvedLetters=mergeSaved(rows[1]||letters),recoveredOk=!recoveryFailed;var merged={case:caseObj,history:resolvedHist,letters:resolvedLetters,relatedLoadOk:recoveredOk,partialRelatedData:!recoveredOk};bundleCacheKey&&(bundleCacheRoot[bundleCacheKey]={bundle:merged,__relatedComplete:recoveredOk,storedAt:Date.now?Date.now():0});return renderRelated(resolvedHist,resolvedLetters,caseObj)}).catch(function(){return renderRelated(hist,letters,caseObj)});
+            return Promise.all(jobs).then(function (rows) {
+              var resolvedHist = rows[0] || hist,
+                resolvedLetters = mergeSaved(rows[1] || letters),
+                recoveredOk = !recoveryFailed,
+                merged = { case: caseObj, history: resolvedHist, letters: resolvedLetters,
+                  relatedLoadOk: recoveredOk, partialRelatedData: recoveryFailed };
+              if (bundleCacheKey) bundleCacheRoot[bundleCacheKey] = {
+                bundle: merged, __relatedComplete: recoveredOk, storedAt: Date.now ? Date.now() : 0
+              };
+              return renderRelated(resolvedHist, resolvedLetters, caseObj, recoveryFailed);
+            }).catch(function () { return renderRelated(hist, letters, caseObj, true); });
           }
           bundleCacheKey&&(bundleCacheRoot[bundleCacheKey]={bundle:{case:caseObj,history:hist,letters:mergeSaved(letters),relatedLoadOk:authoritativeRelated,partialRelatedData:!authoritativeRelated},__relatedComplete:authoritativeRelated,storedAt:Date.now?Date.now():0});
           return renderRelated(hist, letters, caseObj);
